@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When using GitNexus MCP tools or exploring the codebase graph."
+---
+
 # GITNEXUS-INTEGRATION.MD - Thuần hóa GitNexus
 
 > **Mục tiêu**: Đảm bảo công cụ GitNexus khi (để lập đồ thị Code Intelligence) không sinh ra file hệ thống thừa (.claude/ hay CLAUDE.md) làm xung đột kiến trúc Antigravity.

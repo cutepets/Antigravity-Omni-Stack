@@ -1,3 +1,7 @@
+---
+description: gan-build
+---
+
 Parse the following from $ARGUMENTS:
 1. `brief` — the user's one-line description of what to build
 2. `--max-iterations N` — (optional, default 15) maximum generator-evaluator cycles

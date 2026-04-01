@@ -1,10 +1,8 @@
 ---
-paths:
-  - "**/*.ts"
-  - "**/*.tsx"
-  - "**/*.js"
-  - "**/*.jsx"
+trigger: glob
+glob: "**/*.{ts,tsx}"
 ---
+
 # TypeScript/JavaScript Security
 
 > This file extends [common/security.md](../common/security.md) with TypeScript/JavaScript specific content.

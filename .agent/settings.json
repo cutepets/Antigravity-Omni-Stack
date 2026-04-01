@@ -50,6 +50,11 @@
             "type": "command",
             "command": "node .agent/hooks/gsd-prompt-guard.js",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "node .agent/hooks/gsd-workflow-guard.js",
+            "timeout": 5
           }
         ]
       }

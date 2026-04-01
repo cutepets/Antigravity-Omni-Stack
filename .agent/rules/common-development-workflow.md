@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When iterating on a feature, checking out branches, or preparing for PR."
+---
+
 # Development Workflow
 
 > This file extends [common/git-workflow.md](./git-workflow.md) with the full feature development process that happens before git operations.

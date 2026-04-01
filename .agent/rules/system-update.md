@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When updating project configurations, scripts, or systemic tooling."
+---
+
 # SYSTEM-UPDATE.MD - Version Control Protocol
 
 > **Mục tiêu**: Đảm bảo tính nhất quán tuyệt đối về phiên bản trên toàn bộ hệ thống.

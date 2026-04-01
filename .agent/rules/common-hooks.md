@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When setting up github actions, pre-commit hooks, or linting automation."
+---
+
 # Hooks System
 
 ## Hook Types

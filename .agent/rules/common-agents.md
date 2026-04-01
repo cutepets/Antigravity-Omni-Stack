@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When coordinating multi-agent workflows or assigning responsibilities."
+---
+
 # Agent Orchestration
 
 ## Available Agents

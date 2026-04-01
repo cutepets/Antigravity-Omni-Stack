@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When writing unit tests, mocking, or implementing TDD."
+---
+
 # Testing Requirements
 
 ## Minimum Test Coverage: 80%

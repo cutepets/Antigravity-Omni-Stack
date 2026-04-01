@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // gsd-hook-version: 1.30.0
 // GSD Prompt Injection Guard — PreToolUse hook
-// Scans file content being written to .planning/ for prompt injection patterns.
+// Scans file content being written to .agent/ and .gemini/ for prompt injection patterns.
 // Defense-in-depth: catches injected instructions before they enter agent context.
 //
-// Triggers on: Write and Edit tool calls targeting .planning/ files
+// Triggers on: Write and Edit tool calls targeting .agent/ and .gemini/ files
 // Action: Advisory warning (does not block) — logs detection for awareness
 //
 // Why advisory-only: Blocking would prevent legitimate workflow operations.
@@ -48,8 +48,8 @@ process.stdin.on('end', () => {
 
     const filePath = data.tool_input?.file_path || '';
 
-    // Only scan files going into .planning/ (agent context files)
-    if (!filePath.includes('.planning/') && !filePath.includes('.planning\\')) {
+    // Only scan files going into .agent/ and .gemini/ (agent context files)
+    if ((!filePath.includes('.agent/') && !filePath.includes('.agent\\') && !filePath.includes('.gemini/') && !filePath.includes('.gemini\\'))) {
       process.exit(0);
     }
 

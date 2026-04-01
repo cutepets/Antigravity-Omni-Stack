@@ -1,6 +1,6 @@
 ---
 trigger: glob
-glob: "**/*.{js,jsx,ts,tsx,css,scss,html,vue,svelte,dart,swift,kt,xml}"
+glob: "**/*.{ts,tsx,js,jsx,css,scss,html,vue,svelte}"
 ---
 
 # FRONTEND.MD - Client-Side Mastery

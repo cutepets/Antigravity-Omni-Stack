@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When performing general security audits or reviewing IAM."
+---
+
 # Security Guidelines
 
 ## Mandatory Security Checks

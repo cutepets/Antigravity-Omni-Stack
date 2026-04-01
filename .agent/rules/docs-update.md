@@ -1,5 +1,6 @@
 ---
-trigger: always_on
+trigger: model_decision
+description: "When generating, updating, or fixing documentation, READMEs, or specs."
 ---
 
 # DOCS-UPDATE.MD - Documentation Sync Protocol

@@ -26,7 +26,7 @@ Tệp này kiểm soát hành vi cốt lõi của **Antigravity AI Agent**.
 1. **Giao tiếp & Suy luận**: Bắt buộc sử dụng **TIẾNG VIỆT** để trao đổi với End-User.
 2. **Tài liệu Kế hoạch (Plan, Task, Walkthrough, ERRORS.md)**: Viết bằng **TIẾNG VIỆT**.
 3. **Mã nguồn (Code)**: Thuần Tiếng Anh 100% (Tên biến, file, comment, log hệ thống).
-4. **Stop & Wait Protocol (Nhả phiên)**: Khi đưa ra Phương án (Plan) hoặc xin chỉ đạo, bắt buộc kết thúc phản hồi bằng văn bản bình thường để người dùng tự gõ chữ (Text) ra lệnh. Tuyệt đối KHÔNG sử dụng `RequestFeedback=true` (Review Artifact) để tránh ép người dùng bấm nút Approve/Reject.
+4. **Stop & Wait Protocol (Nhả phiên)**: Khi đưa ra Phương án (Plan) hoặc xin chỉ đạo có nhiều phương án hoặc cần lệnh cụ thể, bắt buộc kết thúc phản hồi bằng văn bản bình thường để người dùng tự gõ chữ (Text) ra lệnh. Tuyệt đối KHÔNG sử dụng `RequestFeedback=true` (Review Artifact) để tránh ép người dùng bấm nút Approve/Reject.
 
 ## Nhân sự & Đặc vụ Trí Tuệ Nhân Tạo (Specialized Agents)
 

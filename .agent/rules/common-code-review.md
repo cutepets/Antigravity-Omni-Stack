@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When performing code reviews or acting as a code-reviewer."
+---
+
 # Code Review Standards
 
 ## Purpose

@@ -1,8 +1,8 @@
 ---
-paths:
-  - "**/*.py"
-  - "**/*.pyi"
+trigger: glob
+glob: "**/*.py"
 ---
+
 # Python Patterns
 
 > This file extends [common/patterns.md](../common/patterns.md) with Python specific content.

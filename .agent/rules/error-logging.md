@@ -1,5 +1,6 @@
 ---
-trigger: always_on
+trigger: model_decision
+description: "When encountering errors, reporting bugs, or analyzing test failures."
 ---
 
 # ERROR-LOGGING.MD - Automatic Error Tracking & Learning

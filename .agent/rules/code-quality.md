@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When writing production code, refactoring, or ensuring code quality."
+---
+
 # CODE-QUALITY.MD - Engineering Excellence
 
 > **Mục tiêu**: Đảm bảo mã nguồn luôn đạt chất lượng "Production-Grade" ngay từ dòng code đầu tiên.

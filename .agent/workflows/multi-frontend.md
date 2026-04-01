@@ -1,3 +1,7 @@
+---
+description: Frontend - Frontend-Focused Development
+---
+
 # Frontend - Frontend-Focused Development
 
 Frontend-focused workflow (Research → Ideation → Plan → Execute → Optimize → Review), Gemini-led.

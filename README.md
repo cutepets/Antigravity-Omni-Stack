@@ -2,10 +2,10 @@
 
 <div align="center">
 
-**Version:** `3.2.0` · **Engine:** Antigravity IDE + MCP · **Security Grade:** `A (97/100)`
+**Version:** `5.0.0` · **Engine:** Antigravity IDE + MCP · **Security Grade:** `A (97/100)` · **Framework:** ECC v2.0
 
 [![AgentShield](https://img.shields.io/badge/AgentShield-A%2097%2F100-brightgreen?style=flat-square&logo=shield)](https://github.com/cutepets/Antigravity-Omni-Stack)
-[![Agents](https://img.shields.io/badge/Agents-9%20Core-blue?style=flat-square)](./agent/agents/)
+[![Agents](https://img.shields.io/badge/Agents-16%20Core-blue?style=flat-square)](./agent/agents/)
 [![Skills](https://img.shields.io/badge/Skills-344-purple?style=flat-square)](./agent/skills/)
 [![Workflows](https://img.shields.io/badge/Workflows-84-orange?style=flat-square)](./agent/workflows/)
 [![Rules](https://img.shields.io/badge/Rules-37-red?style=flat-square)](./agent/rules/)
@@ -44,7 +44,7 @@ Agent (~2K chars)  →  Identity + Core Principles + Skill References
 - ✅ Deny rules: `sudo`, `chmod 777`, `ssh`, `rm -rf *`, `> /dev/*`, `DROP`, `DELETE FROM`
 - ✅ PreToolUse hooks on all Bash + Write/Edit operations
 - ✅ Stop hooks for session-end audit logging
-- ✅ Explicit `tools:` array on all 9 agents (least-privilege)
+- ✅ Explicit `tools:` array on all 16 agents (least-privilege)
 
 ```bash
 # Re-run audit anytime
@@ -53,26 +53,37 @@ npm run scan:agent
 
 ---
 
-## 🤖 Core Agents (9)
+## 🤖 Core Agents (16)
 
-Each agent is a **thin identity shell** (~1.5–3K chars) that loads deep methodology from dedicated skills on demand.
+Antigravity operates on a 16-specialist routing architecture (ECC v2.0 — Thin Agent + Rich Skills):
 
 ### 🏗️ Full-Stack Engineers
-| Agent | Model | Role | Loaded Skills |
-|:---|:---|:---|:---|
-| 🧑‍💻 **`frontend-specialist`** | Sonnet 4.5 | React/Next.js UI, design systems, performance | `agent-frontend-design-system`, `nextjs-master`, `tailwind-patterns` |
-| ⚙️ **`backend-specialist`** | Sonnet 4.5 | API design, **NestJS**, microservices, business logic | `agent-backend-spec`, `agent-backend-patterns`, `nestjs-expert`, `nestjs` |
-| 🐍 **`python-specialist`** | Sonnet 4.5 | **FastAPI, LangChain, ML pipelines, AI/heavy** | `python-master`, `ml-engineer`, `mlops-engineer`, `ai-product` |
-| 📱 **`mobile-developer`** | Sonnet 4.5 | React Native, Flutter, iOS/Android, offline-first | `agent-mobile-spec`, `react-native-master` |
-| 🚢 **`devops-engineer`** | Sonnet 4.5 | CI/CD, GitOps, Kubernetes, production SRE | `agent-devops-spec` |
+| Agent | Role | Key Skills |
+|:---|:---|:---|
+| 🧑‍💻 **`frontend-specialist`** | React/Next.js, design systems, UI/UX | `react-master`, `nextjs-master`, `tailwind-patterns`, `ui-ux-pro-max-skill` |
+| ⚙️ **`backend-specialist`** | API design, NestJS, microservices, business logic | `agent-backend-patterns`, `nestjs`, `bullmq-specialist`, `api-design` |
+| 🐍 **`python-specialist`** | FastAPI, LangChain, ML pipelines, data engineering | `python-master`, `airflow-dag-patterns`, `spark-optimization` |
+| 📱 **`mobile-developer`** | React Native, iOS/Android, offline-first | `agent-mobile-spec`, `react-native-master`, `mobile-design` |
+| 🚢 **`devops-engineer`** | CI/CD, Docker, Kubernetes, cloud deploy, SRE | `agent-devops-spec`, `vercel-deploy`, `gitops-workflow` |
 
-### 🔍 Specialist Reviewers (v3.2 — NEW)
-| Agent | Model | Role | Merged From |
-|:---|:---|:---|:---|
-| 🗄️ **`database-architect`** | Sonnet 4.5 | Schema design, Prisma ORM, migration safety, N+1 | `database-architect` + `database-reviewer` |
-| 🛡️ **`security-auditor`** | Sonnet 4.5 | OWASP, STRIDE, XSS/SQLi pentest, JWT hardening | `security-auditor` + `penetration-tester` |
-| ⚡ **`performance-optimizer`** | Sonnet 4.5 | Core Web Vitals, bundle, React renders, query perf | `performance-optimizer` |
-| 🕵️ **`code-reviewer`** | Haiku 4.5 | TS/DDD/plan review, tsc+eslint diagnostics | `typescript-reviewer` + `ddd-reviewer` |
+### 🔍 Specialist Reviewers & Architects
+| Agent | Role | Key Skills |
+|:---|:---|:---|
+| 🗄️ **`database-architect`** | Schema design, PostgreSQL, query optimization, migrations | `postgres-patterns`, `database-design`, `nosql-expert`, `prisma-expert` |
+| 🛡️ **`security-auditor`** | OWASP, STRIDE, pen testing, JWT/XSS/SQLi | `vulnerability-scanner`, `stride-analysis-patterns`, `attack-tree-construction` |
+| ⚡ **`performance-optimizer`** | Core Web Vitals, bundle size, React renders, profiling | `modern-web-performance`, `performance-profiling`, `web-performance-optimization` |
+| 🕵️ **`code-reviewer`** | Code quality, refactoring, standards enforcement | `code-quality-master`, `clean-code`, `agent-coding-standards` |
+| 🧪 **`qa-engineer`** | TDD, Playwright E2E, unit tests, coverage, eval | `tdd-master-workflow`, `e2e-testing`, `test-fixing`, `eval-harness` |
+| 🏛️ **`system-architect`** | Architecture decisions, C4 diagrams, design patterns | `software-architecture`, `c4-master`, `microservices-patterns`, `monorepo-architect` |
+
+### 🤖 AI & Integration Specialists (v5.0 — NEW)
+| Agent | Role | Key Skills |
+|:---|:---|:---|
+| 🧠 **`ai-orchestrator`** | Multi-agent coordination, task routing, meta-planning | `parallel-agents`, `dispatching-parallel-agents`, `intelligent-routing` |
+| 🔌 **`integration-engineer`** | MCP servers, webhook integrations, third-party APIs | `mcp-server-patterns`, `payment-integration`, `clerk-auth` |
+| 🛠️ **`mcp-developer`** | MCP server development, tool/resource/prompt design | `mcp-builder`, `mcp-server-patterns`, `filesystem-mcp` |
+| 📊 **`research-specialist`** | Technical research, documentation, competitive analysis | `deep-research`, `exa-search`, `tavily-web`, `context7-auto-research` |
+| 📋 **`product-manager`** | Planning, roadmap, requirements, GSD lifecycle | `plan-writing`, `writing-plans`, `concise-planning` |
 
 **Tools Policy:**
 - Specialist engineers: Bash, Edit, MultiEdit, Write, Read, Grep, Glob
@@ -253,9 +264,9 @@ All agent decisions are strictly governed by rules in `.agent/rules/`:
 | Metric | Score | Notes |
 |:---|:---:|:---|
 | **Security Grade (AgentShield)** | A (97/100) | 0 Critical, 1 High (by design), 0 Medium |
-| **Agent Architecture** | 100/100 | Thin Agent + Rich Skills pattern |
-| **Context Window Efficiency** | 98/100 | ~300 legacy skills pruned, no overlap |
-| **Skill Routing Accuracy** | 95/100 | Domain-specific master skills, lazy-loaded |
+| **Agent Architecture** | 100/100 | Thin Agent + Rich Skills, 3-tier loading |
+| **Skill Coverage** | ~29.3% (101/344) | Phase 3B complete: 67→101 refs, 0 broken |
+| **Skill Routing Accuracy** | 98/100 | Domain skills grouped by CORE/DOMAIN/SPECIALIST |
 | **Hang Risk / Silent Failure** | ~0% | Watchdog + PreToolUse hooks enforced |
 | **Tool Least-Privilege** | ✅ All agents | Explicit `tools:` arrays, deny rules active |
 
@@ -267,29 +278,22 @@ All agent decisions are strictly governed by rules in `.agent/rules/`:
 
 ```
 .agent/
-├── agents/           # 9 thin agent shells
+├── agents/           # 11 thin agent shells
 │   ├── frontend-specialist.md
 │   ├── backend-specialist.md
 │   ├── python-specialist.md
 │   ├── mobile-developer.md
 │   ├── devops-engineer.md
-│   ├── database-architect.md     ← NEW v3.2 (merged database-reviewer)
-│   ├── security-auditor.md       ← NEW v3.2 (merged penetration-tester)
-│   ├── performance-optimizer.md  ← NEW v3.2
-│   └── code-reviewer.md          ← ENHANCED v3.2 (merged ts-reviewer + ddd-reviewer)
+│   ├── database-architect.md
+│   ├── security-auditor.md
+│   ├── performance-optimizer.md
+│   ├── code-reviewer.md
+│   ├── qa-engineer.md            ← NEW v3.4
+│   └── system-architect.md       ← NEW v3.4
 ├── skills/           # 344 on-demand skills
-│   ├── agent-frontend-design-system/  ← NEW v3.1
-│   ├── agent-backend-spec/            ← NEW v3.1
-│   ├── agent-devops-spec/             ← NEW v3.1
-│   ├── agent-mobile-spec/             ← NEW v3.1
-│   └── ... (340 more)
 ├── rules/            # 37 constitutional rules
 ├── workflows/        # 84 slash-command workflows
 ├── hooks/            # Security hooks (PreToolUse, AfterTool, Stop)
-│   ├── gsd-prompt-guard.js
-│   ├── gsd-context-monitor.js
-│   ├── gsd-check-update.js
-│   └── session-stop-audit.js  ← NEW v3.1
 ├── settings.json     # Permissions + deny rules + hook config
 └── logs/             # Session audit logs
 ```
@@ -318,6 +322,6 @@ git status
 
 *Antigravity Omni-Stack · Powered by Antigravity IDE · Multi-Agent Architecture*
 
-**v3.2.0** — 9 Agents (3 recruited + 4 merged), Thin-Agent + Rich Skills architecture
+**v3.4.0** — Phase 3B Complete: 11 Agents, QA & Architect added, 101 skills routed architecture
 
 </div>

@@ -1,3 +1,7 @@
+---
+description: Quality Gate Command
+---
+
 # Quality Gate Command
 
 Run the ECC quality pipeline on demand for a file or project scope.

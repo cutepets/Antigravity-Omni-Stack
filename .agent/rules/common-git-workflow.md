@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When using git commands, smart commits, or rebasing."
+---
+
 # Git Workflow
 
 ## Commit Message Format

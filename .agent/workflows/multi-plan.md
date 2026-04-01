@@ -1,3 +1,7 @@
+---
+description: Plan - Multi-Model Collaborative Planning
+---
+
 # Plan - Multi-Model Collaborative Planning
 
 Multi-model collaborative planning - Context retrieval + Dual-model analysis → Generate step-by-step implementation plan.

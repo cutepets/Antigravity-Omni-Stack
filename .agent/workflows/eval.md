@@ -1,3 +1,7 @@
+---
+description: Eval Command
+---
+
 # Eval Command
 
 Manage eval-driven development workflow.

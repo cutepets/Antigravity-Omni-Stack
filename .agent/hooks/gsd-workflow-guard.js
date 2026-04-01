@@ -5,11 +5,11 @@
 // (no active /gsd: command or Task subagent) and injects an advisory warning.
 //
 // This is a SOFT guard — it advises, not blocks. The edit still proceeds.
-// The warning nudges Claude to use /gsd:quick or /gsd:fast instead of
+// The warning nudges Claude to use /plan or /aside instead of
 // making direct edits that bypass state tracking.
 //
 // Enable via config: hooks.workflow_guard: true (default: false)
-// Only triggers on Write/Edit tool calls to non-.planning/ files.
+// Only triggers on Write/Edit tool calls to non-.agent/.gemini/ files.
 
 const fs = require('fs');
 const path = require('path');
@@ -39,8 +39,8 @@ process.stdin.on('end', () => {
     // Check the file being edited
     const filePath = data.tool_input?.file_path || data.tool_input?.path || '';
 
-    // Allow edits to .planning/ files (GSD state management)
-    if (filePath.includes('.planning/') || filePath.includes('.planning\\')) {
+    // Allow edits to .agent/.gemini/ files (GSD state management)
+    if ((filePath.includes('.agent/') || filePath.includes('.agent\\') || filePath.includes('.gemini/') || filePath.includes('.gemini\\'))) {
       process.exit(0);
     }
 
@@ -59,7 +59,7 @@ process.stdin.on('end', () => {
 
     // Check if workflow guard is enabled
     const cwd = data.cwd || process.cwd();
-    const configPath = path.join(cwd, '.planning', 'config.json');
+    const configPath = path.join(cwd, '.agent', 'settings.json');
     if (fs.existsSync(configPath)) {
       try {
         const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -73,14 +73,14 @@ process.stdin.on('end', () => {
       process.exit(0); // No GSD project — don't guard
     }
 
-    // If we get here: GSD project, guard enabled, file edit outside .planning/,
+    // If we get here: GSD project, guard enabled, file edit outside .agent/.gemini/,
     // not in a subagent context. Inject advisory warning.
     const output = {
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         additionalContext: `⚠️ WORKFLOW ADVISORY: You're editing ${path.basename(filePath)} directly without a GSD command. ` +
           'This edit will not be tracked in STATE.md or produce a SUMMARY.md. ' +
-          'Consider using /gsd:fast for trivial fixes or /gsd:quick for larger changes ' +
+          'Consider using /aside for trivial fixes or /plan for larger changes ' +
           'to maintain project state tracking. ' +
           'If this is intentional (e.g., user explicitly asked for a direct edit), proceed normally.'
       }

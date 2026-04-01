@@ -1,10 +1,8 @@
 ---
-paths:
-  - "**/*.ts"
-  - "**/*.tsx"
-  - "**/*.js"
-  - "**/*.jsx"
+trigger: glob
+glob: "**/*.{ts,tsx}"
 ---
+
 # TypeScript/JavaScript Patterns
 
 > This file extends [common/patterns.md](../common/patterns.md) with TypeScript/JavaScript specific content.

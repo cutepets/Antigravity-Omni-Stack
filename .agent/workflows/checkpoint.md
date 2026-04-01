@@ -1,3 +1,7 @@
+---
+description: Checkpoint Command
+---
+
 # Checkpoint Command
 
 Create or verify a checkpoint in your workflow.

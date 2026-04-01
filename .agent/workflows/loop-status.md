@@ -1,3 +1,7 @@
+---
+description: Loop Status Command
+---
+
 # Loop Status Command
 
 Inspect active loop state, progress, and failure signals.

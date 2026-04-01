@@ -1,6 +1,6 @@
 ---
 trigger: glob
-glob: "**/*.{tf,yaml,yml,json,properties,dockerfile}"
+glob: "**/*.{md,txt}"
 ---
 
 # COMPLIANCE.MD - Enterprise Regulatory Standards

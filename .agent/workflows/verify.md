@@ -1,3 +1,7 @@
+---
+description: Verification Command
+---
+
 # Verification Command
 
 Run comprehensive verification on current codebase state.

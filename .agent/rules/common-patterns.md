@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When asked about architectural patterns, clean architecture, or design patterns."
+---
+
 # Common Patterns
 
 ## Skeleton Projects

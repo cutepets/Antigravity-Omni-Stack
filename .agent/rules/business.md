@@ -1,6 +1,6 @@
 ---
 trigger: glob
-glob: "**/*.{py,js,ts,go,rs,sql,php,java}"
+glob: "**/*.{md,txt,csv,json}"
 ---
 
 # BUSINESS.MD - Business Logic & Domain Standards

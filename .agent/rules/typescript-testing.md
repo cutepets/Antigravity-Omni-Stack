@@ -1,10 +1,8 @@
 ---
-paths:
-  - "**/*.ts"
-  - "**/*.tsx"
-  - "**/*.js"
-  - "**/*.jsx"
+trigger: glob
+glob: "**/*.{ts,tsx}"
 ---
+
 # TypeScript/JavaScript Testing
 
 > This file extends [common/testing.md](../common/testing.md) with TypeScript/JavaScript specific content.

@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When optimizing code performance, profiling, or reducing bundle size."
+---
+
 # Performance Optimization
 
 ## Model Selection Strategy

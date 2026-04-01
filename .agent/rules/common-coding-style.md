@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "When asked about coding standards, formatting, or naming conventions."
+---
+
 # Coding Style
 
 ## Immutability (CRITICAL)

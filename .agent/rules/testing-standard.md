@@ -1,6 +1,6 @@
 ---
 trigger: glob
-glob: "**/*.{test,spec}.{js,ts,jsx,tsx,py,rs,go,java}"
+glob: "**/*.{spec,test}.{js,ts,py,go}"
 ---
 
 # TESTING-STANDARD.MD - Quality Assurance Protocol
