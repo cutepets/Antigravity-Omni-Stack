@@ -1,0 +1,3721 @@
+{
+  "schemaVersion": "ecc.install.v1",
+  "installedAt": "2026-04-01T07:21:50.006Z",
+  "target": {
+    "id": "antigravity-project",
+    "target": "antigravity",
+    "kind": "project",
+    "root": "C:\\Dev2\\.agent",
+    "installStatePath": "C:\\Dev2\\.agent\\ecc-install-state.json"
+  },
+  "request": {
+    "profile": "full",
+    "modules": [],
+    "includeComponents": [],
+    "excludeComponents": [],
+    "legacyLanguages": [],
+    "legacyMode": false
+  },
+  "resolution": {
+    "selectedModules": [
+      "rules-core",
+      "agents-core",
+      "commands-core",
+      "platform-configs",
+      "framework-language",
+      "database",
+      "workflow-quality",
+      "security",
+      "research-apis",
+      "business-content",
+      "social-distribution",
+      "swift-apple",
+      "agentic-patterns",
+      "devops-infra",
+      "supply-chain-domain",
+      "document-processing"
+    ],
+    "skippedModules": [
+      "hooks-runtime",
+      "media-generation",
+      "orchestration"
+    ]
+  },
+  "source": {
+    "repoVersion": "1.9.0",
+    "repoCommit": "43ac81f1ac73bec65040f0b29137b5b11cdd56de",
+    "manifestVersion": 1
+  },
+  "operations": [
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\common\\agents.md",
+      "sourceRelativePath": "rules/common/agents.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\common-agents.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\common\\code-review.md",
+      "sourceRelativePath": "rules/common/code-review.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\common-code-review.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\common\\coding-style.md",
+      "sourceRelativePath": "rules/common/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\common-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\common\\development-workflow.md",
+      "sourceRelativePath": "rules/common/development-workflow.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\common-development-workflow.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\common\\git-workflow.md",
+      "sourceRelativePath": "rules/common/git-workflow.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\common-git-workflow.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\common\\hooks.md",
+      "sourceRelativePath": "rules/common/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\common-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\common\\patterns.md",
+      "sourceRelativePath": "rules/common/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\common-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\common\\performance.md",
+      "sourceRelativePath": "rules/common/performance.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\common-performance.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\common\\security.md",
+      "sourceRelativePath": "rules/common/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\common-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\common\\testing.md",
+      "sourceRelativePath": "rules/common/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\common-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\cpp\\coding-style.md",
+      "sourceRelativePath": "rules/cpp/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\cpp-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\cpp\\hooks.md",
+      "sourceRelativePath": "rules/cpp/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\cpp-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\cpp\\patterns.md",
+      "sourceRelativePath": "rules/cpp/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\cpp-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\cpp\\security.md",
+      "sourceRelativePath": "rules/cpp/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\cpp-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\cpp\\testing.md",
+      "sourceRelativePath": "rules/cpp/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\cpp-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\csharp\\coding-style.md",
+      "sourceRelativePath": "rules/csharp/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\csharp-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\csharp\\hooks.md",
+      "sourceRelativePath": "rules/csharp/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\csharp-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\csharp\\patterns.md",
+      "sourceRelativePath": "rules/csharp/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\csharp-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\csharp\\security.md",
+      "sourceRelativePath": "rules/csharp/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\csharp-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\csharp\\testing.md",
+      "sourceRelativePath": "rules/csharp/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\csharp-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\golang\\coding-style.md",
+      "sourceRelativePath": "rules/golang/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\golang-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\golang\\hooks.md",
+      "sourceRelativePath": "rules/golang/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\golang-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\golang\\patterns.md",
+      "sourceRelativePath": "rules/golang/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\golang-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\golang\\security.md",
+      "sourceRelativePath": "rules/golang/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\golang-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\golang\\testing.md",
+      "sourceRelativePath": "rules/golang/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\golang-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\java\\coding-style.md",
+      "sourceRelativePath": "rules/java/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\java-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\java\\hooks.md",
+      "sourceRelativePath": "rules/java/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\java-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\java\\patterns.md",
+      "sourceRelativePath": "rules/java/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\java-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\java\\security.md",
+      "sourceRelativePath": "rules/java/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\java-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\java\\testing.md",
+      "sourceRelativePath": "rules/java/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\java-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\kotlin\\coding-style.md",
+      "sourceRelativePath": "rules/kotlin/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\kotlin-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\kotlin\\hooks.md",
+      "sourceRelativePath": "rules/kotlin/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\kotlin-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\kotlin\\patterns.md",
+      "sourceRelativePath": "rules/kotlin/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\kotlin-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\kotlin\\security.md",
+      "sourceRelativePath": "rules/kotlin/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\kotlin-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\kotlin\\testing.md",
+      "sourceRelativePath": "rules/kotlin/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\kotlin-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\perl\\coding-style.md",
+      "sourceRelativePath": "rules/perl/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\perl-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\perl\\hooks.md",
+      "sourceRelativePath": "rules/perl/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\perl-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\perl\\patterns.md",
+      "sourceRelativePath": "rules/perl/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\perl-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\perl\\security.md",
+      "sourceRelativePath": "rules/perl/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\perl-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\perl\\testing.md",
+      "sourceRelativePath": "rules/perl/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\perl-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\php\\coding-style.md",
+      "sourceRelativePath": "rules/php/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\php-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\php\\hooks.md",
+      "sourceRelativePath": "rules/php/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\php-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\php\\patterns.md",
+      "sourceRelativePath": "rules/php/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\php-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\php\\security.md",
+      "sourceRelativePath": "rules/php/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\php-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\php\\testing.md",
+      "sourceRelativePath": "rules/php/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\php-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\python\\coding-style.md",
+      "sourceRelativePath": "rules/python/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\python-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\python\\hooks.md",
+      "sourceRelativePath": "rules/python/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\python-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\python\\patterns.md",
+      "sourceRelativePath": "rules/python/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\python-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\python\\security.md",
+      "sourceRelativePath": "rules/python/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\python-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\python\\testing.md",
+      "sourceRelativePath": "rules/python/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\python-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\README.md",
+      "sourceRelativePath": "rules/README.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\README.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\rust\\coding-style.md",
+      "sourceRelativePath": "rules/rust/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\rust-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\rust\\hooks.md",
+      "sourceRelativePath": "rules/rust/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\rust-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\rust\\patterns.md",
+      "sourceRelativePath": "rules/rust/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\rust-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\rust\\security.md",
+      "sourceRelativePath": "rules/rust/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\rust-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\rust\\testing.md",
+      "sourceRelativePath": "rules/rust/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\rust-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\swift\\coding-style.md",
+      "sourceRelativePath": "rules/swift/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\swift-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\swift\\hooks.md",
+      "sourceRelativePath": "rules/swift/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\swift-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\swift\\patterns.md",
+      "sourceRelativePath": "rules/swift/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\swift-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\swift\\security.md",
+      "sourceRelativePath": "rules/swift/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\swift-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\swift\\testing.md",
+      "sourceRelativePath": "rules/swift/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\swift-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\typescript\\coding-style.md",
+      "sourceRelativePath": "rules/typescript/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\typescript-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\typescript\\hooks.md",
+      "sourceRelativePath": "rules/typescript/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\typescript-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\typescript\\patterns.md",
+      "sourceRelativePath": "rules/typescript/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\typescript-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\typescript\\security.md",
+      "sourceRelativePath": "rules/typescript/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\typescript-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\typescript\\testing.md",
+      "sourceRelativePath": "rules/typescript/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\typescript-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\agents.md",
+      "sourceRelativePath": "rules/zh/agents.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-agents.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\code-review.md",
+      "sourceRelativePath": "rules/zh/code-review.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-code-review.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\coding-style.md",
+      "sourceRelativePath": "rules/zh/coding-style.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-coding-style.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\development-workflow.md",
+      "sourceRelativePath": "rules/zh/development-workflow.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-development-workflow.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\git-workflow.md",
+      "sourceRelativePath": "rules/zh/git-workflow.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-git-workflow.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\hooks.md",
+      "sourceRelativePath": "rules/zh/hooks.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-hooks.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\patterns.md",
+      "sourceRelativePath": "rules/zh/patterns.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-patterns.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\performance.md",
+      "sourceRelativePath": "rules/zh/performance.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-performance.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\README.md",
+      "sourceRelativePath": "rules/zh/README.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-README.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\security.md",
+      "sourceRelativePath": "rules/zh/security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-security.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "rules-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\rules\\zh\\testing.md",
+      "sourceRelativePath": "rules/zh/testing.md",
+      "destinationPath": "C:\\Dev2\\.agent\\rules\\zh-testing.md",
+      "strategy": "flatten-copy",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\plugins\\marketplace.json",
+      "sourceRelativePath": ".agents\\plugins\\marketplace.json",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\plugins\\marketplace.json",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\api-design\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\api-design\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\api-design\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\api-design\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\api-design\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\api-design\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\article-writing\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\article-writing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\article-writing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\article-writing\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\article-writing\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\article-writing\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\backend-patterns\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\backend-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\backend-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\backend-patterns\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\backend-patterns\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\backend-patterns\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\bun-runtime\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\bun-runtime\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\bun-runtime\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\bun-runtime\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\bun-runtime\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\bun-runtime\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\claude-api\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\claude-api\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\claude-api\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\claude-api\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\claude-api\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\claude-api\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\coding-standards\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\coding-standards\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\coding-standards\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\coding-standards\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\coding-standards\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\coding-standards\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\content-engine\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\content-engine\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\content-engine\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\content-engine\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\content-engine\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\content-engine\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\crosspost\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\crosspost\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\crosspost\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\crosspost\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\crosspost\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\crosspost\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\deep-research\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\deep-research\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\deep-research\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\deep-research\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\deep-research\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\deep-research\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\dmux-workflows\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\dmux-workflows\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\dmux-workflows\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\dmux-workflows\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\dmux-workflows\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\dmux-workflows\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\documentation-lookup\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\documentation-lookup\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\documentation-lookup\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\documentation-lookup\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\documentation-lookup\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\documentation-lookup\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\e2e-testing\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\e2e-testing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\e2e-testing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\e2e-testing\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\e2e-testing\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\e2e-testing\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\eval-harness\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\eval-harness\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\eval-harness\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\eval-harness\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\eval-harness\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\eval-harness\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\everything-claude-code\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\everything-claude-code\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\everything-claude-code\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\everything-claude-code\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\everything-claude-code\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\everything-claude-code\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\exa-search\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\exa-search\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\exa-search\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\exa-search\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\exa-search\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\exa-search\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\fal-ai-media\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\fal-ai-media\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\fal-ai-media\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\fal-ai-media\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\fal-ai-media\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\fal-ai-media\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\frontend-patterns\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\frontend-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\frontend-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\frontend-patterns\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\frontend-patterns\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\frontend-patterns\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\frontend-slides\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\frontend-slides\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\frontend-slides\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\frontend-slides\\STYLE_PRESETS.md",
+      "sourceRelativePath": ".agents\\skills\\frontend-slides\\STYLE_PRESETS.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\frontend-slides\\STYLE_PRESETS.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\frontend-slides\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\frontend-slides\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\frontend-slides\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\investor-materials\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\investor-materials\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\investor-materials\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\investor-materials\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\investor-materials\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\investor-materials\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\investor-outreach\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\investor-outreach\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\investor-outreach\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\investor-outreach\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\investor-outreach\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\investor-outreach\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\market-research\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\market-research\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\market-research\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\market-research\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\market-research\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\market-research\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\mcp-server-patterns\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\mcp-server-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\mcp-server-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\nextjs-turbopack\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\nextjs-turbopack\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\nextjs-turbopack\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\nextjs-turbopack\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\nextjs-turbopack\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\nextjs-turbopack\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\security-review\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\security-review\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\security-review\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\security-review\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\security-review\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\security-review\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\strategic-compact\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\strategic-compact\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\strategic-compact\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\strategic-compact\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\strategic-compact\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\strategic-compact\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\tdd-workflow\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\tdd-workflow\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\tdd-workflow\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\tdd-workflow\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\tdd-workflow\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\tdd-workflow\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\verification-loop\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\verification-loop\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\verification-loop\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\verification-loop\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\verification-loop\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\verification-loop\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\video-editing\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\video-editing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\video-editing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\video-editing\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\video-editing\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\video-editing\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\x-api\\SKILL.md",
+      "sourceRelativePath": ".agents\\skills\\x-api\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\x-api\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\.agents\\skills\\x-api\\agents\\openai.yaml",
+      "sourceRelativePath": ".agents\\skills\\x-api\\agents\\openai.yaml",
+      "destinationPath": "C:\\Dev2\\.agent\\.agents\\skills\\x-api\\agents\\openai.yaml",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\architect.md",
+      "sourceRelativePath": "agents\\architect.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\architect.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\build-error-resolver.md",
+      "sourceRelativePath": "agents\\build-error-resolver.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\build-error-resolver.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\chief-of-staff.md",
+      "sourceRelativePath": "agents\\chief-of-staff.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\chief-of-staff.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\code-reviewer.md",
+      "sourceRelativePath": "agents\\code-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\code-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\cpp-build-resolver.md",
+      "sourceRelativePath": "agents\\cpp-build-resolver.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\cpp-build-resolver.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\cpp-reviewer.md",
+      "sourceRelativePath": "agents\\cpp-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\cpp-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\database-reviewer.md",
+      "sourceRelativePath": "agents\\database-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\database-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\doc-updater.md",
+      "sourceRelativePath": "agents\\doc-updater.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\doc-updater.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\docs-lookup.md",
+      "sourceRelativePath": "agents\\docs-lookup.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\docs-lookup.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\e2e-runner.md",
+      "sourceRelativePath": "agents\\e2e-runner.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\e2e-runner.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\flutter-reviewer.md",
+      "sourceRelativePath": "agents\\flutter-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\flutter-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\gan-evaluator.md",
+      "sourceRelativePath": "agents\\gan-evaluator.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\gan-evaluator.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\gan-generator.md",
+      "sourceRelativePath": "agents\\gan-generator.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\gan-generator.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\gan-planner.md",
+      "sourceRelativePath": "agents\\gan-planner.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\gan-planner.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\go-build-resolver.md",
+      "sourceRelativePath": "agents\\go-build-resolver.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\go-build-resolver.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\go-reviewer.md",
+      "sourceRelativePath": "agents\\go-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\go-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\harness-optimizer.md",
+      "sourceRelativePath": "agents\\harness-optimizer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\harness-optimizer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\healthcare-reviewer.md",
+      "sourceRelativePath": "agents\\healthcare-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\healthcare-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\java-build-resolver.md",
+      "sourceRelativePath": "agents\\java-build-resolver.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\java-build-resolver.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\java-reviewer.md",
+      "sourceRelativePath": "agents\\java-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\java-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\kotlin-build-resolver.md",
+      "sourceRelativePath": "agents\\kotlin-build-resolver.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\kotlin-build-resolver.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\kotlin-reviewer.md",
+      "sourceRelativePath": "agents\\kotlin-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\kotlin-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\loop-operator.md",
+      "sourceRelativePath": "agents\\loop-operator.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\loop-operator.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\opensource-forker.md",
+      "sourceRelativePath": "agents\\opensource-forker.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\opensource-forker.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\opensource-packager.md",
+      "sourceRelativePath": "agents\\opensource-packager.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\opensource-packager.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\opensource-sanitizer.md",
+      "sourceRelativePath": "agents\\opensource-sanitizer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\opensource-sanitizer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\performance-optimizer.md",
+      "sourceRelativePath": "agents\\performance-optimizer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\performance-optimizer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\planner.md",
+      "sourceRelativePath": "agents\\planner.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\planner.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\python-reviewer.md",
+      "sourceRelativePath": "agents\\python-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\python-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\pytorch-build-resolver.md",
+      "sourceRelativePath": "agents\\pytorch-build-resolver.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\pytorch-build-resolver.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\refactor-cleaner.md",
+      "sourceRelativePath": "agents\\refactor-cleaner.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\refactor-cleaner.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\rust-build-resolver.md",
+      "sourceRelativePath": "agents\\rust-build-resolver.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\rust-build-resolver.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\rust-reviewer.md",
+      "sourceRelativePath": "agents\\rust-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\rust-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\security-reviewer.md",
+      "sourceRelativePath": "agents\\security-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\security-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\tdd-guide.md",
+      "sourceRelativePath": "agents\\tdd-guide.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\tdd-guide.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\agents\\typescript-reviewer.md",
+      "sourceRelativePath": "agents\\typescript-reviewer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\typescript-reviewer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agents-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\AGENTS.md",
+      "sourceRelativePath": "AGENTS.md",
+      "destinationPath": "C:\\Dev2\\.agent\\AGENTS.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\aside.md",
+      "sourceRelativePath": "commands\\aside.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\aside.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\build-fix.md",
+      "sourceRelativePath": "commands\\build-fix.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\build-fix.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\checkpoint.md",
+      "sourceRelativePath": "commands\\checkpoint.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\checkpoint.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\claw.md",
+      "sourceRelativePath": "commands\\claw.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\claw.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\code-review.md",
+      "sourceRelativePath": "commands\\code-review.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\code-review.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\context-budget.md",
+      "sourceRelativePath": "commands\\context-budget.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\context-budget.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\cpp-build.md",
+      "sourceRelativePath": "commands\\cpp-build.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\cpp-build.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\cpp-review.md",
+      "sourceRelativePath": "commands\\cpp-review.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\cpp-review.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\cpp-test.md",
+      "sourceRelativePath": "commands\\cpp-test.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\cpp-test.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\devfleet.md",
+      "sourceRelativePath": "commands\\devfleet.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\devfleet.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\docs.md",
+      "sourceRelativePath": "commands\\docs.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\docs.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\e2e.md",
+      "sourceRelativePath": "commands\\e2e.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\e2e.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\eval.md",
+      "sourceRelativePath": "commands\\eval.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\eval.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\evolve.md",
+      "sourceRelativePath": "commands\\evolve.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\evolve.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\gan-build.md",
+      "sourceRelativePath": "commands\\gan-build.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\gan-build.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\gan-design.md",
+      "sourceRelativePath": "commands\\gan-design.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\gan-design.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\go-build.md",
+      "sourceRelativePath": "commands\\go-build.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\go-build.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\go-review.md",
+      "sourceRelativePath": "commands\\go-review.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\go-review.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\go-test.md",
+      "sourceRelativePath": "commands\\go-test.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\go-test.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\gradle-build.md",
+      "sourceRelativePath": "commands\\gradle-build.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\gradle-build.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\harness-audit.md",
+      "sourceRelativePath": "commands\\harness-audit.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\harness-audit.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\instinct-export.md",
+      "sourceRelativePath": "commands\\instinct-export.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\instinct-export.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\instinct-import.md",
+      "sourceRelativePath": "commands\\instinct-import.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\instinct-import.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\instinct-status.md",
+      "sourceRelativePath": "commands\\instinct-status.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\instinct-status.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\kotlin-build.md",
+      "sourceRelativePath": "commands\\kotlin-build.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\kotlin-build.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\kotlin-review.md",
+      "sourceRelativePath": "commands\\kotlin-review.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\kotlin-review.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\kotlin-test.md",
+      "sourceRelativePath": "commands\\kotlin-test.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\kotlin-test.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\learn-eval.md",
+      "sourceRelativePath": "commands\\learn-eval.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\learn-eval.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\learn.md",
+      "sourceRelativePath": "commands\\learn.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\learn.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\loop-start.md",
+      "sourceRelativePath": "commands\\loop-start.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\loop-start.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\loop-status.md",
+      "sourceRelativePath": "commands\\loop-status.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\loop-status.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\model-route.md",
+      "sourceRelativePath": "commands\\model-route.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\model-route.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\multi-backend.md",
+      "sourceRelativePath": "commands\\multi-backend.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\multi-backend.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\multi-execute.md",
+      "sourceRelativePath": "commands\\multi-execute.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\multi-execute.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\multi-frontend.md",
+      "sourceRelativePath": "commands\\multi-frontend.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\multi-frontend.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\multi-plan.md",
+      "sourceRelativePath": "commands\\multi-plan.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\multi-plan.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\multi-workflow.md",
+      "sourceRelativePath": "commands\\multi-workflow.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\multi-workflow.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\orchestrate.md",
+      "sourceRelativePath": "commands\\orchestrate.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\orchestrate.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\plan.md",
+      "sourceRelativePath": "commands\\plan.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\plan.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\pm2.md",
+      "sourceRelativePath": "commands\\pm2.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\pm2.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\projects.md",
+      "sourceRelativePath": "commands\\projects.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\projects.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\promote.md",
+      "sourceRelativePath": "commands\\promote.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\promote.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\prompt-optimize.md",
+      "sourceRelativePath": "commands\\prompt-optimize.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\prompt-optimize.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\prp-commit.md",
+      "sourceRelativePath": "commands\\prp-commit.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\prp-commit.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\prp-implement.md",
+      "sourceRelativePath": "commands\\prp-implement.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\prp-implement.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\prp-plan.md",
+      "sourceRelativePath": "commands\\prp-plan.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\prp-plan.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\prp-pr.md",
+      "sourceRelativePath": "commands\\prp-pr.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\prp-pr.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\prp-prd.md",
+      "sourceRelativePath": "commands\\prp-prd.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\prp-prd.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\prune.md",
+      "sourceRelativePath": "commands\\prune.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\prune.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\python-review.md",
+      "sourceRelativePath": "commands\\python-review.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\python-review.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\quality-gate.md",
+      "sourceRelativePath": "commands\\quality-gate.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\quality-gate.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\refactor-clean.md",
+      "sourceRelativePath": "commands\\refactor-clean.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\refactor-clean.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\resume-session.md",
+      "sourceRelativePath": "commands\\resume-session.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\resume-session.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\rules-distill.md",
+      "sourceRelativePath": "commands\\rules-distill.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\rules-distill.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\rust-build.md",
+      "sourceRelativePath": "commands\\rust-build.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\rust-build.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\rust-review.md",
+      "sourceRelativePath": "commands\\rust-review.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\rust-review.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\rust-test.md",
+      "sourceRelativePath": "commands\\rust-test.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\rust-test.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\santa-loop.md",
+      "sourceRelativePath": "commands\\santa-loop.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\santa-loop.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\save-session.md",
+      "sourceRelativePath": "commands\\save-session.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\save-session.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\sessions.md",
+      "sourceRelativePath": "commands\\sessions.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\sessions.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\setup-pm.md",
+      "sourceRelativePath": "commands\\setup-pm.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\setup-pm.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\skill-create.md",
+      "sourceRelativePath": "commands\\skill-create.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\skill-create.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\skill-health.md",
+      "sourceRelativePath": "commands\\skill-health.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\skill-health.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\tdd.md",
+      "sourceRelativePath": "commands\\tdd.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\tdd.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\test-coverage.md",
+      "sourceRelativePath": "commands\\test-coverage.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\test-coverage.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\update-codemaps.md",
+      "sourceRelativePath": "commands\\update-codemaps.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\update-codemaps.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\update-docs.md",
+      "sourceRelativePath": "commands\\update-docs.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\update-docs.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "commands-core",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\commands\\verify.md",
+      "sourceRelativePath": "commands\\verify.md",
+      "destinationPath": "C:\\Dev2\\.agent\\workflows\\verify.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\android-clean-architecture\\SKILL.md",
+      "sourceRelativePath": "skills\\android-clean-architecture\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\android-clean-architecture\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\api-design\\SKILL.md",
+      "sourceRelativePath": "skills\\api-design\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\api-design\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\backend-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\backend-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\backend-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\coding-standards\\SKILL.md",
+      "sourceRelativePath": "skills\\coding-standards\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\coding-standards\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\compose-multiplatform-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\compose-multiplatform-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\compose-multiplatform-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\cpp-coding-standards\\SKILL.md",
+      "sourceRelativePath": "skills\\cpp-coding-standards\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\cpp-coding-standards\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\cpp-testing\\SKILL.md",
+      "sourceRelativePath": "skills\\cpp-testing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\cpp-testing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\django-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\django-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\django-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\django-tdd\\SKILL.md",
+      "sourceRelativePath": "skills\\django-tdd\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\django-tdd\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\django-verification\\SKILL.md",
+      "sourceRelativePath": "skills\\django-verification\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\django-verification\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\frontend-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\frontend-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\frontend-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\frontend-slides\\SKILL.md",
+      "sourceRelativePath": "skills\\frontend-slides\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\frontend-slides\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\frontend-slides\\STYLE_PRESETS.md",
+      "sourceRelativePath": "skills\\frontend-slides\\STYLE_PRESETS.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\frontend-slides\\STYLE_PRESETS.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\golang-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\golang-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\golang-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\golang-testing\\SKILL.md",
+      "sourceRelativePath": "skills\\golang-testing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\golang-testing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\java-coding-standards\\SKILL.md",
+      "sourceRelativePath": "skills\\java-coding-standards\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\java-coding-standards\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\kotlin-coroutines-flows\\SKILL.md",
+      "sourceRelativePath": "skills\\kotlin-coroutines-flows\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\kotlin-coroutines-flows\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\kotlin-exposed-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\kotlin-exposed-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\kotlin-exposed-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\kotlin-ktor-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\kotlin-ktor-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\kotlin-ktor-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\kotlin-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\kotlin-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\kotlin-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\kotlin-testing\\SKILL.md",
+      "sourceRelativePath": "skills\\kotlin-testing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\kotlin-testing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\laravel-plugin-discovery\\SKILL.md",
+      "sourceRelativePath": "skills\\laravel-plugin-discovery\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\laravel-plugin-discovery\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\laravel-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\laravel-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\laravel-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\laravel-tdd\\SKILL.md",
+      "sourceRelativePath": "skills\\laravel-tdd\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\laravel-tdd\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\laravel-verification\\SKILL.md",
+      "sourceRelativePath": "skills\\laravel-verification\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\laravel-verification\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\mcp-server-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\mcp-server-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\mcp-server-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\perl-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\perl-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\perl-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\perl-testing\\SKILL.md",
+      "sourceRelativePath": "skills\\perl-testing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\perl-testing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\python-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\python-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\python-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\python-testing\\SKILL.md",
+      "sourceRelativePath": "skills\\python-testing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\python-testing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\rust-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\rust-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\rust-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\rust-testing\\SKILL.md",
+      "sourceRelativePath": "skills\\rust-testing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\rust-testing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\springboot-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\springboot-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\springboot-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\springboot-tdd\\SKILL.md",
+      "sourceRelativePath": "skills\\springboot-tdd\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\springboot-tdd\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "framework-language",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\springboot-verification\\SKILL.md",
+      "sourceRelativePath": "skills\\springboot-verification\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\springboot-verification\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "database",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\clickhouse-io\\SKILL.md",
+      "sourceRelativePath": "skills\\clickhouse-io\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\clickhouse-io\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "database",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\database-migrations\\SKILL.md",
+      "sourceRelativePath": "skills\\database-migrations\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\database-migrations\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "database",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\jpa-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\jpa-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\jpa-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "database",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\postgres-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\postgres-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\postgres-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\ai-regression-testing\\SKILL.md",
+      "sourceRelativePath": "skills\\ai-regression-testing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\ai-regression-testing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\configure-ecc\\SKILL.md",
+      "sourceRelativePath": "skills\\configure-ecc\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\configure-ecc\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning\\SKILL.md",
+      "sourceRelativePath": "skills\\continuous-learning\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning\\config.json",
+      "sourceRelativePath": "skills\\continuous-learning\\config.json",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning\\config.json",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning\\evaluate-session.sh",
+      "sourceRelativePath": "skills\\continuous-learning\\evaluate-session.sh",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning\\evaluate-session.sh",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning-v2\\SKILL.md",
+      "sourceRelativePath": "skills\\continuous-learning-v2\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning-v2\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning-v2\\agents\\observer-loop.sh",
+      "sourceRelativePath": "skills\\continuous-learning-v2\\agents\\observer-loop.sh",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning-v2\\agents\\observer-loop.sh",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning-v2\\agents\\observer.md",
+      "sourceRelativePath": "skills\\continuous-learning-v2\\agents\\observer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning-v2\\agents\\observer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning-v2\\agents\\session-guardian.sh",
+      "sourceRelativePath": "skills\\continuous-learning-v2\\agents\\session-guardian.sh",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning-v2\\agents\\session-guardian.sh",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning-v2\\agents\\start-observer.sh",
+      "sourceRelativePath": "skills\\continuous-learning-v2\\agents\\start-observer.sh",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning-v2\\agents\\start-observer.sh",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning-v2\\config.json",
+      "sourceRelativePath": "skills\\continuous-learning-v2\\config.json",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning-v2\\config.json",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning-v2\\hooks\\observe.sh",
+      "sourceRelativePath": "skills\\continuous-learning-v2\\hooks\\observe.sh",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning-v2\\hooks\\observe.sh",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning-v2\\scripts\\detect-project.sh",
+      "sourceRelativePath": "skills\\continuous-learning-v2\\scripts\\detect-project.sh",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning-v2\\scripts\\detect-project.sh",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning-v2\\scripts\\instinct-cli.py",
+      "sourceRelativePath": "skills\\continuous-learning-v2\\scripts\\instinct-cli.py",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning-v2\\scripts\\instinct-cli.py",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-learning-v2\\scripts\\test_parse_instinct.py",
+      "sourceRelativePath": "skills\\continuous-learning-v2\\scripts\\test_parse_instinct.py",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-learning-v2\\scripts\\test_parse_instinct.py",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\e2e-testing\\SKILL.md",
+      "sourceRelativePath": "skills\\e2e-testing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\e2e-testing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\eval-harness\\SKILL.md",
+      "sourceRelativePath": "skills\\eval-harness\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\eval-harness\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\iterative-retrieval\\SKILL.md",
+      "sourceRelativePath": "skills\\iterative-retrieval\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\iterative-retrieval\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\plankton-code-quality\\SKILL.md",
+      "sourceRelativePath": "skills\\plankton-code-quality\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\plankton-code-quality\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\project-guidelines-example\\SKILL.md",
+      "sourceRelativePath": "skills\\project-guidelines-example\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\project-guidelines-example\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\skill-stocktake\\SKILL.md",
+      "sourceRelativePath": "skills\\skill-stocktake\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\skill-stocktake\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\skill-stocktake\\scripts\\quick-diff.sh",
+      "sourceRelativePath": "skills\\skill-stocktake\\scripts\\quick-diff.sh",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\skill-stocktake\\scripts\\quick-diff.sh",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\skill-stocktake\\scripts\\save-results.sh",
+      "sourceRelativePath": "skills\\skill-stocktake\\scripts\\save-results.sh",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\skill-stocktake\\scripts\\save-results.sh",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\skill-stocktake\\scripts\\scan.sh",
+      "sourceRelativePath": "skills\\skill-stocktake\\scripts\\scan.sh",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\skill-stocktake\\scripts\\scan.sh",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\strategic-compact\\SKILL.md",
+      "sourceRelativePath": "skills\\strategic-compact\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\strategic-compact\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\strategic-compact\\suggest-compact.sh",
+      "sourceRelativePath": "skills\\strategic-compact\\suggest-compact.sh",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\strategic-compact\\suggest-compact.sh",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\tdd-workflow\\SKILL.md",
+      "sourceRelativePath": "skills\\tdd-workflow\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\tdd-workflow\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "workflow-quality",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\verification-loop\\SKILL.md",
+      "sourceRelativePath": "skills\\verification-loop\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\verification-loop\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "security",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\django-security\\SKILL.md",
+      "sourceRelativePath": "skills\\django-security\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\django-security\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "security",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\laravel-security\\SKILL.md",
+      "sourceRelativePath": "skills\\laravel-security\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\laravel-security\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "security",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\perl-security\\SKILL.md",
+      "sourceRelativePath": "skills\\perl-security\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\perl-security\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "security",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\security-review\\SKILL.md",
+      "sourceRelativePath": "skills\\security-review\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\security-review\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "security",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\security-review\\cloud-infrastructure-security.md",
+      "sourceRelativePath": "skills\\security-review\\cloud-infrastructure-security.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\security-review\\cloud-infrastructure-security.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "security",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\security-scan\\SKILL.md",
+      "sourceRelativePath": "skills\\security-scan\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\security-scan\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "security",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\springboot-security\\SKILL.md",
+      "sourceRelativePath": "skills\\springboot-security\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\springboot-security\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "research-apis",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\claude-api\\SKILL.md",
+      "sourceRelativePath": "skills\\claude-api\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\claude-api\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "research-apis",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\deep-research\\SKILL.md",
+      "sourceRelativePath": "skills\\deep-research\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\deep-research\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "research-apis",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\exa-search\\SKILL.md",
+      "sourceRelativePath": "skills\\exa-search\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\exa-search\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "business-content",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\article-writing\\SKILL.md",
+      "sourceRelativePath": "skills\\article-writing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\article-writing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "business-content",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\content-engine\\SKILL.md",
+      "sourceRelativePath": "skills\\content-engine\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\content-engine\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "business-content",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\investor-materials\\SKILL.md",
+      "sourceRelativePath": "skills\\investor-materials\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\investor-materials\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "business-content",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\investor-outreach\\SKILL.md",
+      "sourceRelativePath": "skills\\investor-outreach\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\investor-outreach\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "business-content",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\lead-intelligence\\SKILL.md",
+      "sourceRelativePath": "skills\\lead-intelligence\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\lead-intelligence\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "business-content",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\lead-intelligence\\agents\\enrichment-agent.md",
+      "sourceRelativePath": "skills\\lead-intelligence\\agents\\enrichment-agent.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\lead-intelligence\\agents\\enrichment-agent.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "business-content",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\lead-intelligence\\agents\\mutual-mapper.md",
+      "sourceRelativePath": "skills\\lead-intelligence\\agents\\mutual-mapper.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\lead-intelligence\\agents\\mutual-mapper.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "business-content",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\lead-intelligence\\agents\\outreach-drafter.md",
+      "sourceRelativePath": "skills\\lead-intelligence\\agents\\outreach-drafter.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\lead-intelligence\\agents\\outreach-drafter.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "business-content",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\lead-intelligence\\agents\\signal-scorer.md",
+      "sourceRelativePath": "skills\\lead-intelligence\\agents\\signal-scorer.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\lead-intelligence\\agents\\signal-scorer.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "business-content",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\market-research\\SKILL.md",
+      "sourceRelativePath": "skills\\market-research\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\market-research\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "social-distribution",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\crosspost\\SKILL.md",
+      "sourceRelativePath": "skills\\crosspost\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\crosspost\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "social-distribution",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\x-api\\SKILL.md",
+      "sourceRelativePath": "skills\\x-api\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\x-api\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "swift-apple",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\foundation-models-on-device\\SKILL.md",
+      "sourceRelativePath": "skills\\foundation-models-on-device\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\foundation-models-on-device\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "swift-apple",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\liquid-glass-design\\SKILL.md",
+      "sourceRelativePath": "skills\\liquid-glass-design\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\liquid-glass-design\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "swift-apple",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\swift-actor-persistence\\SKILL.md",
+      "sourceRelativePath": "skills\\swift-actor-persistence\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\swift-actor-persistence\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "swift-apple",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\swift-concurrency-6-2\\SKILL.md",
+      "sourceRelativePath": "skills\\swift-concurrency-6-2\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\swift-concurrency-6-2\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "swift-apple",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\swift-protocol-di-testing\\SKILL.md",
+      "sourceRelativePath": "skills\\swift-protocol-di-testing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\swift-protocol-di-testing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "swift-apple",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\swiftui-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\swiftui-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\swiftui-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\agent-harness-construction\\SKILL.md",
+      "sourceRelativePath": "skills\\agent-harness-construction\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\agent-harness-construction\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\agentic-engineering\\SKILL.md",
+      "sourceRelativePath": "skills\\agentic-engineering\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\agentic-engineering\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\ai-first-engineering\\SKILL.md",
+      "sourceRelativePath": "skills\\ai-first-engineering\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\ai-first-engineering\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\autonomous-loops\\SKILL.md",
+      "sourceRelativePath": "skills\\autonomous-loops\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\autonomous-loops\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\blueprint\\SKILL.md",
+      "sourceRelativePath": "skills\\blueprint\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\blueprint\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\claude-devfleet\\SKILL.md",
+      "sourceRelativePath": "skills\\claude-devfleet\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\claude-devfleet\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\content-hash-cache-pattern\\SKILL.md",
+      "sourceRelativePath": "skills\\content-hash-cache-pattern\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\content-hash-cache-pattern\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\continuous-agent-loop\\SKILL.md",
+      "sourceRelativePath": "skills\\continuous-agent-loop\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\continuous-agent-loop\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\cost-aware-llm-pipeline\\SKILL.md",
+      "sourceRelativePath": "skills\\cost-aware-llm-pipeline\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\cost-aware-llm-pipeline\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\data-scraper-agent\\SKILL.md",
+      "sourceRelativePath": "skills\\data-scraper-agent\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\data-scraper-agent\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\enterprise-agent-ops\\SKILL.md",
+      "sourceRelativePath": "skills\\enterprise-agent-ops\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\enterprise-agent-ops\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\nanoclaw-repl\\SKILL.md",
+      "sourceRelativePath": "skills\\nanoclaw-repl\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\nanoclaw-repl\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\prompt-optimizer\\SKILL.md",
+      "sourceRelativePath": "skills\\prompt-optimizer\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\prompt-optimizer\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\ralphinho-rfc-pipeline\\SKILL.md",
+      "sourceRelativePath": "skills\\ralphinho-rfc-pipeline\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\ralphinho-rfc-pipeline\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\regex-vs-llm-structured-text\\SKILL.md",
+      "sourceRelativePath": "skills\\regex-vs-llm-structured-text\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\regex-vs-llm-structured-text\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\search-first\\SKILL.md",
+      "sourceRelativePath": "skills\\search-first\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\search-first\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\token-budget-advisor\\SKILL.md",
+      "sourceRelativePath": "skills\\token-budget-advisor\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\token-budget-advisor\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "agentic-patterns",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\team-builder\\SKILL.md",
+      "sourceRelativePath": "skills\\team-builder\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\team-builder\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "devops-infra",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\deployment-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\deployment-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\deployment-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "devops-infra",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\docker-patterns\\SKILL.md",
+      "sourceRelativePath": "skills\\docker-patterns\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\docker-patterns\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "supply-chain-domain",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\carrier-relationship-management\\SKILL.md",
+      "sourceRelativePath": "skills\\carrier-relationship-management\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\carrier-relationship-management\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "supply-chain-domain",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\customs-trade-compliance\\SKILL.md",
+      "sourceRelativePath": "skills\\customs-trade-compliance\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\customs-trade-compliance\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "supply-chain-domain",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\energy-procurement\\SKILL.md",
+      "sourceRelativePath": "skills\\energy-procurement\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\energy-procurement\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "supply-chain-domain",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\inventory-demand-planning\\SKILL.md",
+      "sourceRelativePath": "skills\\inventory-demand-planning\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\inventory-demand-planning\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "supply-chain-domain",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\logistics-exception-management\\SKILL.md",
+      "sourceRelativePath": "skills\\logistics-exception-management\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\logistics-exception-management\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "supply-chain-domain",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\production-scheduling\\SKILL.md",
+      "sourceRelativePath": "skills\\production-scheduling\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\production-scheduling\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "supply-chain-domain",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\quality-nonconformance\\SKILL.md",
+      "sourceRelativePath": "skills\\quality-nonconformance\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\quality-nonconformance\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "supply-chain-domain",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\returns-reverse-logistics\\SKILL.md",
+      "sourceRelativePath": "skills\\returns-reverse-logistics\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\returns-reverse-logistics\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "document-processing",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\nutrient-document-processing\\SKILL.md",
+      "sourceRelativePath": "skills\\nutrient-document-processing\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\nutrient-document-processing\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "document-processing",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\visa-doc-translate\\README.md",
+      "sourceRelativePath": "skills\\visa-doc-translate\\README.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\visa-doc-translate\\README.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "document-processing",
+      "sourcePath": "C:\\Dev2\\ecc_tmp\\skills\\visa-doc-translate\\SKILL.md",
+      "sourceRelativePath": "skills\\visa-doc-translate\\SKILL.md",
+      "destinationPath": "C:\\Dev2\\.agent\\skills\\visa-doc-translate\\SKILL.md",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+
+# GitNexus Cache (Tránh đẩy nguyên cả database Knowledge Graph lên Git gây nặng repo)
+.gitnexus/
+.system_generated/
+*.log
