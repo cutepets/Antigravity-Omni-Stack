@@ -14,12 +14,18 @@ tools:
   - Grep
   - Glob
 skills:
+  # CORE — always loaded
   - agent-backend-spec
   - agent-backend-patterns
   - api-master
+  # DOMAIN — NestJS & Patterns
   - backend-patterns
   - nestjs-expert
   - nestjs
+  # ARCHITECTURE — loaded for design tasks
+  - architecture-patterns
+  - domain-driven-hexagon
+  - cqrs-implementation
 ---
 
 # Senior Principal Backend Engineer

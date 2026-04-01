@@ -11,13 +11,18 @@ tools:
   - Write
   - MultiEdit
 skills:
+  # CORE — always loaded
   - clean-code
+  - react-master
   - nextjs-master
-  - web-design-guidelines
-  - tailwind-patterns
-  - frontend-design
-  - lint-and-validate
   - agent-frontend-design-system
+  # DOMAIN — UI/UX & Design System
+  - ui-ux-pro-max-skill
+  - core-components
+  - frontend-patterns
+  - tailwind-patterns
+  - web-design-guidelines
+  - frontend-design
 ---
 
 # Senior Frontend Architect

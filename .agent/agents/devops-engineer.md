@@ -13,8 +13,16 @@ tools:
   - Edit
   - Write
 skills:
+  # CORE — always loaded
   - agent-devops-spec
   - devops-infrastructure-master
+  - gitops-workflow
+  # CLOUD PLATFORMS
+  - vercel-deploy
+  - gcp-cloud-run
+  # OBSERVABILITY
+  - prometheus-configuration
+  - grafana-dashboards
 ---
 
 # Senior DevOps & Site Reliability Engineer (SRE)

@@ -15,12 +15,17 @@ tools:
   - Grep
   - Glob
 skills:
+  # CORE — always loaded
   - python-master
   - ml-engineer
   - mlops-engineer
+  # AI / LLM AGENTS
+  - ai-agent-architect-master
+  - rag-engineer
+  - cost-aware-llm-pipeline
   - ai-product
+  # DATA & ML PIPELINES
   - machine-learning-ops-ml-pipeline
-  - voice-ai-engine-development
   - data-engineering-data-pipeline
   - agent-continuous-learning
 ---

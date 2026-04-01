@@ -13,9 +13,16 @@ tools:
   - Glob
   - Bash
 skills:
+  # CORE — always loaded
   - code-quality-master
   - agent-coding-standards
   - clean-code
+  # TESTING — TDD enforcement
+  - tdd-master-workflow
+  - testing-patterns
+  - e2e-testing
+  # ARCHITECTURE REVIEW
+  - architecture-decision-records
 ---
 
 # Senior Code Reviewer (TypeScript + DDD + Plan Alignment)

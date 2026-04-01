@@ -14,9 +14,16 @@ tools:
   - Edit
   - Write
 skills:
+  # CORE — always loaded
   - database-design
   - postgres-patterns
+  - prisma-expert
+  # DOMAIN — Query & ORM
+  - sql-optimization-patterns
+  - postgres-mcp
   - nosql-expert
+  # ANALYTICS & VECTORS
+  - agent-clickhouse-io
   - agent-backend-patterns
 ---
 

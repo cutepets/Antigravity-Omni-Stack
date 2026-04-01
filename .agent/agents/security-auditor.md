@@ -12,9 +12,16 @@ tools:
   - Glob
   - Bash
 skills:
+  # CORE — always loaded
   - vulnerability-scanner
-  - attack-tree-construction
   - stride-analysis-patterns
+  - threat-modeling-expert
+  # DOMAIN — Auth & Hardening
+  - auth-implementation-patterns
+  - secrets-management
+  - attack-tree-construction
+  # COMPLIANCE
+  - pci-compliance
   - agent-coding-standards
 ---
 
