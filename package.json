@@ -1,5 +1,11 @@
 {
   "dependencies": {
     "moleculer": "^0.15.0"
+  },
+  "devDependencies": {
+    "gitnexus": "^0.0.9"
+  },
+  "scripts": {
+    "gitnexus-update": "node .agent/scripts/gitnexus-sync.js"
   }
 }

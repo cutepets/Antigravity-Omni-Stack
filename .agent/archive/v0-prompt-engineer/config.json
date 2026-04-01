@@ -1,0 +1,7 @@
+{
+  "name": "v0-prompt-engineer",
+  "description": "Use v0.dev as UI brainstorm and prompt refinement lab before handing to Antigravity to code",
+  "tags": ["design", "ai-tools", "workflow"],
+  "trigger_keywords": ["v0", "v0.dev", "ui brainstorm", "prompt design", "design prototype"],
+  "priority": 5
+}

@@ -16,28 +16,19 @@ This is a **production-ready AI coding plugin** providing specialized agents, sk
 
 | Agent | Purpose | When to Use |
 |-------|---------|-------------|
-| planner | Implementation planning | Complex features, refactoring |
-| architect | System design and scalability | Architectural decisions |
-| tdd-guide | Test-driven development | New features, bug fixes |
-| code-reviewer | Code quality and maintainability | After writing/modifying code |
-| security-reviewer | Vulnerability detection | Before commits, sensitive code |
-| build-error-resolver | Fix build/type errors | When build fails |
-| e2e-runner | End-to-end Playwright testing | Critical user flows |
-| refactor-cleaner | Dead code cleanup | Code maintenance |
-| doc-updater | Documentation and codemaps | Updating docs |
-| typescript-reviewer | TypeScript/JavaScript code review | TypeScript/JavaScript projects |
-| database-reviewer | PostgreSQL/Supabase database issues | Schema design, query optimization |
-| loop-operator | Autonomous loop execution | Run loops safely, monitor stalls, intervene |
-| devops-engineer | Environment / CI/CD Pipeline | Infrastructure, Config |
+| backend-specialist | Backend Architecture & APIs | Database schema, REST/GraphQL endpoints, core logic |
+| frontend-specialist | Web Apps & UI/UX | React/Next.js, UI styling, frontend state |
+| mobile-developer | Mobile Apps | React Native/Expo, native mobile features |
+| devops-engineer | Environment / CI/CD Pipeline | Infrastructure, Docker, deployments |
+| code-reviewer | Code quality and maintainability | PR review, security scans, refactoring |
 
 ## Agent Orchestration
 
 Use agents proactively without user prompt:
-- Complex feature requests → **planner**
-- Code just written/modified → **code-reviewer** / **typescript-reviewer**
-- Bug fix or new feature → **tdd-guide**
-- Architectural decision → **architect**
-- Security-sensitive code → **security-reviewer**
+- Frontend/Web tasks → **frontend-specialist**
+- Backend structure & Database handling → **backend-specialist**
+- Native mobile / App dev → **mobile-developer**
+- Final validation & Code cleanup → **code-reviewer**
 - CI/CD / Docker Configs → **devops-engineer**
 
 Use parallel execution for independent operations — launch multiple agents simultaneously.

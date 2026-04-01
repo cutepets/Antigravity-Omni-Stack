@@ -1,0 +1,7 @@
+{
+  "name": "project-context-template",
+  "description": "Bootstrap .agent/context/ with project-specific API patterns, DB schema, and frontend conventions",
+  "tags": ["setup", "onboarding", "context"],
+  "trigger_keywords": ["new project", "setup context", "agent context", "onboard", "bootstrap agent"],
+  "priority": 4
+}

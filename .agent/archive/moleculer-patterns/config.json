@@ -1,0 +1,20 @@
+{
+  "name": "moleculer-patterns",
+  "version": "1.0.0",
+  "priority": 7,
+  "tags": ["backend", "microservices", "architecture", "patterns"],
+  "triggers": [
+    "microservices",
+    "service broker",
+    "event driven",
+    "circuit breaker",
+    "fault tolerance",
+    "moleculer",
+    "inter-service",
+    "event emit",
+    "async communication",
+    "service registry",
+    "distributed"
+  ],
+  "description": "Microservices design patterns từ Moleculer framework. Dùng khi thiết kế service architecture, implement fault tolerance, event-driven communication."
+}

@@ -1,0 +1,7 @@
+{
+  "name": "full-stack-scaffold",
+  "description": "Production-grade project scaffolding for Node.js, Python, Rust, and Mobile with CI/CD",
+  "tags": ["architecture", "setup", "scaffold", "backend"],
+  "trigger_keywords": ["new project", "scaffold", "boilerplate", "folder structure", "project setup", "starter"],
+  "priority": 6
+}

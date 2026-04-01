@@ -20,6 +20,7 @@ Mọi giao diện được tạo bởi workflow này phải tuân thủ chuẩn 
 3.  **Layout**:
     -   Sử dụng Grid/Flexbox chuẩn.
     -   Whitespace rộng rãi (Breathable design).
+    -   Sử dụng **Liquid-Glass-Design** (kết hợp blur và gradient nền) cho các thành phần nổi bật.
 4.  **Micro-interactions**:
     -   Hover effects mượt mà (transition: 0.3s).
     -   Button có active state rõ ràng.

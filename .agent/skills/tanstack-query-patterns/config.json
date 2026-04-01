@@ -1,0 +1,7 @@
+{
+  "name": "tanstack-query-patterns",
+  "description": "TanStack Query (React Query) patterns — queryKey conventions, mutations, optimistic updates, cache invalidation",
+  "tags": ["frontend", "data-fetching", "react", "typescript"],
+  "trigger_keywords": ["tanstack query", "react query", "usequery", "usemutation", "cache", "querykey", "invalidate", "optimistic update"],
+  "priority": 8
+}

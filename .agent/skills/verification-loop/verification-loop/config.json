@@ -1,0 +1,7 @@
+{
+  "name": "verification-loop",
+  "description": "Post-change regression prevention — systematic checks for TypeScript, API contracts, business logic",
+  "tags": ["workflow", "quality", "safety"],
+  "trigger_keywords": ["verify", "check regression", "after change", "safe to commit", "no regression"],
+  "priority": 9
+}

@@ -1,0 +1,7 @@
+{
+  "name": "connection-health-check",
+  "description": "Diagnose and verify Frontend-Backend connectivity before and after edits",
+  "tags": ["frontend", "backend", "devops", "debugging"],
+  "trigger_keywords": ["connection", "cors", "proxy error", "backend not responding", "api unreachable", "network"],
+  "priority": 6
+}
