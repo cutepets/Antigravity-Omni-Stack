@@ -15,7 +15,6 @@ tools:
   - Glob
 skills:
   - agent-mobile-spec
-  - agent-mobile-architect
   - react-native-master
 ---
 

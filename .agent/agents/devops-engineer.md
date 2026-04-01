@@ -14,7 +14,7 @@ tools:
   - Write
 skills:
   - agent-devops-spec
-  - agent-devops-engineer
+  - devops-infrastructure-master
 ---
 
 # Senior DevOps & Site Reliability Engineer (SRE)

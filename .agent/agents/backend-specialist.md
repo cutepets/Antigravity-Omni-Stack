@@ -16,7 +16,7 @@ tools:
 skills:
   - agent-backend-spec
   - agent-backend-patterns
-  - api-design
+  - api-master
   - backend-patterns
   - nestjs-expert
   - nestjs
