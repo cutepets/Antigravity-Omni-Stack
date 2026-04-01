@@ -2,10 +2,10 @@
 
 <div align="center">
 
-**Version:** `3.1.0` · **Engine:** Antigravity IDE + MCP · **Security Grade:** `A (97/100)`
+**Version:** `3.2.0` · **Engine:** Antigravity IDE + MCP · **Security Grade:** `A (97/100)`
 
 [![AgentShield](https://img.shields.io/badge/AgentShield-A%2097%2F100-brightgreen?style=flat-square&logo=shield)](https://github.com/cutepets/Antigravity-Omni-Stack)
-[![Agents](https://img.shields.io/badge/Agents-5%20Core-blue?style=flat-square)](./agent/agents/)
+[![Agents](https://img.shields.io/badge/Agents-9%20Core-blue?style=flat-square)](./agent/agents/)
 [![Skills](https://img.shields.io/badge/Skills-344-purple?style=flat-square)](./agent/skills/)
 [![Workflows](https://img.shields.io/badge/Workflows-84-orange?style=flat-square)](./agent/workflows/)
 [![Rules](https://img.shields.io/badge/Rules-37-red?style=flat-square)](./agent/rules/)
@@ -44,7 +44,7 @@ Agent (~2K chars)  →  Identity + Core Principles + Skill References
 - ✅ Deny rules: `sudo`, `chmod 777`, `ssh`, `rm -rf *`, `> /dev/*`, `DROP`, `DELETE FROM`
 - ✅ PreToolUse hooks on all Bash + Write/Edit operations
 - ✅ Stop hooks for session-end audit logging
-- ✅ Explicit `tools:` array on all 5 agents (least-privilege)
+- ✅ Explicit `tools:` array on all 9 agents (least-privilege)
 
 ```bash
 # Re-run audit anytime
@@ -53,21 +53,30 @@ npm run scan:agent
 
 ---
 
-## 🤖 Core Agents (5)
+## 🤖 Core Agents (9)
 
-Each agent is a **thin identity shell** (~1.5–2.5K chars) that loads deep methodology from dedicated skills on demand.
+Each agent is a **thin identity shell** (~1.5–3K chars) that loads deep methodology from dedicated skills on demand.
 
+### 🏗️ Full-Stack Engineers
 | Agent | Model | Role | Loaded Skills |
 |:---|:---|:---|:---|
 | 🧑‍💻 **`frontend-specialist`** | Sonnet 4.5 | React/Next.js UI, design systems, performance | `agent-frontend-design-system`, `nextjs-master`, `tailwind-patterns` |
-| ⚙️ **`backend-specialist`** | Sonnet 4.5 | API design, microservices, database, security | `agent-backend-spec`, `agent-backend-patterns`, `api-design` |
+| ⚙️ **`backend-specialist`** | Sonnet 4.5 | API design, **NestJS**, microservices, business logic | `agent-backend-spec`, `agent-backend-patterns`, `nestjs-expert`, `nestjs` |
+| 🐍 **`python-specialist`** | Sonnet 4.5 | **FastAPI, LangChain, ML pipelines, AI/heavy** | `python-master`, `ml-engineer`, `mlops-engineer`, `ai-product` |
 | 📱 **`mobile-developer`** | Sonnet 4.5 | React Native, Flutter, iOS/Android, offline-first | `agent-mobile-spec`, `react-native-master` |
-| 🚢 **`devops-engineer`** | Sonnet 4.5 | CI/CD, GitOps, Kubernetes, production SRE | `agent-devops-spec`, `agent-devops-engineer` |
-| 🕵️ **`code-reviewer`** | Haiku 4.5 | Read-only audit, PR review, TDD checks | `Read`, `Grep`, `Glob` only |
+| 🚢 **`devops-engineer`** | Sonnet 4.5 | CI/CD, GitOps, Kubernetes, production SRE | `agent-devops-spec` |
+
+### 🔍 Specialist Reviewers (v3.2 — NEW)
+| Agent | Model | Role | Merged From |
+|:---|:---|:---|:---|
+| 🗄️ **`database-architect`** | Sonnet 4.5 | Schema design, Prisma ORM, migration safety, N+1 | `database-architect` + `database-reviewer` |
+| 🛡️ **`security-auditor`** | Sonnet 4.5 | OWASP, STRIDE, XSS/SQLi pentest, JWT hardening | `security-auditor` + `penetration-tester` |
+| ⚡ **`performance-optimizer`** | Sonnet 4.5 | Core Web Vitals, bundle, React renders, query perf | `performance-optimizer` |
+| 🕵️ **`code-reviewer`** | Haiku 4.5 | TS/DDD/plan review, tsc+eslint diagnostics | `typescript-reviewer` + `ddd-reviewer` |
 
 **Tools Policy:**
-- Agents with write access: Bash, Edit, MultiEdit, Write, Read, Grep, Glob
-- `code-reviewer`: Read-only (Read, Grep, Glob) — no write tools granted
+- Specialist engineers: Bash, Edit, MultiEdit, Write, Read, Grep, Glob
+- Reviewer agents: Read-only (Read/Grep/Glob/Bash read-only) — no write tools granted
 
 ---
 
@@ -258,12 +267,16 @@ All agent decisions are strictly governed by rules in `.agent/rules/`:
 
 ```
 .agent/
-├── agents/           # 5 thin agent shells
+├── agents/           # 9 thin agent shells
 │   ├── frontend-specialist.md
 │   ├── backend-specialist.md
+│   ├── python-specialist.md
 │   ├── mobile-developer.md
 │   ├── devops-engineer.md
-│   └── code-reviewer.md
+│   ├── database-architect.md     ← NEW v3.2 (merged database-reviewer)
+│   ├── security-auditor.md       ← NEW v3.2 (merged penetration-tester)
+│   ├── performance-optimizer.md  ← NEW v3.2
+│   └── code-reviewer.md          ← ENHANCED v3.2 (merged ts-reviewer + ddd-reviewer)
 ├── skills/           # 344 on-demand skills
 │   ├── agent-frontend-design-system/  ← NEW v3.1
 │   ├── agent-backend-spec/            ← NEW v3.1
@@ -305,6 +318,6 @@ git status
 
 *Antigravity Omni-Stack · Powered by Antigravity IDE · Multi-Agent Architecture*
 
-**v3.1.0** — Security-hardened, Thin-Agent refactored, AgentShield Grade A
+**v3.2.0** — 9 Agents (3 recruited + 4 merged), Thin-Agent + Rich Skills architecture
 
 </div>
