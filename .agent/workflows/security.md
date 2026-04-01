@@ -18,6 +18,7 @@ $ARGUMENTS
 **Agent**: `security-auditor`
 **Mission**: Run the deep scans.
 - **Action**: Run SAST/DAST tools (e.g., `npm audit`, `snyk`, `owasp-zap`).
+- **AI Config Config Scan**: Run `npm run scan:agent` (or `npx ecc-agentshield scan --path .agent`) to check for Prompt Injections, hardcoded API keys, and over-permissive MCP rules.
 - **Research**: Check for common library vulnerabilities (CVEs).
 
 ## 🔵 PHASE 3: Surgical Hardening

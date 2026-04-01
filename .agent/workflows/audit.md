@@ -21,6 +21,7 @@ $ARGUMENTS
   - [ ] No `any` types or lint errors?
   - [ ] Does it match `GEMINI.md` architecture?
   - [ ] Is it accessible (A11y check)?
+  - [ ] Agent configurations (AI rules/prompts) scanned using `ecc-agentshield`?
 
 ## 🔵 PHASE 3: Functional Stress Test
 **Agent**: `test-engineer`

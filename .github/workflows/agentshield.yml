@@ -1,0 +1,21 @@
+name: "AgentShield Security Scan"
+
+on:
+  push:
+    paths:
+      - '.agent/**'
+  pull_request:
+    paths:
+      - '.agent/**'
+  workflow_dispatch:
+
+jobs:
+  scan-agents:
+    name: Scan AI Agent Configs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ecc-agentshield Scan
+        run: npx ecc-agentshield scan --path .agent --format markdown >> $GITHUB_STEP_SUMMARY

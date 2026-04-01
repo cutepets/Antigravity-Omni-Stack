@@ -6,6 +6,7 @@
     "gitnexus": "^0.0.9"
   },
   "scripts": {
-    "gitnexus-update": "node .agent/scripts/gitnexus-sync.js"
+    "gitnexus-update": "node .agent/scripts/gitnexus-sync.js",
+    "scan:agent": "npx ecc-agentshield scan --path .agent"
   }
 }

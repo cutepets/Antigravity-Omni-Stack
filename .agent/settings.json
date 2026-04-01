@@ -1,4 +1,26 @@
 {
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "Bash",
+      "Grep",
+      "Glob",
+      "Agent",
+      "Task"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(DROP *)",
+      "Bash(DELETE FROM *)",
+      "Bash(sudo *)",
+      "Bash(chmod 777 *)",
+      "Bash(ssh *)",
+      "Bash(> /dev/*)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -6,6 +28,28 @@
           {
             "type": "command",
             "command": "node .agent/hooks/gsd-check-update.js"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agent/hooks/gsd-prompt-guard.js",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agent/hooks/gsd-prompt-guard.js",
+            "timeout": 5
           }
         ]
       }
@@ -30,6 +74,17 @@
             "type": "command",
             "command": "node .agent/hooks/gsd-prompt-guard.js",
             "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agent/hooks/session-stop-audit.js",
+            "timeout": 10
           }
         ]
       }
