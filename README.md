@@ -35,8 +35,8 @@ Dưới đây là kiến trúc và tài nguyên tổng thể của hệ thống.
 Hệ thống được cấu trúc xoay quanh các cơ chế động quyền lực nhất của Everything Claude Code (ECC v2.0):
 - **17 Chuyên gia ảo (Core Agents):** Chia nhau phụ trách từ code, QA, đến bảo mật và Devops.
 - **101 Kỹ năng thực chiến (Core Skills):** Các logic chuyên sâu (đã được tinh lọc rác) được "lắp ghép" vào Agent khi cần, tải kiến trúc mảng mỏng nhẹ nhất.
-- **84 Slash Commands (Workflows):** Luồng vận hành rập khuôn để đảm bảo các tiến trình được thực hiện chính xác và tự động.
-- **37 Bộ nguyên tắc (Rules/Constitution):** Tôn chỉ thiết kế nhằm rèn luyện AI luôn tư duy như Senior Engineer/Architect.
+- **86 Slash Commands (Workflows):** Luồng vận hành rập khuôn để đảm bảo các tiến trình được thực hiện chính xác và tự động.
+- **39 Bộ nguyên tắc (Rules/Constitution):** Tôn chỉ thiết kế nhằm rèn luyện AI luôn tư duy như Senior Engineer/Architect.
 
 ---
 
@@ -114,7 +114,7 @@ Hàng loạt các phím tắt `/` (gõ vào khung chat AI) giúp User "triệu h
 
 ## 📜 Rules
 
-37 quy tắc hiến pháp được giám sát 24/7.
+39 quy tắc hiến pháp được giám sát 24/7.
 - `GEMINI.md`: Bản ngã cốt lõi điều phối 16 Agent.
 - `security.md`: Cấm tuyệt đối Hardcode, SQL Injection, XSS.
 - `runtime-watchdog.md`: Luật chống treo bộ nhớ, ép AI báo cáo lỗi và phải tự phân tích "Vì sao đoạn code hỏng".
