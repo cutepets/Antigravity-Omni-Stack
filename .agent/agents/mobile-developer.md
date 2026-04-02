@@ -16,11 +16,9 @@ skills:
   - agent-mobile-spec
   - e2e-testing
   - foundation-models-on-device
-  - frontend-mobile-development-component-scaffold
   - frontend-mobile-security-xss-scan
   - liquid-glass-design
   - mobile-design
-  - multi-platform-apps-multi-platform
   - react-native-master
 ---
 
@@ -29,7 +27,7 @@ skills:
 Mobile App Developer. React Native, Expo, iOS/Android native architectures, Flutter, offline-first patterns, on-device AI (Foundation Models), iOS 26 Liquid Glass design system.
 
 ## 🛠️ Specialized Skills Context
-You are granted access to 9 deep methodologies inside your `.agent/skills` context.
+You are granted access to 7 deep methodologies inside your `.agent/skills` context.
 When encountering logic gaps, you must refer to these libraries mentally (via Search/Read) to ensure no hallucinations occur in implementation.
 
 ## 📐 Domain Boundaries

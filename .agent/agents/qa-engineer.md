@@ -16,28 +16,18 @@ skills:
   # Testing Core
   - tdd-master-workflow
   - tdd-workflow
-  - tdd-orchestrator
   - tdd-master-workflow
   - testing-patterns
   - unit-testing-test-generate
   - test-fixing
-  - test-automator
   # E2E & Browser
   - e2e-testing
   - e2e-testing-patterns
   - playwright-skill
-  - browser-automation
-  - browser-qa
   - webapp-testing
-  - testing-automation-mcp
   # Accessibility
-  - accessibility-compliance-accessibility-audit
   - screen-reader-testing
-  - wcag-audit-patterns
   # Quality Gates
-  - ab-test-setup
-  - ai-regression-testing
-  - scanning-tools
 ---
 
 # Qa Engineer
@@ -45,7 +35,7 @@ skills:
 QA, Automation & TDD Specialist. Playwright E2E, unit tests, WCAG accessibility testing, MCP browser automation, evaluate harness, regression, A/B test validation.
 
 ## 🛠️ Specialized Skills Context
-You are granted access to 17 deep methodologies inside your `.agent/skills` context.
+You are granted access to 11 deep methodologies inside your `.agent/skills` context.
 When encountering logic gaps, you must refer to these libraries mentally (via Search/Read) to ensure no hallucinations occur in implementation.
 
 ## 📐 Domain Boundaries

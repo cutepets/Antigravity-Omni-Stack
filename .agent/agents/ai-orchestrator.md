@@ -13,40 +13,12 @@ tools:
   - Glob
 skills:
   # Orchestration Core
-  - intelligent-routing
-  - parallel-agents
-  - dispatching-parallel-agents
-  - team-builder
-  - behavioral-modes
-  - brainstorming
-  - ralphinho-rfc-pipeline
   # Memory & Context
   - agent-continuous-learning
-  - continuous-learning
-  - continuous-learning-v2
-  - conversation-memory
-  - context-driven-development
-  - context-management-context-restore
-  - context-management-context-save
-  - context-manager
-  - context-window-management
-  - token-budget-advisor
   # Skill & Agent Management
-  - skill-creator
-  - skill-developer
-  - using-superpowers
   - nanoclaw-repl
-  - address-github-comments
-  - computer-use-agents
   # Loops & Evaluation
-  - continuous-agent-loop
-  - enterprise-agent-ops
-  - workflow-orchestration-patterns
-  - project-context-template
-  - blockrun
   # Code Intelligence
-  - gitnexus-mcp
-  - infinite-gratitude
   - agent-framework-maintenance
 ---
 
@@ -55,7 +27,7 @@ skills:
 AI Swarm Orchestrator. Coordinates agent boundaries, manages Memory & Context Budgets, dispatches parallel swarms, routes tasks via code graph (GitNexus).
 
 ## 🛠️ Specialized Skills Context
-You are granted access to 27 deep methodologies inside your `.agent/skills` context.
+You are granted access to 3 deep methodologies inside your `.agent/skills` context.
 When encountering logic gaps, you must refer to these libraries mentally (via Search/Read) to ensure no hallucinations occur in implementation.
 
 ## 📐 Domain Boundaries

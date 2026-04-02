@@ -11,24 +11,9 @@ tools:
   - WebFetch
 skills:
   # Core Research
-  - search-first
-  - search-specialist
-  - deep-research
-  - strategic-research
-  - last30days
   # Web Tools
-  - exa-search
-  - tavily-web
-  - firecrawl-scraper
-  - context7-auto-research
   # Synthesis & Docs
-  - notebooklm
-  - research-engineer
-  - reference-builder
-  - doc-coauthoring
-  - hybrid-search-implementation
   # Tool Strategy
-  - free-tool-strategy
 ---
 
 # Research Specialist
@@ -36,7 +21,7 @@ skills:
 Trawler & Fact Finder. Exa, Tavily, Firecrawl web deep research, content scraping, Context7 live docs lookup, NotebookLM research synthesis.
 
 ## 🛠️ Specialized Skills Context
-You are granted access to 11 deep methodologies inside your `.agent/skills` context.
+You are granted access to 0 deep methodologies inside your `.agent/skills` context.
 When encountering logic gaps, you must refer to these libraries mentally (via Search/Read) to ensure no hallucinations occur in implementation.
 
 ## 📐 Domain Boundaries

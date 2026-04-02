@@ -14,18 +14,12 @@ tools:
   - Glob
 skills:
   - agent-clickhouse-io
-  - clickhouse-io
   - cqrs-implementation
-  - database-architect
-  - database-cloud-optimization-cost-optimize
   - database-design
   - nosql-expert
   - postgres-patterns
   - prisma-expert
-  - projection-patterns
   - sql-optimization-patterns
-  - sql-pro
-  - vector-database-engineer
 ---
 
 # Database Architect
@@ -33,7 +27,7 @@ skills:
 Database Architect. Schema design principles, Postgres, Clickhouse, NoSQL, ORM/Prisma, SQL optimization, CQRS read models, vector databases.
 
 ## 🛠️ Specialized Skills Context
-You are granted access to 13 deep methodologies inside your `.agent/skills` context.
+You are granted access to 7 deep methodologies inside your `.agent/skills` context.
 When encountering logic gaps, you must refer to these libraries mentally (via Search/Read) to ensure no hallucinations occur in implementation.
 
 ## 📐 Domain Boundaries

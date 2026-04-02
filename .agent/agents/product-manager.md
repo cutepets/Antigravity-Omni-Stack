@@ -12,37 +12,12 @@ tools:
   - Grep
 skills:
   # Planning & Docs
-  - plan-writing
-  - writing-plans
-  - planning-with-files
-  - concise-planning
-  - executing-plans
-  - writing-skills
-  - blueprint
   # Product Tools
   - ai-product
-  - ai-wrapper-product
-  - product-manager-toolkit
-  - project-guidelines-example
-  - team-composition-analysis
-  - kaizen
   # Analytics & Tracking
-  - analytics-tracking
-  - ab-test-setup
-  - postmortem-writing
   # Content & Comms
-  - changelog-automation
-  - code-documentation-doc-generate
-  - documentation-generation-doc-generate
-  - internal-comms
-  - notion-template-business
   # SEO & Schema
-  - geo-fundamentals
-  - schema-markup
   # Business & Sales
-  - sales-automator
-  - risk-manager
-  - risk-metrics-calculation
 ---
 
 # Product Manager
@@ -50,7 +25,7 @@ skills:
 Product Manager & Documentation Specialist. Concise plans, KPIs, A/B tests, changelogs, API specs, internal communications, SEO/GEO docs.
 
 ## 🛠️ Specialized Skills Context
-You are granted access to 23 deep methodologies inside your `.agent/skills` context.
+You are granted access to 1 deep methodologies inside your `.agent/skills` context.
 When encountering logic gaps, you must refer to these libraries mentally (via Search/Read) to ensure no hallucinations occur in implementation.
 
 ## 📐 Domain Boundaries

@@ -13,17 +13,9 @@ tools:
   - Glob
 skills:
   - application-performance-performance-optimization
-  - content-hash-cache-pattern
-  - database-cloud-optimization-cost-optimize
-  - dx-optimizer
   - modern-web-performance
-  - monorepo-management
-  - nx-workspace-patterns
   - performance-engineer
   - performance-profiling
-  - performance-testing-review-ai-review
-  - performance-testing-review-multi-agent-review
-  - turborepo-caching
   - web-performance-optimization
 ---
 
@@ -32,7 +24,7 @@ skills:
 Performance Optimization Hacker. Bundle optimization, Turborepo/Nx caching, Core Web Vitals, DB query tuning, DX productivity.
 
 ## 🛠️ Specialized Skills Context
-You are granted access to 13 deep methodologies inside your `.agent/skills` context.
+You are granted access to 5 deep methodologies inside your `.agent/skills` context.
 When encountering logic gaps, you must refer to these libraries mentally (via Search/Read) to ensure no hallucinations occur in implementation.
 
 ## 📐 Domain Boundaries
