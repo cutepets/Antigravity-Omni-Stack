@@ -47,6 +47,7 @@ skills:
   # Code Intelligence
   - gitnexus-mcp
   - infinite-gratitude
+  - agent-framework-maintenance
 ---
 
 # Ai Orchestrator

@@ -51,6 +51,7 @@ skills:
   - network-101
   # Shell & OS
   - powershell-windows
+  - windows-powershell-compat
   - busybox-on-windows
   - shellcheck-configuration
   - server-management
