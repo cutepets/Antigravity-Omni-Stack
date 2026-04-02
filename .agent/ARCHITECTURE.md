@@ -1,298 +1,107 @@
-# Antigravity Kit Architecture
+# Kiến trúc Antigravity Kit (Vietnamese)
 
-> Comprehensive AI Agent Capability Expansion Toolkit
-
----
-
-## 📋 Overview
-
-Antigravity Kit is a modular system consisting of:
-
-- **23 Specialist Agents** - Role-based AI personas
-- **58+4 Master Skills** - Consolidating 650+ capabilities & patterns
-- **22 Workflows** - Slash command procedures
+> Bộ công cụ mở rộng năng lực Agent AI toàn diện
 
 ---
 
-## 🏗️ Directory Structure
+## 📋 Tổng quan
+
+Antigravity Kit là một hệ thống nhất thể hóa (Unified), được thiết kế để thích ứng theo quy mô dự án (Scale-Adaptive), bao gồm:
+
+- **15 Chuyên gia Agent** - Các nhân dạng AI dựa trên vai trò, hoạt động theo 3 chế độ: Solo, Squad, và Factory.
+- **26 Bộ Kỹ năng (Skills)** - Các mô-đun tri thức "Sci-Link" (Liên kết khoa học) chứa đựng 600+ năng lực.
+- **17 Quy trình (Workflows)** - Các chiến dịch thực thi lệnh slash command được điều phối bởi Metadata.
+- **17 Mô-đun DNA (Shared)** - Hạt nhân tri thức nền tảng và tiêu chuẩn bất biến.
+
+---
+
+## 🏗️ Cấu trúc thư mục
 
 ```plaintext
 .agent/
-├── ARCHITECTURE.md          # This file
-├── CONCEPTS.md              # Rule, Skill, Workflow definitions
+├── ARCHITECTURE.md          # Tài liệu kiến trúc (Tiếng Anh)
+├── ARCHITECTURE.vi.md       # Tài liệu kiến trúc (Tiếng Việt)
+├── CONCEPTS.md              # Định nghĩa Rule, Skill, Workflow
 ├── agents/                  # 20 Specialist Agents
-├── skills/                  # 36 Skills
+├── skills/                  # 550+ Skills
 ├── workflows/               # 11 Slash Commands
-├── rules/                   # Global Rules
-└── scripts/                 # Master Validation Scripts
+├── rules/                   # Global Rules (Quy tắc toàn cục)
+└── scripts/                 # Master Validation Scripts (Kịch bản kiểm tra)
 ```
 
 ---
 
-## 🤖 Agents (15 Master Specialists)
+## 🤖 Hệ thống Agent (15 Chuyên gia chính)
 
-| Agent | Role | Responsibility |
+| Agent | Vai trò | Trách nhiệm |
 | ----- | ---- | -------------- |
-| `orchestrator` | **The Director** | Strategic flow & Final Operation |
-| `quality-inspector` | **The Gatekeeper** | Inspection, Validation & Audit (The Final Gate) |
-| `project-planner` | **The Architect** | Strategy, Requirements & MVP Mapping |
-| `backend-specialist` | **Worker** | Logic, API & Database (SQL Master) |
-| `frontend-specialist`| **Worker** | UI, UX & Web Performance |
-| `security-auditor` | **Worker** | Defensive & Offensive Security |
-| `test-engineer` | **Worker** | Test Infrastructure & TDD |
-| `cloud-architect` | **Worker** | CI/CD, Cloud & Deployment |
-| `codebase-expert` | **Worker** | Analysis & Refactoring |
-| `mobile-developer` | **Worker** | Full-stack Mobile Development |
-| `game-developer` | **Worker** | Immersive Experiences |
-| `debugger` | **Worker** | Troubleshooting & Hotfixing |
-| `seo-specialist` | **Worker** | Growth & Search Optimization |
-| `voice-ai-engineer` | **Worker** | Real-time Voice Agents (NEW) |
-| `rust-expert` | **Worker** | System Programming (NEW) |
-| `react-architect` | **Worker** | Next.js Enterprise Patterns (NEW) |
-| `browser-subagent` | **Recon** | Web Reconnaissance & Vision Scraping (NEW) |
+| `orchestrator` | **Thuyền trưởng** | Điều phối luồng chiến lược & Quyết định cuối cùng |
+| `quality-inspector` | **Thanh tra viên** | Kiểm tra, Xác thực & Kiểm toán (Cổng chặn cuối cùng) |
+| `project-planner` | **Kiến trúc sư** | Chiến lược, Yêu cầu & MVP Mapping |
+| `backend-specialist` | **Worker** | Logic, API & Cấu trúc Dữ liệu (SQL Master) |
+| `frontend-specialist`| **Worker** | UI, UX & Hiệu suất Web (Premium UI) |
+| `security-auditor` | **Worker** | Bảo mật phòng thủ & Tấn công (Security Armor) |
+| `test-engineer` | **Worker** | Hạ tầng kiểm thử & TDD |
+| `cloud-architect` | **Worker** | CI/CD, Cloud & Triển khai hệ thống |
+| `codebase-expert` | **Worker** | Phân tích & Tái cấu trúc mã nguồn (Refactoring) |
+| `mobile-developer` | **Worker** | Phát triển ứng dụng di động Full-stack |
+| `game-developer` | **Worker** | Phát triển Game và trải nghiệm nhúng |
+| `debugger` | **Worker** | Xử lý sự cố & Sửa lỗi nóng (Hotfixing) |
+| `seo-specialist` | **Worker** | Tăng trưởng & Tối ưu hóa tìm kiếm (GEO/SEO) |
 
 ---
 
-### 🔄 4-Step Management Cycle (PDCA)
+## 🧩 Hệ thống Kỹ năng (Skills)
 
-System operates on the classic management framework to ensure continuous quality:
+Các miền tri thức mô-đun mà Agent có thể tải theo yêu cầu dựa trên ngữ cảnh công việc.
 
-1.  **PLAN (Lập kế hoạch)**: `project-planner` - Defines MVP, PRD, and creates the execution blueprint.
-2.  **RECON (Trinh sát)**: `browser-subagent` - Quét Web, cào nội dung DOM (innerText), chụp màn hình Vision.
-3.  **DO (Thực hiện)**: **Worker Agents** (Backend, Frontend, etc.) - Build the features according to the plan.
-4.  **CHECK (Kiểm tra & Đánh giá)**: `quality-inspector` - Independent audit, chạy tests, phân tích file Vision ảnh.
-5.  **ACT (Điều chỉnh & Vận hành)**: `orchestrator` - Refines the output, theo dõi bằng Manager View (Dashboard).
+### Phát triển Web & giao diện:
+- `modern-web-architect`: Kiến trúc Next.js/React hiện đại.
+- `ui-ux-pro-max`: Thư viện 50+ style và 21 bảng màu cao cấp.
+- `frontend-design`: Các mẫu thiết kế UI/UX và Design System.
 
----
+### Backend & Infrastructure:
+- `api-patterns`: Chuẩn thiết kế REST, GraphQL, tRPC.
+- `database-design`: Thiết kế Schema 3NF và tối ưu hóa truy vấn.
+- `deployment-engineer`: Quy trình CI/CD và triển khai Docker/K8s.
 
-## 🧩 Skills (36)
-
-Modular knowledge domains that agents can load on-demand. based on task context.
-
-### Frontend & UI
-
-| Skill | Description |
-| ----- | ----------- |
-| `nextjs-react-expert` | React & Next.js performance optimization (Vercel - 57 rules) |
-| `web-design-guidelines` | Web UI audit - 100+ rules for accessibility, UX, performance (Vercel) |
-| `tailwind-patterns` | Tailwind CSS v4 utilities |
-| `frontend-design` | UI/UX patterns, design systems |
-| `ui-ux-pro-max` | 50 styles, 21 palettes, 50 fonts |
-
-### Backend & API
-
-| Skill | Description |
-| ----- | ----------- |
-| `api-patterns` | REST, GraphQL, tRPC |
-| `nestjs-expert` | NestJS modules, DI, decorators |
-| `nodejs-best-practices` | Node.js async, modules |
-| `python-patterns` | Python standards, FastAPI |
-
-### Database
-
-| Skill | Description |
-| ----- | ----------- |
-| `database-design` | Schema design, optimization |
-| `prisma-expert` | Prisma ORM, migrations |
-
-### TypeScript/JavaScript
-
-| Skill | Description |
-| ----- | ----------- |
-| `typescript-expert` | Type-level programming, performance |
-
-### Cloud & Infrastructure
-
-| Skill | Description |
-| ----- | ----------- |
-| `docker-expert` | Containerization, Compose |
-| `deployment-procedures` | CI/CD, deploy workflows |
-| `server-management` | Infrastructure management |
-
-### Testing & Quality
-
-| Skill | Description |
-| ----- | ----------- |
-| `testing-patterns` | Jest, Vitest, strategies |
-| `webapp-testing` | E2E, Playwright |
-| `tdd-workflow` | Test-driven development |
-| `code-review-checklist` | Code review standards |
-| `lint-and-validate` | Linting, validation |
-
-### Security
-
-| Skill | Description |
-| ----- | ----------- |
-| `vulnerability-scanner` | Security auditing, OWASP |
-| `red-team-tactics` | Offensive security |
-
-### Architecture & Planning
-
-| Skill | Description |
-| ----- | ----------- |
-| `app-builder` | Full-stack app scaffolding |
-| `architecture` | System design patterns |
-| `plan-writing` | Task planning, breakdown |
-| `brainstorming` | Socratic questioning |
-
-### Mobile
-
-| Skill | Description |
-| ----- | ----------- |
-| `mobile-design` | Mobile UI/UX patterns |
-
-### Game Development
-
-| Skill | Description |
-| ----- | ----------- |
-| `game-development` | Game logic, mechanics |
-
-### SEO & Growth
-
-| Skill | Description |
-| ----- | ----------- |
-| `seo-fundamentals` | SEO, E-E-A-T, Core Web Vitals |
-| `geo-fundamentals` | GenAI optimization |
-
-### Shell/CLI
-
-| Skill | Description |
-| ----- | ----------- |
-| `bash-linux` | Linux commands, scripting |
-| `powershell-windows` | Windows PowerShell |
-
-### Other
-
-| Skill | Description |
-| ----- | ----------- |
-| `clean-code` | Coding standards (Global) |
-| `behavioral-modes` | Agent personas |
-| `parallel-agents` | Multi-agent patterns |
-| `mcp-builder` | Model Context Protocol |
-| `documentation-templates` | Doc formats |
-| `i18n-localization` | Internationalization |
-| `performance-profiling` | Web Vitals, optimization |
-| `systematic-debugging` | Troubleshooting |
+### Bảo mật & Chất lượng:
+- `security-auditor`: Kiểm toán bảo mật theo chuẩn OWASP.
+- `testing-master`: Chiến lược kiểm thử TDD/E2E toàn diện.
+- `production-code-audit`: Quét và chuẩn hóa mã nguồn lên cấp độ doanh nghiệp.
 
 ---
 
-## 🔄 Workflows (11)
+## 🔄 Quy trình làm việc (11 Workflows)
 
-Slash command procedures. Invoke with `/command`.
+Kích hoạt các quy trình bằng lệnh `/command`.
 
-| Command | Description |
-| ------- | ----------- |
-| `/brainstorm` | Socratic discovery |
-| `/create` | Create new features |
-| `/debug` | Debug issues |
-| `/deploy` | Deploy application |
-| `/enhance` | Improve existing code |
-| `/orchestrate` | Multi-agent coordination |
-| `/plan` | Task breakdown |
-| `/preview` | Preview changes |
-| `/status` | Check project status |
-| `/test` | Run tests |
-| `/ui-ux-pro-max` | Design with 50 styles |
+- `/brainstorm`: Khám phá ý tưởng theo phương pháp Socratic.
+- `/create`: Khởi tạo tính năng hoặc dự án mới.
+- `/plan`: Phân rã tác vụ và lập kế hoạch (Project Planner).
+- `/orchestrate`: Điều phối đa Agent cho bài toán phức tạp.
+- `/ui-ux-pro-max`: Thiết kế giao diện Premium.
 
 ---
 
-## 🎯 Skill Loading Protocol
+## 🛠️ Kịch bản kiểm tra (Scripts)
 
-```plaintext
-User Request → Skill Description Match → Load SKILL.md
-                                            ↓
-                                    Read references/
-                                            ↓
-                                    Read scripts/
-```
+Hệ thống sử dụng các kịch bản kiểm tra tự động để đảm bảo chất lượng đầu ra.
 
-### Skill Structure
-
-```plaintext
-skill-name/
-├── SKILL.md           # (Required) Metadata & instructions
-├── scripts/           # (Optional) Python/Bash scripts
-├── references/        # (Optional) Templates, docs
-└── assets/            # (Optional) Images, logos
-```
-
-### Enhanced Skills (with scripts/references)
-
-| Skill | Files | Coverage |
-| ----- | ----- | -------- |
-| `typescript-expert` | 5 | Utility types, tsconfig, cheatsheet |
-| `ui-ux-pro-max` | 27 | 50 styles, 21 palettes, 50 fonts |
-| `app-builder` | 20 | Full-stack scaffolding |
+- **`checklist.py`**: Kiểm tra các tiêu chí cốt lõi (Bảo mật, Lint, Schema, Test cơ bản).
+- **`verify_all.py`**: Kiểm tra toàn diện (Lighthouse, E2E Playwright, Bundle Analysis).
 
 ---
 
-## � Scripts (2)
+## 📊 Chỉ số hệ thống
 
-Master validation scripts that orchestrate skill-level scripts.
-
-### Master Scripts
-
-| Script | Purpose | When to Use |
-| ------ | ------- | ----------- |
-| `checklist.py` | Priority-based validation (Core checks) | Development, pre-commit |
-| `verify_all.py` | Comprehensive verification (All checks) | Pre-deployment, releases |
-
-### Usage
-
-```bash
-# Quick validation during development
-python .agent/scripts/checklist.py .
-
-# Full verification before deployment
-python .agent/scripts/verify_all.py . --url http://localhost:3000
-```
-
-### What They Check
-
-**checklist.py** (Core checks):
-
-- Security (vulnerabilities, secrets)
-- Code Quality (lint, types)
-- Schema Validation
-- Test Suite
-- UX Audit
-- SEO Check
-
-**verify_all.py** (Full suite):
-
-- Everything in checklist.py PLUS:
-- Lighthouse (Core Web Vitals)
-- Playwright E2E
-- Bundle Analysis
-- Mobile Audit
-- i18n Check
-
-For details, see [scripts/README.md](scripts/README.md)
-
----
-
-## 📊 Statistics
-
-| Metric | Value |
+| Chỉ số | Giá trị |
 | ------ | ----- |
-| **Total Agents** | 20 |
-| **Total Master Skills** | 22 (Covering 550+ capabilities) |
-| **Total Workflows** | 11 |
-| **Total Scripts** | 2 (master) + 18 (skill-level) |
-| **Coverage** | ~90% web/mobile development |
+| **Tổng số Agent** | 15 |
+| **Tổng số Kỹ năng** | 26 Master Kits (Chứa 600+ năng lực) |
+| **Quy trình tiêu chuẩn** | 17 |
+| **Độ phủ nghiệp vụ** | ~98% Web/Mobile/DevOps/AI/Security |
 
 ---
 
-## 🔗 Quick Reference
-
-| Need | Agent | Skills |
-| ---- | ----- | ------ |
-| Web App | `frontend-specialist` | nextjs-react-expert, frontend-design |
-| API | `backend-specialist` | api-patterns, nodejs-best-practices |
-| Mobile | `mobile-developer` | mobile-design |
-| Database | `database-architect` | database-design, prisma-expert |
-| Security | `security-auditor` | vulnerability-scanner |
-| Testing | `test-engineer` | testing-patterns, webapp-testing |
-| Debug | `debugger` | systematic-debugging |
-| Plan | `project-planner` | brainstorming, plan-writing |
-| Recon/Scraping | `browser-subagent`| browser-subagent-core |
+**Antigravity Kit** - Hệ thống được thiết kế để chuẩn hóa sức mạnh trí tuệ AI vào quy trình sản xuất phần mềm chuyên nghiệp. 🛰️🚀
