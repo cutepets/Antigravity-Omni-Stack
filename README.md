@@ -2,326 +2,154 @@
 
 <div align="center">
 
-**Version:** `5.0.0` · **Engine:** Antigravity IDE + MCP · **Security Grade:** `A (97/100)` · **Framework:** ECC v2.0
+**Version:** `5.0.0` · **Engine:** Antigravity IDE + MCP · **Security Grade:** `A (100/100)` · **Framework:** ECC v2.0
 
-[![AgentShield](https://img.shields.io/badge/AgentShield-A%2097%2F100-brightgreen?style=flat-square&logo=shield)](https://github.com/cutepets/Antigravity-Omni-Stack)
-[![Agents](https://img.shields.io/badge/Agents-16%20Core-blue?style=flat-square)](./agent/agents/)
-[![Skills](https://img.shields.io/badge/Skills-344-purple?style=flat-square)](./agent/skills/)
-[![Workflows](https://img.shields.io/badge/Workflows-84-orange?style=flat-square)](./agent/workflows/)
-[![Rules](https://img.shields.io/badge/Rules-37-red?style=flat-square)](./agent/rules/)
+[![AgentShield](https://img.shields.io/badge/AgentShield-A%20100%2F100-brightgreen?style=flat-square&logo=shield)](./.agent/)
+[![Agents](https://img.shields.io/badge/Agents-16%20Core-blue?style=flat-square)](./.agent/agents/)
+[![Skills](https://img.shields.io/badge/Skills-344-purple?style=flat-square)](./.agent/skills/)
+[![License](https://img.shields.io/badge/License-MIT-gray?style=flat-square)](./LICENSE)
+[![Changelog](https://img.shields.io/badge/Changelog-v5.0-orange?style=flat-square)](./CHANGELOG.md)
 
 </div>
 
----
+**Antigravity Omni-Stack** là mô hình Multi-Agent AI Coding Framework được vận hành dưới sự chỉ huy của Orchestrator (Dev3) và 16 Specialist Agents. Thay vì sử dụng một trợ lý lập trình chung chung, hệ thống này thiết kế theo kiến trúc "Divide & Conquer" (Chia để trị): Agent là những thực thể "mỏng" (Thin Agent) với bản sắc riêng, tùy gọi và triển khai các "Kỹ năng chuyên sâu" (Rich Skills).
 
-## 📋 Overview
-
-**Antigravity Omni-Stack** is an internal **Multi-Agent AI Coding Framework** engineered for the full software development lifecycle — design, coding, testing, security, and operations. Rather than a generic assistant, the system runs a **Divide & Conquer architecture** where each agent has deep, narrow specialization and offloads complex methodology to lean, on-demand skills.
-
-**Architecture Pattern: Thin Agent + Rich Skills**
-```
-Agent (~2K chars)  →  Identity + Core Principles + Skill References
-     └── Skills (loaded on demand)  →  Deep Methodology + Anti-patterns + Matrices
-```
+Dưới đây là kiến trúc và tài nguyên tổng thể của hệ thống.
 
 ---
 
-## 🛡️ Security Audit Report (AgentShield)
+## 🔒 Security Score (AgentShield)
 
-**Last scan:** `2026-04-01` · **Tool:** `npx ecc-agentshield scan --path .agent`
+**Điểm bảo mật hiện tại:** `Grade A (100/100)`
+**Công cụ quét:** `npx ecc-agentshield scan --path .agent`
 
-| Category | Score | Status |
-|:---|:---:|:---|
-| 🔐 Secrets | 100/100 | ✅ No hardcoded secrets detected |
-| 🪝 Hooks | 100/100 | ✅ PreToolUse + AfterTool + Stop hooks active |
-| 🌐 MCP Servers | 100/100 | ✅ All MCP servers secured |
-| 🤖 Agents | 100/100 | ✅ All agents have tools restriction + model specified |
-| 🔑 Permissions | 85/100 | ⚠️ Bash+Write+Edit required by design (protected by deny rules) |
-| **Overall** | **97/100 — Grade A** | 🏆 **Production-Ready** |
-
-**Active Security Controls:**
-- ✅ `dangerously-skip-permissions` forbidden and documented
-- ✅ Deny rules: `sudo`, `chmod 777`, `ssh`, `rm -rf *`, `> /dev/*`, `DROP`, `DELETE FROM`
-- ✅ PreToolUse hooks on all Bash + Write/Edit operations
-- ✅ Stop hooks for session-end audit logging
-- ✅ Explicit `tools:` array on all 16 agents (least-privilege)
-
-```bash
-# Re-run audit anytime
-npm run scan:agent
-```
+- **Secrets (100/100):** Không phát hiện Hardcoded Secret. An toàn tuyệt đối với tệp `.env`.
+- **Permissions (100/100):** Đã tuân thủ triệt để nguyên tắc Least Privilege (Xóa bỏ cấp quyền tùy ý đồng thời Bash/Edit/Write).
+- **Hooks (100/100):** Hệ thống chặn tự động `PreToolUse`, `AfterTool`, và `Stop`.
+- **Đánh giá:** Hệ thống đã hoàn toàn sẵn sàng cho môi trường Production (Enterprise-ready) và khả năng chặn đứng hoàn toàn việc AI bị lợi dụng qua lỗ hổng Prompt Injection.
 
 ---
 
-## 🤖 Core Agents (16)
+## 📦 What's Inside
 
-Antigravity operates on a 16-specialist routing architecture (ECC v2.0 — Thin Agent + Rich Skills):
-
-### 🏗️ Full-Stack Engineers
-| Agent | Role | Key Skills |
-|:---|:---|:---|
-| 🧑‍💻 **`frontend-specialist`** | React/Next.js, design systems, UI/UX | `react-master`, `nextjs-master`, `tailwind-patterns`, `ui-ux-pro-max-skill` |
-| ⚙️ **`backend-specialist`** | API design, NestJS, microservices, business logic | `agent-backend-patterns`, `nestjs`, `bullmq-specialist`, `api-design` |
-| 🐍 **`python-specialist`** | FastAPI, LangChain, ML pipelines, data engineering | `python-master`, `airflow-dag-patterns`, `spark-optimization` |
-| 📱 **`mobile-developer`** | React Native, iOS/Android, offline-first | `agent-mobile-spec`, `react-native-master`, `mobile-design` |
-| 🚢 **`devops-engineer`** | CI/CD, Docker, Kubernetes, cloud deploy, SRE | `agent-devops-spec`, `vercel-deploy`, `gitops-workflow` |
-
-### 🔍 Specialist Reviewers & Architects
-| Agent | Role | Key Skills |
-|:---|:---|:---|
-| 🗄️ **`database-architect`** | Schema design, PostgreSQL, query optimization, migrations | `postgres-patterns`, `database-design`, `nosql-expert`, `prisma-expert` |
-| 🛡️ **`security-auditor`** | OWASP, STRIDE, pen testing, JWT/XSS/SQLi | `vulnerability-scanner`, `stride-analysis-patterns`, `attack-tree-construction` |
-| ⚡ **`performance-optimizer`** | Core Web Vitals, bundle size, React renders, profiling | `modern-web-performance`, `performance-profiling`, `web-performance-optimization` |
-| 🕵️ **`code-reviewer`** | Code quality, refactoring, standards enforcement | `code-quality-master`, `clean-code`, `agent-coding-standards` |
-| 🧪 **`qa-engineer`** | TDD, Playwright E2E, unit tests, coverage, eval | `tdd-master-workflow`, `e2e-testing`, `test-fixing`, `eval-harness` |
-| 🏛️ **`system-architect`** | Architecture decisions, C4 diagrams, design patterns | `software-architecture`, `c4-master`, `microservices-patterns`, `monorepo-architect` |
-
-### 🤖 AI & Integration Specialists (v5.0 — NEW)
-| Agent | Role | Key Skills |
-|:---|:---|:---|
-| 🧠 **`ai-orchestrator`** | Multi-agent coordination, task routing, meta-planning | `parallel-agents`, `dispatching-parallel-agents`, `intelligent-routing` |
-| 🔌 **`integration-engineer`** | MCP servers, webhook integrations, third-party APIs | `mcp-server-patterns`, `payment-integration`, `clerk-auth` |
-| 🛠️ **`mcp-developer`** | MCP server development, tool/resource/prompt design | `mcp-builder`, `mcp-server-patterns`, `filesystem-mcp` |
-| 📊 **`research-specialist`** | Technical research, documentation, competitive analysis | `deep-research`, `exa-search`, `tavily-web`, `context7-auto-research` |
-| 📋 **`product-manager`** | Planning, roadmap, requirements, GSD lifecycle | `plan-writing`, `writing-plans`, `concise-planning` |
-
-**Tools Policy:**
-- Specialist engineers: Bash, Edit, MultiEdit, Write, Read, Grep, Glob
-- Reviewer agents: Read-only (Read/Grep/Glob/Bash read-only) — no write tools granted
+Hệ thống được cấu trúc xoay quanh các cơ chế động quyền lực nhất của Everything Claude Code (ECC v2.0):
+- **16 Chuyên gia ảo (Core Agents):** Chia nhau phụ trách từ code, QA, đến bảo mật và Devops.
+- **344 Kỹ năng (Skills):** Các logic chuyên sâu được "lắp ghép" vào Agent khi cần, tránh ngốn Tokens.
+- **84 Slash Commands (Workflows):** Luồng vận hành rập khuôn để đảm bảo các tiến trình được thực hiện chính xác và tự động.
+- **37 Bộ nguyên tắc (Rules/Constitution):** Tôn chỉ thiết kế nhằm rèn luyện AI luôn tư duy như Senior Engineer/Architect.
 
 ---
 
-## 🎯 Agent-Bound Skills (4 new — Deep Methodology)
+## 🤖 Agents
 
-These skills were extracted from oversized agent definitions in the v3.1 refactor:
+Hệ thống sở hữu đội ngũ 16 Core Agents được phân loại hóa để thực thi nhiệm vụ song song.
 
-| Skill | Extracted From | Contents |
-|:---|:---|:---|
-| `agent-frontend-design-system` | `frontend-specialist` | Deep Design Thinking, Anti-cliché mandates, Maestro Auditor, Reality Check |
-| `agent-backend-spec` | `backend-specialist` | Constraint analysis, API matrix, 3-Layer error protocol, RCA |
-| `agent-devops-spec` | `devops-engineer` | 5-Phase Deployment Workflow, Strategy Matrix, Emergency RCA |
-| `agent-mobile-spec` | `mobile-developer` | Platform Decision Matrix, Performance Targets (2025), Native Forensics |
-
----
-
-## 🛠️ Skill Library (344 total)
-
-Skills are **lazy-loaded** by agents and workflows on demand. Organized by domain:
-
-<details>
-<summary><strong>🏗️ Architecture & Design</strong></summary>
-
-`c4-master` · `architecture` · `architecture-patterns` · `architecture-decision-records` · `database-design` · `api-design` · `api-master` · `nosql-expert` · `event-store-design` · `cqrs-implementation` · `domain-driven-hexagon` · `microservices-patterns` · `software-architecture` · `senior-architect` · `modern-web-architect`
-
-</details>
-
-<details>
-<summary><strong>⚛️ Frontend & UI</strong></summary>
-
-`react-master` · `nextjs-master` · `tailwind-patterns` · `frontend-patterns` · `frontend-design` · `core-components` · `ui-ux-pro-max-skill` · `web-design-guidelines` · `liquid-glass-design` · `canvas-design` · `agent-frontend-design-system` · `agent-d3js-skill` · `remotion-best-practices`
-
-</details>
-
-<details>
-<summary><strong>⚙️ Backend & APIs</strong></summary>
-
-`backend-patterns` · `agent-backend-patterns` · `agent-backend-spec` · `api-documentation-generator` · `nodejs-best-practices` · `nestjs-expert` · `agent-backend-spec` · `postgres-patterns` · `clickhouse-io` · `prisma-expert` · `bullmq-specialist` · `inngest` · `trpc`
-
-</details>
-
-<details>
-<summary><strong>📱 Mobile</strong></summary>
-
-`react-native-master` · `agent-mobile-spec` · `mobile-design` · `agent-mobile-architect` · `foundation-models-on-device`
-
-</details>
-
-<details>
-<summary><strong>🧪 Testing & QA</strong></summary>
-
-`tdd-master-workflow` · `tdd-workflow` · `e2e-testing` · `testing-patterns` · `unit-testing-test-generate` · `webapp-testing` · `testing-automation-mcp` · `ab-test-setup` · `ai-regression-testing` · `eval-harness` · `performance-testing-review-multi-agent-review`
-
-</details>
-
-<details>
-<summary><strong>🛡️ Security</strong></summary>
-
-`vulnerability-scanner` · `attack-tree-construction` · `stride-analysis-patterns` · `threat-modeling-expert` · `fabric-compliance` · `malware-analyst` · `binary-analysis-patterns` · `anti-reversing-techniques` · `auth-implementation-patterns` · `clerk-auth` · `secrets-management` · `pci-compliance`
-
-</details>
-
-<details>
-<summary><strong>☁️ DevOps & Cloud</strong></summary>
-
-`agent-devops-spec` · `agent-devops-engineer` · `vercel-deploy` · `vercel-deployment` · `server-management` · `gcp-cloud-run` · `azure-functions` · `bazel-build-optimization` · `turborepo-caching` · `nx-workspace-patterns` · `cicd-automation-workflow-automate` · `gitops-workflow`
-
-</details>
-
-<details>
-<summary><strong>🤖 AI & ML</strong></summary>
-
-`ai-agent-architect-master` · `agent-memory-mcp` · `voice-ai-engine-development` · `machine-learning-ops-ml-pipeline` · `eval-harness` · `cost-aware-llm-pipeline` · `continuous-agent-loop` · `enterprise-agent-ops` · `blockrun` · `nanoclaw-repl`
-
-</details>
-
-<details>
-<summary><strong>🔧 Developer Experience</strong></summary>
-
-`clean-code` · `antfu-coding-style` · `dx-optimizer` · `code-quality-master` · `agent-coding-standards` · `lint-and-validate` · `git-collaboration-master` · `continuous-learning` · `plan-writing` · `brainstorming` · `debugging-toolkit-smart-debug` · `systematic-debugging`
-
-</details>
+- **`ai-orchestrator` & `product-manager`:** Điều phối viên cấp cao, phân nhiệm vụ, theo dõi dòng chảy dự án, đánh giá rủi ro, và phác thảo Roadmap.
+- **`frontend-specialist` & `backend-specialist`:** Hai chủ lực gánh vác việc dựng cấu trúc, áp dụng Pattern và thực thi logic tính năng.
+- **`database-architect` & `system-architect`:** Thiết kế schema, lập biểu đồ C4, xử lý hiệu năng truy vấn và Microservices.
+- **`security-auditor` & `qa-engineer`:** Song sát đảm bảo TDD (Test-Driven Development), kiểm thử E2E Playwright và rà soát mọi truy cập trái phép.
+- **`devops-engineer`:** Tối ưu hóa hạ tầng CI/CD, Containerization, Kubernetes và cấu hình Vercel/Cloud.
+- **Đánh giá & Giải thích:** Sự phân tách (Decoupling) này là chìa khóa chống quá tải Context Window. Mỗi Agent chỉ làm việc thuộc chuyên môn, làm tăng tính chính xác của phản hồi và loại bỏ sự "ảo giác" (hallucination) khi code.
 
 ---
 
-## 🔄 Workflows (84 Slash Commands)
+## 🧩 Skills
 
-Invoke directly **inside the AI chatbox** — never in terminal.
+Thư viện **344 Skills** là kho trí tuệ chuyên sâu (Deep Methodology).
 
-### 🏗️ Planning & Architecture
-| Command | Description |
-|:---|:---|
-| `/plan` | Map structural design from requirements. WAIT for confirm before touching code. |
-| `/create` | Scaffold modules / foundational features with multi-agent execution |
-| `/orchestrate` | Sequential and parallel multi-agent workflow coordination |
-| `/prp-plan` | Comprehensive feature plan with codebase pattern extraction |
-| `/prp-implement` | Execute implementation plan with rigorous validation loops |
-| `/brainstorm` | AI-driven ideation following Senior Engineer standard |
-
-### 💻 Coding & Engineering
-| Command | Description |
-|:---|:---|
-| `/enhance` | Quick UI fixes, logic tweaks, minor feature additions |
-| `/debug` | Multi-threaded log scanning to trace Root Cause |
-| `/refactor-clean` | Code cleanup, split concerns, reduce complexity |
-| `/api` | OpenAPI 3.1 master API design & documentation |
-| `/realtime` | WebSocket / Socket.io / SSE integration |
-| `/ui-ux-pro-max` | Premium visual design with micro-animations |
-
-### 🧪 Testing & Quality
-| Command | Description |
-|:---|:---|
-| `/tdd` | Test-Driven Development — tests first, then implementation |
-| `/test` | Auto-generate Unit/E2E tests following TDD standards |
-| `/e2e` | Playwright end-to-end test generation + execution |
-| `/santa-loop` | Adversarial dual-review convergence — two models must approve |
-| `/code-review` | Local uncommitted changes or GitHub PR review |
-| `/quality-gate` | Pre-ship quality checkpoint |
-
-### 🚀 Operations & Deployment
-| Command | Description |
-|:---|:---|
-| `/deploy` | Automated production pipeline |
-| `/audit` | Deep security + architecture + performance audit |
-| `/monitor` | Real-time server and pipeline health check |
-| `/security` | Vulnerability scan following Security Senior standard |
-| `/release-version` | Update version, generate changelog, sync documents |
-| `/backup` | Git commit snapshot with timestamp |
-
-### 📚 Knowledge & Learning
-| Command | Description |
-|:---|:---|
-| `/docs` | Fetch latest library docs via Context7 |
-| `/document` | Auto-generate technical documentation |
-| `/learn-eval` | Extract reusable patterns from session → save as Skills |
-| `/skill-create` | Generate SKILL.md from local git history patterns |
-| `/evolve` | Analyze instincts and suggest evolved system structures |
-| `/status` | Project progress dashboard |
-
-*(Full list: 84 workflows in `.agent/workflows/`)*
+- **Architecture & Design:** `c4-master`, `domain-driven-hexagon`, `microservices-patterns`, v.v định nghĩa cách phân rã hệ thống.
+- **Testing & QA:** `tdd-master-workflow`, `e2e-testing`, `eval-harness` giúp thực thi triệt để Test-first.
+- **Frontend & UI:** `nextjs-master`, `react-master`, `tailwind-patterns`, `ui-ux-pro-max-skill` lo phần tối ưu UX và Micro-Animation.
+- **Backend & APIs:** `nestjs-expert`, `agent-backend-patterns`, `bullmq-specialist`, `trpc`, `api-design`.
+- **Đánh giá & Giải thích:** Bằng cách biến các kĩ năng thành Modules (Lazy-loading), AI không phải ghi nhớ tất cả. Khi gặp Task liên quan, Agent chỉ cần nạp tệp SKILL.md tương ứng.
 
 ---
 
-## 📖 Rules Constitution (37 rules)
+## 🔄 Workflow & Safety
 
-All agent decisions are strictly governed by rules in `.agent/rules/`:
+Antigravity đề cao sự vận hành chặt chẽ dựa theo chu trình PDCA (`/plan` → `/create` → `/orchestrate` → `/status`).
 
-### Core (Always Active)
-| Rule | Purpose |
-|:---|:---|
-| `GEMINI.md` | Master orchestrator identity, scale-aware modes, language protocol |
-| `security.md` | Zero-tolerance: no hardcoded secrets, no SQL injection, no XSS |
-| `runtime-watchdog.md` | Hang detection — stops infinite loops, auto STOP + CLEANUP |
-| `error-logging.md` | All failures logged to `ERRORS.md` (Zero-Silent-Failure principle) |
-| `malware-protection.md` | Blocks malicious links, checks SRI, validates external dependencies |
-| `docs-update.md` | Forces documentation sync after every skill/workflow/rule addition |
-
-### TypeScript Standards
-`typescript-coding-style` · `typescript-patterns` · `typescript-security` · `typescript-testing` · `typescript-hooks`
-
-### Python Standards
-`python-coding-style` · `python-patterns` · `python-security` · `python-testing` · `python-hooks`
-
-### Common Patterns
-`common-agents` · `common-code-review` · `common-coding-style` · `common-development-workflow` · `common-git-workflow` · `common-hooks` · `common-patterns` · `common-performance` · `common-security` · `common-testing`
-
-### Domain Rules
-`frontend.md` · `backend.md` · `architecture-review.md` · `code-quality.md` · `compliance.md` · `debug.md` · `business.md` · `gitnexus-integration.md` · `testing-standard.md` · `system-update.md`
+- **Quy trình:** Khi user giao việc, AI không Code ngay. Nó phải thông qua `brainstorm`, báo cáo tại `implementation_plan.md`, đợi cấp quyền từ Người dùng rồi mới phân chia Ticket sang `task.md`.
+- **Đánh giá & Giải thích:** Flow tuần tự giúp theo dõi tiến độ công việc, đảm bảo không một file nào bị thay thế nhầm, phòng tránh được rủi ro vòng lặp (vicious loop).
 
 ---
 
-## 📈 Operational Metrics
+## 🖧 Backend
 
-| Metric | Score | Notes |
-|:---|:---:|:---|
-| **Security Grade (AgentShield)** | A (97/100) | 0 Critical, 1 High (by design), 0 Medium |
-| **Agent Architecture** | 100/100 | Thin Agent + Rich Skills, 3-tier loading |
-| **Skill Coverage** | ~29.3% (101/344) | Phase 3B complete: 67→101 refs, 0 broken |
-| **Skill Routing Accuracy** | 98/100 | Domain skills grouped by CORE/DOMAIN/SPECIALIST |
-| **Hang Risk / Silent Failure** | ~0% | Watchdog + PreToolUse hooks enforced |
-| **Tool Least-Privilege** | ✅ All agents | Explicit `tools:` arrays, deny rules active |
-
-**→ Overall Assessment:** Production-ready for Big Tech architecture scale.
+- **Nền tảng:** Phù hợp hoàn hảo với **Next.js API**, **NestJS**, **Node.js** và chạy message queue với **Moleculer**.
+- **Database:** PostgreSQL / Prisma / Clickhouse.
+- **Cơ chế:** Ưu tiên Domain-Driven Design (DDD), phân tầng Layer (Controller - Service - Repository), thiết kế RESTful hoặc GraphQL tối ưu truy xuất và có rate-limiting/bảo mật JWT chặn đầu.
 
 ---
 
-## 🔧 Configuration Files
+## 🎨 Frontend
 
-```
-.agent/
-├── agents/           # 11 thin agent shells
-│   ├── frontend-specialist.md
-│   ├── backend-specialist.md
-│   ├── python-specialist.md
-│   ├── mobile-developer.md
-│   ├── devops-engineer.md
-│   ├── database-architect.md
-│   ├── security-auditor.md
-│   ├── performance-optimizer.md
-│   ├── code-reviewer.md
-│   ├── qa-engineer.md            ← NEW v3.4
-│   └── system-architect.md       ← NEW v3.4
-├── skills/           # 344 on-demand skills
-├── rules/            # 37 constitutional rules
-├── workflows/        # 84 slash-command workflows
-├── hooks/            # Security hooks (PreToolUse, AfterTool, Stop)
-├── settings.json     # Permissions + deny rules + hook config
-└── logs/             # Session audit logs
-```
+- **Nền tảng:** React / Next.js app router.
+- **Tối ưu:** Quản lý State rõ ràng, Component linh hoạt (Component-driven), áp dụng triết lý SSR/SSG.
+- **Giải thích:** Cấu trúc frontend được chuẩn hóa không chỉ để Code đẹp, mà để "Performance-focused" — tối giản Bundle size và đạt chuẩn Core Web Vitals xanh.
 
 ---
 
-## 🚦 Quick Start
+## 🎭 Design & UX
 
-```bash
-# Security audit
-npm run scan:agent
-
-# Start dev server (PetShop app)
-npm run dev
-
-# Check git status before commit
-git status
-```
-
-> **⚠️ Important:** Never execute Slash Commands (`/plan`, `/deploy`, etc.) in the OS Terminal.
-> Invoke them **inside the AI chatbox** to trigger the correct structured agent playbooks.
+- **Nguyên tắc:** Loại bỏ hoàn toàn sự nhàm chán (cliché). Yêu cầu bắt buộc phải đẹp ngay từ cái nhìn đầu tiên (Premium Visuals).
+- **Hệ sinh thái:** Dùng Vanilla CSS linh hoạt hoặc TailwindCSS (v4) dựa theo hệ thống Design System (Design Tokens). Hỗ trợ Glassmorphism, Liquid Glass design, chế độ Dark Mode tinh tế và Micro-animations tăng Tương tác.
+- **Đánh giá:** Sự chỉn chu về thẩm mỹ biến các app từ MVP nghèo nàn thành các sản phẩm mang độ hoàn thiện chuẩn Enterprise-class.
 
 ---
 
-<div align="center">
+## ⚡ Workflows / Slash Commands
 
-*Antigravity Omni-Stack · Powered by Antigravity IDE · Multi-Agent Architecture*
+Hàng loạt các phím tắt `/` (gõ vào khung chat AI) giúp User "triệu hồi" những chuỗi hành động chuyên nghiệp:
+- `/plan`: Lập bản đồ tính năng một cách cẩn trọng.
+- `/create`: Khởi tạo luồng tính năng mới với đa Agent.
+- `/audit`: Rà soát mã độc, phân tích code thối (code smell).
+- `/tdd`: Code theo chế độ buộc viết Test trước.
+- `/e2e`: Viết kịch bản tự động testing Playwright.
+- `/ui-ux-pro-max`: Buff giao diện cực xịn xò.
+- **Giải thích:** Tiết kiệm hàng giờ đồng hồ viết lại prompt cho User. Mỗi lệnh kích hoạt một chuỗi hành vi được tinh chỉnh đến mức tối đa hóa hiệu suất AI.
 
-**v3.4.0** — Phase 3B Complete: 11 Agents, QA & Architect added, 101 skills routed architecture
+---
 
-</div>
+## 📜 Rules
+
+37 quy tắc hiến pháp được giám sát 24/7.
+- `GEMINI.md`: Bản ngã cốt lõi điều phối 16 Agent.
+- `security.md`: Cấm tuyệt đối Hardcode, SQL Injection, XSS.
+- `runtime-watchdog.md`: Luật chống treo bộ nhớ, ép AI báo cáo lỗi và phải tự phân tích "Vì sao đoạn code hỏng".
+- **Đánh giá:** Đây là "chốt chặn lương tâm" bắt AI phải phục vụ theo phong thái C-Level (CTO / Lead), không thỏa hiệp với mã nguồn bẩn.
+
+---
+
+## 🪝 AI-Triggered Hooks
+
+Những tập lệnh bảo vệ chạy tự động hoàn toàn (bên trong `.agent/hooks/`):
+- `gsd-prompt-guard.js`: Chặn luồng nếu AI xuất lệnh CLI nguy hiểm trước khi gọi bash/write.
+- `gsd-workflow-guard.js`: Chặn ghi/sửa file nếu nằm trong vùng Cấm thư mục quan trọng chưa backup.
+- `gsd-context-monitor.js`: Hook gỡ token chết (Rác log) để tiết kiệm Context Window.
+- **Đánh giá & Giải thích:** Các Hooks tạo nên thành tựu Security Score 100/100, bù trừ các rủi ro hệ thống bị chọc phá (Prompt Injection). AI bị đặt trong "Sandbox giới hạn bảo vệ" mạnh mẽ.
+
+---
+
+## ☁️ DevOps & Reliability
+
+- **Công cụ:** Triển khai hạ tầng Vercel deploy, GCP Cloud Run, Kubernetes, Docker. Trạng thái System có log lỗi ghi rõ ràng tại `ERRORS.md`.
+- **Hành vi SRE (Site Reliability Engineering):**
+  - Mọi lỗi Crash được xử lý theo RCA (Root Cause Analysis).
+  - Tự động Backup session.
+- **Đánh giá:** Giúp môi trường của bạn luôn vận hành trong sự ổn định, sẵn sàng Scale-up tự do trong Monorepo (Nx / Turborepo / Bazel).
+
+---
+
+## 🚀 Project Setup & Onboarding
+
+1. **Chuẩn bị môi trường:** 
+   Sử dụng lệnh `npm install` để chạy các gói package. Cấu trúc GitNexus (đóng vai trò System Context mapping) đã được tích hợp (`npm run gitnexus-update`).
+2. **Quét bảo mật Agent cấu hình (Security Audit):** 
+   Chạy `npm run scan:agent` định kì để xác thực cấu trúc cấu hình AI.
+3. **Gọi AI Thực thi:** 
+   Không bao giờ điều khiển các lệnh Workflow cài đặt ra màn hình Terminal hệ điều hành mà gán các Slash Commands (Bắt đầu bằng `/`) vào trong Box Chat IDE AI (VD: Gõ `/plan Thêm cổng thanh toán Stripe`). AI sẽ tự động kích hoạt Agent-Role.
+4. **Theo dõi:** 
+   Check `task.md` (Checklist) và `implementation_plan.md` cho các tác vụ thay đổi chuyên sâu. Dọn rác Context Window khi làm việc lâu qua lệnh `/compact`.
+
+> **Antigravity Omni-Stack** — Everything Claude Code, Scale To Enterprise.
