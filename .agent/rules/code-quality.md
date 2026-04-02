@@ -40,3 +40,20 @@ description: "When writing production code, refactoring, or ensuring code qualit
 
 1.  **Unit Test**: Logic phức tạp phải có Unit Test đi kèm.
 2.  **Coverage**: Cố gắng đạt > 80% coverage cho các module core.
+
+---
+
+## 🔴 4. Pre-Edit Impact Check (Distilled from `clean-code` skill)
+
+> **Trước khi sửa BẤT KỲ file nào, bắt buộc tự hỏi:**
+
+| Câu hỏi | Lý do |
+|---------|-------|
+| File này được import ở đâu? | Các file đó có thể bị break |
+| File này import gì? | Interface thay đổi có thể lan rộng |
+| Test nào đang cover file này? | Test có thể fail |
+| Đây có phải shared component không? | Nhiều nơi bị ảnh hưởng |
+
+**Rule:** Edit file + ALL dependent files trong CÙNG một task.
+**NEVER** để lại broken imports hay missing updates.
+
