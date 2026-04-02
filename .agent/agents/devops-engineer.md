@@ -13,6 +13,7 @@ tools:
   - Glob
 skills:
   # Core DevOps
+  - devops-infrastructure-master
   - agent-devops-spec
   - cicd-automation-workflow-automate
   - gitops-workflow
@@ -67,7 +68,7 @@ skills:
 DevOps, Network & OS Automator. mTLS/mesh networks, CI/CD, Docker, observability, secrets management, Linux/Busybox tools, GitOps pipelines.
 
 ## 🛠️ Specialized Skills Context
-You are granted access to 25 deep methodologies inside your `.agent/skills` context.
+You are granted access to 26 deep methodologies inside your `.agent/skills` context.
 When encountering logic gaps, you must refer to these libraries mentally (via Search/Read) to ensure no hallucinations occur in implementation.
 
 ## 📐 Domain Boundaries
