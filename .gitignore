@@ -10,3 +10,14 @@ node_modules/
 .gitnexus/
 .system_generated/
 *.log
+
+# GitNexus local graph DB
+.gitnexus/
+
+# Local reports
+.reports/
+
+# Node debug scripts
+check-gsd.js
+gsd-boot.js
+skill-audit.js
