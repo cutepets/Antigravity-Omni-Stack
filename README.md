@@ -5,14 +5,14 @@
 **Version:** `5.0.0` · **Engine:** Antigravity IDE + MCP · **Security Grade:** `A (100/100)` · **Framework:** ECC v2.0
 
 [![AgentShield](https://img.shields.io/badge/AgentShield-A%20100%2F100-brightgreen?style=flat-square&logo=shield)](./.agent/)
-[![Agents](https://img.shields.io/badge/Agents-16%20Core-blue?style=flat-square)](./.agent/agents/)
+[![Agents](https://img.shields.io/badge/Agents-17%20Core-blue?style=flat-square)](./.agent/agents/)
 [![Skills](https://img.shields.io/badge/Skills-344-purple?style=flat-square)](./.agent/skills/)
 [![License](https://img.shields.io/badge/License-MIT-gray?style=flat-square)](./LICENSE)
 [![Changelog](https://img.shields.io/badge/Changelog-v5.0-orange?style=flat-square)](./CHANGELOG.md)
 
 </div>
 
-**Antigravity Omni-Stack** là mô hình Multi-Agent AI Coding Framework được vận hành dưới sự chỉ huy của Orchestrator (Dev3) và 16 Specialist Agents. Thay vì sử dụng một trợ lý lập trình chung chung, hệ thống này thiết kế theo kiến trúc "Divide & Conquer" (Chia để trị): Agent là những thực thể "mỏng" (Thin Agent) với bản sắc riêng, tùy gọi và triển khai các "Kỹ năng chuyên sâu" (Rich Skills).
+**Antigravity Omni-Stack** là mô hình Multi-Agent AI Coding Framework được vận hành dưới sự chỉ huy của Orchestrator (Dev3) và 17 Specialist Agents. Thay vì sử dụng một trợ lý lập trình chung chung, hệ thống này thiết kế theo kiến trúc "Divide & Conquer" (Chia để trị): Agent là những thực thể "mỏng" (Thin Agent) với bản sắc riêng, tùy gọi và triển khai các "Kỹ năng chuyên sâu" (Rich Skills).
 
 Dưới đây là kiến trúc và tài nguyên tổng thể của hệ thống.
 
@@ -33,7 +33,7 @@ Dưới đây là kiến trúc và tài nguyên tổng thể của hệ thống.
 ## 📦 What's Inside
 
 Hệ thống được cấu trúc xoay quanh các cơ chế động quyền lực nhất của Everything Claude Code (ECC v2.0):
-- **16 Chuyên gia ảo (Core Agents):** Chia nhau phụ trách từ code, QA, đến bảo mật và Devops.
+- **17 Chuyên gia ảo (Core Agents):** Chia nhau phụ trách từ code, QA, đến bảo mật và Devops.
 - **344 Kỹ năng (Skills):** Các logic chuyên sâu được "lắp ghép" vào Agent khi cần, tránh ngốn Tokens.
 - **84 Slash Commands (Workflows):** Luồng vận hành rập khuôn để đảm bảo các tiến trình được thực hiện chính xác và tự động.
 - **37 Bộ nguyên tắc (Rules/Constitution):** Tôn chỉ thiết kế nhằm rèn luyện AI luôn tư duy như Senior Engineer/Architect.
@@ -42,12 +42,13 @@ Hệ thống được cấu trúc xoay quanh các cơ chế động quyền lự
 
 ## 🤖 Agents
 
-Hệ thống sở hữu đội ngũ 16 Core Agents được phân loại hóa để thực thi nhiệm vụ song song.
+Hệ thống sở hữu đội ngũ 17 Core Agents được phân loại hóa để thực thi nhiệm vụ song song.
 
 - **`ai-orchestrator` & `product-manager`:** Điều phối viên cấp cao, phân nhiệm vụ, theo dõi dòng chảy dự án, đánh giá rủi ro, và phác thảo Roadmap.
 - **`frontend-specialist` & `backend-specialist`:** Hai chủ lực gánh vác việc dựng cấu trúc, áp dụng Pattern và thực thi logic tính năng.
 - **`database-architect` & `system-architect`:** Thiết kế schema, lập biểu đồ C4, xử lý hiệu năng truy vấn và Microservices.
 - **`security-auditor` & `qa-engineer`:** Song sát đảm bảo TDD (Test-Driven Development), kiểm thử E2E Playwright và rà soát mọi truy cập trái phép.
+- **`debug-specialist`:** Chuyên gia chẩn đoán hệ thống, Trace Bug và xử lý Error Diagnostics tận gốc.
 - **`devops-engineer`:** Tối ưu hóa hạ tầng CI/CD, Containerization, Kubernetes và cấu hình Vercel/Cloud.
 - **Đánh giá & Giải thích:** Sự phân tách (Decoupling) này là chìa khóa chống quá tải Context Window. Mỗi Agent chỉ làm việc thuộc chuyên môn, làm tăng tính chính xác của phản hồi và loại bỏ sự "ảo giác" (hallucination) khi code.
 

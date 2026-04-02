@@ -213,7 +213,6 @@
     "hooks/gsd-check-update.js": "e09752530823dac0c899d85328db74b480b90e4ced08c2602a4d1daa450d21da",
     "hooks/gsd-context-monitor.js": "32c190d5d2bb69a5e39b24f8e0ce74506ca5cd265cc35fc175e2257afdbbce98",
     "hooks/gsd-prompt-guard.js": "cc5cdd909ab9e38aab3477ac6b0a437f3ba6e58e0176d44ef41696d9548c325f",
-    "hooks/gsd-statusline.js": "b8be9f476803a82ed673e1eeb1ceb2b9f2d26b22b8a74963da3d0de6a2bfb83f",
     "hooks/gsd-workflow-guard.js": "0e2ae090ddd7f2db530974d3bfb3cdfa18edcd7a5cc839cc8b1a3670984f1453"
   }
 }
