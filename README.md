@@ -6,7 +6,7 @@
 
 [![AgentShield](https://img.shields.io/badge/AgentShield-A%20100%2F100-brightgreen?style=flat-square&logo=shield)](./.agent/)
 [![Agents](https://img.shields.io/badge/Agents-17%20Core-blue?style=flat-square)](./.agent/agents/)
-[![Skills](https://img.shields.io/badge/Skills-344-purple?style=flat-square)](./.agent/skills/)
+[![Skills](https://img.shields.io/badge/Skills-101%20Core-purple?style=flat-square)](./.agent/skills/)
 [![License](https://img.shields.io/badge/License-MIT-gray?style=flat-square)](./LICENSE)
 [![Changelog](https://img.shields.io/badge/Changelog-v5.0-orange?style=flat-square)](./CHANGELOG.md)
 
@@ -34,7 +34,7 @@ Dưới đây là kiến trúc và tài nguyên tổng thể của hệ thống.
 
 Hệ thống được cấu trúc xoay quanh các cơ chế động quyền lực nhất của Everything Claude Code (ECC v2.0):
 - **17 Chuyên gia ảo (Core Agents):** Chia nhau phụ trách từ code, QA, đến bảo mật và Devops.
-- **344 Kỹ năng (Skills):** Các logic chuyên sâu được "lắp ghép" vào Agent khi cần, tránh ngốn Tokens.
+- **101 Kỹ năng thực chiến (Core Skills):** Các logic chuyên sâu (đã được tinh lọc rác) được "lắp ghép" vào Agent khi cần, tải kiến trúc mảng mỏng nhẹ nhất.
 - **84 Slash Commands (Workflows):** Luồng vận hành rập khuôn để đảm bảo các tiến trình được thực hiện chính xác và tự động.
 - **37 Bộ nguyên tắc (Rules/Constitution):** Tôn chỉ thiết kế nhằm rèn luyện AI luôn tư duy như Senior Engineer/Architect.
 
@@ -56,7 +56,7 @@ Hệ thống sở hữu đội ngũ 17 Core Agents được phân loại hóa đ
 
 ## 🧩 Skills
 
-Thư viện **344 Skills** là kho trí tuệ chuyên sâu (Deep Methodology).
+Thư viện **101 Core Skills** là kho trí tuệ chuyên sâu (Deep Methodology) còn sót lại sau đợt đại thanh trừng rác dữ liệu, đảm bảo không có mã "chết".
 
 - **Architecture & Design:** `c4-master`, `domain-driven-hexagon`, `microservices-patterns`, v.v định nghĩa cách phân rã hệ thống.
 - **Testing & QA:** `tdd-master-workflow`, `e2e-testing`, `eval-harness` giúp thực thi triệt để Test-first.
