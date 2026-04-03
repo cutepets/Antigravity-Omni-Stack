@@ -1,0 +1,79 @@
+src/common/filters/global-exception.filter.ts(9,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/database/database.service.ts(2,30): error TS2307: Cannot find module '@prisma/client' or its corresponding type declarations.
+src/database/database.service.ts(16,16): error TS2339: Property '$connect' does not exist on type 'DatabaseService'.
+src/database/database.service.ts(20,16): error TS2339: Property '$disconnect' does not exist on type 'DatabaseService'.
+src/main.ts(5,25): error TS2307: Cannot find module 'dotenv' or its corresponding type declarations.
+src/modules/auth/auth.controller.ts(16,30): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/auth/auth.module.ts(13,22): error TS2322: Type 'string' is not assignable to type 'number | StringValue | undefined'.
+src/modules/auth/auth.service.ts(10,58): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/index.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+  The file is in the program because:
+    Imported via '@petshop/shared' from file 'c:/Dev2/Petshop_Management_V2/apps/api/src/modules/auth/auth.service.ts'
+    Imported via '@petshop/shared' from file 'c:/Dev2/Petshop_Management_V2/apps/api/src/modules/auth/auth.controller.ts'
+    Imported via '@petshop/shared' from file 'c:/Dev2/Petshop_Management_V2/apps/api/src/modules/auth/strategies/jwt.strategy.ts'
+    Imported via '@petshop/shared' from file 'c:/Dev2/Petshop_Management_V2/apps/api/src/modules/staff/staff.service.ts'
+src/modules/auth/auth.service.ts(21,32): error TS2339: Property 'user' does not exist on type 'DatabaseService'.
+src/modules/auth/auth.service.ts(55,35): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(payload: string, options?: Omit<JwtSignOptions, keyof SignOptions> | undefined): string', gave the following error.
+    Argument of type 'Omit<JwtPayload, "iat" | "exp">' is not assignable to parameter of type 'string'.
+  Overload 2 of 3, '(payload: Buffer<ArrayBufferLike>, options?: JwtSignOptions | undefined): string', gave the following error.
+    Argument of type 'Omit<JwtPayload, "iat" | "exp">' is not assignable to parameter of type 'Buffer<ArrayBufferLike>'.
+      Type 'Omit<JwtPayload, "iat" | "exp">' is missing the following properties from type 'Buffer<ArrayBufferLike>': slice, subarray, write, toJSON, and 97 more.
+  Overload 3 of 3, '(payload: Omit<JwtPayload, "iat" | "exp">, options?: JwtSignOptions | undefined): string', gave the following error.
+    Type 'string' is not assignable to type 'number | StringValue | undefined'.
+src/modules/auth/auth.service.ts(63,19): error TS2339: Property 'refreshToken' does not exist on type 'DatabaseService'.
+src/modules/auth/auth.service.ts(94,34): error TS2339: Property 'refreshToken' does not exist on type 'DatabaseService'.
+src/modules/auth/auth.service.ts(104,19): error TS2339: Property 'refreshToken' does not exist on type 'DatabaseService'.
+src/modules/auth/auth.service.ts(111,33): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(payload: string, options?: Omit<JwtSignOptions, keyof SignOptions> | undefined): string', gave the following error.
+    Argument of type 'Omit<JwtPayload, "iat" | "exp">' is not assignable to parameter of type 'string'.
+  Overload 2 of 3, '(payload: Buffer<ArrayBufferLike>, options?: JwtSignOptions | undefined): string', gave the following error.
+    Argument of type 'Omit<JwtPayload, "iat" | "exp">' is not assignable to parameter of type 'Buffer<ArrayBufferLike>'.
+      Type 'Omit<JwtPayload, "iat" | "exp">' is missing the following properties from type 'Buffer<ArrayBufferLike>': slice, subarray, write, toJSON, and 97 more.
+  Overload 3 of 3, '(payload: Omit<JwtPayload, "iat" | "exp">, options?: JwtSignOptions | undefined): string', gave the following error.
+    Type 'string' is not assignable to type 'number | StringValue | undefined'.
+src/modules/auth/auth.service.ts(118,19): error TS2339: Property 'refreshToken' does not exist on type 'DatabaseService'.
+src/modules/auth/auth.service.ts(137,19): error TS2339: Property 'refreshToken' does not exist on type 'DatabaseService'.
+src/modules/auth/auth.service.ts(143,32): error TS2339: Property 'user' does not exist on type 'DatabaseService'.
+src/modules/auth/dto/login.dto.ts(8,3): error TS2564: Property 'username' has no initializer and is not definitely assigned in the constructor.
+src/modules/auth/dto/login.dto.ts(14,3): error TS2564: Property 'password' has no initializer and is not definitely assigned in the constructor.
+src/modules/auth/dto/refresh.dto.ts(8,3): error TS2564: Property 'refreshToken' has no initializer and is not definitely assigned in the constructor.
+src/modules/customer/customer.service.ts(47,15): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/customer/customer.service.ts(54,15): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/customer/customer.service.ts(68,36): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/customer/customer.service.ts(81,34): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/customer/customer.service.ts(88,33): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/customer/customer.service.ts(91,36): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/customer/customer.service.ts(109,36): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/customer/customer.service.ts(113,36): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/customer/customer.service.ts(117,35): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/customer/customer.service.ts(126,36): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/customer/customer.service.ts(129,19): error TS2339: Property 'customer' does not exist on type 'DatabaseService'.
+src/modules/staff/staff.service.ts(20,20): error TS2339: Property 'user' does not exist on type 'DatabaseService'.
+src/modules/staff/staff.service.ts(30,32): error TS2339: Property 'user' does not exist on type 'DatabaseService'.
+src/modules/staff/staff.service.ts(43,34): error TS2339: Property 'user' does not exist on type 'DatabaseService'.
+src/modules/staff/staff.service.ts(48,33): error TS2339: Property 'user' does not exist on type 'DatabaseService'.
+src/modules/staff/staff.service.ts(53,20): error TS2339: Property 'user' does not exist on type 'DatabaseService'.
+../../packages/shared/src/index.ts(2,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/core.types.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+  The file is in the program because:
+    Imported via './types/core.types.js' from file 'c:/Dev2/Petshop_Management_V2/packages/shared/src/index.ts'
+    Imported via './core.types.js' from file 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/customer.types.ts'
+    Imported via './core.types.js' from file 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/pet.types.ts'
+    Imported via './core.types.js' from file 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/order.types.ts'
+    Imported via './core.types.js' from file 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/product.types.ts'
+    Imported via './core.types.js' from file 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/domain.types.ts'
+../../packages/shared/src/index.ts(3,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/customer.types.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+../../packages/shared/src/index.ts(4,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/pet.types.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+../../packages/shared/src/index.ts(5,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/order.types.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+  The file is in the program because:
+    Imported via './types/order.types.js' from file 'c:/Dev2/Petshop_Management_V2/packages/shared/src/index.ts'
+    Imported via './order.types.js' from file 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/pos.types.ts'
+../../packages/shared/src/index.ts(6,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/product.types.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+../../packages/shared/src/index.ts(7,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/domain.types.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+../../packages/shared/src/index.ts(8,1): error TS2308: Module './types/order.types.js' has already exported a member named 'PaymentEntry'. Consider explicitly re-exporting to resolve the ambiguity.
+../../packages/shared/src/index.ts(8,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/types/pos.types.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+../../packages/shared/src/index.ts(11,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/utils/search.utils.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+../../packages/shared/src/index.ts(12,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/utils/id.utils.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+../../packages/shared/src/index.ts(13,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/utils/currency.utils.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+../../packages/shared/src/index.ts(14,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/utils/date.utils.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+../../packages/shared/src/index.ts(17,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/constants/index.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.
+../../packages/shared/src/index.ts(20,15): error TS6059: File 'c:/Dev2/Petshop_Management_V2/packages/shared/src/errors/index.ts' is not under 'rootDir' 'c:/Dev2/Petshop_Management_V2/apps/api/src'. 'rootDir' is expected to contain all source files.

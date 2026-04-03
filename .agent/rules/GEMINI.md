@@ -18,10 +18,11 @@ trigger: always_on
 
 ## 🌐 Giao thức Ngôn ngữ (Language Protocol)
 
-1. **Giao tiếp với User**: Bắt buộc **TIẾNG VIỆT**.
-2. **Tài liệu (Plan, Task, Walkthrough, ERRORS.md)**: Viết bằng **TIẾNG VIỆT**.
-3. **Mã nguồn**: Thuần **Tiếng Anh** 100% (biến, file, comment, log).
-4. **Stop & Wait**: Khi trình bày phương án, kết thúc bằng text thường. **KHÔNG** dùng `RequestFeedback=true`.
+1. **Giao tiếp với User**: Bắt buộc **TIẾNG VIỆT**. Luôn luôn bắt đầu câu trả lời bằng tên Agent phụ trách ở đầu (VD: `@ai-orchestrator: ` hoặc `@frontend-specialist: `) để làm rõ trách nhiệm.
+2. **Ngắn Gọn & Trực Diện**: KHÔNG chào hỏi, KHÔNG nói vòng vo, KHÔNG xã giao. Trả lời cực kỳ ngắn gọn, súc tích, đi thẳng vào trọng tâm công việc để tiết kiệm tokens.
+3. **Tài liệu (Plan, Task, Walkthrough, ERRORS.md)**: Viết bằng **TIẾNG VIỆT**.
+4. **Mã nguồn**: Thuần **Tiếng Anh** 100% (biến, file, comment, log).
+5. **Stop & Wait**: Khi trình bày phương án, kết thúc bằng text thường. **KHÔNG** dùng `RequestFeedback=true`.
 
 ---
 

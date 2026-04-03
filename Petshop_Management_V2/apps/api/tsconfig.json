@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "outDir": "./dist",
+    "paths": {
+      "@petshop/auth": ["../../packages/auth/src/index.ts"],
+      "@petshop/config": ["../../packages/config/src/index.ts"],
+      "@petshop/core": ["../../packages/core/src/index.ts"],
+      "@petshop/database": ["../../packages/database/src/index.ts"],
+      "@petshop/queue": ["../../packages/queue/src/index.ts"],
+      "@petshop/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test"]
+}

@@ -1,0 +1,41 @@
+{
+  "name": "petshop-management-v2",
+  "private": true,
+  "version": "2.0.0",
+  "description": "Petshop Service Management System v2 — Turborepo Monorepo",
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:api": "turbo run dev --filter=@petshop/api",
+    "dev:web": "turbo run dev --filter=@petshop/web",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rimraf node_modules",
+    "db:generate": "turbo run db:generate --filter=@petshop/database",
+    "db:migrate": "turbo run db:migrate --filter=@petshop/database",
+    "db:push": "pnpm --filter @petshop/database db:push",
+    "db:seed": "pnpm --filter @petshop/database db:seed",
+    "db:studio": "pnpm --filter @petshop/database db:studio",
+    "db:reset": "pnpm --filter @petshop/database db:reset",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.2",
+    "typescript": "^5.7.3",
+    "prettier": "^3.5.3",
+    "rimraf": "^6.0.1"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "msw": {
+    "workerDirectory": [
+      "apps\\web\\public"
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "paths": {
+      "@petshop/core": ["./packages/core/src/index.ts"],
+      "@petshop/shared": ["./packages/shared/src/index.ts"],
+      "@petshop/auth": ["./packages/auth/src/index.ts"],
+      "@petshop/queue": ["./packages/queue/src/index.ts"],
+      "@petshop/config": ["./packages/config/src/index.ts"],
+      "@petshop/database": ["./packages/database/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules"]
+}

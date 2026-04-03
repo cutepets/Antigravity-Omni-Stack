@@ -1,0 +1,49 @@
+import { IsString, IsOptional, IsEnum, IsNumber, IsDateString } from 'class-validator'
+import { GroomingStatus } from '@prisma/client'
+
+export class CreateGroomingDto {
+  @IsString()
+  petId!: string
+
+  @IsString()
+  @IsOptional()
+  staffId?: string
+
+  @IsString()
+  @IsOptional()
+  serviceId?: string
+
+  @IsDateString()
+  @IsOptional()
+  startTime?: string
+
+  @IsString()
+  @IsOptional()
+  notes?: string
+}
+
+export class UpdateGroomingDto {
+  @IsEnum(GroomingStatus)
+  @IsOptional()
+  status?: GroomingStatus
+
+  @IsString()
+  @IsOptional()
+  staffId?: string
+
+  @IsDateString()
+  @IsOptional()
+  startTime?: string
+
+  @IsDateString()
+  @IsOptional()
+  endTime?: string
+
+  @IsString()
+  @IsOptional()
+  notes?: string
+
+  @IsNumber()
+  @IsOptional()
+  price?: number
+}
