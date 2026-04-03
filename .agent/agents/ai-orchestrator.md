@@ -18,6 +18,7 @@ skills:
   # Skill & Agent Management
   - nanoclaw-repl
   # Loops & Evaluation
+  - claw-code-auditor
   # Code Intelligence
   - agent-framework-maintenance
 ---

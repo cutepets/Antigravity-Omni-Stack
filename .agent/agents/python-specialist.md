@@ -12,9 +12,10 @@ tools:
   - Grep
   - Glob
 skills:
-  # Web Frameworks
-  # Python Core (replaces python-master monolith)
-  - python-master
+  # Python Core (always-load — replaces monolith)
+  - python-core
+  # Python Advanced (on-demand)
+  - python-async
   - clean-code
   - tdd-workflow
   # Data Engineering
@@ -30,8 +31,6 @@ skills:
   - vector-index-tuning
   # Cost & Pipeline
   - cost-aware-llm-pipeline
-  # Data Scraping & Research
-  # Package Management
 ---
 
 # Python Specialist

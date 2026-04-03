@@ -15,6 +15,8 @@ Auto-triggers when: running commands on Windows, CI/CD with PowerShell, git oper
 
 ## ⚠️ Common Pitfalls
 
+> 🔴 **Known Windows Bug**: `Get-ChildItem -Recurse` với path dài → output trống (không báo lỗi). Xem mục [File Search Equivalents](#-file-search-equivalents) để dùng Node.js fallback.
+
 ### Unix → PowerShell Translation
 
 | ❌ Unix/Bash | ✅ PowerShell Equivalent |
@@ -98,14 +100,32 @@ $text = Get-Content "file.txt" -Raw
 
 ## 🔍 File Search Equivalents
 
+> ⚠️ **WINDOWS PATH LIMIT BUG**: `Get-ChildItem -Recurse` trả về **output trống** khi path > 260 chars.
+> Triệu chứng: lệnh chạy thành công nhưng không có kết quả. Không báo lỗi.
+> **Fix**: Dùng Node.js fallback hoặc bật Long Path support trước.
+
 ```powershell
-# Find files by extension
+# ✅ Safe: Path ngắn (<260 chars)
 Get-ChildItem ".agent/skills" -Recurse -Filter "*.md"
 
-# Find files matching pattern
+# ✅ Safe: Find files matching pattern
 Get-ChildItem ".agent" -Recurse | Where-Object { $_.Name -match "SKILL" }
 
-# Get file sizes (like du -sh)
+# ✅ Safe: Get file sizes (like du -sh)
 Get-ChildItem ".agent/skills" -Recurse -Filter "SKILL.md" |
   Measure-Object -Property Length -Sum
+```
+
+```javascript
+// ✅ Node.js fallback — không bị giới hạn path length
+// Find all SKILL.md files:
+node -e "const {execSync}=require('child_process');console.log(execSync('dir /s /b .agent\\skills\\SKILL.md',{encoding:'utf8'}))"
+
+// Hoặc dùng glob (nếu đã install):
+node -e "require('glob').sync('.agent/skills/**/SKILL.md').forEach(f=>console.log(f))"
+```
+
+```powershell
+# ✅ Bật Long Path support vĩnh viễn trên Windows (chạy 1 lần, cần Admin):
+Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -Value 1
 ```

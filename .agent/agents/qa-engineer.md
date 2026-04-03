@@ -16,10 +16,11 @@ skills:
   # Testing Core
   - tdd-master-workflow
   - tdd-workflow
-  - tdd-master-workflow
   - testing-patterns
   - unit-testing-test-generate
   - test-fixing
+  # Python QA (review + pytest patterns)
+  - python-qa
   # E2E & Browser
   - e2e-testing
   - e2e-testing-patterns
