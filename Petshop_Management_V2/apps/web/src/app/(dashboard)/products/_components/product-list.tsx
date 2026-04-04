@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Plus, Pencil, Trash2,
-  Download, Upload, BadgeCheck, AlertCircle, ChevronLeft, ChevronRight,
-  PackageCheck
+  Download, Upload, BadgeCheck, AlertCircle, ChevronLeft, ChevronRight, PackageCheck
 } from 'lucide-react'
+import Link from 'next/link'
 import { inventoryApi } from '@/lib/api/inventory.api'
 import { ProductFormModal } from './product-form-modal'
 import { toast } from 'sonner'
@@ -114,13 +114,12 @@ export function ProductList() {
               <th>Tồn kho</th>
               <th>Giá vốn / Giá bán</th>
               <th>Trạng thái</th>
-              <th>Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="py-16 text-center text-foreground-muted text-sm">
+                <td colSpan={6} className="py-16 text-center text-foreground-muted text-sm">
                   <div className="flex flex-col items-center gap-3">
                     <div className="h-6 w-6 rounded-full border-2 border-border border-t-primary-500 animate-spin" />
                     Đang tải dữ liệu...
@@ -129,7 +128,7 @@ export function ProductList() {
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-16 text-center">
+                <td colSpan={6} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2 text-foreground-muted">
                     <Search size={32} className="opacity-30" />
                     <p className="text-sm">Không tìm thấy sản phẩm nào</p>
@@ -159,7 +158,9 @@ export function ProductList() {
                         </div>
                       )}
                       <div>
-                        <div className="font-semibold text-foreground">{p.name}</div>
+                        <Link href={`/products/${p.id}`} className="font-semibold text-foreground hover:text-primary-500 transition-colors">
+                          {p.name}
+                        </Link>
                         {p.unit && <div className="text-xs text-foreground-muted mt-0.5">ĐVT: {p.unit} {p.weight ? `(${p.weight})` : ''}</div>}
                       </div>
                     </div>
@@ -171,8 +172,8 @@ export function ProductList() {
                   </td>
 
                   <td>
-                    <div className={`font-semibold ${p.stock <= p.minStock ? 'text-error' : 'text-foreground'}`}>
-                      {p.stock}
+                    <div className={`font-semibold ${(p.branchStocks?.[0]?.stock ?? 0) <= (p.branchStocks?.[0]?.minStock ?? 0) ? 'text-error' : 'text-foreground'}`}>
+                      {p.branchStocks?.[0]?.stock ?? 0}
                     </div>
                     {p.variants?.length > 0 && <div className="text-[10px] text-foreground-muted mt-0.5">{p.variants.length} phiên bản</div>}
                   </td>
@@ -196,37 +197,6 @@ export function ProductList() {
                         <AlertCircle size={11} /> Ngừng bán
                       </span>
                     )}
-                  </td>
-
-                  <td>
-                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                        <button
-                          onClick={() => { setEditingProduct(p); setIsModalOpen(true) }}
-                          title="Sửa"
-                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-background-secondary hover:bg-background-tertiary text-primary-500"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (typeof window !== 'undefined') {
-                              window.location.href = `/inventory/receipts/new?productId=${p.id}`
-                            }
-                          }}
-                          title="Tạo phiếu nhập"
-                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-background-secondary hover:bg-primary-50 text-primary-600"
-                        >
-                          <Download size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p)}
-                          title="Xoá"
-                          disabled={deleteMutation.isPending}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-error/30 bg-error/10 hover:bg-error/20 text-error"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
                   </td>
                 </tr>
               ))
@@ -268,3 +238,4 @@ export function ProductList() {
     </div>
   )
 }
+

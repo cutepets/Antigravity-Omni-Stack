@@ -1,5 +1,0 @@
-[33mf1f7099[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m docs: verify logic and metrics, update README and CHANGELOG
-[33m6e62d72[m fix(agents): purge 258 ghost skills and auto-correct deep methodologies count string
-[33ma4fca4c[m fix(framework): assign orphan skills to specialized agents
-[33m7352b9c[m chore: cleanup redundant reports, scripts, and duplicate md files
-[33mee32d91[m docs: adjust readme skill count after garbage collection

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { X, Shield } from 'lucide-react'
 import { staffApi, Staff } from '@/lib/api/staff.api'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 interface UpdateStatusModalProps {
   staff: Staff
@@ -146,3 +146,4 @@ export function UpdateStatusModal({ staff, onClose, onSuccess }: UpdateStatusMod
     </div>
   )
 }
+

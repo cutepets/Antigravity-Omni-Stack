@@ -8,8 +8,9 @@ import { clsx } from 'clsx'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
+import { useThemeStore } from '@/stores/theme.store'
 import {
-  LayoutDashboard, ShoppingCart, Activity,
+  LayoutDashboard, ShoppingCart, PawPrint,
   Settings, Users, Package,
   Scissors, Hotel, ReceiptText, Wallet,
   PieChart, Box, Briefcase, LogOut
@@ -39,27 +40,22 @@ const NAV_GROUPS = [
       { label: 'Sản Phẩm', icon: Package, href: '/products' },
       { label: 'Nhập hàng', icon: Box, href: '/inventory', adminOnly: true },
       { label: 'Khách hàng', icon: Users, href: '/customers' },
-      { label: 'Thú cưng', icon: Activity, href: '/pets' },
+      { label: 'Thú cưng', icon: PawPrint, href: '/pets' },
       { label: 'Nhân viên', icon: Briefcase, href: '/staff', adminOnly: true },
       { label: 'Ca làm việc', icon: CalendarIcon, href: '/shifts' },
     ]
   }
 ]
 
-// Simple SVG icon since lucide-react might not have CalendarIcon imported properly above
 function CalendarIcon(props: any) {
   return (
     <svg
       {...props}
       xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
+      width="24" height="24"
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
     >
       <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
       <line x1="16" x2="16" y1="2" y2="6" />
@@ -69,75 +65,92 @@ function CalendarIcon(props: any) {
   )
 }
 
+// Single easing constant
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1]
+
+// Fade variants for labels — only opacity, no layout change
+const fadeIn = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.18, ease: EASE } },
+  exit:    { opacity: 0, transition: { duration: 0.08, ease: EASE } },
+}
+
 export function Sidebar() {
   const pathname = usePathname()
   const { hasRole } = useAuthorization()
   const { user, logout } = useAuthStore()
+  const { isSidebarOpen } = useThemeStore()
 
-  // Fetch shop config
   const { data: config } = useQuery({
     queryKey: ['settings', 'configs'],
     queryFn: async () => {
-        try {
-            const res = await api.get('/settings/configs')
-            return res.data?.data || null
-        } catch {
-            return null
-        }
+      try {
+        const res = await api.get('/settings/configs')
+        return res.data?.data || null
+      } catch {
+        return null
+      }
     },
-    staleTime: 5 * 60 * 1000 // 5 minutes
+    staleTime: 5 * 60 * 1000
   })
 
   return (
     <motion.aside
-      className="bg-background-secondary border-r border-border flex flex-col transition-all duration-300 relative"
-      style={{
-        width: 250,
-        height: '100vh',
-        flexShrink: 0,
-      }}
+      initial={false}
+      animate={{ width: isSidebarOpen ? 250 : 80 }}
+      transition={{ duration: 0.3, ease: EASE }}
+      className="bg-background-secondary border-r border-border flex flex-col relative overflow-hidden"
+      style={{ height: '100vh', flexShrink: 0 }}
     >
       {/* Brand area */}
-      <div className="h-16 flex items-center px-6 border-b border-border/50">
-        <div className="flex items-center gap-3">
-          <div className={clsx(
-            "w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0",
-            config?.shopLogo ? "bg-transparent" : "text-white shadow-lg bg-primary-500 shadow-primary-500/20"
-          )}>
-            {config?.shopLogo ? (
-                 <img src={config.shopLogo} alt="Logo" className="w-full h-full object-contain" />
-            ) : (
-                 "🐾"
-            )}
-          </div>
-          <div className="overflow-hidden">
-            <p className="text-sm font-bold leading-tight text-foreground-base tracking-tight truncate">
-                {config?.shopName || 'PetShop'}
-            </p>
-            <p className="text-[10px] text-foreground-muted uppercase tracking-wider font-semibold truncate">
-                Management
-            </p>
-          </div>
+      <div className="h-16 flex items-center border-b border-border/50 shrink-0 relative w-full">
+        <div className={clsx(
+          'h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0 transition-all duration-300 w-8 ml-[24px]',
+          config?.shopLogo ? 'bg-transparent' : 'text-white shadow-lg bg-primary-500 shadow-primary-500/20'
+        )}>
+          {config?.shopLogo
+            ? <img src={config.shopLogo} alt="Logo" className="w-full h-full object-contain" />
+            : '🐾'
+          }
         </div>
+
+        <AnimatePresence mode="wait">
+          {isSidebarOpen && (
+            <motion.div key="brand" {...fadeIn} className="whitespace-nowrap absolute left-[64px]">
+              <p className="text-sm font-bold leading-tight text-foreground-base tracking-tight">
+                {config?.shopName || 'PetShop'}
+              </p>
+              <p className="text-[10px] text-foreground-muted uppercase tracking-wider font-semibold">
+                Management
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Nav Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar py-4 px-3 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-6 py-4 w-full">
         {NAV_GROUPS.map((navGroup, groupIndex) => {
-          const visibleItems = navGroup.items.filter(item => {
-            if (item.adminOnly) return hasRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER'])
-            return true
-          })
-
+          const visibleItems = navGroup.items.filter(item =>
+            item.adminOnly ? hasRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']) : true
+          )
           if (visibleItems.length === 0) return null
 
           return (
-            <div key={groupIndex} className="flex flex-col gap-1">
-              {navGroup.group && (
-                <p className="px-3 text-[11px] font-bold text-foreground-muted uppercase tracking-wider mb-1">
-                  {navGroup.group}
-                </p>
-              )}
+            <div key={groupIndex} className="flex flex-col gap-1 w-full">
+              {/* Group header */}
+              <AnimatePresence mode="wait">
+                {navGroup.group && isSidebarOpen && (
+                  <motion.p
+                    key={`group-${groupIndex}`}
+                    {...fadeIn}
+                    className="px-5 text-[11px] font-bold text-foreground-muted uppercase tracking-wider mb-1 whitespace-nowrap"
+                  >
+                    {navGroup.group}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+
               {visibleItems.map(item => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
                 const Icon = item.icon
@@ -145,15 +158,30 @@ export function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    title={!isSidebarOpen ? item.label : undefined}
                     className={clsx(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative",
-                      isActive
-                        ? "text-primary-500 bg-primary-500/10"
-                        : "text-foreground-secondary hover:text-foreground-base hover:bg-white/5"
+                      'flex items-center rounded-lg text-sm font-medium transition-colors group relative overflow-hidden',
+                      'w-[calc(100%-24px)] mx-3 h-11',
+                      isActive ? 'text-primary-500 bg-primary-500/10' : 'text-foreground-secondary hover:text-foreground-base hover:bg-white/5'
                     )}
                   >
-                    <Icon size={18} className={clsx("transition-transform group-hover:scale-110", isActive ? "opacity-100" : "opacity-70")} />
-                    <span>{item.label}</span>
+                    <div className="h-full w-[56px] flex items-center justify-center shrink-0 transition-all duration-300">
+                      <Icon
+                        size={22}
+                        className={clsx(
+                          'transition-all duration-300',
+                          isSidebarOpen && 'group-hover:scale-110',
+                          isActive ? 'opacity-100' : 'opacity-70'
+                        )}
+                      />
+                    </div>
+                    <AnimatePresence mode="wait">
+                      {isSidebarOpen && (
+                        <motion.span key={`label-${item.href}`} {...fadeIn} className="whitespace-nowrap absolute left-[56px]">
+                          {item.label}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                   </Link>
                 )
               })}
@@ -162,44 +190,84 @@ export function Sidebar() {
         })}
       </div>
 
-      {/* Bottom Area (Settings & User) */}
-      <div className="p-3 border-t border-border/50 bg-background-base">
+      {/* Bottom: Settings & User */}
+      <div className="py-4 border-t border-border/50 bg-background-base flex flex-col items-center shrink-0 w-full relative">
         <Link
           href="/settings"
+          title={!isSidebarOpen ? 'Cài đặt' : undefined}
           className={clsx(
-            "flex items-center gap-3 px-3 py-2.5 mb-2 rounded-lg text-sm font-medium transition-all group",
+            'flex items-center rounded-lg text-sm font-medium transition-colors group relative overflow-hidden',
+            'w-[calc(100%-24px)] mx-3 h-11 mb-2',
             pathname.startsWith('/settings')
-              ? "text-primary-500 bg-primary-500/10"
-              : "text-foreground-secondary hover:text-foreground-base hover:bg-white/5"
+              ? 'text-primary-500 bg-primary-500/10'
+              : 'text-foreground-secondary hover:text-foreground-base hover:bg-white/5'
           )}
         >
-          <Settings size={18} className={pathname.startsWith('/settings') ? "opacity-100" : "opacity-70"} />
-          <span>Cài đặt</span>
+          <div className="h-full w-[56px] flex items-center justify-center shrink-0 transition-all duration-300">
+            <Settings
+              size={22}
+              className={clsx('transition-all duration-300', pathname.startsWith('/settings') ? 'opacity-100' : 'opacity-70')}
+            />
+          </div>
+          <AnimatePresence mode="wait">
+            {isSidebarOpen && (
+              <motion.span key="settings-label" {...fadeIn} className="whitespace-nowrap absolute left-[56px]">
+                Cài đặt
+              </motion.span>
+            )}
+          </AnimatePresence>
         </Link>
 
         {user && (
-          <div className="flex items-center justify-between px-2 py-2 mt-2 group relative">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary-500/20 text-primary-500 flex flex-col justify-center items-center font-bold text-xs overflow-hidden">
-                {user.avatar ? (
-                  <img src={user.avatar} alt={user.fullName} className="w-full h-full object-cover" />
-                ) : (
-                  user.username?.charAt(0).toUpperCase() || 'A'
+          <div className={clsx(
+            'flex items-center group relative overflow-hidden rounded-lg transition-colors',
+            'w-[calc(100%-24px)] mx-3 h-14 hover:bg-white/5',
+          )}>
+            <div className="h-full w-[56px] flex items-center justify-center shrink-0 transition-all duration-300 cursor-pointer"
+              title={!isSidebarOpen ? 'Đăng xuất' : undefined}
+              onClick={!isSidebarOpen ? () => logout() : undefined}
+            >
+              <div
+                className={clsx(
+                  'w-8 h-8 rounded-full bg-primary-500/20 text-primary-500 flex flex-col justify-center items-center font-bold text-xs overflow-hidden shrink-0 transition-colors',
+                  !isSidebarOpen && 'group-hover:bg-error group-hover:text-white'
                 )}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-foreground-base">Quản trị viên</span>
-                <span className="text-[11px] text-foreground-muted">@{user.username}</span>
+              >
+                {!isSidebarOpen ? (
+                  <span className="group-hover:hidden block">
+                    {user.avatar ? <img src={user.avatar} alt={user.fullName} className="w-full h-full object-cover" /> : user.username?.charAt(0).toUpperCase() || 'A'}
+                  </span>
+                ) : (
+                  user.avatar ? <img src={user.avatar} alt={user.fullName} className="w-full h-full object-cover" /> : user.username?.charAt(0).toUpperCase() || 'A'
+                )}
+                {!isSidebarOpen && <LogOut size={14} className="hidden group-hover:block" />}
               </div>
             </div>
-            
-            <button 
-              onClick={() => logout()}
-              className="text-foreground-muted hover:text-error transition-colors p-1.5 rounded-md hover:bg-error/10 opacity-0 group-hover:opacity-100 absolute right-2"
-              title="Đăng xuất"
-            >
-              <LogOut size={14} />
-            </button>
+
+            {/* User info */}
+            <AnimatePresence mode="wait">
+              {isSidebarOpen && (
+                <motion.div key="user-info" {...fadeIn} className="whitespace-nowrap flex flex-col absolute left-[56px] right-10">
+                  <span className="text-xs font-bold text-foreground-base truncate">Quản trị viên</span>
+                  <span className="text-[11px] text-foreground-muted truncate">@{user.username}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Logout button */}
+            <AnimatePresence mode="wait">
+              {isSidebarOpen && (
+                <motion.button
+                  key="logout-btn"
+                  {...fadeIn}
+                  onClick={() => logout()}
+                  className="text-foreground-muted hover:text-error transition-colors p-1.5 rounded-md hover:bg-error/10 opacity-0 group-hover:opacity-100 absolute right-2 z-10 bg-background-base"
+                  title="Đăng xuất"
+                >
+                  <LogOut size={16} />
+                </motion.button>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>

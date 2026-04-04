@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { Store, Upload, Save, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { api, uploadApi } from '@/lib/api'
 
 export function TabGeneral() {
@@ -252,3 +252,4 @@ export function TabGeneral() {
         </div>
     )
 }
+

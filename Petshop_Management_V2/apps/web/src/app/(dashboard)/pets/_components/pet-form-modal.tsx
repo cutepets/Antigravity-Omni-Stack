@@ -8,7 +8,7 @@ import { X, Save, AlertCircle } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { petApi } from '@/lib/api/pet.api'
 import { customerApi } from '@/lib/api/customer.api'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { loadBreedsFromDB, loadTempsFromDB, BreedEntry } from './pet-settings-modal'
 
 const petSchema = z.object({
@@ -323,3 +323,4 @@ export function PetFormModal({ isOpen, onClose, initialData, fixedCustomerId }: 
     </div>
   )
 }
+

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { format, differenceInCalendarDays } from 'date-fns';
-import { toast } from 'sonner';
+import { customToast as toast } from '@/components/ui/toast-with-copy';
 import { usePosStore } from '../../../../stores/pos.store';
 
 export default function CageMap() {
@@ -127,3 +127,4 @@ export default function CageMap() {
     </div>
   );
 }
+

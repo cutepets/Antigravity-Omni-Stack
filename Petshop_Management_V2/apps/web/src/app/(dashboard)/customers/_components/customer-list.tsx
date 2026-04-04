@@ -9,7 +9,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { customerApi, type ImportCustomerRow } from '@/lib/api/customer.api'
 import { CustomerFormModal } from './customer-form-modal'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 import type { Customer } from '@petshop/shared'
 
 // ── Tier Badge ─────────────────────────────────────────────────────────────────
@@ -383,3 +383,4 @@ export function CustomerList() {
     </div>
   )
 }
+

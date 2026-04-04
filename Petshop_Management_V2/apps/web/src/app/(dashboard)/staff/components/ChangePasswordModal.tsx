@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { X, Key } from 'lucide-react'
 import { staffApi } from '@/lib/api/staff.api'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 interface ChangePasswordModalProps {
   staffId: string
@@ -115,3 +115,4 @@ export function ChangePasswordModal({ staffId, onClose, onSuccess }: ChangePassw
     </div>
   )
 }
+

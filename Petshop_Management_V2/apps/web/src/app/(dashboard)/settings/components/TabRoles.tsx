@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { ShieldAlert, Plus, ShieldCheck, HelpCircle } from 'lucide-react'
 import { rolesApi } from '@/lib/api'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 export function TabRoles() {
     const [roles, setRoles] = useState<any[]>([])
@@ -183,3 +183,4 @@ export function TabRoles() {
         </div>
     )
 }
+

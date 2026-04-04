@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
 import { animate, motion } from 'framer-motion'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 export function LoginForm() {
   const [username, setUsername] = useState('')
@@ -275,3 +275,4 @@ export function LoginForm() {
     </motion.div>
   )
 }
+

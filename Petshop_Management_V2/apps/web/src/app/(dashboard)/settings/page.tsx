@@ -4,9 +4,10 @@ import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/stores/auth.store'
 import {
-    Store, MapPin, Palette, Bell, History, Search, Settings, ShieldAlert
+    Store, MapPin, Palette, Bell, History, Search, Settings, ShieldAlert, Package
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
 
 // Import Tab Components
 import { TabGeneral } from './components/TabGeneral'
@@ -47,6 +48,7 @@ export default function SettingsPage() {
         { id: 'history', label: 'Lịch sử thao tác', icon: History },
         // Lời đề xuất thứ 2: Roles (Phân quyền)
         { id: 'roles', label: 'Phân quyền', icon: ShieldAlert },
+        { id: 'inventory-link', label: 'Cấu hình Kho', icon: Package, href: '/settings/inventory' },
     ]
 
     return (
@@ -73,6 +75,30 @@ export default function SettingsPage() {
                         {tabs.map(tab => {
                             const Icon = tab.icon
                             const isActive = activeTab === tab.id
+                            const isLink = !!tab.href;
+                            
+                            const TabButtonContent = (
+                                <>
+                                    <div className="flex items-center gap-3">
+                                        <Icon size={18} className={isActive ? "text-white" : "opacity-70"} />
+                                        <span>{tab.label}</span>
+                                    </div>
+                                    {isActive && (
+                                        <motion.div layoutId="active-indicator" className="w-1.5 h-1.5 bg-white rounded-full ml-auto" />
+                                    )}
+                                </>
+                            )
+
+                            if (isLink) {
+                                return (
+                                    <Link key={tab.id} href={tab.href as string} className={cn(
+                                        "w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl font-medium transition-all text-sm bg-transparent text-foreground-secondary hover:text-foreground-base hover:bg-black/5"
+                                    )}>
+                                        {TabButtonContent}
+                                    </Link>
+                                )
+                            }
+
                             return (
                                 <button
                                     key={tab.id}
@@ -84,31 +110,12 @@ export default function SettingsPage() {
                                             : "bg-transparent text-foreground-secondary hover:text-foreground-base hover:bg-black/5"
                                     )}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <Icon size={18} className={isActive ? "text-white" : "opacity-70"} />
-                                        <span>{tab.label}</span>
-                                    </div>
-                                    {isActive && (
-                                        <motion.div layoutId="active-indicator" className="w-1.5 h-1.5 bg-white rounded-full ml-auto" />
-                                    )}
+                                    {TabButtonContent}
                                 </button>
                             )
                         })}
                     </div>
 
-                    {/* Khung User Profile */}
-                    <div className="p-5 rounded-2xl bg-black/5 border border-border/50 flex flex-col items-center justify-center text-center gap-2">
-                        <div className="w-12 h-12 rounded-full bg-primary-500/10 mb-1 flex items-center justify-center text-primary-500/80 shadow-inner text-xl font-bold border border-primary-500/20">
-                            {user?.username?.[0]?.toUpperCase() || 'A'}
-                        </div>
-                        <div>
-                            <p className="font-bold text-foreground-base leading-tight">Quản trị viên</p>
-                            <p className="text-xs text-foreground-muted mt-0.5">@{user?.username || 'admin'}</p>
-                        </div>
-                        <span className="px-3 py-1 bg-amber-500/10 text-amber-500 text-[10px] font-bold rounded-md mt-2 flex items-center gap-1 uppercase tracking-widest border border-amber-500/20">
-                            👑 CHỦ CỬA HÀNG
-                        </span>
-                    </div>
                 </div>
 
                 {/* ── Right Content Area ── */}

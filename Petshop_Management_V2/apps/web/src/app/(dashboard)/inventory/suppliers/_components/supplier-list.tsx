@@ -4,19 +4,35 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Search, Plus, MapPin, Phone, Building2 } from 'lucide-react'
 import { stockApi } from '@/lib/api/stock.api'
+import { SupplierFormModal } from './supplier-form-modal'
 
 export function SupplierList() {
   const [search, setSearch] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null)
 
   const { data: suppliers, isLoading } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => stockApi.getSuppliers(),
   })
 
-  const filteredSuppliers = (suppliers as any[])?.filter((s: any) =>
+  // The API returns { success: true, data: [...] }
+  const suppliersData = (suppliers as any)?.data?.data ?? []
+
+  const filteredSuppliers = suppliersData.filter((s: any) =>
     s.name?.toLowerCase().includes(search.toLowerCase()) ||
     s.phone?.includes(search)
-  ) ?? []
+  )
+
+  const handleCreate = () => {
+    setSelectedSupplier(null)
+    setIsModalOpen(true)
+  }
+
+  const handleEdit = (supplier: any) => {
+    setSelectedSupplier(supplier)
+    setIsModalOpen(true)
+  }
 
   return (
     <div className="card overflow-hidden p-0">
@@ -31,7 +47,7 @@ export function SupplierList() {
           />
         </div>
 
-        <button className="btn-primary liquid-button h-9 px-4 rounded-xl text-sm">
+        <button onClick={handleCreate} className="btn-primary liquid-button h-9 px-4 rounded-xl text-sm">
           <Plus size={15} /> Thêm nhà cung cấp
         </button>
       </div>
@@ -61,7 +77,7 @@ export function SupplierList() {
               </tr>
             ) : (
               filteredSuppliers.map((s: any) => (
-                <tr key={s.id} className="cursor-pointer hover:bg-background-secondary/50">
+                <tr key={s.id} onClick={() => handleEdit(s)} className="cursor-pointer hover:bg-background-secondary/50">
                   <td>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-primary-500/10 text-primary-500 flex items-center justify-center flex-shrink-0">
@@ -96,6 +112,12 @@ export function SupplierList() {
           </tbody>
         </table>
       </div>
+
+      <SupplierFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        initialData={selectedSupplier}
+      />
     </div>
   )
 }

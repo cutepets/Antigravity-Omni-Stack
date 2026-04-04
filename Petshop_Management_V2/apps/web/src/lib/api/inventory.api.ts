@@ -1,15 +1,4 @@
-import axios from 'axios'
-
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
-})
-
-// Add auth interceptor if needed (assuming relying on standard auth in app)
-api.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+import { api } from '@/lib/api'
 
 export const inventoryApi = {
   getProducts: (params?: any) => api.get('/inventory/products', { params }).then(res => res.data),
@@ -17,6 +6,12 @@ export const inventoryApi = {
   createProduct: (data: any) => api.post('/inventory/products', data).then(res => res.data),
   updateProduct: (id: string, data: any) => api.put(`/inventory/products/${id}`, data).then(res => res.data),
   deleteProduct: (id: string) => api.delete(`/inventory/products/${id}`).then(res => res.data),
+  getProductTransactions: (id: string) => api.get(`/stock/transactions/${id}`).then(res => res.data),
+
+  // Variants
+  deleteVariant: (variantId: string) => api.delete(`/inventory/products/variants/${variantId}`).then(res => res.data),
+  batchCreateVariants: (productId: string, body: { variants: any[] }) =>
+    api.post(`/inventory/products/${productId}/variants/batch`, body).then(res => res.data),
 
   // Dictionaries
   getCategories: () => api.get('/inventory/categories').then(res => res.data),

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { usePosStore } from '../../../../stores/pos.store';
-import { toast } from 'sonner';
+import { customToast as toast } from '@/components/ui/toast-with-copy';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -209,3 +209,4 @@ export default function CheckoutModal({ isOpen, onClose, subtotal, discount, shi
     </div>
   );
 }
+

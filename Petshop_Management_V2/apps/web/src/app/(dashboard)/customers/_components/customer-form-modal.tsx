@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { customerApi } from '@/lib/api/customer.api'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 import type { Customer } from '@petshop/shared'
 
 const customerSchema = z.object({
@@ -336,3 +336,4 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
     </div>
   )
 }
+

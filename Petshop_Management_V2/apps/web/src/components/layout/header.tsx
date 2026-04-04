@@ -2,17 +2,31 @@
 
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
-import { toast } from 'sonner'
+import { useThemeStore } from '@/stores/theme.store'
+import { settingsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useRef, useEffect } from 'react'
 import { UserSettingsDrawer } from './user-settings-drawer'
+import { Menu } from 'lucide-react'
 
 export function Header() {
   const { user, allowedBranches, activeBranchId, switchBranch } = useAuthStore()
+  const { toggleSidebar } = useThemeStore()
   const router = useRouter()
   const [showBranchDropdown, setShowBranchDropdown] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Fetch all branches if needed, or fallback to allowed branches
+  const { data: branches } = useQuery({
+    queryKey: ['settings', 'branches'],
+    queryFn: settingsApi.getBranches,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const displayBranches = branches && branches.length > 0 ? branches : allowedBranches
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -46,20 +60,26 @@ export function Header() {
     >
       {/* Left */}
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 text-sm text-foreground-muted font-medium">
-          <span>Giao diện Liquid Glass Beta</span>
-          <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse shadow-[0_0_8px_var(--color-primary-500)]"></span>
-        </div>
+        <button
+          onClick={toggleSidebar}
+          className="p-2 hover:bg-background-tertiary rounded-lg text-foreground-muted hover:text-foreground-base transition-colors"
+        >
+          <Menu size={20} />
+        </button>
+      </div>
 
-        {/* Branch Context Dropdown */}
+      {/* Right — Context and User info */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse shadow-[0_0_8px_var(--color-primary-500)] mr-1"></span>
+
         {user && (
-          <div className="relative ml-4" ref={dropdownRef}>
+          <div className="relative mr-2" ref={dropdownRef}>
             <button
               onClick={() => setShowBranchDropdown(!showBranchDropdown)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-background-tertiary border border-border/40 hover:bg-background-tertiary/80 transition-colors"
             >
               <span className="text-sm font-semibold whitespace-nowrap max-w-[150px] truncate text-foreground-base">
-                {allowedBranches?.find(b => b.id === activeBranchId)?.name || 'Chi nhánh hệ thống'}
+                {displayBranches?.find((b: any) => b.id === activeBranchId)?.name || 'Chi nhánh hệ thống'}
               </span>
               <span className="text-xs text-foreground-muted ml-1">▾</span>
             </button>
@@ -71,7 +91,7 @@ export function Header() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 mt-2 w-64 glass-panel border border-primary-500/20 shadow-xl overflow-hidden"
+                  className="absolute top-full right-0 mt-2 w-64 glass-panel border border-primary-500/20 shadow-xl overflow-hidden"
                   style={{ zIndex: 100 }}
                 >
                   <div className="p-2 border-b border-border/50 bg-background-tertiary">
@@ -80,14 +100,14 @@ export function Header() {
                     </p>
                   </div>
                   <div className="max-h-[300px] overflow-y-auto p-1">
-                    {allowedBranches?.map(branch => (
+                    {displayBranches?.map((branch: any) => (
                       <button
                         key={branch.id}
                         onClick={() => {
                           switchBranch(branch.id)
                           setShowBranchDropdown(false)
                           toast.success(`Đã chuyển sang chi nhánh: ${branch.name}`)
-                          router.refresh() // Reload data via next router
+                          router.refresh()
                         }}
                         className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-colors ${
                           branch.id === activeBranchId 
@@ -112,10 +132,7 @@ export function Header() {
             </AnimatePresence>
           </div>
         )}
-      </div>
 
-      {/* Right — User info */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         {user && (
           <button 
             onClick={() => setShowDrawer(true)}
@@ -167,3 +184,4 @@ export function Header() {
     </motion.header>
   )
 }
+

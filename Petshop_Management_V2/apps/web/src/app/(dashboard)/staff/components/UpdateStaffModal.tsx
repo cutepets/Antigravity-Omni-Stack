@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { X, UserCircle2, Edit2, Image as ImageIcon, Shield, Upload } from 'lucide-react'
 import { staffApi, Staff } from '@/lib/api/staff.api'
 import { api } from '@/lib/api'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { useQuery } from '@tanstack/react-query'
 import { AvatarCropperModal } from './AvatarCropperModal'
 
@@ -364,3 +364,4 @@ export function UpdateStaffModal({ staff, onClose, onSuccess }: UpdateStaffModal
     </div>
   )
 }
+

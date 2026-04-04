@@ -8,7 +8,7 @@ import { X, Save, AlertCircle, Trash2 } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { groomingApi } from '@/lib/api/grooming.api'
 import { petApi } from '@/lib/api/pet.api'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { api } from '@/lib/api'
 
 const groomingSchema = z.object({
@@ -220,3 +220,4 @@ export function GroomingModal({ isOpen, onClose, initialData }: Props) {
     </div>
   )
 }
+

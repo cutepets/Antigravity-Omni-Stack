@@ -24,8 +24,8 @@ export type CreatePetPayload = Omit<Pet, 'id' | 'petCode' | 'createdAt' | 'updat
 
 export const petApi = {
   getPets: async (params?: FindPetsParams) => {
-    const res = await api.get<ApiResponse<PetResponse>>('/pets', { params })
-    return res.data.data
+    const res = await api.get<PetResponse & { success: boolean }>('/pets', { params })
+    return res.data
   },
 
   getPet: async (id: string) => {

@@ -1,0 +1,33 @@
+import type { StaffRole } from '@petshop/shared';
+export declare const PERMISSIONS: {
+    readonly ORDER_READ: "order:read";
+    readonly ORDER_CREATE: "order:create";
+    readonly ORDER_PAY: "order:pay";
+    readonly ORDER_COMPLETE: "order:complete";
+    readonly ORDER_CANCEL: "order:cancel";
+    readonly ORDER_DELETE: "order:delete";
+    readonly CUSTOMER_READ: "customer:read";
+    readonly CUSTOMER_CREATE: "customer:create";
+    readonly CUSTOMER_UPDATE: "customer:update";
+    readonly CUSTOMER_DELETE: "customer:delete";
+    readonly PET_READ: "pet:read";
+    readonly PET_CREATE: "pet:create";
+    readonly PET_UPDATE: "pet:update";
+    readonly PET_DELETE: "pet:delete";
+    readonly INVENTORY_READ: "inventory:read";
+    readonly INVENTORY_CREATE: "inventory:create";
+    readonly INVENTORY_UPDATE: "inventory:update";
+    readonly INVENTORY_DELETE: "inventory:delete";
+    readonly STAFF_READ: "staff:read";
+    readonly STAFF_CREATE: "staff:create";
+    readonly STAFF_UPDATE: "staff:update";
+    readonly STAFF_DELETE: "staff:delete";
+    readonly REPORT_READ: "report:read";
+    readonly SETTINGS_READ: "settings:read";
+    readonly SETTINGS_UPDATE: "settings:update";
+    readonly SYSTEM_CONFIG: "system:config";
+};
+export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+export declare const hasPermission: (role: StaffRole, permission: Permission) => boolean;
+export declare const getRolePermissions: (role: StaffRole) => Permission[];
+//# sourceMappingURL=permissions.d.ts.map

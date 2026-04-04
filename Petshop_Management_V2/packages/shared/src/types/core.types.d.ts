@@ -24,7 +24,8 @@ export interface ListParams {
 }
 export interface JwtPayload {
     userId: string;
-    role: StaffRole;
+    role: StaffRole | string;
+    permissions?: string[];
     iat: number;
     exp: number;
 }
@@ -33,14 +34,22 @@ export interface LoginResponse {
     refreshToken: string;
     user: AuthUser;
 }
+export interface BaseBranch {
+    id: string;
+    name: string;
+    address?: string | null;
+    isActive: boolean;
+}
 export interface AuthUser {
     id: string;
     username: string;
     fullName: string;
-    role: StaffRole;
+    role: StaffRole | string;
     staffCode: string;
     branchId?: string | null;
     avatar?: string | null;
+    authorizedBranches: BaseBranch[];
+    permissions?: string[];
 }
 export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED' | 'REFUNDED';
 export type PaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'COMPLETED' | 'REFUNDED';

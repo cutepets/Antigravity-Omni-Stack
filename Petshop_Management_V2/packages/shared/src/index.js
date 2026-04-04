@@ -21,7 +21,6 @@ __exportStar(require("./types/pet.types.js"), exports);
 __exportStar(require("./types/order.types.js"), exports);
 __exportStar(require("./types/product.types.js"), exports);
 __exportStar(require("./types/domain.types.js"), exports);
-__exportStar(require("./types/pos.types.js"), exports);
 // Utils
 __exportStar(require("./utils/search.utils.js"), exports);
 __exportStar(require("./utils/id.utils.js"), exports);

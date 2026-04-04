@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Clock, Scissors, CheckCircle, XCircle } from 'lucide-react'
 import { groomingApi, GroomingSession } from '@/lib/api/grooming.api'
 import { GroomingModal } from './grooming-modal'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 const COLUMNS = [
   { id: 'PENDING', title: 'Chờ tiếp nhận', icon: <Clock size={16} />, color: '#eab308', bg: '#fefce8' },
@@ -153,3 +153,4 @@ export function GroomingBoard() {
     </div>
   )
 }
+

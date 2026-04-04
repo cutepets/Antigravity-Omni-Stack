@@ -6,7 +6,7 @@ import { Search, Plus, Pencil, Trash2, Settings, ChevronLeft, ChevronRight } fro
 import { petApi } from '@/lib/api/pet.api'
 import { PetFormModal } from './pet-form-modal'
 import { PetSettingsModal } from './pet-settings-modal'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 export function PetList() {
   const [q, setQ] = useState('')
@@ -225,3 +225,4 @@ export function PetList() {
     </div>
   )
 }
+

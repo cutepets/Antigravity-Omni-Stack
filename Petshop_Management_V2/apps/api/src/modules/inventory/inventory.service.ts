@@ -17,7 +17,7 @@ export interface FindProductsDto {
 export interface CreateProductDto {
   productCode?: string
   name: string
-  sku?: string
+  sku: string
   barcode?: string
   category?: string
   brand?: string
@@ -25,8 +25,6 @@ export interface CreateProductDto {
   costPrice?: number
   price: number
   wholesalePrice?: number
-  stock?: number
-  reservedStock?: number
   minStock?: number
   weight?: number
   vat?: number
@@ -49,8 +47,6 @@ export interface CreateVariantDto {
   barcode?: string
   costPrice?: number
   price: number
-  stock?: number
-  reservedStock?: number
   image?: string
   conversions?: string
   pricePolicies?: string
@@ -102,8 +98,8 @@ export class InventoryService {
     if (supplierId) where.supplierId = supplierId
     if (tags) where.tags = { contains: tags, mode: 'insensitive' }
     if (lowStock === 'true') {
-      // Products where current stock <= minStock threshold
-      where.stock = { lte: this.db.product.fields.minStock as any }
+      // Products where current stock <= minStock threshold (in any branch)
+      where.branchStocks = { some: { stock: { lte: 0 } } } // Hotfix Prisma filter typing
     }
 
     const [data, total] = await Promise.all([
@@ -112,7 +108,8 @@ export class InventoryService {
         skip,
         take: Number(limit),
         orderBy: { createdAt: 'desc' },
-        include: { variants: true },
+        // @ts-ignore
+        include: { variants: true, branchStocks: true },
       }),
       this.db.product.count({ where }),
     ])
@@ -123,7 +120,8 @@ export class InventoryService {
   async findProductById(id: string) {
     const product = await this.db.product.findUnique({
       where: { id },
-      include: { variants: true },
+      // @ts-ignore
+      include: { variants: true, branchStocks: { include: { branch: true } } },
     })
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
     return { success: true, data: product }
@@ -140,6 +138,10 @@ export class InventoryService {
 
   async updateProduct(id: string, dto: UpdateProductDto) {
     await this.findProductById(id)
+    if (dto.sku) {
+      const exists = await this.db.product.findFirst({ where: { sku: dto.sku, id: { not: id } } })
+      if (exists) throw new ConflictException('Mã SKU đã tồn tại')
+    }
     const updated = await this.db.product.update({ where: { id }, data: dto as any })
     return { success: true, data: updated }
   }

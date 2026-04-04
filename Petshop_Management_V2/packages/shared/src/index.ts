@@ -5,7 +5,11 @@ export * from './types/pet.types.js'
 export * from './types/order.types.js'
 export * from './types/product.types.js'
 export * from './types/domain.types.js'
-export * from './types/pos.types.js'
+// pos.types imports PaymentEntry from order.types — use named exports to avoid duplicate re-export
+export type {
+  CartItem,
+  OrderTab,
+} from './types/pos.types.js'
 
 // Utils
 export * from './utils/search.utils.js'

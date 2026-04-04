@@ -1,9 +1,5 @@
 /**
- * Generate customer code: KH-000001
- */
-export declare const generateCustomerCode: (sequence: number) => string;
-/**
- * Generate pet code: P1B2C3 (P + 5 hex chars)
+ * Generate pet code: P1B2C3 (P + 6 hex chars)
  */
 export declare const generatePetCode: () => string;
 /**

@@ -1,16 +1,16 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateVoucherNumber = exports.generateOrderNumber = exports.generateStaffCode = exports.generatePetCode = exports.generateCustomerCode = void 0;
-const crypto_1 = require("crypto");
+exports.generateVoucherNumber = exports.generateOrderNumber = exports.generateStaffCode = exports.generatePetCode = void 0;
 /**
- * Generate customer code: KH-000001
+ * Generate pet code: P1B2C3 (P + 6 hex chars)
  */
-const generateCustomerCode = (sequence) => `KH-${String(sequence).padStart(6, '0')}`;
-exports.generateCustomerCode = generateCustomerCode;
-/**
- * Generate pet code: P1B2C3 (P + 5 hex chars)
- */
-const generatePetCode = () => 'P' + (0, crypto_1.randomBytes)(3).toString('hex').toUpperCase();
+const generatePetCode = () => {
+    const chars = '0123456789ABCDEF';
+    let res = 'P';
+    for (let i = 0; i < 6; i++)
+        res += chars[Math.floor(Math.random() * 16)];
+    return res;
+};
 exports.generatePetCode = generatePetCode;
 /**
  * Generate staff code: NV00001

@@ -110,7 +110,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         emergencyContactTitle: initialData.emergencyContactTitle || '',
         emergencyContactPhone: initialData.emergencyContactPhone || '',
         
-        branchId: initialData.branchId || '',
+        branchId: (initialData as any).branchId || '',
         joinDate: initialData.joinDate ? initialData.joinDate.substring(0, 10) : '',
         baseSalary: initialData.baseSalary ? String(initialData.baseSalary) : '',
         shiftStart: initialData.shiftStart || '08:00',

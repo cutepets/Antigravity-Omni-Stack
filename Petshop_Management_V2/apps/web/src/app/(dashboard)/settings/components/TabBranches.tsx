@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { MapPin, Plus, Check, Loader2, Edit2, Trash2 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { api } from '@/lib/api'
 
 type Branch = {
@@ -225,3 +225,4 @@ export function TabBranches() {
         </div>
     )
 }
+

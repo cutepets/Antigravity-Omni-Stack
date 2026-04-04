@@ -14,9 +14,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000, // 1 minute
+            staleTime: 0, // ERP: Luôn coi data là cũ để tự động fetch mới
             retry: 1,
-            refetchOnWindowFocus: false,
+            refetchOnWindowFocus: true, // Khi code xong quay lại tab Chrome sẽ tự load DB mới
           },
         },
       }),
@@ -31,6 +31,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <Toaster
           position="top-right"
           richColors
+          closeButton
           toastOptions={{
             duration: 3000,
           }}

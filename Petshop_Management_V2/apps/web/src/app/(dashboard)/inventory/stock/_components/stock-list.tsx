@@ -118,12 +118,20 @@ export function StockList() {
                       )}
                     </td>
                     <td>
-                      <button
-                        onClick={() => router.push(`/inventory/receipts/new?productId=${p.id}`)}
-                        className="text-xs font-medium bg-background-tertiary hover:bg-border px-3 py-1.5 rounded-lg border border-border"
-                      >
-                        Nhập kho
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => router.push(`/inventory/stock/${p.id}`)}
+                          className="text-xs font-medium bg-background-tertiary hover:bg-border px-3 py-1.5 rounded-lg border border-border"
+                        >
+                          Lịch sử
+                        </button>
+                        <button
+                          onClick={() => router.push(`/inventory/receipts/new?productId=${p.id}`)}
+                          className="text-xs font-medium bg-background-tertiary hover:bg-border px-3 py-1.5 rounded-lg border border-border text-primary-600"
+                        >
+                          Nhập
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

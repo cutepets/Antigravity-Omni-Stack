@@ -288,14 +288,17 @@ async function main() {
       brand: 'Royal Canin',
       price: 450000,
       costPrice: 320000,
-      stock: 50,
       minStock: 10,
       unit: 'gói',
       isActive: true,
     },
   })
 
-  await prisma.product.upsert({
+  await prisma.branchStock.create({
+    data: { branchId: branch.id, productId: food.id, stock: 50 }
+  })
+
+  const acc = await prisma.product.upsert({
     where: { sku: 'PRD-ACC-001' },
     update: {},
     create: {
@@ -304,11 +307,14 @@ async function main() {
       category: 'Phụ kiện',
       price: 85000,
       costPrice: 45000,
-      stock: 30,
       minStock: 5,
       unit: 'cái',
       isActive: true,
     },
+  })
+
+  await prisma.branchStock.create({
+    data: { branchId: branch.id, productId: acc.id, stock: 30 }
   })
   console.log('✅ Products created')
 

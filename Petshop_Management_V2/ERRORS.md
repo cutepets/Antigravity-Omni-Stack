@@ -24,3 +24,30 @@ Khi di chuyển từ enum cứng sang Database table cho Role, Prisma Model `Use
 
 **Cách sửa:**
 Xóa các select `legacyRole: true` ở tất cả các query và thay thế bằng `role: { select: { code: true, permissions: true } }` thông qua relation `roleId`.
+
+## [2026-04-03 22:20] - Mất dữ liệu phân trang (meta) và Component parse sai
+
+- **Type**: Logic
+- **Severity**: High
+- **File**: `apps/web/src/lib/api/pet.api.ts`
+- **Agent**: frontend-specialist
+- **Root Cause**: Backend trả về `{ success: true, data: Pet[], meta: {...} }`. Tuy nhiên trong API SDK frontend, dev dùng `return res.data.data` khiến hàm ném bỏ object meta. UI component (`pet-list.tsx`) config React Query expecting `{ data, meta }` nhưng lại nhận về array `Pet[]` dẫn đến render trống.
+- **Error Message**: (Không throw error log) UI báo "Không tìm thấy thú cưng nào" trong khi API Network load thành công.
+- **Fix Applied**: Sửa file `pet.api.ts` từ `return res.data.data` thành `return res.data` để giữ nguyên toàn bộ payload.
+- **Prevention**: Khi dùng pattern Data Wrapper của NestJS/Axios (ApiResponse), đừng return quá sâu nếu UI Components đang cần dùng common metadata.
+- **Status**: Fixed
+
+## [2026-04-03 22:20] - Cấu hình Axios bị sai prefix (Lỗi 404 Not Found)
+
+- **Type**: Integration
+- **Severity**: High
+- **File**: `apps/web/src/lib/api/inventory.api.ts`
+- **Agent**: frontend-specialist
+- **Root Cause**: Thay vì dùng chung instance Axios (`@/lib/api`), dev tạo một instance `axios.create` độc lập. Instance này không được config suffix `/api` như base URL, khiến request frontend gửi vào `http://localhost:3001/inventory/products` thay vì đúng tuyến `/api/inventory/products`.
+- **Error Message**: 
+  ```json
+  {"message":"Cannot GET /inventory/products","error":"Not Found","statusCode":404}
+  ```
+- **Fix Applied**: Xóa `axios.create` tự build ở đầu file sửa thành `import { api } from '@/lib/api'`.
+- **Prevention**: Tuyệt đối không tự cấu hình Axios Client độc lập. Luôn dùng Core HttpClient trong hệ thống để tự động tích hợp Authentication Token + URL prefix.
+- **Status**: Fixed

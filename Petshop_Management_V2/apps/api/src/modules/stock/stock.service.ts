@@ -144,7 +144,7 @@ export class StockService {
       ...((receipt as any).items as any[]).map((item: any) =>
         this.db.product.update({
           where: { id: item.productId },
-          data: { stock: { increment: item.quantity } },
+          data: { stock: { increment: item.quantity } } as any,
         }),
       ),
       ...((receipt as any).items as any[]).map((item: any) =>
@@ -181,7 +181,7 @@ export class StockService {
       returns.map((r) =>
         this.db.product.update({
           where: { id: r.productId },
-          data: { stock: { decrement: r.quantity } },
+          data: { stock: { decrement: r.quantity } } as any,
         }),
       ),
     )

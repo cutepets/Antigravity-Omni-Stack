@@ -21,7 +21,7 @@ export function ReceiptList() {
     }),
   })
 
-  const receipts = (data as any)?.data ?? []
+  const receipts = (data as any)?.data?.data ?? []
 
   const getStatusBadge = (status: string) => {
     switch (status) {
