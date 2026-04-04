@@ -743,6 +743,11 @@ model SystemConfig {
   timezone    String?
   email       String?
   website     String?
+  loyaltySpendPerPoint       Int?
+  loyaltyPointValue          Int?
+  loyaltyPointExpiryMonths   Int?
+  loyaltyTierRetentionMonths Int?
+  loyaltyTierRules           String?
 
   updatedAt DateTime @updatedAt
 

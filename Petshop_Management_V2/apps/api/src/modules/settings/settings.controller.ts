@@ -1,6 +1,7 @@
 import {
   Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards,
   UseInterceptors, UploadedFile,
+  BadRequestException,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger'
@@ -9,6 +10,16 @@ import { JwtGuard } from '../auth/guards/jwt.guard'
 import { diskStorage } from 'multer'
 import { extname, join } from 'path'
 import { randomUUID } from 'crypto'
+
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+])
+
+const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg'])
 
 @ApiTags('Settings')
 @Controller()
@@ -104,6 +115,17 @@ export class SettingsController {
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('image', {
+      fileFilter: (_req, file, cb) => {
+        const ext = extname(file.originalname).toLowerCase()
+        const mime = (file.mimetype || '').toLowerCase()
+
+        if (!ALLOWED_IMAGE_MIME_TYPES.has(mime) || !ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+          cb(new BadRequestException('Chỉ chấp nhận file ảnh (jpg, png, webp, gif, svg)') as any, false)
+          return
+        }
+
+        cb(null, true)
+      },
       storage: diskStorage({
         destination: './uploads/images',
         filename: (_req, file, cb) => {

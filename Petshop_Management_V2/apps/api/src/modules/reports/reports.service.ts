@@ -22,6 +22,13 @@ export interface CreateTransactionDto {
 export class ReportsService {
   constructor(private readonly db: DatabaseService) {}
 
+  private buildVoucherNumber(type: 'INCOME' | 'EXPENSE') {
+    const prefix = type === 'INCOME' ? 'PT' : 'PC'
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
+    return `${prefix}-${date}-${random}`
+  }
+
   async getDashboard() {
     const today = new Date()
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -142,7 +149,7 @@ export class ReportsService {
     const data = items.map((i: any) => ({
       product: products.find((p: any) => p.id === i.productId),
       totalQuantity: i._sum.quantity ?? 0,
-      totalRevenue: i._sum.subTotal ?? 0,
+      totalRevenue: i._sum.subtotal ?? 0,
     }))
 
     return { success: true, data }
@@ -176,17 +183,22 @@ export class ReportsService {
   }
 
   async createTransaction(dto: CreateTransactionDto) {
-    // Generate voucher number: PT/PC-YYYYMMDD-XXXX
-    const prefix = dto.type === 'INCOME' ? 'PT' : 'PC'
-    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const count = await this.db.transaction.count()
-    const voucherNumber = `${prefix}-${date}-${String(count + 1).padStart(4, '0')}`
+    // Retry on unique collisions to avoid count()-based race conditions.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const voucherNumber = this.buildVoucherNumber(dto.type)
+      try {
+        const tx = await this.db.transaction.create({
+          data: { ...dto, voucherNumber } as any,
+        })
+        return { success: true, data: tx }
+      } catch (error: any) {
+        if (error?.code !== 'P2002') {
+          throw error
+        }
+      }
+    }
 
-    const tx = await this.db.transaction.create({
-      data: { ...dto, voucherNumber } as any,
-    })
-
-    return { success: true, data: tx }
+    throw new Error('Khong the tao so chung tu duy nhat, vui long thu lai')
   }
 
   async findTransactionByVoucher(voucherNumber: string) {

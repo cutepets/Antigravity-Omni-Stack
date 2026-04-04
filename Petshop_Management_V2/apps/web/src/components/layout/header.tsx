@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { settingsApi } from '@/lib/api'
@@ -11,13 +11,26 @@ import { useState, useRef, useEffect } from 'react'
 import { UserSettingsDrawer } from './user-settings-drawer'
 import { Menu } from 'lucide-react'
 
+function resolveHeaderTitle(pathname: string) {
+  if (pathname.startsWith('/products')) return 'Sản phẩm & Kho'
+  if (pathname.startsWith('/customers')) return 'Khách hàng'
+  if (pathname.startsWith('/inventory/stock')) return 'Kho hàng'
+  if (pathname.startsWith('/inventory/suppliers')) return 'Nhà cung cấp'
+  if (pathname.startsWith('/inventory/receipts')) return 'Phiếu nhập'
+  if (pathname.startsWith('/pos')) return 'Tạo đơn hàng'
+  if (pathname.startsWith('/dashboard')) return 'Tổng quan'
+  return ''
+}
+
 export function Header() {
   const { user, allowedBranches, activeBranchId, switchBranch } = useAuthStore()
   const { toggleSidebar } = useThemeStore()
   const router = useRouter()
+  const pathname = usePathname()
   const [showBranchDropdown, setShowBranchDropdown] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const pageTitle = resolveHeaderTitle(pathname)
 
   // Fetch all branches if needed, or fallback to allowed branches
   const { data: branches } = useQuery({
@@ -66,6 +79,11 @@ export function Header() {
         >
           <Menu size={20} />
         </button>
+        {pageTitle ? (
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold tracking-tight text-foreground-base">{pageTitle}</h1>
+          </div>
+        ) : null}
       </div>
 
       {/* Right — Context and User info */}

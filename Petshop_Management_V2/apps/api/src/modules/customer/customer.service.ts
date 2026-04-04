@@ -128,9 +128,13 @@ export class CustomerService {
     }
 
     // With search: accent-insensitive in-memory filter (port từ dự án cũ)
+    const dbSearch = search.trim()
     const allCustomers = await this.db.customer.findMany({
-      where,
+      where: {
+        ...where,
+      },
       orderBy,
+      take: 500,
       include: {
         group: { select: { id: true, name: true, color: true, discount: true, pricePolicy: true } },
         pets: { select: { id: true } },

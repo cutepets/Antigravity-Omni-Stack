@@ -113,9 +113,17 @@ export class StockService {
     const receipt = await this.db.stockReceipt.findUnique({ where: { id } })
     if (!receipt) throw new NotFoundException('Không tìm thấy phiếu nhập')
 
+    if (receipt.status === 'CANCELLED') {
+      throw new BadRequestException('Khong the thanh toan phieu da huy')
+    }
+
+    const amountToPay = Math.max(0, receipt.totalAmount - receipt.paidAmount)
+    if (amountToPay === 0) {
+      return { success: true, message: 'Phieu nhap da duoc thanh toan truoc do' }
+    }
+
     await this.db.$transaction(async (tx) => {
-      const amountToPay = receipt.totalAmount - receipt.paidAmount
-      await tx.stockReceipt.update({ where: { id }, data: { paymentStatus: 'PAID', paidAmount: receipt.totalAmount } as any })
+      await tx.stockReceipt.update({ where: { id }, data: { paidAmount: receipt.totalAmount } as any })
       if (receipt.supplierId && amountToPay > 0) {
         await tx.supplier.update({
           where: { id: receipt.supplierId },
@@ -129,6 +137,19 @@ export class StockService {
   async cancelReceipt(id: string) {
     const receipt = await this.db.stockReceipt.findUnique({ where: { id } })
     if (!receipt) throw new NotFoundException('Không tìm thấy phiếu nhập')
+    if (receipt.status === 'CANCELLED') {
+      return { success: true, data: receipt, message: 'Phieu nhap da o trang thai huy' }
+    }
+    if (receipt.status === 'RECEIVED') {
+      throw new BadRequestException('Khong the huy phieu da nhan hang')
+    }
+    if ((receipt.paidAmount ?? 0) > 0) {
+      throw new BadRequestException('Khong the huy phieu da co thanh toan')
+    }
+    if (receipt.status !== 'DRAFT') {
+      throw new BadRequestException('Chi duoc huy phieu o trang thai DRAFT')
+    }
+
     const updated = await this.db.stockReceipt.update({ where: { id }, data: { status: 'CANCELLED' } as any })
     return { success: true, data: updated }
   }
@@ -140,14 +161,28 @@ export class StockService {
     })
     if (!receipt) throw new NotFoundException('Không tìm thấy phiếu nhập')
 
+    if (receipt.status === 'CANCELLED') {
+      throw new BadRequestException('Khong the nhan hang cho phieu da huy')
+    }
+    if (receipt.status === 'RECEIVED') {
+      return { success: true, message: 'Phieu nhap da duoc nhan truoc do' }
+    }
+
+    const items = ((receipt as any).items as any[]) || []
+    if (items.length === 0) {
+      throw new BadRequestException('Phieu nhap khong co san pham de nhan')
+    }
+
+    const debtDelta = Math.max(0, receipt.totalAmount - receipt.paidAmount)
+
     await this.db.$transaction([
-      ...((receipt as any).items as any[]).map((item: any) =>
+      ...items.map((item: any) =>
         this.db.product.update({
           where: { id: item.productId },
           data: { stock: { increment: item.quantity } } as any,
         }),
       ),
-      ...((receipt as any).items as any[]).map((item: any) =>
+      ...items.map((item: any) =>
         this.db.stockTransaction.create({
           data: {
             productId: item.productId,
@@ -163,10 +198,10 @@ export class StockService {
         data: { status: 'RECEIVED' } as any,
       }),
       // Cập nhật công nợ cho supplier (nếu chưa thanh toán)
-      ...(receipt.supplierId ? [
+      ...(receipt.supplierId && debtDelta > 0 ? [
         this.db.supplier.update({
           where: { id: receipt.supplierId },
-          data: { debt: { increment: receipt.totalAmount - receipt.paidAmount } } as any
+          data: { debt: { increment: debtDelta } } as any
         })
       ] : [])
     ])

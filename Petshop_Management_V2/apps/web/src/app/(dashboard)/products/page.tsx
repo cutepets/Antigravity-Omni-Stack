@@ -1,7 +1,6 @@
 import { Metadata } from 'next'
 import { ProductList } from './_components/product-list'
-import { PageContainer, PageHeader } from '@/components/layout/PageLayout'
-import { Package } from 'lucide-react'
+import { PageContainer } from '@/components/layout/PageLayout'
 
 export const metadata: Metadata = {
   title: 'Kho & Sản phẩm | Petshop',
@@ -10,12 +9,7 @@ export const metadata: Metadata = {
 
 export default function InventoryPage() {
   return (
-    <PageContainer maxWidth="full">
-      <PageHeader
-        title="Sản phẩm & Kho"
-        description="Quản lý danh sách sản phẩm, giá bán, giá vốn và thiết lập tồn kho"
-        icon={Package}
-      />
+    <PageContainer maxWidth="full" className="!h-full !min-h-0 !gap-0 !overflow-hidden !py-4">
       <ProductList />
     </PageContainer>
   )

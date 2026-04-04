@@ -22,7 +22,7 @@ export function StockList() {
   })
 
   // In real app, there might be a specific endpoint for LOW_STOCK or we filter client side
-  const rawProducts = (data as any)?.data ?? []
+  const rawProducts = Array.isArray((data as any)?.data) ? (data as any).data : []
   const products = filterType === 'LOW_STOCK' ? rawProducts.filter((p: any) => p.stock <= p.minStock) : rawProducts
 
   const total = products.length

@@ -1,6 +1,58 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common'
 import { DatabaseService } from '../../database/database.service.js'
 
+function normalizeSearchValue(value?: string | null) {
+  return `${value ?? ''}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, (char) => (char === 'đ' ? 'd' : 'D'))
+    .toLowerCase()
+    .trim()
+}
+
+function tokenizeSearch(value?: string | null) {
+  return normalizeSearchValue(value)
+    .split(/[\s,]+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+}
+
+function buildProductSearchHaystack(product: Record<string, any>) {
+  const variantText = Array.isArray(product.variants)
+    ? product.variants
+        .map((variant: Record<string, any>) =>
+          [
+            variant.name,
+            variant.sku,
+            variant.barcode,
+            variant.conversions,
+            variant.pricePolicies,
+            variant.priceBookPrices,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        )
+        .join(' ')
+    : ''
+
+  return normalizeSearchValue(
+    [
+      product.name,
+      product.sku,
+      product.productCode,
+      product.barcode,
+      product.category,
+      product.brand,
+      product.importName,
+      product.tags,
+      product.description,
+      variantText,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  )
+}
+
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
 export interface FindProductsDto {
@@ -84,35 +136,48 @@ export class InventoryService {
     const { search, category, brand, supplierId, tags, lowStock, page = 1, limit = 20 } = query
     const skip = (Number(page) - 1) * Number(limit)
     const where: any = {}
+    const searchTokens = tokenizeSearch(search)
 
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
-        { productCode: { contains: search, mode: 'insensitive' } },
-        { barcode: { contains: search, mode: 'insensitive' } },
-      ]
-    }
     if (category) where.category = { contains: category, mode: 'insensitive' }
     if (brand) where.brand = { contains: brand, mode: 'insensitive' }
     if (supplierId) where.supplierId = supplierId
     if (tags) where.tags = { contains: tags, mode: 'insensitive' }
     if (lowStock === 'true') {
-      // Products where current stock <= minStock threshold (in any branch)
-      where.branchStocks = { some: { stock: { lte: 0 } } } // Hotfix Prisma filter typing
+      // Products where current stock <= product minStock threshold.
+      where.stock = { lte: this.db.product.fields.minStock }
     }
 
-    const [data, total] = await Promise.all([
-      this.db.product.findMany({
+    let data: any[] = []
+    let total = 0
+
+    if (searchTokens.length > 0) {
+      const allProducts = await this.db.product.findMany({
         where,
-        skip,
-        take: Number(limit),
         orderBy: { createdAt: 'desc' },
         // @ts-ignore
-        include: { variants: true, branchStocks: true },
-      }),
-      this.db.product.count({ where }),
-    ])
+        include: { variants: { include: { branchStocks: true } }, branchStocks: true },
+      })
+
+      const filteredProducts = allProducts.filter((product) => {
+        const haystack = buildProductSearchHaystack(product)
+        return searchTokens.some((token) => haystack.includes(token))
+      })
+
+      total = filteredProducts.length
+      data = filteredProducts.slice(skip, skip + Number(limit))
+    } else {
+      ;[data, total] = await Promise.all([
+        this.db.product.findMany({
+          where,
+          skip,
+          take: Number(limit),
+          orderBy: { createdAt: 'desc' },
+          // @ts-ignore
+          include: { variants: { include: { branchStocks: true } }, branchStocks: true },
+        }),
+        this.db.product.count({ where }),
+      ])
+    }
 
     return { success: true, data, total, page: Number(page), limit: Number(limit), totalPages: Math.ceil(total / Number(limit)) }
   }
@@ -121,7 +186,10 @@ export class InventoryService {
     const product = await this.db.product.findUnique({
       where: { id },
       // @ts-ignore
-      include: { variants: true, branchStocks: { include: { branch: true } } },
+      include: {
+        variants: { include: { branchStocks: { include: { branch: true } } } },
+        branchStocks: { include: { branch: true } },
+      },
     })
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
     return { success: true, data: product }
@@ -334,4 +402,3 @@ export class InventoryService {
     return { success: true, message: 'Xóa bảng giá thành công' }
   }
 }
-

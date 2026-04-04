@@ -17,7 +17,7 @@ export function SupplierList() {
   })
 
   // The API returns { success: true, data: [...] }
-  const suppliersData = (suppliers as any)?.data?.data ?? []
+  const suppliersData = Array.isArray((suppliers as any)?.data?.data) ? (suppliers as any).data.data : []
 
   const filteredSuppliers = suppliersData.filter((s: any) =>
     s.name?.toLowerCase().includes(search.toLowerCase()) ||

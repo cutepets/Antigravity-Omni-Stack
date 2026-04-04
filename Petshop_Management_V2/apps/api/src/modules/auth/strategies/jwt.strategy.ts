@@ -6,10 +6,15 @@ import type { JwtPayload } from '@petshop/shared'
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {
+    const jwtSecret = process.env['JWT_SECRET']
+    if (!jwtSecret) {
+      throw new Error('Missing required environment variable: JWT_SECRET')
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env['JWT_SECRET'] ?? 'dev-secret',
+      secretOrKey: jwtSecret,
     })
   }
 

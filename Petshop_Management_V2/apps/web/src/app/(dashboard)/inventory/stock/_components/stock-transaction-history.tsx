@@ -22,7 +22,7 @@ export function StockTransactionHistory({ productId }: { productId: string }) {
   })
 
   const product = (resProduct as any)?.data
-  const transactions = (resTrans as any)?.data || []
+  const transactions = Array.isArray((resTrans as any)?.data) ? (resTrans as any).data : []
 
   if (isLoadingProduct || isLoadingTrans) {
     return <div className="p-8 text-center text-foreground-muted animate-pulse">Đang tải lịch sử...</div>

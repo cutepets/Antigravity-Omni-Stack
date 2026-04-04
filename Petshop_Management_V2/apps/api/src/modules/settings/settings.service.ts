@@ -21,6 +21,11 @@ export interface UpdateConfigDto {
   taxRate?: number
   currency?: string
   timezone?: string
+  loyaltySpendPerPoint?: number
+  loyaltyPointValue?: number
+  loyaltyPointExpiryMonths?: number
+  loyaltyTierRetentionMonths?: number
+  loyaltyTierRules?: string
 }
 
 @Injectable()
@@ -50,6 +55,14 @@ export class SettingsService {
           "shopLogo"    = ${dto.shopLogo    ?? null},
           "email"       = ${dto.email       ?? null},
           "website"     = ${dto.website     ?? null},
+          "taxRate"     = ${dto.taxRate     ?? null},
+          "currency"    = ${dto.currency    ?? null},
+          "timezone"    = ${dto.timezone    ?? null},
+          "loyaltySpendPerPoint"       = ${dto.loyaltySpendPerPoint       ?? null},
+          "loyaltyPointValue"          = ${dto.loyaltyPointValue          ?? null},
+          "loyaltyPointExpiryMonths"   = ${dto.loyaltyPointExpiryMonths   ?? null},
+          "loyaltyTierRetentionMonths" = ${dto.loyaltyTierRetentionMonths ?? null},
+          "loyaltyTierRules"           = ${dto.loyaltyTierRules           ?? null},
           "updatedAt"   = NOW()
         WHERE id = ${existing[0].id}
       `
@@ -57,10 +70,12 @@ export class SettingsService {
       const id = randomUUID()
       await this.db.$executeRaw`
         INSERT INTO system_configs
-          (id, "shopName", "shopPhone", "shopAddress", "shopLogo", "email", "website", "updatedAt")
+          (id, "shopName", "shopPhone", "shopAddress", "shopLogo", "email", "website", "taxRate", "currency", "timezone", "loyaltySpendPerPoint", "loyaltyPointValue", "loyaltyPointExpiryMonths", "loyaltyTierRetentionMonths", "loyaltyTierRules", "updatedAt")
         VALUES
           (${id}, ${dto.shopName ?? null}, ${dto.shopPhone ?? null}, ${dto.shopAddress ?? null},
-           ${dto.shopLogo ?? null}, ${dto.email ?? null}, ${dto.website ?? null}, NOW())
+           ${dto.shopLogo ?? null}, ${dto.email ?? null}, ${dto.website ?? null}, ${dto.taxRate ?? null},
+           ${dto.currency ?? null}, ${dto.timezone ?? null}, ${dto.loyaltySpendPerPoint ?? null}, ${dto.loyaltyPointValue ?? null},
+           ${dto.loyaltyPointExpiryMonths ?? null}, ${dto.loyaltyTierRetentionMonths ?? null}, ${dto.loyaltyTierRules ?? null}, NOW())
       `
     }
 

@@ -5,11 +5,16 @@ import { AuthService } from './auth.service.js'
 import { JwtStrategy } from './strategies/jwt.strategy.js'
 import { DatabaseModule } from '../../database/database.module.js'
 
+const jwtSecret = process.env['JWT_SECRET']
+if (!jwtSecret) {
+  throw new Error('Missing required environment variable: JWT_SECRET')
+}
+
 @Module({
   imports: [
     DatabaseModule,
     JwtModule.register({
-      secret: process.env['JWT_SECRET'] ?? 'dev-secret',
+      secret: jwtSecret,
       signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '15m') as any },
     }),
   ],

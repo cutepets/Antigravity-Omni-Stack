@@ -125,12 +125,12 @@ export default function KanbanBoard() {
                       e.stopPropagation();
                       posStore.addItem({
                         id: s.id,
-                        name: `💅 Spa: ${s.pet?.name || s.petName}`,
-                        price: s.price || 0,
+                        description: `💅 Spa: ${s.pet?.name || s.petName}`,
+                        unitPrice: s.price || 0,
                         type: 'grooming'
                       });
                       if (s.pet?.customer) {
-                        posStore.setCustomer(s.customerId || null, s.pet.customer.fullName || 'Khách lẻ');
+                        posStore.setCustomer(s.customerId || undefined, s.pet.customer.fullName || 'Khách lẻ');
                       }
                       toast.success('Đã thêm vào hóa đơn POS!');
                       router.push('/pos');

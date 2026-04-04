@@ -11,7 +11,7 @@ const TABS = [
 ]
 
 export default function InventoryLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ''
 
   return (
     <PageContainer maxWidth="full">

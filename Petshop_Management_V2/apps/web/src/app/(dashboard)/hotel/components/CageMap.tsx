@@ -87,12 +87,12 @@ export default function CageMap() {
                         
                         posStore.addItem({
                           id: activeStay.id,
-                          name: `🏨 Lưu trú ${nights} đêm: ${activeStay.pet?.name || activeStay.petName}`,
-                          price: totalPrice,
+                          description: `🏨 Lưu trú ${nights} đêm: ${activeStay.pet?.name || activeStay.petName}`,
+                          unitPrice: totalPrice,
                           type: 'hotel'
                         });
                         if (activeStay.pet?.customer) {
-                          posStore.setCustomer(activeStay.customerId || null, activeStay.pet.customer.fullName || 'Khách lẻ');
+                          posStore.setCustomer(activeStay.customerId || undefined, activeStay.pet.customer.fullName || 'Khách lẻ');
                         }
                         toast.success(`Đã thêm ${nights} đêm lưu trú vào hóa đơn POS!`);
                         router.push('/pos');

@@ -17,16 +17,20 @@ export interface CartItem {
   petId?: string
   petName?: string
   petImage?: string
-  type: 'product' | 'service'
+  type: 'product' | 'service' | 'hotel' | 'grooming'
   serviceType?: string
   unit: string
   baseUnitPrice?: number
+  baseSku?: string
   image?: string
   variantName?: string
+  variants?: any[]
   groomingDetails?: {
     petId: string
+    performerId?: string
     startTime?: string
     notes?: string
+    serviceItems?: string
   }
   hotelDetails?: {
     petId: string
@@ -38,6 +42,11 @@ export interface CartItem {
   }
   itemNotes?: string
   isTempItem?: boolean
+  stock?: number
+  availableStock?: number
+  trading?: number
+  reserved?: number
+  branchStocks?: any[]
 }
 
 export interface OrderTab {

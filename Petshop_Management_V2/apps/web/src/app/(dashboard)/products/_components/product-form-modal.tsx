@@ -30,6 +30,16 @@ const cartesian = (arrays: string[][]) => {
   return arrays.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat() as string[])), [[]] as string[][]);
 }
 
+const getVariantImageKey = (variant: { sku?: string | null; name: string }) => variant.sku?.trim() || variant.name
+
+const fileToDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(reader.result?.toString() || ''))
+    reader.addEventListener('error', () => reject(new Error('Không thể đọc file ảnh')))
+    reader.readAsDataURL(file)
+  })
+
 export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: ProductFormModalProps) {
   const isEditing = !!initialData
   
@@ -42,6 +52,8 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     price: 0, vat: 0, weight: 0, minStock: 5, tags: '',
     isActive: true
   })
+  const [productImage, setProductImage] = useState<string | null>(null)
+  const [variantImages, setVariantImages] = useState<Record<string, string>>({})
 
   // === Attributes ===
   const [hasAttributes, setHasAttributes] = useState(false)
@@ -74,6 +86,17 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
         tags: initialData.tags || '',
         isActive: initialData.isActive ?? true
       })
+      setProductImage(initialData.image || null)
+      setVariantImages(
+        Object.fromEntries(
+          (initialData.variants || [])
+            .map((variant: any) => {
+              const imageKey = getVariantImageKey(variant)
+              return variant.image && imageKey ? [imageKey, variant.image] : null
+            })
+            .filter(Boolean) as Array<[string, string]>
+        )
+      )
       
       try {
         if (initialData.attributes) {
@@ -91,6 +114,8 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
         price: 0, vat: 0, weight: 0, minStock: 5, tags: '',
         isActive: true
       })
+      setProductImage(null)
+      setVariantImages({})
       setHasAttributes(false)
       setAttributes([{ name: 'Loại', values: [] }])
       setHasConversions(false)
@@ -125,12 +150,15 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     
     baseCombo.forEach((bc, idx) => {
        const baseSku = formData.sku ? `${formData.sku}${idx > 0 ? idx : ''}` : `SKU${idx}`
+       const baseImageKey = getVariantImageKey({ sku: baseSku, name: bc.name })
        
        // Add Base
        result.push({
          isConversion: false,
          parentId: null,
          name: bc.name,
+         imageKey: baseImageKey,
+         image: variantImages[baseImageKey] || null,
          sku: baseSku,
          unit: formData.unit,
          attrs: bc.attrs,
@@ -140,12 +168,17 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
        // Add Conversions
        if (hasConversions) {
-         conversions.filter(c => c.applyTo === 'all' || (hasAttributes && bc.attrs.includes(c.applyTo))).forEach((conv, cIdx) => {
+         conversions.filter(c => c.applyTo === 'all' || (hasAttributes && bc.attrs.includes(c.applyTo))).forEach((conv) => {
+           const conversionName = `${bc.name} - ${conv.convUnit}`
+           const conversionSku = `${baseSku}-${conv.convUnit.substring(0, 2).toUpperCase()}`
+           const conversionImageKey = getVariantImageKey({ sku: conversionSku, name: conversionName })
            result.push({
              isConversion: true,
              parentId: baseSku, // use sku as ref
-             name: `${bc.name} - ${conv.convUnit}`,
-             sku: `${baseSku}-${conv.convUnit.substring(0, 2).toUpperCase()}`,
+             name: conversionName,
+             imageKey: conversionImageKey,
+             image: variantImages[conversionImageKey] || null,
+             sku: conversionSku,
              unit: conv.convUnit,
              attrs: bc.attrs,
              conversionRate: conv.mainQty,
@@ -157,7 +190,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     })
 
     return result
-  }, [formData, hasAttributes, attributes, hasConversions, conversions])
+  }, [formData, hasAttributes, attributes, hasConversions, conversions, variantImages])
 
   const mutation = useMutation({
     mutationFn: async (_: any) => {
@@ -177,6 +210,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
         minStock: Number(formData.minStock),
         tags: formData.tags || undefined,
         isActive: formData.isActive,
+        image: productImage || undefined,
         attributes: hasAttributes ? JSON.stringify(attributes) : undefined,
       }
 
@@ -197,6 +231,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
             name: v.name,
             sku: v.sku || undefined,
             price: Number(v.price) || Number(formData.price),
+            image: v.image || undefined,
             conversions: v.isConversion ? JSON.stringify({ rate: v.conversionRate }) : undefined,
           }))
           await inventoryApi.batchCreateVariants(initialData.id, { variants: variantPayload })
@@ -211,6 +246,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
               name: v.name,
               sku: v.sku || undefined,
               price: Number(v.price) || Number(formData.price),
+              image: v.image || undefined,
               conversions: v.isConversion ? JSON.stringify({ rate: v.conversionRate }) : undefined,
             }))
           }
@@ -248,6 +284,30 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     }
   }
 
+  const handleImageChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    onSuccessAction: (image: string) => void
+  ) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    try {
+      const image = await fileToDataUrl(file)
+      onSuccessAction(image)
+    } catch (error: any) {
+      toast.error(error?.message || 'Không thể tải ảnh, vui lòng thử lại')
+    }
+  }
+
+  const clearVariantImage = (imageKey: string) => {
+    setVariantImages(current => {
+      const next = { ...current }
+      delete next[imageKey]
+      return next
+    })
+  }
+
   // --- Render Options ---
   if (!isOpen) return null
 
@@ -280,9 +340,35 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                  <div className="px-5 py-3 border-b border-border bg-background-tertiary/50 text-[11px] font-bold uppercase tracking-wider text-foreground-muted">Thông tin chung</div>
                  <div className="p-5 flex gap-6">
                     {/* Left: Avatar */}
-                    <div className="w-32 h-32 rounded-xl border-2 border-dashed border-border bg-background-secondary flex flex-col items-center justify-center text-foreground-muted hover:bg-background-tertiary transition-colors cursor-pointer shrink-0">
-                       <ImagePlus size={24} className="mb-2" />
-                       <span className="text-[10px] uppercase font-bold tracking-wider">Tải ảnh</span>
+                    <div className="w-32 shrink-0">
+                       <label className="group relative flex h-32 w-32 cursor-pointer overflow-hidden rounded-xl border-2 border-dashed border-border bg-background-secondary transition-colors hover:border-primary-500 hover:bg-background-tertiary">
+                          {productImage ? (
+                            <img src={productImage} alt={formData.name || 'Sản phẩm'} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full flex-col items-center justify-center text-foreground-muted">
+                               <ImagePlus size={24} className="mb-2" />
+                               <span className="text-[10px] uppercase font-bold tracking-wider">Tải ảnh</span>
+                            </div>
+                          )}
+                          <div className="absolute inset-0 hidden items-center justify-center bg-background-base/65 text-[10px] font-bold uppercase tracking-wider text-white group-hover:flex">
+                            {productImage ? 'Đổi ảnh' : 'Chọn ảnh'}
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleImageChange(e, setProductImage)}
+                          />
+                       </label>
+                       {productImage && (
+                          <button
+                            type="button"
+                            onClick={() => setProductImage(null)}
+                            className="mt-2 text-xs font-medium text-foreground-muted transition-colors hover:text-error"
+                          >
+                            Xóa ảnh
+                          </button>
+                       )}
                     </div>
 
                     {/* Right: Info */}
@@ -486,8 +572,39 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                              <td className="py-3 px-4 text-center relative">
                                 {v.isConversion && <div className="absolute top-0 bottom-1/2 left-4 w-px border-l-2 border-border/50"></div>}
                                 {v.isConversion && <div className="absolute top-1/2 left-4 w-2 h-px border-t-2 border-border/50"></div>}
-                                <div className={`w-8 h-8 rounded shrink-0 mx-auto border border-dashed border-border flex items-center justify-center relative z-10 ${v.isConversion ? 'bg-background-tertiary' : 'bg-background hover:border-primary-500 cursor-pointer'}`}>
-                                   <ImagePlus size={14} className="text-foreground-muted" />
+                                <div className="relative z-10 mx-auto w-8">
+                                   <label className={`flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded border border-dashed border-border transition-colors ${
+                                     v.image || productImage
+                                       ? 'bg-background'
+                                       : v.isConversion
+                                         ? 'bg-background-tertiary hover:border-primary-500'
+                                         : 'bg-background hover:border-primary-500'
+                                   }`}>
+                                      {v.image || productImage ? (
+                                        <img src={v.image || productImage || ''} alt={v.name} className="h-full w-full object-cover" />
+                                      ) : (
+                                        <ImagePlus size={14} className="text-foreground-muted" />
+                                      )}
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) =>
+                                          handleImageChange(e, (image) =>
+                                            setVariantImages(current => ({ ...current, [v.imageKey]: image }))
+                                          )
+                                        }
+                                      />
+                                   </label>
+                                   {v.image && (
+                                      <button
+                                        type="button"
+                                        onClick={() => clearVariantImage(v.imageKey)}
+                                        className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-background-base text-[10px] text-white shadow"
+                                      >
+                                        ×
+                                      </button>
+                                   )}
                                 </div>
                              </td>
                              <td className="py-3 px-4">
@@ -563,14 +680,23 @@ function CustomToggle({ checked, onChange, variant = 'primary' }: { checked: boo
 function TagInput({ values, onChange, placeholder }: { values: string[], onChange: (v: string[]) => void, placeholder?: string }) {
   const [input, setInput] = useState('')
 
+  const commitTag = () => {
+    const nextValues = input
+      .split(',')
+      .map(v => v.trim())
+      .filter(Boolean)
+      .filter(v => !values.includes(v))
+
+    if (nextValues.length > 0) {
+      onChange([...values, ...nextValues])
+      setInput('')
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
-      const val = input.trim()
-      if (val && !values.includes(val)) {
-        onChange([...values, val])
-        setInput('')
-      }
+      commitTag()
     } else if (e.key === 'Backspace' && !input && values.length > 0) {
       onChange(values.slice(0, -1))
     }
@@ -593,6 +719,7 @@ function TagInput({ values, onChange, placeholder }: { values: string[], onChang
         value={input} 
         onChange={e => setInput(e.target.value)} 
         onKeyDown={handleKeyDown}
+        onBlur={commitTag}
         placeholder={values.length === 0 ? placeholder : ""} 
       />
     </div>

@@ -6,10 +6,16 @@ export const metadata: Metadata = {
   title: 'Chi tiết phiếu nhập | Petshop',
 }
 
-export default function ReceiptDetailPage({ params }: { params: { id: string } }) {
+type ReceiptDetailPageProps = {
+  params: Promise<{ id: string }>
+}
+
+export default async function ReceiptDetailPage({ params }: ReceiptDetailPageProps) {
+  const { id } = await params
+
   return (
     <PageContainer maxWidth="xl">
-      <ReceiptDetail id={params.id} />
+      <ReceiptDetail id={id} />
     </PageContainer>
   )
 }

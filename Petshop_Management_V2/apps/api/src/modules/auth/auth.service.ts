@@ -17,6 +17,14 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
+  private getRefreshSecret(): string {
+    const secret = process.env['JWT_REFRESH_SECRET']
+    if (!secret) {
+      throw new Error('Missing required environment variable: JWT_REFRESH_SECRET')
+    }
+    return secret
+  }
+
   async login(dto: LoginDto): Promise<LoginResponse> {
     const user = await this.db.user.findFirst({
       where: { username: dto.username },
@@ -59,7 +67,7 @@ export class AuthService {
 
     const accessToken = this.jwt.sign(payload as Record<string, any>)
     const refreshToken = this.jwt.sign(payload as Record<string, any>, {
-      secret: process.env['JWT_REFRESH_SECRET'] ?? 'dev-refresh-secret',
+      secret: this.getRefreshSecret(),
       expiresIn: (process.env['JWT_REFRESH_EXPIRES_IN'] ?? '7d') as any,
     })
 
@@ -104,7 +112,7 @@ export class AuthService {
     let payload: JwtPayload
     try {
       payload = this.jwt.verify<JwtPayload>(token, {
-        secret: process.env['JWT_REFRESH_SECRET'] ?? 'dev-refresh-secret',
+        secret: this.getRefreshSecret(),
       })
     } catch {
       throw new UnauthorizedException('Refresh token không hợp lệ')
@@ -130,13 +138,18 @@ export class AuthService {
     // Rotate — delete old, issue new
     await this.db.refreshToken.delete({ where: { id: stored.id } })
 
+    const u = stored.user
+    const combinedRole = (u as any).role?.code ?? (u as any).legacyRole
+    const combinedPermissions = (u as any).role?.permissions ?? []
+
     const newPayload: Omit<JwtPayload, 'iat' | 'exp'> = {
       userId: payload.userId,
-      role: payload.role,
+      role: combinedRole,
+      permissions: combinedPermissions,
     }
     const newAccess = this.jwt.sign(newPayload as Record<string, any>)
     const newRefresh = this.jwt.sign(newPayload as Record<string, any>, {
-      secret: process.env['JWT_REFRESH_SECRET'] ?? 'dev-refresh-secret',
+      secret: this.getRefreshSecret(),
       expiresIn: (process.env['JWT_REFRESH_EXPIRES_IN'] ?? '7d') as any,
     })
 
@@ -145,10 +158,6 @@ export class AuthService {
     await this.db.refreshToken.create({
       data: { userId: payload.userId, token: newRefresh, expiresAt },
     })
-
-    const u = stored.user
-    const combinedRole = (u as any).role?.code ?? (u as any).legacyRole
-    const combinedPermissions = (u as any).role?.permissions ?? []
 
     const authUser: AuthUser = {
       id: u.id,

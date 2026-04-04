@@ -1,281 +1,689 @@
 'use client'
 
-import React, { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Package, Tags, Scale, Settings, Check, Loader2, Edit2, Trash2, Plus, ArrowLeft } from 'lucide-react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  BadgeDollarSign,
+  Check,
+  ChevronRight,
+  Loader2,
+  Package,
+  Plus,
+  Scale,
+  Search,
+  Settings,
+  Tags,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
 
-// Types
 type DictionaryItem = {
-    id: string
-    name: string
-    description?: string | null
-    createdAt: string
+  id: string
+  name: string
+  description?: string | null
+  channel?: string | null
+  isDefault?: boolean | null
+  isActive?: boolean | null
+  sortOrder?: number | null
 }
 
-// Reusable Dictionary Manager Component
-function DictionaryManager({ endpoint, title, icon: Icon, queryKey }: { endpoint: string, title: string, icon: any, queryKey: string[] }) {
-    const queryClient = useQueryClient()
-    const [isFormOpen, setIsFormOpen] = useState(false)
-    const [editingId, setEditingId] = useState<string | null>(null)
-    const [formData, setFormData] = useState({ name: '', description: '' })
+type CardHeaderProps = {
+  title: string
+  subtitle: string
+  count: number
+  icon: React.ComponentType<{ size?: number; className?: string }>
+}
 
-    const { data: items = [], isLoading } = useQuery({
-        queryKey,
-        queryFn: async () => {
-            const res = await api.get(endpoint)
-            return res.data.data as DictionaryItem[]
-        }
-    })
-
-    const mutationCreate = useMutation({
-        mutationFn: async (payload: typeof formData) => {
-            const res = await api.post(endpoint, payload)
-            return res.data.data
-        },
-        onSuccess: () => {
-            toast.success(`Đã thêm ${title.toLowerCase()}`)
-            queryClient.invalidateQueries({ queryKey })
-            closeForm()
-        }
-    })
-
-    const mutationUpdate = useMutation({
-        mutationFn: async ({ id, payload }: { id: string, payload: typeof formData }) => {
-            const res = await api.put(`${endpoint}/${id}`, payload)
-            return res.data.data
-        },
-        onSuccess: () => {
-            toast.success(`Đã cập nhật ${title.toLowerCase()}`)
-            queryClient.invalidateQueries({ queryKey })
-            closeForm()
-        }
-    })
-
-    const mutationDelete = useMutation({
-        mutationFn: async (id: string) => {
-            const res = await api.delete(`${endpoint}/${id}`)
-            return res.data
-        },
-        onSuccess: () => {
-            toast.success(`Đã xóa ${title.toLowerCase()}`)
-            queryClient.invalidateQueries({ queryKey })
-        }
-    })
-
-    const closeForm = () => {
-        setIsFormOpen(false)
-        setEditingId(null)
-        setFormData({ name: '', description: '' })
-    }
-
-    const handleSave = () => {
-        if (!formData.name) return toast.error('Vui lòng nhập tên')
-        if (editingId) {
-            mutationUpdate.mutate({ id: editingId, payload: formData })
-        } else {
-            mutationCreate.mutate(formData)
-        }
-    }
-
-    const handleEdit = (item: DictionaryItem) => {
-        setFormData({ name: item.name, description: item.description || '' })
-        setEditingId(item.id)
-        setIsFormOpen(true)
-    }
-
-    return (
-        <div className="w-full bg-background-secondary border border-border/60 rounded-3xl overflow-hidden shadow-sm flex flex-col min-h-[500px]">
-            <div className="border-b border-border/50 p-6 flex items-center justify-between">
-                <div>
-                    <h2 className="text-lg font-bold text-foreground-base flex items-center gap-3">
-                        <Icon className="text-primary-500" size={24} /> 
-                        Quản lý {title}
-                    </h2>
-                </div>
-                {!isFormOpen && (
-                    <button 
-                        onClick={() => { closeForm(); setIsFormOpen(true) }}
-                        className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors"
-                    >
-                        <Plus size={16} /> Thêm
-                    </button>
-                )}
-            </div>
-
-            <div className="p-8 space-y-6 flex-1 bg-black/5">
-                {isFormOpen && (
-                    <div className="bg-background-elevated border border-primary-500/30 p-6 rounded-2xl shadow-sm space-y-4 animate-in slide-in-from-top-4 fade-in duration-300">
-                        <h3 className="font-bold text-sm text-primary-500 flex items-center gap-2">
-                            {editingId ? <Edit2 size={16} /> : <Plus size={16} />}
-                            {editingId ? `Sửa ${title.toLowerCase()}` : `Thêm ${title.toLowerCase()}`}
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1.5 md:col-span-2">
-                                <label className="text-xs font-bold text-foreground-base">Tên {title.toLowerCase()} <span className="text-red-500">*</span></label>
-                                <input 
-                                    value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                    className="w-full bg-black/20 border border-border/50 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 transition-colors text-sm"
-                                    placeholder="Nhập tên..."
-                                />
-                            </div>
-                            <div className="space-y-1.5 md:col-span-2">
-                                <label className="text-xs font-bold text-foreground-base">Mô tả</label>
-                                <input 
-                                    value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                    className="w-full bg-black/20 border border-border/50 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 transition-colors text-sm"
-                                    placeholder="Không bắt buộc"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-3 pt-2">
-                            <button 
-                                onClick={closeForm}
-                                className="text-foreground-muted hover:text-foreground-base px-4 py-2 text-sm font-medium transition-colors"
-                            >
-                                Hủy
-                            </button>
-                            <button 
-                                onClick={handleSave} disabled={mutationCreate.isPending || mutationUpdate.isPending}
-                                className="bg-primary-500 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2"
-                            >
-                                {(mutationCreate.isPending || mutationUpdate.isPending) ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                                Xác nhận
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {isLoading ? (
-                    <div className="flex items-center justify-center h-40 text-foreground-muted">
-                        <Loader2 className="animate-spin" size={24} />
-                    </div>
-                ) : items.length === 0 ? (
-                    <div className="border border-dashed border-border/60 rounded-2xl h-40 flex items-center justify-center text-foreground-muted text-sm">
-                        Chưa có dữ liệu.
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {items.map(item => (
-                            <div key={item.id} className="bg-background-tertiary border border-border/40 rounded-2xl p-5 hover:border-primary-500/50 transition-colors group relative">
-                                <h4 className="font-bold text-foreground-base break-words">{item.name}</h4>
-                                <p className="text-xs text-foreground-muted mt-1 truncate">
-                                    {item.description || 'Không có mô tả'}
-                                </p>
-                                
-                                {/* Hover Actions */}
-                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 bg-background-tertiary pl-2">
-                                    <button 
-                                        onClick={() => handleEdit(item)}
-                                        className="p-1.5 bg-black/20 hover:bg-primary-500 hover:text-white rounded-md text-foreground-muted transition-colors"
-                                    >
-                                        <Edit2 size={14} />
-                                    </button>
-                                    <button 
-                                        onClick={() => {
-                                            if (confirm(`Xóa ${item.name}?`)) mutationDelete.mutate(item.id)
-                                        }}
-                                        className="p-1.5 bg-black/20 hover:bg-red-500 hover:text-white rounded-md text-foreground-muted transition-colors"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+function CardHeader({ title, subtitle, count, icon: Icon }: CardHeaderProps) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-border/50 px-5 py-4">
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500">
+          <Icon size={18} />
         </div>
-    )
+        <div className="min-w-0">
+          <h2 className="text-lg font-bold text-foreground-base">{title}</h2>
+          <p className="mt-1 text-sm text-foreground-muted">{subtitle}</p>
+        </div>
+      </div>
+      <div className="inline-flex min-w-8 items-center justify-center rounded-full bg-primary-500/10 px-2.5 py-1 text-xs font-bold text-primary-500">
+        {count}
+      </div>
+    </div>
+  )
+}
+
+function normalizeText(value: string) {
+  return value.trim().toLowerCase()
+}
+
+const PAGE_SIZE = 5
+
+function PaginationControls({
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  page: number
+  totalPages: number
+  onPageChange: (page: number) => void
+}) {
+  if (totalPages <= 1) return null
+
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-3">
+      <span className="text-xs text-foreground-muted">
+        Trang {page}/{totalPages}
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page === 1}
+          className="inline-flex h-8 items-center rounded-xl border border-border px-3 text-xs font-semibold text-foreground transition-colors disabled:opacity-40 hover:border-primary-500 hover:text-primary-500"
+        >
+          Trước
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page === totalPages}
+          className="inline-flex h-8 items-center rounded-xl border border-border px-3 text-xs font-semibold text-foreground transition-colors disabled:opacity-40 hover:border-primary-500 hover:text-primary-500"
+        >
+          Sau
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TagDictionaryCard({
+  endpoint,
+  queryKey,
+  title,
+  subtitle,
+  addLabel,
+  icon: Icon,
+}: {
+  endpoint: string
+  queryKey: string[]
+  title: string
+  subtitle: string
+  addLabel: string
+  icon: React.ComponentType<{ size?: number; className?: string }>
+}) {
+  const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
+
+  const { data: items = [], isLoading } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const res = await api.get(endpoint)
+      return (res.data.data ?? []) as DictionaryItem[]
+    },
+  })
+
+  const filteredItems = useMemo(() => {
+    const keyword = normalizeText(search)
+    if (!keyword) return items
+    return items.filter((item) => normalizeText(item.name).includes(keyword))
+  }, [items, search])
+
+  const hasExactMatch = items.some((item) => normalizeText(item.name) === normalizeText(search))
+
+  const createMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await api.post(endpoint, { name })
+      return res.data
+    },
+    onSuccess: () => {
+      toast.success(`Đã thêm ${title.toLowerCase()}`)
+      queryClient.invalidateQueries({ queryKey })
+      setSearch('')
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || `Không thể thêm ${title.toLowerCase()}`)
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`${endpoint}/${id}`)
+      return res.data
+    },
+    onSuccess: () => {
+      toast.success(`Đã xóa ${title.toLowerCase()}`)
+      queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || `Không thể xóa ${title.toLowerCase()}`)
+    },
+  })
+
+  const submitCreate = () => {
+    const value = search.trim()
+    if (!value) return
+    createMutation.mutate(value)
+  }
+
+  return (
+    <div data-hotkey-scope className="overflow-hidden rounded-3xl border border-border/70 bg-background-secondary shadow-sm">
+      <CardHeader title={title} subtitle={subtitle} count={items.length} icon={Icon} />
+
+      <div className="space-y-3 p-5">
+        <div className="relative">
+          <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={`Tìm ${title.toLowerCase()}...`}
+            className="h-12 w-full rounded-2xl border border-border bg-background pl-11 pr-4 text-sm outline-none transition-colors focus:border-primary-500"
+          />
+        </div>
+
+        {search.trim() && !hasExactMatch && (
+          <button
+            type="button"
+            onClick={submitCreate}
+            disabled={createMutation.isPending}
+            data-hotkey-enter
+            className="inline-flex items-center gap-2 rounded-2xl border border-primary-500/30 bg-primary-500/10 px-4 py-2 text-sm font-semibold text-primary-400 transition-colors hover:bg-primary-500/15 disabled:opacity-60"
+          >
+            {createMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+            {addLabel} "{search.trim()}"
+          </button>
+        )}
+
+        {isLoading ? (
+          <div className="flex h-20 items-center justify-center text-foreground-muted">
+            <Loader2 size={18} className="animate-spin" />
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/60 px-4 py-5 text-sm text-foreground-muted">
+            {search.trim() ? 'Không tìm thấy mục phù hợp.' : `Chưa có ${title.toLowerCase()} nào.`}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {filteredItems.map((item) => (
+              <div
+                key={item.id}
+                className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-2 text-sm"
+              >
+                <span className="truncate font-medium text-foreground">{item.name}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Xóa "${item.name}"?`)) deleteMutation.mutate(item.id)
+                  }}
+                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-foreground-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CategoryCard() {
+  const queryClient = useQueryClient()
+  const [draftName, setDraftName] = useState('')
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const endpoint = '/inventory/categories'
+  const queryKey = ['settings', 'inventory', 'categories']
+
+  const { data: items = [], isLoading } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const res = await api.get(endpoint)
+      return (res.data.data ?? []) as DictionaryItem[]
+    },
+  })
+
+  const createMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await api.post(endpoint, { name })
+      return res.data
+    },
+    onSuccess: () => {
+      toast.success('Đã thêm danh mục')
+      queryClient.invalidateQueries({ queryKey })
+      setDraftName('')
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const res = await api.put(`${endpoint}/${id}`, { name })
+      return res.data
+    },
+    onSuccess: () => {
+      toast.success('Đã cập nhật danh mục')
+      queryClient.invalidateQueries({ queryKey })
+      setEditingItemId(null)
+      setEditingName('')
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`${endpoint}/${id}`)
+      return res.data
+    },
+    onSuccess: () => {
+      toast.success('Đã xóa danh mục')
+      queryClient.invalidateQueries({ queryKey })
+    },
+  })
+
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+  const page = Math.min(currentPage, totalPages)
+  const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  return (
+    <div data-hotkey-scope className="overflow-hidden rounded-3xl border border-border/70 bg-background-secondary shadow-sm">
+      <CardHeader title="Danh mục" subtitle="Thức ăn, vệ sinh, thuốc..." count={items.length} icon={Tags} />
+
+      <div className="space-y-3 p-5">
+        <div className="rounded-2xl border border-primary-500/30 bg-primary-500/5 p-2">
+          <div className="flex items-center gap-2">
+            <input
+              value={draftName}
+              onChange={(event) => setDraftName(event.target.value)}
+              placeholder="Thêm mới..."
+              className="h-11 flex-1 rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const value = draftName.trim()
+                if (!value) return toast.error('Vui lòng nhập tên danh mục')
+                createMutation.mutate(value)
+              }}
+              data-hotkey-enter
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-500 text-white"
+            >
+              {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            </button>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex h-20 items-center justify-center text-foreground-muted">
+            <Loader2 size={18} className="animate-spin" />
+          </div>
+        ) : items.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/60 px-4 py-5 text-sm text-foreground-muted">
+            Chưa có danh mục nào.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="overflow-hidden rounded-2xl border border-border/50">
+              <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3 border-b border-border/50 bg-background-secondary px-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-foreground-muted">
+                <span>Tên danh mục</span>
+                <span className="text-right">Thao tác</span>
+              </div>
+
+              {pagedItems.map((item) => (
+                <div key={item.id} className="border-b border-border/40 bg-background last:border-b-0">
+                  {editingItemId === item.id ? (
+                    <div className="flex items-center gap-2 px-4 py-3">
+                      <input
+                        value={editingName}
+                        onChange={(event) => setEditingName(event.target.value)}
+                        className="h-10 flex-1 rounded-xl border border-border bg-background-secondary px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => updateMutation.mutate({ id: item.id, name: editingName.trim() })}
+                        data-hotkey-enter
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500 text-white"
+                      >
+                        <Check size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingItemId(null)
+                          setEditingName('')
+                        }}
+                        data-hotkey-esc
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border text-foreground-muted"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-[minmax(0,1fr)_96px] items-center gap-3 px-4 py-3">
+                      <div className="truncate text-sm font-medium text-foreground">{item.name}</div>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingItemId(item.id)
+                            setEditingName(item.name)
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground"
+                        >
+                          <Plus size={14} className="rotate-45" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Xóa "${item.name}"?`)) deleteMutation.mutate(item.id)
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <PaginationControls page={page} totalPages={totalPages} onPageChange={setCurrentPage} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PriceBookCard() {
+  const queryClient = useQueryClient()
+  const endpoint = '/inventory/price-books'
+  const queryKey = ['settings', 'inventory', 'price-books']
+  const [draftName, setDraftName] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const { data: items = [], isLoading } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const res = await api.get(endpoint)
+      return (res.data.data ?? []) as DictionaryItem[]
+    },
+  })
+
+  const orderedItems = useMemo(
+    () =>
+      [...items].sort((left, right) => {
+        const leftOrder = left.sortOrder ?? Number.MAX_SAFE_INTEGER
+        const rightOrder = right.sortOrder ?? Number.MAX_SAFE_INTEGER
+        if (leftOrder !== rightOrder) return leftOrder - rightOrder
+        return left.name.localeCompare(right.name, 'vi')
+      }),
+    [items]
+  )
+
+  const createMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await api.post(endpoint, {
+        name,
+        channel: 'GENERAL',
+        sortOrder: orderedItems.length,
+        isDefault: orderedItems.length === 0,
+        isActive: true,
+      })
+      return res.data
+    },
+    onSuccess: () => {
+      toast.success('Đã thêm bảng giá')
+      queryClient.invalidateQueries({ queryKey })
+      setDraftName('')
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Không thể thêm bảng giá')
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async ({ id, remainingItems }: { id: string; remainingItems: DictionaryItem[] }) => {
+      await api.delete(`${endpoint}/${id}`)
+
+      if (remainingItems.length > 0) {
+        await Promise.all(
+          remainingItems.map((item, index) =>
+            api.put(`${endpoint}/${item.id}`, {
+              name: item.name,
+              channel: item.channel ?? 'GENERAL',
+              sortOrder: index,
+              isDefault: index === 0,
+              isActive: item.isActive ?? true,
+            })
+          )
+        )
+      }
+    },
+    onSuccess: () => {
+      toast.success('Đã xóa bảng giá')
+      queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Không thể xóa bảng giá')
+    },
+  })
+
+  const reorderMutation = useMutation({
+    mutationFn: async (nextItems: DictionaryItem[]) => {
+      await Promise.all(
+        nextItems.map((item, index) =>
+          api.put(`${endpoint}/${item.id}`, {
+            name: item.name,
+            channel: item.channel ?? 'GENERAL',
+            sortOrder: index,
+            isDefault: index === 0,
+            isActive: item.isActive ?? true,
+          })
+        )
+      )
+    },
+    onSuccess: () => {
+      toast.success('Đã cập nhật thứ tự bảng giá')
+      queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Không thể cập nhật thứ tự bảng giá')
+    },
+  })
+
+  const moveItem = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction
+    if (targetIndex < 0 || targetIndex >= orderedItems.length) return
+    const next = [...orderedItems]
+    const [current] = next.splice(index, 1)
+    next.splice(targetIndex, 0, current)
+    reorderMutation.mutate(next)
+  }
+
+  const totalPages = Math.max(1, Math.ceil(orderedItems.length / PAGE_SIZE))
+  const page = Math.min(currentPage, totalPages)
+  const pagedItems = orderedItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  return (
+    <div data-hotkey-scope className="overflow-hidden rounded-3xl border border-border/70 bg-background-secondary shadow-sm">
+      <CardHeader title="Bảng giá bán" subtitle="Giá lẻ, giá sỉ, giá đại lý..." count={orderedItems.length} icon={BadgeDollarSign} />
+
+      <div className="space-y-3 p-5">
+        <div className="rounded-2xl border border-primary-500/30 bg-primary-500/5 p-2">
+          <div className="flex items-center gap-2">
+            <input
+              value={draftName}
+              onChange={(event) => setDraftName(event.target.value)}
+              placeholder="Thêm bảng giá..."
+              className="h-11 flex-1 rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const value = draftName.trim()
+                if (!value) return toast.error('Vui lòng nhập tên bảng giá')
+                createMutation.mutate(value)
+              }}
+              data-hotkey-enter
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-500 text-white"
+            >
+              {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            </button>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex h-20 items-center justify-center text-foreground-muted">
+            <Loader2 size={18} className="animate-spin" />
+          </div>
+        ) : orderedItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/60 px-4 py-5 text-sm text-foreground-muted">
+            Chưa có bảng giá nào.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="overflow-hidden rounded-2xl border border-border/50">
+              <div className="grid grid-cols-[72px_minmax(0,1fr)_88px_88px] gap-3 border-b border-border/50 bg-background-secondary px-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-foreground-muted">
+                <span>Thứ tự</span>
+                <span>Tên bảng giá</span>
+                <span className="text-center">Mặc định</span>
+                <span className="text-right">Thao tác</span>
+              </div>
+
+              {pagedItems.map((item) => {
+                const absoluteIndex = orderedItems.findIndex((candidate) => candidate.id === item.id)
+
+                return (
+                  <div key={item.id} className="grid grid-cols-[72px_minmax(0,1fr)_88px_88px] items-center gap-3 border-b border-border/40 bg-background px-4 py-3 last:border-b-0">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => moveItem(absoluteIndex, -1)}
+                        disabled={absoluteIndex === 0 || reorderMutation.isPending}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border text-foreground-muted transition-colors disabled:opacity-40 hover:text-foreground"
+                      >
+                        <ArrowUp size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveItem(absoluteIndex, 1)}
+                        disabled={absoluteIndex === orderedItems.length - 1 || reorderMutation.isPending}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border text-foreground-muted transition-colors disabled:opacity-40 hover:text-foreground"
+                      >
+                        <ArrowDown size={13} />
+                      </button>
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-foreground">{item.name}</div>
+                      <div className="truncate text-xs text-foreground-muted">Kênh {item.channel ?? 'GENERAL'} · Thứ tự {absoluteIndex + 1}</div>
+                    </div>
+
+                    <div className="flex justify-center">
+                      {absoluteIndex === 0 ? (
+                        <span className="inline-flex rounded-full bg-primary-500/10 px-2.5 py-1 text-xs font-bold text-primary-400">
+                          Mặc định
+                        </span>
+                      ) : (
+                        <span className="text-xs text-foreground-muted">-</span>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Xóa "${item.name}"?`)) {
+                            deleteMutation.mutate({
+                              id: item.id,
+                              remainingItems: orderedItems.filter((candidate) => candidate.id !== item.id),
+                            })
+                          }
+                        }}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <PaginationControls page={page} totalPages={totalPages} onPageChange={setCurrentPage} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function InventorySettingsPage() {
-    const [activeTab, setActiveTab] = useState('categories')
+  return (
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-6 py-8 lg:px-8">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <Link href="/settings" className="inline-flex items-center font-medium text-foreground-muted transition-colors hover:text-primary-500">
+              <ArrowLeft size={16} className="mr-2" />
+              Quay lại cài đặt
+            </Link>
+            <span className="text-foreground-muted">/</span>
+            <span className="font-medium text-foreground">Cấu hình kho</span>
+          </div>
 
-    const tabs = [
-        { id: 'categories', label: 'Danh mục', icon: Tags, endpoint: '/inventory/categories', title: 'Danh mục' },
-        { id: 'brands', label: 'Thương hiệu', icon: Package, endpoint: '/inventory/brands', title: 'Thương hiệu' },
-        { id: 'units', label: 'Đơn vị tính', icon: Scale, endpoint: '/inventory/units', title: 'Đơn vị tính' },
-    ]
-
-    return (
-        <div className="flex flex-col gap-6 w-full max-w-[1400px] mx-auto py-8 px-6 lg:px-8">
-            <div className="flex flex-col gap-4">
-                <Link href="/settings" className="inline-flex items-center text-sm font-bold text-foreground-muted hover:text-primary-500 transition-colors w-fit">
-                    <ArrowLeft size={16} className="mr-2" /> Quay lại Cài đặt
-                </Link>
-                <div className="flex items-center gap-3">
-                    <div className="text-primary-500 bg-primary-500/10 p-2.5 rounded-xl border border-primary-500/20 shrink-0">
-                        <Settings size={26} />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-foreground-base tracking-tight">
-                            Cấu hình Kho Hàng
-                        </h1>
-                        <p className="text-foreground-secondary text-sm mt-0.5">
-                            Quản lý các danh mục, thương hiệu và đơn vị tính dùng trong kho.
-                        </p>
-                    </div>
-                </div>
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary-500/20 bg-primary-500/10 text-primary-500">
+              <Settings size={24} />
             </div>
-
-            <div className="flex flex-col lg:flex-row gap-8 items-start">
-                <div className="w-full lg:w-[280px] shrink-0 space-y-6 lg:sticky lg:top-[100px]">
-                    <div className="flex flex-col gap-1.5 p-2 bg-background-secondary border border-border/50 rounded-2xl shadow-sm">
-                        {tabs.map(tab => {
-                            const Icon = tab.icon
-                            const isActive = activeTab === tab.id
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={cn(
-                                        "w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl font-medium transition-all text-sm",
-                                        isActive
-                                            ? "bg-primary-500 text-white shadow-md shadow-primary-500/20"
-                                            : "bg-transparent text-foreground-secondary hover:text-foreground-base hover:bg-black/5"
-                                    )}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <Icon size={18} className={isActive ? "text-white" : "opacity-70"} />
-                                        <span>{tab.label}</span>
-                                    </div>
-                                    {isActive && (
-                                        <motion.div layoutId="inv-active-indicator" className="w-1.5 h-1.5 bg-white rounded-full ml-auto" />
-                                    )}
-                                </button>
-                            )
-                        })}
-                    </div>
-                </div>
-
-                <div className="w-full relative min-h-[500px]">
-                    <AnimatePresence mode="popLayout">
-                        {tabs.map(tab => (
-                            activeTab === tab.id && (
-                                <motion.div 
-                                    key={tab.id} 
-                                    initial={{ opacity: 0, x: 20 }} 
-                                    animate={{ opacity: 1, x: 0 }} 
-                                    exit={{ opacity: 0, x: -20 }} 
-                                    transition={{ duration: 0.2 }}
-                                >
-                                    <DictionaryManager 
-                                        endpoint={tab.endpoint} 
-                                        title={tab.title} 
-                                        icon={tab.icon} 
-                                        queryKey={['inventory', tab.id]} 
-                                    />
-                                </motion.div>
-                            )
-                        ))}
-                    </AnimatePresence>
-                </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground-base">Cấu hình kho hàng</h1>
+              <p className="mt-1 text-sm text-foreground-muted">
+                Quản lý nhanh các danh mục dùng cho sản phẩm, quy đổi và bảng giá bán trong hệ thống.
+              </p>
             </div>
+          </div>
         </div>
-    )
+
+        <Link
+          href="/settings/customers"
+          className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border bg-background-secondary px-4 text-sm font-semibold text-foreground transition-colors hover:border-primary-500 hover:text-primary-500"
+        >
+          <Users size={16} />
+          Cấu hình khách hàng
+          <ChevronRight size={16} />
+        </Link>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <TagDictionaryCard
+          endpoint="/inventory/units"
+          queryKey={['settings', 'inventory', 'units']}
+          title="Đơn vị bán"
+          subtitle="cái, kg, hộp, túi..."
+          addLabel="Thêm đơn vị"
+          icon={Scale}
+        />
+        <TagDictionaryCard
+          endpoint="/inventory/brands"
+          queryKey={['settings', 'inventory', 'brands']}
+          title="Nhãn hiệu"
+          subtitle="Royal Canin, Pedigree, Whiskas..."
+          addLabel="Thêm mới"
+          icon={Package}
+        />
+        <CategoryCard />
+        <PriceBookCard />
+      </div>
+    </div>
+  )
 }

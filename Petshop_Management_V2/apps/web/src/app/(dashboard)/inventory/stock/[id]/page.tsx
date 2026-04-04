@@ -6,10 +6,16 @@ export const metadata: Metadata = {
   title: 'Lịch sử kho hàng | Petshop',
 }
 
-export default function StockTransactionPage({ params }: { params: { id: string } }) {
+type StockTransactionPageProps = {
+  params: Promise<{ id: string }>
+}
+
+export default async function StockTransactionPage({ params }: StockTransactionPageProps) {
+  const { id } = await params
+
   return (
     <PageContainer maxWidth="xl">
-      <StockTransactionHistory productId={params.id} />
+      <StockTransactionHistory productId={id} />
     </PageContainer>
   )
 }

@@ -8,8 +8,8 @@ export default function PosCatalog({ products, services }: { products: any[], se
   const handleAddProduct = (p: any) => {
     addItem({
       id: p.id,
-      name: p.name,
-      price: p.price,
+      description: p.name,
+      unitPrice: p.price,
       type: 'product',
     });
   };
@@ -17,8 +17,8 @@ export default function PosCatalog({ products, services }: { products: any[], se
   const handleAddService = (s: any) => {
     addItem({
       id: s.id,
-      name: s.name,
-      price: s.price,
+      description: s.name,
+      unitPrice: s.price,
       type: 'service',
     });
   };
