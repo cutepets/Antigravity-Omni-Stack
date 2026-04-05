@@ -10,12 +10,7 @@ export const metadata: Metadata = {
 
 export default function CustomersPage() {
   return (
-    <PageContainer maxWidth="2xl">
-      <PageHeader
-        title="Khách hàng"
-        description="Quản lý danh sách, phân hạng và điểm tích luỹ khách hàng"
-        icon={Users}
-      />
+    <PageContainer maxWidth="full" className="!h-full !min-h-0 !gap-0 !overflow-hidden !py-4">
       <CustomerList />
     </PageContainer>
   )

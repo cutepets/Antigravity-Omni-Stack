@@ -810,13 +810,19 @@ export default function PosPage() {
               >
                 ĐẶT HÀNG
               </button>
-              <button className="py-2.5 bg-white border border-gray-300 hover:border-primary-500 text-gray-700 rounded-lg text-[13px] font-bold uppercase transition-colors flex items-center justify-center shadow-sm">
+              <button 
+                className="py-2.5 bg-white border border-gray-300 hover:border-primary-500 text-gray-700 rounded-lg text-[13px] font-bold uppercase transition-colors flex items-center justify-center shadow-sm"
+                onClick={() => setShowPaymentModal(true)}
+              >
                 ĐỔI TT
               </button>
             </div>
             <button 
               className={`w-full py-4 text-white text-lg font-bold rounded-lg uppercase shadow-lg transition-transform active:scale-[0.98] ${cartCount > 0 ? 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/30' : 'bg-gray-400 cursor-not-allowed shadow-none'}`}
-              onClick={() => setShowPaymentModal(true)}
+              onClick={() => {
+                 const method = activeTab.payments && activeTab.payments.length > 0 ? activeTab.payments[0].method : 'CASH';
+                 handleCheckout(method as string);
+              }}
               disabled={cartCount === 0}
             >
               Thanh Toán (F9)
@@ -874,8 +880,13 @@ export default function PosPage() {
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         cartTotal={cartTotal - activeTab.discountTotal}
+        initialMethod={activeTab?.payments?.[0]?.method || 'CASH'}
+        initialCustomerMoney={customerMoneyInput}
         onConfirm={(method, moneyObj) => {
-          handleCheckout(method as any);
+          store.setSinglePayment(method as any, cartTotal - activeTab.discountTotal);
+          if (moneyObj) {
+            setCustomerMoneyInput(new Intl.NumberFormat('vi-VN').format(moneyObj));
+          }
           setShowPaymentModal(false);
         }}
       />

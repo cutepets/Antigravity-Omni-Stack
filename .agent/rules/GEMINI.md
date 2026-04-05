@@ -69,6 +69,16 @@ trigger: always_on
 1. **Hang Detection**: Không để treo > 5 phút → `STOP → CLEANUP → REPORT`
 2. **Zero-Silent-Failure**: Mọi thất bại → ghi vào `ERRORS.md` ngay
 3. **Recursive Learning**: Lỗi lặp lần 2 → tạo Rule hoặc Test Case mới
+4. **Tool Routing**: Khi không chắc tool nào → load `.agent/skills/claw-code-tool-semantics/SKILL.md`
+5. **Bash Safety**: Mọi `run_command` PHẢI tuân thủ Permission Tiers trong `runtime-watchdog.md`
+
+### 🔬 Claw-Code Intelligence Layer (v3.0)
+Antigravity được trang bị bộ kiến thức distilled từ kiến trúc Claude Code nguyên bản:
+- **Tool Semantics**: `.agent/skills/claw-code-tool-semantics/SKILL.md` — Payload chuẩn + anti-patterns
+- **Runtime Watchdog**: `.agent/rules/runtime-watchdog.md` — BashTool Lane 1 + PermissionEnforcer Lane 9
+- **Live Sandbox**: `C:\Dev2\claw-code` — `python -m src.main route "<prompt>"` để kiểm tra routing
+- **Prompt Decomposition**: Yêu cầu cấp cao/phức tạp (như "migrate POS module") PHẢI được bẻ nhỏ (decompose) thành các sub-task rõ ràng trước khi gọi tool, tránh để fallback vào `generalPurposeAgent` hoặc bị lạm dụng `bashCommandHelpers`.
+- **Pre-action Trust Gate**: Bắt buộc kiểm duyệt các lệnh bash Tier 2/Tier 3 theo tiêu chuẩn Lane 9 trước khi auto-run.
 
 ---
 

@@ -8,13 +8,15 @@ interface PosPaymentModalProps {
   onClose: () => void;
   cartTotal: number;
   onConfirm: (method: string, customerMoney: number) => void;
+  initialMethod?: string;
+  initialCustomerMoney?: string;
 }
 
 const formatMoney = (n: number) => new Intl.NumberFormat('vi-VN').format(n) + ' đ';
 
-export function PosPaymentModal({ isOpen, onClose, cartTotal, onConfirm }: PosPaymentModalProps) {
-  const [selectedMethod, setSelectedMethod] = useState<string>('CASH');
-  const [customerMoney, setCustomerMoney] = useState<string>('');
+export function PosPaymentModal({ isOpen, onClose, cartTotal, onConfirm, initialMethod = 'CASH', initialCustomerMoney = '' }: PosPaymentModalProps) {
+  const [selectedMethod, setSelectedMethod] = useState<string>(initialMethod);
+  const [customerMoney, setCustomerMoney] = useState<string>(initialCustomerMoney);
   
   if (!isOpen) return null;
 
@@ -103,19 +105,18 @@ export function PosPaymentModal({ isOpen, onClose, cartTotal, onConfirm }: PosPa
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-gray-50/50 border-t border-gray-100 grid grid-cols-2 gap-3">
+        <div className="p-4 bg-gray-50/50 border-t border-gray-100 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="py-3 px-4 bg-white border border-gray-200 text-gray-600 rounded-lg text-[15px] font-medium hover:bg-gray-50 transition-colors"
+            className="py-2.5 px-6 bg-white border border-gray-200 text-gray-600 rounded-lg text-[15px] font-medium hover:bg-gray-50 transition-colors"
           >
             Huỷ
           </button>
           <button
             onClick={() => onConfirm(selectedMethod, selectedMethod === 'CASH' ? parsedCustomerMoney : cartTotal)}
-            className="py-3 px-4 bg-[#66C2D1] hover:bg-[#5bb8c7] text-white rounded-lg text-[15px] font-bold shadow-sm transition-colors flex items-center justify-center gap-2"
+            className="py-2.5 px-8 bg-[#66C2D1] hover:bg-[#5bb8c7] text-white rounded-lg text-[15px] font-bold shadow-sm transition-colors flex items-center justify-center gap-2"
           >
-            <Printer size={18} strokeWidth={2.5} />
-            Xác nhận & In phiếu
+            Lưu
           </button>
         </div>
 

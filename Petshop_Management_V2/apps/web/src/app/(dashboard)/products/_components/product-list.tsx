@@ -1,27 +1,18 @@
 'use client'
 
-import type { ChangeEventHandler, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowUpDown,
   BadgeCheck,
-  Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsRight,
-  Columns3,
   CornerDownRight,
   ImagePlus,
-  GripVertical,
   PackageCheck,
   Pencil,
   Pin,
   PinOff,
   Plus,
-  Search,
-  SlidersHorizontal,
   Tag,
   Trash2,
   X,
@@ -30,6 +21,21 @@ import Link from 'next/link'
 import { inventoryApi } from '@/lib/api/inventory.api'
 import { toast } from 'sonner'
 import { ProductFormModal } from './product-form-modal'
+import {
+  DataListShell,
+  DataListToolbar,
+  DataListFilterPanel,
+  DataListColumnPanel,
+  DataListTable,
+  DataListBulkBar,
+  DataListPagination,
+  TableCheckbox,
+  toolbarSelectClass,
+  filterSelectClass,
+  filterInputClass,
+  useDataListCore,
+  useDataListSelection,
+} from '@/components/data-list'
 
 type BranchStockRow = {
   stock?: number | null
@@ -63,15 +69,15 @@ type PinFilterId = 'category' | 'stock' | 'sale'
 type SortDirection = 'asc' | 'desc'
 type BulkEditableField = 'image' | 'category' | 'unit' | 'brand' | 'price' | 'costPrice' | 'minStock'
 
-const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean }> = [
-  { id: 'image', label: 'Ảnh' },
-  { id: 'product', label: 'Sản phẩm' },
-  { id: 'sku', label: 'SKU' },
-  { id: 'barcode', label: 'Mã vạch' },
-  { id: 'category', label: 'Danh mục' },
-  { id: 'stock', label: 'Tồn kho' },
-  { id: 'price', label: 'Giá vốn / Giá bán' },
-  { id: 'status', label: 'Trạng thái' },
+const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
+  { id: 'image', label: 'Ảnh', width: 'w-20' },
+  { id: 'product', label: 'Sản phẩm', sortable: true, minWidth: 'min-w-[300px]' },
+  { id: 'sku', label: 'SKU', sortable: true, minWidth: 'min-w-[140px]' },
+  { id: 'barcode', label: 'Mã vạch', sortable: true, minWidth: 'min-w-[140px]' },
+  { id: 'category', label: 'Danh mục', sortable: true, minWidth: 'min-w-[140px]' },
+  { id: 'stock', label: 'Tồn kho', sortable: true, minWidth: 'min-w-[140px]' },
+  { id: 'price', label: 'Giá vốn / Giá bán', sortable: true, minWidth: 'min-w-[140px]' },
+  { id: 'status', label: 'Trạng thái', sortable: true, minWidth: 'min-w-[140px]' },
 ]
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(['product', 'sku', 'barcode', 'category', 'stock', 'price', 'status'])
@@ -185,34 +191,7 @@ function ImageCell({ image, size = 'md' }: { image?: string | null; size?: 'md' 
   )
 }
 
-function TableCheckbox({
-  checked,
-  onChange,
-  size = 'sm',
-  readOnly = false,
-}: {
-  checked: boolean
-  onChange?: ChangeEventHandler<HTMLInputElement>
-  size?: 'sm' | 'md'
-  readOnly?: boolean
-}) {
-  const boxSize = size === 'md' ? 'h-5 w-5' : 'h-4 w-4'
-  const iconSize = size === 'md' ? 'h-3.5 w-3.5' : 'h-3 w-3'
-
-  return (
-    <label className={`relative inline-flex ${boxSize} ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}>
-      <input
-        type="checkbox"
-        checked={checked}
-        readOnly={readOnly}
-        onChange={onChange}
-        className="peer sr-only"
-      />
-      <span className="h-full w-full rounded border border-border bg-background-secondary shadow-inner shadow-black/10 transition-colors peer-checked:border-primary-500 peer-checked:bg-primary-500/90 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500/50" />
-      <Check className={`pointer-events-none absolute inset-0 m-auto ${iconSize} text-white opacity-0 transition-opacity peer-checked:opacity-100`} />
-    </label>
-  )
-}
+// TableCheckbox is now from '@/components/data-list'
 
 function NameCell({
   name,
@@ -258,27 +237,17 @@ export function ProductList() {
   const [saleStatus, setSaleStatus] = useState<SaleStatusFilter>('all')
   const [brandQuery, setBrandQuery] = useState('')
   const [stockStatus, setStockStatus] = useState<StockStatusFilter>('all')
-  const [topFilterVisibility, setTopFilterVisibility] = useState<Record<PinFilterId, boolean>>({
-    category: true,
-    stock: false,
-    sale: true,
-  })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set())
-  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set())
-  const [lastSelectedProductRowId, setLastSelectedProductRowId] = useState<string | null>(null)
-  const [showFilterPanel, setShowFilterPanel] = useState(false)
-  const [showColumnPanel, setShowColumnPanel] = useState(false)
-  const [columnOrder, setColumnOrder] = useState<DisplayColumnId[]>(COLUMN_OPTIONS.map((column) => column.id))
-  const [visibleColumns, setVisibleColumns] = useState<Set<DisplayColumnId>>(new Set(COLUMN_OPTIONS.map((column) => column.id)))
-  const [draggingColumnId, setDraggingColumnId] = useState<DisplayColumnId | null>(null)
-  const [columnSort, setColumnSort] = useState<{ columnId: DisplayColumnId | null; direction: SortDirection | null }>({
-    columnId: null,
-    direction: null,
+
+  const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
+    initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
+    initialTopFilterVisibility: { category: true, stock: false, sale: true }
   })
+  const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 
   const { data, isLoading } = useQuery({
     queryKey: ['products', search, category, page, pageSize],
@@ -399,25 +368,24 @@ export function ProductList() {
     })
   }, [columnSort, filteredProducts])
 
-  const orderedVisibleColumns = useMemo(
-    () => columnOrder.filter((columnId) => visibleColumns.has(columnId)),
-    [columnOrder, visibleColumns]
-  )
-
   const visibleProductRowIds = useMemo(
     () => productRows.map((product: any) => `product:${product.id}`),
     [productRows]
   )
 
-  const selectedVisibleCount = visibleProductRowIds.filter((id: string) => selectedRowIds.has(id)).length
-  const allVisibleSelected = visibleProductRowIds.length > 0 && selectedVisibleCount === visibleProductRowIds.length
-  const selectedProductIds = useMemo(
-    () =>
-      Array.from(selectedRowIds)
-        .filter((rowId) => rowId.startsWith('product:'))
-        .map((rowId) => rowId.replace('product:', '')),
-    [selectedRowIds]
-  )
+  const {
+    selectedRowIds,
+    toggleRowSelection,
+    toggleSelectAllVisible,
+    clearSelection,
+    allVisibleSelected,
+  } = useDataListSelection(visibleProductRowIds)
+
+  const selectedProductIds = useMemo(() => {
+    return Array.from(selectedRowIds)
+      .filter((id) => id.startsWith('product:'))
+      .map((id) => id.replace('product:', ''))
+  }, [selectedRowIds])
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (productIds: string[]) => {
@@ -426,8 +394,7 @@ export function ProductList() {
     onSuccess: () => {
       toast.success('Đã xóa các sản phẩm đã chọn')
       queryClient.invalidateQueries({ queryKey: ['products'] })
-      setSelectedRowIds(new Set())
-      setLastSelectedProductRowId(null)
+      clearSelection()
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message || 'Không thể xóa một hoặc nhiều sản phẩm đã chọn')
@@ -443,64 +410,9 @@ export function ProductList() {
     })
   }
 
-  const toggleRowSelection = (rowId: string, shiftKey = false) => {
-    setSelectedRowIds((current) => {
-      if (shiftKey && lastSelectedProductRowId) {
-        const startIndex = visibleProductRowIds.indexOf(lastSelectedProductRowId)
-        const endIndex = visibleProductRowIds.indexOf(rowId)
-
-        if (startIndex !== -1 && endIndex !== -1) {
-          const next = new Set(current)
-          const [from, to] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex]
-          visibleProductRowIds.slice(from, to + 1).forEach((visibleRowId: string) => next.add(visibleRowId))
-          return next
-        }
-      }
-
-      const next = new Set(current)
-      if (next.has(rowId)) next.delete(rowId)
-      else next.add(rowId)
-      return next
-    })
-    setLastSelectedProductRowId(rowId)
-  }
-
-  const toggleSelectAllVisible = () => {
-    setSelectedRowIds((current) => {
-      const next = new Set(current)
-      if (allVisibleSelected) {
-        visibleProductRowIds.forEach((rowId: string) => next.delete(rowId))
-      } else {
-        visibleProductRowIds.forEach((rowId: string) => next.add(rowId))
-      }
-      return next
-    })
-  }
-
-  const toggleColumn = (columnId: DisplayColumnId) => {
-    setVisibleColumns((current) => {
-      const next = new Set(current)
-      if (next.has(columnId) && current.size > 1) next.delete(columnId)
-      else next.add(columnId)
-      return next
-    })
-  }
-
-  const toggleTopFilterVisibility = (pinId: PinFilterId) => {
-    setTopFilterVisibility((current) => ({
-      ...current,
-      [pinId]: !current[pinId],
-    }))
-  }
-
   const toggleColumnSort = (columnId: DisplayColumnId) => {
     if (!SORTABLE_COLUMNS.has(columnId)) return
-
-    setColumnSort((current) => {
-      if (current.columnId !== columnId) return { columnId, direction: 'asc' }
-      if (current.direction === 'asc') return { columnId, direction: 'desc' }
-      return { columnId: null, direction: null }
-    })
+    dataListState.toggleColumnSort(columnId)
   }
 
   const clearFilters = () => {
@@ -511,196 +423,81 @@ export function ProductList() {
     setPage(1)
   }
 
-  const closePanels = () => {
-    setShowFilterPanel(false)
-    setShowColumnPanel(false)
-  }
-
-  const clearSelection = () => {
-    setSelectedRowIds(new Set())
-    setLastSelectedProductRowId(null)
-  }
-
   const visibleRangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
   const visibleRangeEnd = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rawProducts.length)
 
+  // Computed columns for DataListTable
+  const tableColumns = orderedVisibleColumns.map((columnId) => {
+    const col = COLUMN_OPTIONS.find((item) => item.id === columnId)!
+    return { ...col, id: columnId as DisplayColumnId }
+  })
+
   return (
-    <div className="relative flex h-full min-h-0 flex-col gap-3">
-      <div className="shrink-0">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
-          <input
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
-              setPage(1)
-            }}
-            placeholder="Tìm kiếm sản phẩm..."
-            className="w-full h-11 rounded-xl border border-border bg-background-secondary pl-10 pr-4 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {topFilterVisibility.category && (
-            <select
-              value={category}
-              onChange={(event) => {
-                setCategory(event.target.value)
-                setPage(1)
-              }}
-              className="h-11 min-w-[140px] rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
-            >
-              <option value="">Danh mục</option>
-              {categoryOptions.map((item: any) => {
-                const value = typeof item === 'string' ? item : item?.name ?? item?.value ?? ''
-                if (!value) return null
-                return (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                )
-              })}
-            </select>
-          )}
-
-          {topFilterVisibility.sale && (
-            <select
-              value={saleStatus}
-              onChange={(event) => {
-                setSaleStatus(event.target.value as SaleStatusFilter)
-                setPage(1)
-              }}
-              className="h-11 min-w-[128px] rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
-            >
-              <option value="all">Trạng thái</option>
-              <option value="active">Đang bán</option>
-              <option value="inactive">Ngưng bán</option>
-            </select>
-          )}
-
-          {topFilterVisibility.stock && (
-            <select
-              value={stockStatus}
-              onChange={(event) => {
-                setStockStatus(event.target.value as StockStatusFilter)
-                setPage(1)
-              }}
-              className="h-11 min-w-[150px] rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
-            >
-              <option value="all">Tồn kho</option>
-              <option value="in_stock">Còn hàng</option>
-              <option value="out_of_stock">Hết hàng</option>
-              <option value="low_stock">Sắp hết hàng</option>
-            </select>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              setShowFilterPanel((current) => !current)
-              setShowColumnPanel(false)
-            }}
-            className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition-colors ${
-              showFilterPanel
-                ? 'border-primary-500 bg-primary-500/10 text-primary-500'
-                : 'border-border bg-background-secondary text-foreground hover:border-primary-500/60'
-            }`}
-          >
-            <SlidersHorizontal size={16} />
-            Lọc
-          </button>
-
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setShowColumnPanel((current) => !current)
-                setShowFilterPanel(false)
-              }}
-              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition-colors ${
-                showColumnPanel
-                  ? 'border-primary-500 bg-primary-500/10 text-primary-500'
-                  : 'border-border bg-background-secondary text-foreground hover:border-primary-500/60'
-              }`}
-            >
-              <Columns3 size={16} />
-              Cột
-            </button>
-
-            {showColumnPanel && (
-              <div className="absolute right-0 top-[calc(100%+10px)] z-20 w-[320px] rounded-2xl border border-border bg-[#161d29] p-4 shadow-2xl">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-lg font-semibold text-foreground">Tùy chỉnh hiển thị cột</div>
-                    <div className="text-xs text-foreground-muted mt-1">Kéo thả để đổi thứ tự, bỏ chọn để ẩn cột.</div>
-                  </div>
-                  <button type="button" onClick={closePanels} className="text-xs text-foreground-muted hover:text-foreground">
-                    Đóng
-                  </button>
-                </div>
-
-                <div className="mt-4 max-h-[320px] overflow-y-auto pr-1 space-y-2">
-                  {columnOrder.map((columnId) => {
-                    const option = COLUMN_OPTIONS.find((item) => item.id === columnId)
-                    if (!option) return null
-                    const isSorted = columnSort.columnId === columnId && columnSort.direction
-                    const isSortable = SORTABLE_COLUMNS.has(columnId)
-
-                    return (
-                      <div
-                        key={columnId}
-                        draggable
-                        onDragStart={() => setDraggingColumnId(columnId)}
-                        onDragEnd={() => setDraggingColumnId(null)}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => {
-                          if (!draggingColumnId || draggingColumnId === columnId) return
-                          setColumnOrder((current) => reorderList(current, draggingColumnId, columnId))
-                          setDraggingColumnId(null)
-                        }}
-                        className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors ${
-                          draggingColumnId === columnId
-                            ? 'border-primary-500 bg-primary-500/10'
-                            : 'border-transparent bg-background-secondary hover:border-border'
-                        }`}
-                      >
-                        <TableCheckbox
-                          checked={visibleColumns.has(columnId)}
-                          onChange={() => toggleColumn(columnId)}
-                        />
-                        <span className="flex-1 text-base font-semibold text-foreground">{option.label}</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleColumnSort(columnId)}
-                          disabled={!isSortable}
-                          className={`inline-flex h-8 items-center gap-1 rounded-lg border px-2 text-xs font-semibold transition-colors ${
-                            isSorted
-                              ? 'border-primary-500 bg-primary-500/10 text-primary-400'
-                              : 'border-border text-foreground-muted hover:border-primary-500/60 hover:text-foreground'
-                          } disabled:cursor-not-allowed disabled:opacity-30`}
-                        >
-                          {columnSort.columnId === columnId ? (
-                            <>
-                              <ChevronDown size={14} className={columnSort.direction === 'asc' ? 'rotate-180' : ''} />
-                              <span>{columnSort.direction === 'asc' ? 'Tăng' : 'Giảm'}</span>
-                            </>
-                          ) : (
-                            <>
-                              <ArrowUpDown size={14} />
-                              <span>Sort</span>
-                            </>
-                          )}
-                        </button>
-                        <GripVertical size={18} className="text-foreground-muted" />
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+    <DataListShell>
+      {/* ── Toolbar ─────────────────────────────────────── */}
+      <DataListToolbar
+        searchValue={search}
+        onSearchChange={(value) => { setSearch(value); setPage(1) }}
+        searchPlaceholder="Tìm kiếm sản phẩm..."
+        filterSlot={
+          <>
+            {topFilterVisibility.category && (
+              <select
+                value={category}
+                onChange={(event) => { setCategory(event.target.value); setPage(1) }}
+                className={`${toolbarSelectClass} min-w-[140px]`}
+              >
+                <option value="">Danh mục</option>
+                {categoryOptions.map((item: any) => {
+                  const value = typeof item === 'string' ? item : item?.name ?? item?.value ?? ''
+                  if (!value) return null
+                  return <option key={value} value={value}>{value}</option>
+                })}
+              </select>
             )}
-          </div>
 
+            {topFilterVisibility.sale && (
+              <select
+                value={saleStatus}
+                onChange={(event) => { setSaleStatus(event.target.value as SaleStatusFilter); setPage(1) }}
+                className={`${toolbarSelectClass} min-w-[128px]`}
+              >
+                <option value="all">Trạng thái</option>
+                <option value="active">Đang bán</option>
+                <option value="inactive">Ngưng bán</option>
+              </select>
+            )}
+
+            {topFilterVisibility.stock && (
+              <select
+                value={stockStatus}
+                onChange={(event) => { setStockStatus(event.target.value as StockStatusFilter); setPage(1) }}
+                className={`${toolbarSelectClass} min-w-[150px]`}
+              >
+                <option value="all">Tồn kho</option>
+                <option value="in_stock">Còn hàng</option>
+                <option value="out_of_stock">Hết hàng</option>
+                <option value="low_stock">Sắp hết hàng</option>
+              </select>
+            )}
+          </>
+        }
+        columnPanelContent={
+          <DataListColumnPanel
+            columns={COLUMN_OPTIONS}
+            columnOrder={columnOrder}
+            visibleColumns={visibleColumns}
+            sortInfo={columnSort}
+            sortableColumns={SORTABLE_COLUMNS}
+            draggingColumnId={draggingColumnId}
+            onToggle={(id) => dataListState.toggleColumn(id as DisplayColumnId)}
+            onReorder={(sourceId, targetId) => dataListState.reorderColumn(sourceId as DisplayColumnId, targetId as DisplayColumnId)}
+            onToggleSort={(id) => toggleColumnSort(id as DisplayColumnId)}
+            onDragStart={(id) => dataListState.setDraggingColumnId(id as DisplayColumnId)}
+            onDragEnd={() => dataListState.setDraggingColumnId(null)}
+          />
+        }
+        extraActions={
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
@@ -709,301 +506,172 @@ export function ProductList() {
             <Plus size={16} />
             Thêm sản phẩm
           </button>
-        </div>
-      </div>
-      </div>
+        }
+      />
 
-      {showFilterPanel && (
-        <div className="shrink-0">
-          <div className="rounded-2xl border border-border bg-background-secondary/80 p-5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="inline-flex items-center gap-2 text-base font-semibold text-foreground">
-              <SlidersHorizontal size={16} className="text-primary-500" />
-              Bộ lọc nâng cao
-            </div>
-            <button type="button" onClick={clearFilters} className="text-sm text-foreground-muted hover:text-foreground">
-              Xóa tất cả
-            </button>
-          </div>
-
-          <div className="mt-4 grid gap-4 xl:grid-cols-4">
-            <label className="space-y-2">
-              <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
-                <span>Danh mục</span>
-                <button
-                  type="button"
-                  onClick={() => toggleTopFilterVisibility('category')}
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                    topFilterVisibility.category ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-                  }`}
-                >
-                  {topFilterVisibility.category ? <Pin size={12} /> : <PinOff size={12} />}
-                </button>
-              </span>
-              <select
-                value={category}
-                onChange={(event) => {
-                  setCategory(event.target.value)
-                  setPage(1)
-                }}
-                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
-              >
-                <option value="">Tất cả</option>
-                {categoryOptions.map((item: any) => {
-                  const value = typeof item === 'string' ? item : item?.name ?? item?.value ?? ''
-                  if (!value) return null
-                  return (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  )
-                })}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="inline-flex items-center gap-2 text-sm text-foreground-muted">
-                <BadgeCheck size={14} className="text-primary-500" />
-                Nhãn hiệu
-              </span>
-              <input
-                value={brandQuery}
-                onChange={(event) => {
-                  setBrandQuery(event.target.value)
-                  setPage(1)
-                }}
-                placeholder="Tên nhãn hiệu..."
-                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
-                <span className="inline-flex items-center gap-2">
-                  <PackageCheck size={14} className="text-primary-500" />
-                  Trạng thái tồn
-                </span>
-                <button
-                  type="button"
-                  onClick={() => toggleTopFilterVisibility('stock')}
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                    topFilterVisibility.stock ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-                  }`}
-                >
-                  {topFilterVisibility.stock ? <Pin size={12} /> : <PinOff size={12} />}
-                </button>
-              </span>
-              <select
-                value={stockStatus}
-                onChange={(event) => {
-                  setStockStatus(event.target.value as StockStatusFilter)
-                  setPage(1)
-                }}
-                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
-              >
-                <option value="all">Mọi trạng thái</option>
-                <option value="in_stock">Còn hàng</option>
-                <option value="out_of_stock">Hết hàng</option>
-                <option value="low_stock">Sắp hết hàng</option>
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
-                <span className="inline-flex items-center gap-2">
-                  <Tag size={14} className="text-primary-500" />
-                  Trạng thái bán
-                </span>
-                <button
-                  type="button"
-                  onClick={() => toggleTopFilterVisibility('sale')}
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                    topFilterVisibility.sale ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-                  }`}
-                >
-                  {topFilterVisibility.sale ? <Pin size={12} /> : <PinOff size={12} />}
-                </button>
-              </span>
-              <select
-                value={saleStatus}
-                onChange={(event) => {
-                  setSaleStatus(event.target.value as SaleStatusFilter)
-                  setPage(1)
-                }}
-                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
-              >
-                <option value="all">Mọi trạng thái</option>
-                <option value="active">Đang bán</option>
-                <option value="inactive">Ngưng bán</option>
-              </select>
-            </label>
-          </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card/95 shadow-sm">
-        {selectedProductIds.length > 0 && (
-          <div className="flex shrink-0 items-center gap-3 overflow-x-auto border-b border-border bg-cyan-500/6 px-4 py-3 whitespace-nowrap">
-            <div className="inline-flex items-center gap-2 text-cyan-400">
-              <TableCheckbox checked readOnly />
-              <span className="text-sm font-semibold">Đã chọn {selectedProductIds.length}</span>
-            </div>
-
+      <DataListFilterPanel onClearAll={clearFilters}>
+        <label className="space-y-2">
+          <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
+            <span>Danh mục</span>
             <button
               type="button"
-              onClick={clearSelection}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400 transition-colors hover:bg-cyan-500/18"
+              onClick={() => dataListState.toggleTopFilterVisibility('category')}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
+                topFilterVisibility.category ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+              }`}
             >
-              <X size={16} />
+              {topFilterVisibility.category ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
+          </span>
+          <select
+            value={category}
+            onChange={(event) => { setCategory(event.target.value); setPage(1) }}
+            className={filterSelectClass}
+          >
+            <option value="">Tất cả</option>
+            {categoryOptions.map((item: any) => {
+              const value = typeof item === 'string' ? item : item?.name ?? item?.value ?? ''
+              if (!value) return null
+              return <option key={value} value={value}>{value}</option>
+            })}
+          </select>
+        </label>
 
-            <div className="h-5 w-px bg-border/70" />
+        <label className="space-y-2">
+          <span className="inline-flex items-center gap-2 text-sm text-foreground-muted">
+            <BadgeCheck size={14} className="text-primary-500" />
+            Nhãn hiệu
+          </span>
+          <input
+            value={brandQuery}
+            onChange={(event) => { setBrandQuery(event.target.value); setPage(1) }}
+            placeholder="Tên nhãn hiệu..."
+            className={filterInputClass}
+          />
+        </label>
 
+        <label className="space-y-2">
+          <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
+            <span className="inline-flex items-center gap-2">
+              <PackageCheck size={14} className="text-primary-500" />
+              Trạng thái tồn
+            </span>
             <button
               type="button"
-              onClick={() => setIsBulkEditOpen(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-primary-500 transition-opacity hover:opacity-90"
+              onClick={() => dataListState.toggleTopFilterVisibility('stock')}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
+                topFilterVisibility.stock ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+              }`}
             >
-              <Pencil size={15} />
-              Chỉnh sửa
+              {topFilterVisibility.stock ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
+          </span>
+          <select
+            value={stockStatus}
+            onChange={(event) => { setStockStatus(event.target.value as StockStatusFilter); setPage(1) }}
+            className={filterSelectClass}
+          >
+            <option value="all">Mọi trạng thái</option>
+            <option value="in_stock">Còn hàng</option>
+            <option value="out_of_stock">Hết hàng</option>
+            <option value="low_stock">Sắp hết hàng</option>
+          </select>
+        </label>
 
+        <label className="space-y-2">
+          <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
+            <span className="inline-flex items-center gap-2">
+              <Tag size={14} className="text-primary-500" />
+              Trạng thái bán
+            </span>
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm(`Xóa ${selectedProductIds.length} sản phẩm đã chọn?`)) {
-                  bulkDeleteMutation.mutate(selectedProductIds)
-                }
-              }}
-              disabled={bulkDeleteMutation.isPending}
-              className="inline-flex h-9 items-center gap-2 rounded-xl bg-red-50 px-4 text-sm font-semibold text-red-500 transition-opacity hover:opacity-90 disabled:opacity-50"
+              onClick={() => dataListState.toggleTopFilterVisibility('sale')}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
+                topFilterVisibility.sale ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+              }`}
             >
-              <Trash2 size={15} />
-              Xóa
+              {topFilterVisibility.sale ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
-          </div>
-        )}
+          </span>
+          <select
+            value={saleStatus}
+            onChange={(event) => { setSaleStatus(event.target.value as SaleStatusFilter); setPage(1) }}
+            className={filterSelectClass}
+          >
+            <option value="all">Mọi trạng thái</option>
+            <option value="active">Đang bán</option>
+            <option value="inactive">Ngưng bán</option>
+          </select>
+        </label>
+      </DataListFilterPanel>
 
-        <div className="custom-scrollbar min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-[1040px]">
-            <thead className="sticky top-0 z-10 bg-background-secondary/95 backdrop-blur">
-              <tr className="border-b border-border">
-                <th className="w-12 px-4 py-3 text-left">
-                  <TableCheckbox
-                    checked={allVisibleSelected}
-                    onChange={toggleSelectAllVisible}
-                  />
-                </th>
-                {orderedVisibleColumns.map((columnId) => (
-                  <th
-                    key={columnId}
-                    className={`px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted ${
-                      columnId === 'image'
-                        ? 'w-20'
-                        : columnId === 'product'
-                          ? 'min-w-[300px]'
-                          : 'min-w-[140px]'
-                    }`}
-                  >
-                    {COLUMN_OPTIONS.find((item) => item.id === columnId)?.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={orderedVisibleColumns.length + 1} className="px-4 py-16 text-center text-foreground-muted">
-                    Đang tải dữ liệu...
-                  </td>
-                </tr>
-              ) : productRows.length === 0 ? (
-                <tr>
-                  <td colSpan={orderedVisibleColumns.length + 1} className="px-4 py-16 text-center text-foreground-muted">
-                    Không có sản phẩm phù hợp.
-                  </td>
-                </tr>
-              ) : (
-                productRows.map((product: any) => (
-                  <ProductRowBlock
-                    key={product.id}
-                    product={product}
-                    orderedVisibleColumns={orderedVisibleColumns}
-                    expanded={expandedProductIds.has(product.id)}
-                    selectedRowIds={selectedRowIds}
-                    onToggleExpanded={toggleExpanded}
-                    onToggleRowSelection={toggleRowSelection}
-                  />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex shrink-0 flex-col gap-3 border-t border-border px-4 py-4 text-sm md:flex-row md:items-center md:justify-center md:gap-8">
-            <div className="flex items-center justify-center gap-2 text-foreground-muted">
-              <span>Hiển thị</span>
-              <select
-                value={pageSize}
-                onChange={(event) => {
-                  setPageSize(Number(event.target.value))
-                  setPage(1)
+      {/* ── Table ───────────────────────────────────────── */}
+      <DataListTable
+        columns={tableColumns}
+        isLoading={isLoading}
+        isEmpty={productRows.length === 0}
+        emptyText="Không có sản phẩm phù hợp."
+        allSelected={allVisibleSelected}
+        onSelectAll={toggleSelectAllVisible}
+        bulkBar={
+          selectedProductIds.length > 0 ? (
+            <DataListBulkBar
+              selectedCount={selectedProductIds.length}
+              onClear={clearSelection}
+            >
+              <button
+                type="button"
+                onClick={() => setIsBulkEditOpen(true)}
+                className="inline-flex h-9 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-primary-500 transition-opacity hover:opacity-90"
+              >
+                <Pencil size={15} />
+                Chỉnh sửa
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Xóa ${selectedProductIds.length} sản phẩm đã chọn?`)) {
+                    bulkDeleteMutation.mutate(selectedProductIds)
+                  }
                 }}
-                className="h-10 min-w-[82px] rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
+                disabled={bulkDeleteMutation.isPending}
+                className="inline-flex h-9 items-center gap-2 rounded-xl bg-red-50 px-4 text-sm font-semibold text-red-500 transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                {[10, 20, 50, 100].map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-              <span>/ trang</span>
-            </div>
+                <Trash2 size={15} />
+                Xóa
+              </button>
+            </DataListBulkBar>
+          ) : undefined
+        }
+      >
+        {productRows.map((product: any) => (
+          <ProductRowBlock
+            key={product.id}
+            product={product}
+            orderedVisibleColumns={orderedVisibleColumns}
+            expanded={expandedProductIds.has(product.id)}
+            selectedRowIds={selectedRowIds}
+            onToggleExpanded={toggleExpanded}
+            onToggleRowSelection={toggleRowSelection}
+          />
+        ))}
+      </DataListTable>
 
-            <div className="text-center text-foreground-muted">
-              {visibleRangeStart}-{visibleRangeEnd} / {total}
-            </div>
-
-            <div className="flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage(1)}
-                disabled={page === 1}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-foreground-muted transition-colors disabled:cursor-not-allowed disabled:opacity-30 hover:text-foreground"
-              >
-                <ChevronsRight size={14} className="rotate-180" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-                disabled={page === 1}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-foreground-muted transition-colors disabled:cursor-not-allowed disabled:opacity-30 hover:text-foreground"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <span className="inline-flex h-10 min-w-[40px] items-center justify-center rounded-2xl bg-primary-500 px-3 font-semibold text-white">
-                {page}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                disabled={page === totalPages}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-foreground-muted transition-colors disabled:cursor-not-allowed disabled:opacity-30 hover:text-foreground"
-              >
-                <ChevronRight size={14} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage(totalPages)}
-                disabled={page === totalPages}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-foreground-muted transition-colors disabled:cursor-not-allowed disabled:opacity-30 hover:text-foreground"
-              >
-                <ChevronsRight size={14} />
-              </button>
-            </div>
-          </div>
+      {/* ── Pagination — rendered outside DataListTable so it sits below ── */}
+      <div className="-mt-3">
+        <div className="rounded-b-2xl border border-t-0 border-border bg-card/95">
+          <DataListPagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            total={total}
+            rangeStart={visibleRangeStart}
+            rangeEnd={visibleRangeEnd}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+          />
+        </div>
       </div>
 
       <ProductFormModal
@@ -1026,7 +694,7 @@ export function ProductList() {
           setIsBulkEditOpen(false)
         }}
       />
-    </div>
+    </DataListShell>
   )
 }
 
@@ -1333,7 +1001,7 @@ function BulkEditField({
     <div className="rounded-2xl border border-border bg-background/60 px-4 py-4">
       <div className="grid items-center gap-4 md:grid-cols-[170px_minmax(0,1fr)]">
         <label className="inline-flex items-center gap-3 text-lg font-semibold text-foreground">
-          <TableCheckbox checked={checked} onChange={onToggle} size="md" />
+          <TableCheckbox checked={checked} onCheckedChange={onToggle} size="md" />
           <span>{label}</span>
         </label>
         <div>{children}</div>
@@ -1366,7 +1034,7 @@ function ProductRowBlock({
         <td className="px-4 py-3">
           <TableCheckbox
             checked={isSelected}
-            onChange={(event) => onToggleRowSelection(rowId, event.nativeEvent instanceof MouseEvent ? event.nativeEvent.shiftKey : false)}
+            onCheckedChange={(checked, shiftKey) => onToggleRowSelection(rowId, shiftKey)}
           />
         </td>
 
