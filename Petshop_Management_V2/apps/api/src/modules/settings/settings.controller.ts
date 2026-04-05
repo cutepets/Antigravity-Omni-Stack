@@ -98,7 +98,7 @@ export class SettingsController {
 
   @Get('activity-logs')
   @ApiOperation({ summary: 'Danh sách nhật ký thao tác' })
-  findActivityLogs(@Query() query: any) {
+  findActivityLogs(@Query() query: any): any {
     return this.settingsService.findActivityLogs(query)
   }
 

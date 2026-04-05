@@ -7,6 +7,7 @@ import { Search, Plus, Trash2, Save, ScanBarcode, AlertTriangle } from 'lucide-r
 import { stockApi } from '@/lib/api/stock.api'
 import { inventoryApi } from '@/lib/api/inventory.api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
+import { useAuthStore } from '@/stores/auth.store'
 
 
 interface SelectedItem {
@@ -23,6 +24,7 @@ export function CreateReceiptForm() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const activeBranchId = useAuthStore((state) => state.activeBranchId)
 
   const [supplierId, setSupplierId] = useState<string>('')
   const [notes, setNotes] = useState('')
@@ -129,6 +131,7 @@ export function CreateReceiptForm() {
     }
     createMutation.mutate({
       supplierId: supplierId || undefined,
+      branchId: activeBranchId || undefined,
       notes,
       items: items.map(i => ({
         productId: i.productId,

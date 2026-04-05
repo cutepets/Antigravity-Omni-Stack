@@ -102,6 +102,28 @@ export function PosCustomerV1() {
 
   return (
     <div className="w-full relative" ref={containerRef}>
+      {/* Existing Order Banner */}
+      {activeTab.existingOrderId && (
+        <div className="bg-white px-3 py-2 border-b border-gray-200">
+           <div className={`px-3 py-2 rounded-lg border flex flex-col items-start ${
+             activeTab.existingPaymentStatus === 'COMPLETED' 
+               ? 'bg-green-50 border-green-200' 
+               : 'bg-amber-50 border-amber-200'
+           }`}>
+             {activeTab.existingPaymentStatus === 'COMPLETED' ? (
+               <div className="text-[13px] font-bold text-green-700 flex items-center gap-1.5 w-full">
+                 ✅ Đơn đã hoàn thành! 🎉
+               </div>
+             ) : (
+               <div className="text-[13px] font-bold text-amber-700 flex items-center gap-1.5 w-full tracking-tight">
+                 📋 Đơn đang mở: {activeTab.existingOrderNumber}
+                 <span className="ml-auto text-[10px] uppercase font-bold tracking-widest bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded shadow-sm">⚡ Nhanh</span>
+               </div>
+             )}
+           </div>
+        </div>
+      )}
+
       {hasCustomer ? (
         <div className="bg-[#f4f6f9] border-b border-gray-200">
            {/* Section top: Customer details */}

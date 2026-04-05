@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import axios from 'axios';
-import { usePosStore } from '../../../../stores/pos.store';
+import { useState, type ReactNode } from 'react';
+import { orderApi } from '@/lib/api/order.api';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
-import { Banknote, FileText, Smartphone, CreditCard, Star, Printer, X } from 'lucide-react';
+import { useActiveTab, usePosStore } from '@/stores/pos.store';
+import { Banknote, CreditCard, FileText, Printer, Smartphone, Star, X } from 'lucide-react';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -17,8 +17,16 @@ interface CheckoutModalProps {
 
 type PaymentMethod = 'CASH' | 'TRANSFER' | 'CARD' | 'MOMO' | 'VNPAY' | 'POINT';
 
-export default function CheckoutModal({ isOpen, onClose, subtotal, discount, shippingFee, total }: CheckoutModalProps) {
+export default function CheckoutModal({
+  isOpen,
+  onClose,
+  subtotal,
+  discount,
+  shippingFee,
+  total,
+}: CheckoutModalProps) {
   const store = usePosStore();
+  const activeTab = useActiveTab();
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [cashReceived, setCashReceived] = useState<number>(0);
@@ -29,41 +37,78 @@ export default function CheckoutModal({ isOpen, onClose, subtotal, discount, shi
   const change = cashReceived > total ? cashReceived - total : 0;
 
   const handleConfirm = async () => {
+    if (!activeTab || activeTab.cart.length === 0) {
+      toast.error('Giỏ hàng đang trống');
+      return;
+    }
+
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const payload = {
-        customerName: store.customerName,
-        customerId: store.customerId,
-        notes: store.notes,
-        discount: store.discount,
-        shippingFee: store.shippingFee,
-        items: store.items.map(i => ({
-          productId: i.type === 'product' ? i.id : undefined,
-          serviceId: i.type === 'service' ? i.id : undefined,
-          groomingSessionId: i.type === 'grooming' ? i.id : undefined,
-          hotelStayId: i.type === 'hotel' ? i.id : undefined,
-          description: i.name,
-          quantity: i.quantity,
-          unitPrice: i.price,
-          discountItem: i.discountItem,
-          type: i.type
-        })),
-        payments: [
-          { method: paymentMethod, amount: total }
-        ]
-      };
+      let resolvedOrderId = activeTab.existingOrderId ?? null;
 
-      const res = await axios.post('http://localhost:3001/orders', payload, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setOrderId(res.data?.id || res.data?.data?.id || null);
+      if (activeTab.existingOrderId) {
+        await orderApi.pay(activeTab.existingOrderId, {
+          payments: [{ method: paymentMethod, amount: total }],
+        });
+      } else {
+        const created = (await orderApi.create({
+          customerName: activeTab.customerName,
+          customerId: activeTab.customerId === 'GUEST' ? undefined : activeTab.customerId,
+          branchId: activeTab.branchId,
+          notes: activeTab.notes,
+          discount: activeTab.discountTotal,
+          shippingFee: activeTab.shippingFee,
+          items: activeTab.cart.map((item) => ({
+            productId: item.productId,
+            productVariantId: item.productVariantId,
+            serviceId: item.serviceId,
+            serviceVariantId: item.serviceVariantId,
+            petId: item.petId,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discountItem: item.discountItem,
+            vatRate: item.vatRate,
+            type: item.type,
+            groomingDetails: item.groomingDetails
+              ? {
+                  petId: item.groomingDetails.petId,
+                  performerId: item.groomingDetails.performerId,
+                  startTime: item.groomingDetails.startTime,
+                  notes: item.groomingDetails.notes,
+                  serviceItems: item.groomingDetails.serviceItems,
+                }
+              : undefined,
+            hotelDetails: item.hotelDetails
+              ? {
+                  petId: item.hotelDetails.petId,
+                  checkInDate: item.hotelDetails.checkIn,
+                  checkOutDate: item.hotelDetails.checkOut,
+                  roomType: item.hotelDetails.lineType,
+                  cageId: item.hotelDetails.stayId,
+                  branchId: activeTab.branchId,
+                }
+              : undefined,
+          })),
+          payments: [{ method: paymentMethod, amount: total }],
+        })) as { id?: string; data?: { id?: string } };
+
+        resolvedOrderId = created?.id ?? created?.data?.id ?? null;
+      }
+
+      setOrderId(resolvedOrderId);
       setOrderSuccess(true);
-      store.clearCart();
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.response?.data?.message || 'Lỗi khi thanh toán');
+      store.resetActiveTab();
+    } catch (error: unknown) {
+      console.error(error);
+      const message =
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === 'string'
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : 'Lỗi khi thanh toán';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -77,133 +122,164 @@ export default function CheckoutModal({ isOpen, onClose, subtotal, discount, shi
     onClose();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !activeTab) return null;
 
-  const methods: { id: PaymentMethod; label: string; icon: React.ReactNode }[] = [
-    { id: 'CASH', label: 'Tiền mặt', icon: <Banknote className="w-6 h-6 mb-2 text-slate-500" /> },
-    { id: 'TRANSFER', label: 'Chuyển khoản', icon: <FileText className="w-6 h-6 mb-2 text-slate-500" /> },
-    { id: 'MOMO', label: 'MoMo', icon: <Smartphone className="w-6 h-6 mb-2 text-slate-500" /> },
-    { id: 'VNPAY', label: 'VNPay', icon: <CreditCard className="w-6 h-6 mb-2 text-slate-500" /> },
-    { id: 'CARD', label: 'Thẻ', icon: <CreditCard className="w-6 h-6 mb-2 text-slate-500" /> },
-    { id: 'POINT', label: 'Điểm', icon: <Star className="w-6 h-6 mb-2 text-slate-500" /> },
+  const methods: { id: PaymentMethod; label: string; icon: ReactNode }[] = [
+    { id: 'CASH', label: 'Tiền mặt', icon: <Banknote className="mb-2 h-6 w-6 text-slate-500" /> },
+    { id: 'TRANSFER', label: 'Chuyển khoản', icon: <FileText className="mb-2 h-6 w-6 text-slate-500" /> },
+    { id: 'MOMO', label: 'MoMo', icon: <Smartphone className="mb-2 h-6 w-6 text-slate-500" /> },
+    { id: 'VNPAY', label: 'VNPay', icon: <CreditCard className="mb-2 h-6 w-6 text-slate-500" /> },
+    { id: 'CARD', label: 'Thẻ', icon: <CreditCard className="mb-2 h-6 w-6 text-slate-500" /> },
+    { id: 'POINT', label: 'Điểm', icon: <Star className="mb-2 h-6 w-6 text-slate-500" /> },
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
-        
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-in slide-in-from-bottom-4 duration-200">
         {orderSuccess ? (
-          /* ====== SUCCESS SCREEN ====== */
-          <div className="p-8 flex flex-col items-center text-center">
-            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <div className="flex flex-col items-center p-8 text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="40"
+                height="40"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-1">Thanh toán thành công!</h2>
-            <p className="text-slate-500 mb-6 text-sm">Đơn hàng đã được tạo thành công.</p>
-            
-            {change > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 w-full mb-6">
-                <p className="text-sm text-amber-700 font-medium">Tiền thừa trả khách</p>
-                <p className="text-3xl font-bold text-amber-600 mt-1">{change.toLocaleString('vi-VN')} đ</p>
-              </div>
-            )}
+            <h2 className="mb-1 text-2xl font-bold text-slate-800">Thanh toán thành công</h2>
+            <p className="mb-2 text-sm text-slate-500">
+              {activeTab.existingOrderId ? 'Đơn hàng đã được thanh toán thêm.' : 'Đơn hàng đã được tạo thành công.'}
+            </p>
+            {orderId ? <p className="mb-6 text-xs text-slate-400">Mã đơn: {orderId}</p> : null}
 
-            <button 
+            {change > 0 ? (
+              <div className="mb-6 w-full rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-700">Tiền thừa trả khách</p>
+                <p className="mt-1 text-3xl font-bold text-amber-600">{change.toLocaleString('vi-VN')} đ</p>
+              </div>
+            ) : null}
+
+            <button
               onClick={handleClose}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors shadow-md"
+              className="w-full rounded-xl bg-emerald-600 py-3 font-bold text-white shadow-md transition-colors hover:bg-emerald-700"
             >
               Hoàn tất
             </button>
           </div>
         ) : (
-          /* ====== CHECKOUT FORM ====== */
           <>
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-white p-5">
               <h2 className="text-xl font-bold text-slate-800">Hình thức thanh toán</h2>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-slate-500">Nhiều HTTT</span>
-                  <button 
-                    onClick={() => setIsMultiPayment(!isMultiPayment)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isMultiPayment ? 'bg-blue-500' : 'bg-slate-200'}`}
+                  <button
+                    onClick={() => setIsMultiPayment((value) => !value)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      isMultiPayment ? 'bg-blue-500' : 'bg-slate-200'
+                    }`}
                   >
-                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isMultiPayment ? 'translate-x-6' : 'translate-x-1'}`} />
+                    <span
+                      className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                        isMultiPayment ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
                   </button>
                 </div>
-                <button onClick={handleClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-                  <X className="w-5 h-5" />
+                <button onClick={handleClose} className="text-slate-400 transition-colors hover:text-slate-600">
+                  <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
 
-            <div className="p-5 space-y-5 bg-white">
-              {/* Payment Method Grid */}
+            <div className="space-y-5 bg-white p-5">
               <div className="grid grid-cols-3 gap-3">
-                {methods.map(m => (
+                {methods.map((method) => (
                   <button
-                    key={m.id}
-                    onClick={() => setPaymentMethod(m.id)}
-                    className={`flex flex-col items-center justify-center py-4 px-2 rounded-xl border transition-all text-sm font-semibold ${
-                      paymentMethod === m.id && !isMultiPayment
-                        ? 'border-blue-500 bg-white text-blue-700 shadow-sm' 
-                        : 'border-slate-100 text-slate-600 hover:border-slate-200 bg-white shadow-sm'
+                    key={method.id}
+                    onClick={() => setPaymentMethod(method.id)}
+                    className={`flex flex-col items-center justify-center rounded-xl border px-2 py-4 text-sm font-semibold transition-all ${
+                      paymentMethod === method.id && !isMultiPayment
+                        ? 'border-blue-500 bg-white text-blue-700 shadow-sm'
+                        : 'border-slate-100 bg-white text-slate-600 shadow-sm hover:border-slate-200'
                     }`}
                   >
-                    {m.icon}
-                    {m.label}
+                    {method.icon}
+                    {method.label}
                   </button>
                 ))}
               </div>
 
-              {/* Cash Received Input (for CASH mode single payment) */}
-              {paymentMethod === 'CASH' && !isMultiPayment && (
+              {paymentMethod === 'CASH' && !isMultiPayment ? (
                 <div>
                   <input
                     type="number"
                     value={cashReceived || ''}
-                    onChange={(e) => setCashReceived(Number(e.target.value))}
-                    placeholder={`Tiền mặt khách đưa (Gợi ý: ${total.toLocaleString('vi-VN')} đ)`}
-                    className="w-full px-4 py-3 text-sm font-medium border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 bg-white"
+                    onChange={(event) => setCashReceived(Number(event.target.value))}
+                    placeholder={`Tiền mặt khách đưa (${total.toLocaleString('vi-VN')} đ)`}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium focus:border-blue-500 focus:outline-none"
                   />
-                  {cashReceived > 0 && cashReceived >= total && (
-                    <div className="mt-2 text-sm text-emerald-600 font-medium text-right px-2">
+                  {cashReceived > 0 && cashReceived >= total ? (
+                    <div className="mt-2 px-2 text-right text-sm font-medium text-emerald-600">
                       Tiền thừa trả khách: {change.toLocaleString('vi-VN')} đ
                     </div>
-                  )}
+                  ) : null}
                 </div>
-              )}
+              ) : null}
 
-              {/* Order Summary Box */}
-              <div className="bg-slate-100/70 rounded-xl p-4 space-y-3 border border-slate-100">
-                <div className="flex justify-between items-center text-slate-500">
-                  <span className="text-[15px]">Cần thanh toán</span>
-                  <span className="text-slate-800 font-bold text-lg">{total.toLocaleString('vi-VN')} ₫</span>
+              <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-100/70 p-4">
+                <div className="flex items-center justify-between text-sm text-slate-500">
+                  <span>Tạm tính</span>
+                  <span className="font-medium text-slate-700">{subtotal.toLocaleString('vi-VN')} đ</span>
                 </div>
-                <div className="flex justify-between items-center text-slate-500">
+                <div className="flex items-center justify-between text-sm text-slate-500">
+                  <span>Chiết khấu</span>
+                  <span className="font-medium text-slate-700">-{discount.toLocaleString('vi-VN')} đ</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-slate-500">
+                  <span>Phí giao hàng</span>
+                  <span className="font-medium text-slate-700">{shippingFee.toLocaleString('vi-VN')} đ</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-slate-500">
+                  <span className="text-[15px]">Cần thanh toán</span>
+                  <span className="text-lg font-bold text-slate-800">{total.toLocaleString('vi-VN')} đ</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-500">
                   <span className="text-[15px]">Khách đưa</span>
-                  <span className="text-teal-500 font-bold text-sm">{(paymentMethod === 'CASH' && cashReceived > 0 ? cashReceived : total).toLocaleString('vi-VN')} ₫</span>
+                  <span className="text-sm font-bold text-teal-500">
+                    {(paymentMethod === 'CASH' && cashReceived > 0 ? cashReceived : total).toLocaleString('vi-VN')} đ
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="p-5 pt-2 flex gap-3 bg-white rounded-b-2xl">
-              <button 
+            <div className="flex gap-3 rounded-b-2xl bg-white p-5 pt-2">
+              <button
                 onClick={handleClose}
-                className="flex-[1.2] py-3 border border-slate-100 bg-slate-50 rounded-xl text-[15px] font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                className="flex-[1.2] rounded-xl border border-slate-100 bg-slate-50 py-3 text-[15px] font-medium text-slate-600 transition-colors hover:bg-slate-100"
               >
-                Huỷ
+                Hủy
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={loading}
-                className={`flex-[2] py-3 rounded-xl text-white text-[15px] font-bold transition-all flex justify-center items-center gap-2 ${
-                  loading ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#70C5CE] hover:bg-[#5db4bd]'
+                className={`flex flex-[2] items-center justify-center gap-2 rounded-xl py-3 text-[15px] font-bold text-white transition-all ${
+                  loading ? 'cursor-not-allowed bg-slate-300' : 'bg-[#70C5CE] hover:bg-[#5db4bd]'
                 }`}
               >
-                {loading ? 'Đang xử lý...' : (
+                {loading ? (
+                  'Đang xử lý...'
+                ) : (
                   <>
-                    <Printer className="w-[18px] h-[18px]" />
+                    <Printer className="h-[18px] w-[18px]" />
                     Xác nhận & In phiếu
                   </>
                 )}
@@ -215,4 +291,3 @@ export default function CheckoutModal({ isOpen, onClose, subtotal, discount, shi
     </div>
   );
 }
-

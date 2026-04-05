@@ -19,6 +19,7 @@ export interface ReceiptItemDto {
 
 export interface CreateReceiptDto {
   supplierId?: string
+  branchId?: string
   notes?: string
   items: ReceiptItemDto[]
 }
@@ -37,6 +38,10 @@ export interface ReturnItemDto {
   productId: string
   quantity: number
   reason?: string
+}
+
+export interface PayReceiptDto {
+  paymentMethod?: string
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -84,6 +89,7 @@ export class StockService {
       data: {
         receiptNumber,
         supplierId: dto.supplierId || null,
+        branchId: dto.branchId || null,
         notes: dto.notes || null,
         status: 'DRAFT',
         totalAmount,
@@ -109,8 +115,11 @@ export class StockService {
     return { success: true, data: updated }
   }
 
-  async payReceipt(id: string) {
-    const receipt = await this.db.stockReceipt.findUnique({ where: { id } })
+  async payReceipt(id: string, staffId: string, dto?: PayReceiptDto) {
+    const receipt = await this.db.stockReceipt.findUnique({
+      where: { id },
+      include: { supplier: true },
+    })
     if (!receipt) throw new NotFoundException('Không tìm thấy phiếu nhập')
 
     if (receipt.status === 'CANCELLED') {
@@ -130,6 +139,27 @@ export class StockService {
           data: { debt: { decrement: amountToPay } } as any
         })
       }
+
+      await tx.transaction.create({
+        data: {
+          voucherNumber: `PC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 9000) + 1000}`,
+          type: 'EXPENSE',
+          amount: amountToPay,
+          paymentMethod: dto?.paymentMethod ?? 'BANK',
+          branchId: (receipt as any).branchId ?? null,
+          branchName: null,
+          refType: 'STOCK_RECEIPT',
+          refId: receipt.id,
+          refNumber: receipt.receiptNumber,
+          payerId: receipt.supplierId ?? null,
+          payerName: receipt.supplier?.name ?? 'Nhà cung cấp',
+          notes: receipt.notes ?? null,
+          source: 'STOCK_RECEIPT',
+          isManual: false,
+          description: `Thanh toán phiếu nhập ${receipt.receiptNumber}`,
+          staffId,
+        } as any,
+      })
     })
     return { success: true, message: 'Đã thanh toán phiếu nhập' }
   }

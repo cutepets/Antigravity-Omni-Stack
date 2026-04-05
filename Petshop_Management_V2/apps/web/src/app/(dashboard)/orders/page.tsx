@@ -1,18 +1,16 @@
 import { Metadata } from 'next'
-import { ShoppingCart } from 'lucide-react'
+import { OrderList } from './_components/order-list'
+import { PageContainer } from '@/components/layout/PageLayout'
 
 export const metadata: Metadata = {
-  title: 'Đơn hàng | Petshop',
+  title: 'Quản lý Đơn hàng',
+  description: 'Danh sách và trạng thái đơn hàng',
 }
 
-// TODO: Module này sẽ được phát triển sau.
-// Cần implement: OrdersList, OrderFilters, OrderDetail, POS integration
 export default function OrdersPage() {
   return (
-    <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-      <ShoppingCart className="w-10 h-10 opacity-30" />
-      <p className="text-lg font-medium">Quản lý Đơn hàng</p>
-      <p className="text-sm opacity-70">Tính năng đang phát triển — sẽ hiển thị lịch sử giao dịch từ POS.</p>
-    </div>
+    <PageContainer maxWidth="full" className="!h-full !min-h-0 !gap-0 !overflow-hidden !py-4">
+      <OrderList />
+    </PageContainer>
   )
 }

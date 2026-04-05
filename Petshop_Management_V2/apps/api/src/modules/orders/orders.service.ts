@@ -43,6 +43,57 @@ export class OrdersService {
     return `VCH-${dateStr}-${String(count + 1).padStart(4, '0')}`;
   }
 
+  /** Generate hotel stay code: HOTEL-YYMMDD-XXX */
+  private async generateHotelStayCode(checkIn: Date): Promise<string> {
+    const prefix = `HOTEL-${checkIn.toISOString().slice(2, 10).replace(/-/g, '')}`;
+    const startOfDay = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
+    const endOfDay = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate(), 23, 59, 59, 999);
+    const count = await this.prisma.hotelStay.count({
+      where: {
+        createdAt: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    });
+    return `${prefix}-${String(count + 1).padStart(3, '0')}`;
+  }
+
+  private buildServiceTraceTags(parts: string[]): string | null {
+    if (parts.length === 0) return null;
+    return ['POS_ORDER', ...parts].join(',');
+  }
+
+  private mergeTransactionNotes(baseNote: string | null | undefined, traceParts: string[]): string | null {
+    const segments = [baseNote?.trim(), traceParts.length > 0 ? `POS trace: ${traceParts.join(' | ')}` : null].filter(Boolean);
+    return segments.length > 0 ? segments.join(' | ') : null;
+  }
+
+  private buildOrderServiceTraceParts(order: {
+    items?: Array<{ groomingSessionId?: string | null; hotelStayId?: string | null }>;
+    hotelStays?: Array<{ id: string; stayCode?: string | null }>;
+  }): string[] {
+    const traceParts: string[] = [];
+
+    for (const item of order.items ?? []) {
+      if (item.groomingSessionId) {
+        traceParts.push(`GROOMING_SESSION:${item.groomingSessionId}`);
+      }
+
+      if (item.hotelStayId) {
+        traceParts.push(`HOTEL_STAY:${item.hotelStayId}`);
+      }
+    }
+
+    for (const stay of order.hotelStays ?? []) {
+      if (stay.stayCode) {
+        traceParts.push(`HOTEL_CODE:${stay.stayCode}`);
+      }
+    }
+
+    return [...new Set(traceParts)];
+  }
+
   // ─── Catalog (POS quick access) ────────────────────────────────────────────
 
   async getProducts() {
@@ -113,6 +164,8 @@ export class OrdersService {
 
     // ── Database transaction ──────────────────────────────────────────────
     return this.prisma.$transaction(async (tx) => {
+      const serviceTraceParts: string[] = [];
+
       // 1. Create order with items and payments
       const order = await tx.order.create({
         data: {
@@ -222,22 +275,37 @@ export class OrdersService {
               data: { petName: pet.name },
             });
           }
+
+          serviceTraceParts.push(`GROOMING_SESSION:${session.id}`);
         }
 
         // ── Hotel stay creation ────────────────────────────────────────
         if (item.hotelDetails && orderItem) {
+          const checkInDate = new Date(item.hotelDetails.checkInDate);
+          const checkOutDate = new Date(item.hotelDetails.checkOutDate);
+          const stayCode = await this.generateHotelStayCode(checkInDate);
+          const totalPrice = item.unitPrice * item.quantity;
+
           const stay = await tx.hotelStay.create({
             data: {
+              stayCode,
               petId: item.hotelDetails.petId,
               petName: '', // Will be filled from pet lookup
               customerId: data.customerId ?? null,
+              branchId: item.hotelDetails.branchId ?? data.branchId ?? null,
               cageId: item.hotelDetails.cageId ?? null,
-              checkIn: new Date(item.hotelDetails.checkInDate),
-              estimatedCheckOut: new Date(item.hotelDetails.checkOutDate),
+              checkIn: checkInDate,
+              estimatedCheckOut: checkOutDate,
               status: 'BOOKED',
-              lineType: 'REGULAR',
-              price: item.unitPrice * item.quantity,
+              lineType: (item.hotelDetails.lineType as any) ?? 'REGULAR',
+              price: totalPrice,
+              dailyRate: item.hotelDetails.dailyRate ?? item.unitPrice,
+              depositAmount: item.hotelDetails.depositAmount ?? 0,
               paymentStatus: 'UNPAID',
+              promotion: item.hotelDetails.promotion ?? 0,
+              surcharge: item.hotelDetails.surcharge ?? 0,
+              totalPrice,
+              rateTableId: item.hotelDetails.rateTableId ?? null,
               notes: item.hotelDetails.notes ?? null,
               orderId: order.id,
             },
@@ -257,6 +325,9 @@ export class OrdersService {
               data: { petName: pet.name },
             });
           }
+
+          serviceTraceParts.push(`HOTEL_STAY:${stay.id}`);
+          serviceTraceParts.push(`HOTEL_CODE:${stayCode}`);
         }
       }
 
@@ -264,6 +335,7 @@ export class OrdersService {
       for (const pay of payments) {
         if (pay.amount <= 0) continue;
         const label = METHOD_LABELS[pay.method] ?? pay.method;
+        const traceTags = this.buildServiceTraceTags(serviceTraceParts);
         await tx.transaction.create({
           data: {
             voucherNumber: await this.generateVoucherNumber(),
@@ -298,7 +370,21 @@ export class OrdersService {
   async payOrder(id: string, dto: PayOrderDto, staffId: string) {
     const order = await this.prisma.order.findUnique({
       where: { id },
-      include: { customer: true },
+      include: {
+        customer: true,
+        items: {
+          select: {
+            groomingSessionId: true,
+            hotelStayId: true,
+          },
+        },
+        hotelStays: {
+          select: {
+            id: true,
+            stayCode: true,
+          },
+        },
+      },
     });
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     if (order.paymentStatus === 'PAID' || order.paymentStatus === 'COMPLETED') {
@@ -331,6 +417,7 @@ export class OrdersService {
 
       // Create transaction record
       const label = METHOD_LABELS[primaryMethod] ?? primaryMethod;
+      const serviceTraceParts = this.buildOrderServiceTraceParts(order);
       await tx.transaction.create({
         data: {
           voucherNumber: await this.generateVoucherNumber(),

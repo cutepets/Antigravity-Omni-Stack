@@ -3,7 +3,7 @@ import { DatabaseService } from '../../database/database.service.js'
 import { CreatePetDto } from './dto/create-pet.dto.js'
 import { UpdatePetDto } from './dto/update-pet.dto.js'
 import { FindPetsDto } from './dto/find-pets.dto.js'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '@petshop/database'
 
 @Injectable()
 export class PetService {

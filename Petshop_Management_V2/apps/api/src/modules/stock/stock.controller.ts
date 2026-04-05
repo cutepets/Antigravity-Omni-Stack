@@ -1,10 +1,21 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Put, Patch, Body, Param, Query, Req, UseGuards, UnauthorizedException } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger'
+import type { Request } from 'express'
+import type { JwtPayload } from '@petshop/shared'
 import {
   StockService,
-  FindReceiptsDto, CreateReceiptDto, CreateSupplierDto, UpdateSupplierDto, ReturnItemDto,
+  FindReceiptsDto,
+  CreateReceiptDto,
+  CreateSupplierDto,
+  UpdateSupplierDto,
+  ReturnItemDto,
+  PayReceiptDto,
 } from './stock.service.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
+
+interface AuthenticatedRequest extends Request {
+  user?: JwtPayload
+}
 
 @ApiTags('Stock')
 @Controller('stock')
@@ -13,7 +24,11 @@ import { JwtGuard } from '../auth/guards/jwt.guard.js'
 export class StockController {
   constructor(private readonly stockService: StockService) {}
 
-  // ─── Receipts ─────────────────────────────────────────────────────────────
+  private getStaffId(req: AuthenticatedRequest): string {
+    const staffId = req.user?.userId
+    if (!staffId) throw new UnauthorizedException('Thiếu thông tin người dùng trong token')
+    return staffId
+  }
 
   @Get('receipts')
   @ApiOperation({ summary: 'Danh sách phiếu nhập' })
@@ -41,8 +56,8 @@ export class StockController {
 
   @Patch('receipts/:id/pay')
   @ApiOperation({ summary: 'Thanh toán phiếu nhập' })
-  payReceipt(@Param('id') id: string) {
-    return this.stockService.payReceipt(id)
+  payReceipt(@Param('id') id: string, @Body() dto: PayReceiptDto, @Req() req: AuthenticatedRequest) {
+    return this.stockService.payReceipt(id, this.getStaffId(req), dto)
   }
 
   @Patch('receipts/:id/cancel')
@@ -52,7 +67,7 @@ export class StockController {
   }
 
   @Patch('receipts/:id/receive')
-  @ApiOperation({ summary: 'Nhận hàng — cập nhật tồn kho' })
+  @ApiOperation({ summary: 'Nhận hàng, cập nhật tồn kho' })
   receiveReceipt(@Param('id') id: string) {
     return this.stockService.receiveReceipt(id)
   }
@@ -63,8 +78,6 @@ export class StockController {
     return this.stockService.returnReceipt(id, body.items)
   }
 
-  // ─── Transactions & Suggestions ──────────────────────────────────────────
-
   @Get('transactions/:productId')
   @ApiOperation({ summary: 'Lịch sử giao dịch kho của sản phẩm' })
   getTransactions(@Param('productId') productId: string) {
@@ -72,12 +85,10 @@ export class StockController {
   }
 
   @Get('suggestions')
-  @ApiOperation({ summary: 'Gợi ý nhập hàng — sản phẩm dưới mức tối thiểu' })
+  @ApiOperation({ summary: 'Gợi ý nhập hàng, sản phẩm dưới mức tối thiểu' })
   getSuggestions() {
     return this.stockService.getLowStockSuggestions()
   }
-
-  // ─── Suppliers ────────────────────────────────────────────────────────────
 
   @Get('suppliers')
   @ApiOperation({ summary: 'Danh sách nhà cung cấp' })

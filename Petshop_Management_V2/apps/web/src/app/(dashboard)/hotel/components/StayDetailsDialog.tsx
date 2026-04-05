@@ -21,10 +21,10 @@ export default function StayDetailsDialog({ cage, isOpen, onClose }: StayDetails
     enabled: isOpen && !!cage && cage.status === 'OCCUPIED'
   })
 
-  const currentStay = stays?.find(s => s.cageId === cage?.id && s.status === 'OCCUPIED')
+  const currentStay = stays?.find(s => s.cageId === cage?.id && s.status === 'CHECKED_IN')
 
   const checkOutMutation = useMutation({
-    mutationFn: (stayId: string) => hotelApi.updateStay(stayId, { status: 'COMPLETED', checkOut: new Date().toISOString() }),
+    mutationFn: (stayId: string) => hotelApi.updateStay(stayId, { status: 'CHECKED_OUT', checkOut: new Date().toISOString() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cages'] })
       queryClient.invalidateQueries({ queryKey: ['stays'] })

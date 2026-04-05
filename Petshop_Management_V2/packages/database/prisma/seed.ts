@@ -277,6 +277,73 @@ async function main() {
   })
   console.log('✅ Services created')
 
+  // ---- Sample Hotel Cages ----
+  await prisma.cage.upsert({
+    where: { name: 'P-01' },
+    update: { type: 'REGULAR', description: 'Chuồng thường khu A' },
+    create: {
+      name: 'P-01',
+      type: 'REGULAR',
+      description: 'Chuồng thường khu A',
+    },
+  })
+
+  await prisma.cage.upsert({
+    where: { name: 'P-02' },
+    update: { type: 'REGULAR', description: 'Chuồng thường khu A' },
+    create: {
+      name: 'P-02',
+      type: 'REGULAR',
+      description: 'Chuồng thường khu A',
+    },
+  })
+
+  await prisma.cage.upsert({
+    where: { name: 'VIP-01' },
+    update: { type: 'HOLIDAY', description: 'Phòng VIP / lễ tết' },
+    create: {
+      name: 'VIP-01',
+      type: 'HOLIDAY',
+      description: 'Phòng VIP / lễ tết',
+    },
+  })
+
+  const hotelRateSeeds = [
+    { name: 'Bảng giá chó nhỏ 2026', year: 2026, species: 'Chó', minWeight: 0, maxWeight: 5, lineType: 'REGULAR', ratePerNight: 120000 },
+    { name: 'Bảng giá chó vừa 2026', year: 2026, species: 'Chó', minWeight: 5, maxWeight: 10, lineType: 'REGULAR', ratePerNight: 180000 },
+    { name: 'Bảng giá mèo 2026', year: 2026, species: 'Mèo', minWeight: 0, maxWeight: 10, lineType: 'REGULAR', ratePerNight: 100000 },
+    { name: 'Bảng giá VIP 2026', year: 2026, species: null, minWeight: 0, maxWeight: 20, lineType: 'HOLIDAY', ratePerNight: 250000 },
+  ] as const
+
+  for (const rate of hotelRateSeeds) {
+    const existing = await prisma.hotelRateTable.findFirst({
+      where: {
+        name: rate.name,
+        year: rate.year,
+        species: rate.species,
+        minWeight: rate.minWeight,
+        maxWeight: rate.maxWeight,
+        lineType: rate.lineType,
+      },
+    })
+
+    if (!existing) {
+      await prisma.hotelRateTable.create({
+        data: {
+          name: rate.name,
+          year: rate.year,
+          species: rate.species,
+          minWeight: rate.minWeight,
+          maxWeight: rate.maxWeight,
+          lineType: rate.lineType,
+          ratePerNight: rate.ratePerNight,
+          isActive: true,
+        },
+      })
+    }
+  }
+  console.log('Hotel sample data created')
+
   // ---- Sample Products ----
   const food = await prisma.product.upsert({
     where: { sku: 'PRD-FOOD-001' },

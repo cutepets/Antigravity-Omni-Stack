@@ -140,7 +140,7 @@ export class SettingsService {
   async findActivityLogs(query: {
     userId?: string; action?: string; target?: string
     dateFrom?: string; dateTo?: string; search?: string; page?: number; limit?: number
-  }) {
+  }): Promise<any> {
     const { userId, action, target, dateFrom, dateTo, search, page = 1, limit = 20 } = query
     const skip = (Number(page) - 1) * Number(limit)
     const where: any = {}
@@ -169,7 +169,7 @@ export class SettingsService {
     return { success: true, data, total, page: Number(page), limit: Number(limit), totalPages: Math.ceil(total / Number(limit)) }
   }
 
-  async getActivityLogStats() {
+  async getActivityLogStats(): Promise<any> {
     const today = new Date()
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const [todayCount, totalCount] = await Promise.all([

@@ -1,24 +1,26 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Menu } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { settingsApi } from '@/lib/api'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { useAuthStore } from '@/stores/auth.store'
 import { useThemeStore } from '@/stores/theme.store'
-import { settingsApi } from '@/lib/api'
-import { useQuery } from '@tanstack/react-query'
-import { customToast as toast } from '@/components/ui/toast-with-copy'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useRef, useEffect } from 'react'
 import { UserSettingsDrawer } from './user-settings-drawer'
-import { Menu } from 'lucide-react'
 
 function resolveHeaderTitle(pathname: string) {
-  if (pathname.startsWith('/products')) return 'Sản phẩm & Kho'
-  if (pathname.startsWith('/customers')) return 'Khách hàng'
-  if (pathname.startsWith('/inventory/stock')) return 'Kho hàng'
-  if (pathname.startsWith('/inventory/suppliers')) return 'Nhà cung cấp'
-  if (pathname.startsWith('/inventory/receipts')) return 'Phiếu nhập'
-  if (pathname.startsWith('/pos')) return 'Tạo đơn hàng'
-  if (pathname.startsWith('/dashboard')) return 'Tổng quan'
+  if (pathname.startsWith('/finance')) return 'So quy'
+  if (pathname.startsWith('/products')) return 'San pham & Kho'
+  if (pathname.startsWith('/orders')) return 'Quan ly Don hang'
+  if (pathname.startsWith('/customers')) return 'Khach hang'
+  if (pathname.startsWith('/inventory/stock')) return 'Kho hang'
+  if (pathname.startsWith('/inventory/suppliers')) return 'Nha cung cap'
+  if (pathname.startsWith('/inventory/receipts')) return 'Phieu nhap'
+  if (pathname.startsWith('/pos')) return 'Tao don hang'
+  if (pathname.startsWith('/dashboard')) return 'Tong quan'
   return ''
 }
 
@@ -32,7 +34,6 @@ export function Header() {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const pageTitle = resolveHeaderTitle(pathname)
 
-  // Fetch all branches if needed, or fallback to allowed branches
   const { data: branches } = useQuery({
     queryKey: ['settings', 'branches'],
     queryFn: settingsApi.getBranches,
@@ -47,6 +48,7 @@ export function Header() {
         setShowBranchDropdown(false)
       }
     }
+
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
@@ -71,11 +73,10 @@ export function Header() {
         zIndex: 40,
       }}
     >
-      {/* Left */}
       <div className="flex items-center gap-4">
         <button
           onClick={toggleSidebar}
-          className="p-2 hover:bg-background-tertiary rounded-lg text-foreground-muted hover:text-foreground-base transition-colors"
+          className="rounded-lg p-2 text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground-base"
         >
           <Menu size={20} />
         </button>
@@ -86,36 +87,33 @@ export function Header() {
         ) : null}
       </div>
 
-      {/* Right — Context and User info */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse shadow-[0_0_8px_var(--color-primary-500)] mr-1"></span>
+        <span className="mr-1 h-2 w-2 rounded-full bg-primary-500 shadow-[0_0_8px_var(--color-primary-500)] animate-pulse"></span>
 
-        {user && (
+        {user ? (
           <div className="relative mr-2" ref={dropdownRef}>
             <button
               onClick={() => setShowBranchDropdown(!showBranchDropdown)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-background-tertiary border border-border/40 hover:bg-background-tertiary/80 transition-colors"
+              className="flex items-center gap-2 rounded-xl border border-border/40 bg-background-tertiary px-3 py-1.5 transition-colors hover:bg-background-tertiary/80"
             >
-              <span className="text-sm font-semibold whitespace-nowrap max-w-[150px] truncate text-foreground-base">
-                {displayBranches?.find((b: any) => b.id === activeBranchId)?.name || 'Chi nhánh hệ thống'}
+              <span className="max-w-[150px] whitespace-nowrap truncate text-sm font-semibold text-foreground-base">
+                {displayBranches?.find((branch: any) => branch.id === activeBranchId)?.name || 'Chi nhanh he thong'}
               </span>
-              <span className="text-xs text-foreground-muted ml-1">▾</span>
+              <span className="ml-1 text-xs text-foreground-muted">▼</span>
             </button>
 
             <AnimatePresence>
-              {showBranchDropdown && (
+              {showBranchDropdown ? (
                 <motion.div
                   initial={{ opacity: 0, y: 8, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute top-full right-0 mt-2 w-64 glass-panel border border-primary-500/20 shadow-xl overflow-hidden"
+                  className="glass-panel absolute right-0 top-full mt-2 w-64 overflow-hidden border border-primary-500/20 shadow-xl"
                   style={{ zIndex: 100 }}
                 >
-                  <div className="p-2 border-b border-border/50 bg-background-tertiary">
-                    <p className="text-xs font-semibold text-foreground-muted uppercase tracking-wider">
-                      Chi nhánh thao tác
-                    </p>
+                  <div className="border-b border-border/50 bg-background-tertiary p-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">Chi nhanh thao tac</p>
                   </div>
                   <div className="max-h-[300px] overflow-y-auto p-1">
                     {displayBranches?.map((branch: any) => (
@@ -124,46 +122,50 @@ export function Header() {
                         onClick={() => {
                           switchBranch(branch.id)
                           setShowBranchDropdown(false)
-                          toast.success(`Đã chuyển sang chi nhánh: ${branch.name}`)
+                          toast.success(`Da chuyen sang chi nhanh: ${branch.name}`)
                           router.refresh()
                         }}
-                        className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-colors ${
-                          branch.id === activeBranchId 
-                            ? 'bg-primary-500/10 text-primary-500' 
-                            : 'hover:bg-background-tertiary text-foreground-base'
+                        className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors ${
+                          branch.id === activeBranchId
+                            ? 'bg-primary-500/10 text-primary-500'
+                            : 'text-foreground-base hover:bg-background-tertiary'
                         }`}
                       >
                         <div className="flex flex-col overflow-hidden">
-                          <span className="text-sm font-medium truncate">{branch.name}</span>
-                          {branch.address && (
-                            <span className="text-[11px] text-foreground-muted truncate">{branch.address}</span>
-                          )}
+                          <span className="truncate text-sm font-medium">{branch.name}</span>
+                          {branch.address ? <span className="truncate text-[11px] text-foreground-muted">{branch.address}</span> : null}
                         </div>
-                        {branch.id === activeBranchId && (
-                          <span className="text-primary-500 font-bold ml-2">✓</span>
-                        )}
+                        {branch.id === activeBranchId ? <span className="ml-2 font-bold text-primary-500">✓</span> : null}
                       </button>
                     ))}
                   </div>
                 </motion.div>
-              )}
+              ) : null}
             </AnimatePresence>
           </div>
-        )}
+        ) : null}
 
-        {user && (
-          <button 
+        {user ? (
+          <button
             onClick={() => setShowDrawer(true)}
-            className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity"
-            style={{ 
-              background: 'transparent', 
-              border: 'none', 
-              outline: 'none', 
-              cursor: 'pointer' 
+            className="flex items-center gap-3 text-left transition-opacity hover:opacity-80"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              cursor: 'pointer',
             }}
           >
             <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-foreground-base)', lineHeight: 1.2, margin: 0 }}>
+              <p
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: 'var(--color-foreground-base)',
+                  lineHeight: 1.2,
+                  margin: 0,
+                }}
+              >
                 {user.fullName}
               </p>
               <p style={{ fontSize: 12, color: 'var(--color-primary-500)', fontWeight: 600, margin: 0 }}>{user.role}</p>
@@ -182,7 +184,7 @@ export function Header() {
                 color: 'white',
                 fontWeight: 700,
                 fontSize: 16,
-                overflow: 'hidden'
+                overflow: 'hidden',
               }}
             >
               {user.avatar ? (
@@ -192,14 +194,10 @@ export function Header() {
               )}
             </motion.div>
           </button>
-        )}
+        ) : null}
       </div>
 
-      <UserSettingsDrawer 
-        isOpen={showDrawer}
-        onClose={() => setShowDrawer(false)}
-      />
+      <UserSettingsDrawer isOpen={showDrawer} onClose={() => setShowDrawer(false)} />
     </motion.header>
   )
 }
-

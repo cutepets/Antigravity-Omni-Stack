@@ -53,6 +53,30 @@ export class HotelDetailsDto {
   @IsString()
   @IsOptional()
   branchId?: string;
+
+  @IsString()
+  @IsOptional()
+  lineType?: string;
+
+  @IsString()
+  @IsOptional()
+  rateTableId?: string;
+
+  @IsNumber()
+  @IsOptional()
+  dailyRate?: number;
+
+  @IsNumber()
+  @IsOptional()
+  depositAmount?: number;
+
+  @IsNumber()
+  @IsOptional()
+  promotion?: number;
+
+  @IsNumber()
+  @IsOptional()
+  surcharge?: number;
 }
 
 // === Order Item ===

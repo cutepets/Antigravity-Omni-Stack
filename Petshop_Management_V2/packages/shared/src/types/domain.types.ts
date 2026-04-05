@@ -7,6 +7,8 @@ import type {
   StaffStatus,
   EmploymentType,
   TransactionType,
+  TransactionSource,
+  TransactionReferenceType,
 } from './core.types.js'
 
 // ---- Grooming ----
@@ -87,10 +89,23 @@ export interface Transaction {
   amount: number
   description: string
   category?: string | null
+  paymentMethod?: string | null
+  branchId?: string | null
+  branchName?: string | null
+  refType?: TransactionReferenceType | null
+  refId?: string | null
+  refNumber?: string | null
+  payerId?: string | null
+  payerName?: string | null
+  notes?: string | null
+  tags?: string | null
+  source: TransactionSource | string
+  isManual: boolean
   orderId?: string | null
   staffId?: string | null
   date: Date
   createdAt: Date
+  updatedAt: Date
 }
 
 // ---- Stock ----
@@ -98,6 +113,7 @@ export interface StockReceipt {
   id: string
   receiptNumber: string
   supplierId?: string | null
+  branchId?: string | null
   status: string
   totalAmount: number
   paidAmount: number
@@ -126,4 +142,15 @@ export interface Branch {
   isActive: boolean
 }
 
-export { ServiceType, GroomingStatus, HotelStatus, HotelLineType, StaffRole, StaffStatus, EmploymentType, TransactionType }
+export {
+  ServiceType,
+  GroomingStatus,
+  HotelStatus,
+  HotelLineType,
+  StaffRole,
+  StaffStatus,
+  EmploymentType,
+  TransactionType,
+  TransactionSource,
+  TransactionReferenceType,
+}

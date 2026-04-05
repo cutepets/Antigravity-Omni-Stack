@@ -1,5 +1,5 @@
 import { IsString, IsOptional, IsEnum, IsNumber, IsDateString } from 'class-validator'
-import { GroomingStatus } from '@prisma/client'
+import { GroomingStatus } from '@petshop/database'
 
 export class CreateGroomingDto {
   @IsString()

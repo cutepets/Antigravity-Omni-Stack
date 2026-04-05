@@ -15,18 +15,17 @@ import { ReceiptModal } from './components/ReceiptModal';
 import { PosProductSearch } from './components/PosProductSearch';
 import { PosNotifications } from './components/PosNotifications';
 import { PosBranchSelect } from './components/PosBranchSelect';
-import {
-  Menu, X, Plus, Minus, Trash2, Home, NotebookText, Info, FileText,
-  Settings, UserCircle2, Bell, LogOut, Scissors, Package, ShoppingCart, Maximize, Store,
-  QrCode, Zap, EyeOff, Eye, ListChecks, ChevronDown
-} from 'lucide-react';
+import { Menu, X, Plus, Minus, Trash2, Home, NotebookText, Info, FileText, Settings, UserCircle2, Bell, LogOut, Scissors, Package, ShoppingCart, Maximize, Store, QrCode, Zap, EyeOff, Eye, ListChecks, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { orderApi } from '@/lib/api/order.api';
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
 const money = (n: number) => new Intl.NumberFormat('vi-VN').format(n);
 const moneyRaw = (n: number) => new Intl.NumberFormat('vi-VN').format(n) + ' đ';
 
-export default function PosPage() {
+function PosPageContent() {
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<any>(null);
   const [showHotelCheckout, setShowHotelCheckout] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
@@ -45,6 +44,47 @@ export default function PosPage() {
 
   // ── Mutations ──────────────────────────────────────────────────
   const createOrder = useCreateOrder();
+  
+  // ── URL Search Params ──────────────────────────────────────────
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const orderId = searchParams.get('orderId');
+    if (orderId && !store.tabs.find(t => t.existingOrderId === orderId)) {
+      orderApi.get(orderId).then(data => {
+        if (data) {
+          store.loadExistingOrder({
+            orderId: data.id,
+            orderNumber: data.orderNumber || data.id,
+            paymentStatus: data.paymentStatus || 'PENDING',
+            amountPaid: data.amountPaid || 0,
+            customerId: data.customer?.id,
+            customerName: data.customer?.name || data.customer?.fullName || 'Khách lẻ',
+            cart: data.items.map((i: any) => ({
+              id: i.id,
+              productId: i.productId,
+              productVariantId: i.productVariantId,
+              serviceId: i.serviceId,
+              description: i.name || i.description,
+              sku: i.sku || '',
+              unitPrice: i.unitPrice || 0,
+              type: i.type || 'product',
+              image: i.image || '',
+              unit: i.unit || 'cái',
+              quantity: i.quantity || 1,
+              hotelDetails: i.hotelDetails,
+              groomingDetails: i.groomingDetails,
+            })),
+            discountTotal: data.discount || 0,
+            shippingFee: data.shippingFee || 0,
+            notes: data.notes || '',
+          });
+          // Xóa param trên URL để không loop nạp lại khi F5 nếu không cần
+          window.history.replaceState({}, '', '/pos');
+        }
+      }).catch(console.error);
+    }
+  }, [searchParams, store]);
   
   const { data: branches = [] } = useBranches();
 
@@ -146,7 +186,17 @@ export default function PosPage() {
         notes: overrideNote || activeTab.notes,
       };
 
-      await createOrder.mutateAsync(payload);
+      if (activeTab.existingOrderId) {
+        // Đơn đã tồn tại -> Chỉ cho phép thanh toán thêm
+        if (paymentMethod !== 'UNPAID' && cartTotal > 0) {
+           await orderApi.pay(activeTab.existingOrderId, {
+             payments: [{ method: paymentMethod, amount: cartTotal }]
+           });
+        }
+      } else {
+        // Đơn tạo mới
+        await createOrder.mutateAsync(payload);
+      }
       
       setReceiptData({
         ...payload,
@@ -903,5 +953,13 @@ export default function PosPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function PosPage() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center bg-[#f0f2f5]">Đang tải...</div>}>
+      <PosPageContent />
+    </Suspense>
   );
 }

@@ -1,5 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsDateString } from 'class-validator';
-import { HotelStatus, HotelLineType, PaymentStatus } from '@prisma/client';
+import { HotelLineType, PaymentStatus } from '@petshop/database';
 
 export class CreateCageDto {
   @IsString()
@@ -21,12 +21,16 @@ export class CreateHotelStayDto {
   petId!: string;
 
   @IsString()
-  @IsNotEmpty()
-  petName!: string;
+  @IsOptional()
+  petName?: string;
 
   @IsString()
   @IsOptional()
   customerId?: string;
+
+  @IsString()
+  @IsOptional()
+  branchId?: string;
 
   @IsString()
   @IsOptional()
@@ -55,4 +59,68 @@ export class CreateHotelStayDto {
   @IsNumber()
   @IsOptional()
   price?: number;
+
+  @IsNumber()
+  @IsOptional()
+  dailyRate?: number;
+
+  @IsNumber()
+  @IsOptional()
+  depositAmount?: number;
+
+  @IsNumber()
+  @IsOptional()
+  promotion?: number;
+
+  @IsNumber()
+  @IsOptional()
+  surcharge?: number;
+
+  @IsNumber()
+  @IsOptional()
+  totalPrice?: number;
+
+  @IsString()
+  @IsOptional()
+  petNotes?: string;
+
+  @IsEnum(PaymentStatus)
+  @IsOptional()
+  paymentStatus?: PaymentStatus;
+
+  @IsString()
+  @IsOptional()
+  rateTableId?: string;
+
+  @IsString()
+  @IsOptional()
+  orderId?: string;
+}
+
+export class CreateHotelRateTableDto {
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @IsNumber()
+  year!: number;
+
+  @IsString()
+  @IsOptional()
+  species?: string;
+
+  @IsNumber()
+  @IsOptional()
+  minWeight?: number;
+
+  @IsNumber()
+  @IsOptional()
+  maxWeight?: number;
+
+  @IsEnum(HotelLineType)
+  @IsOptional()
+  lineType?: HotelLineType;
+
+  @IsNumber()
+  ratePerNight!: number;
 }

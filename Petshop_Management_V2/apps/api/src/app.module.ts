@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { ConfigModule } from '@nestjs/config'
 import { ThrottlerModule } from '@nestjs/throttler'
 import { AuthModule } from './modules/auth/auth.module.js'
 import { UsersModule } from './modules/staff/staff.module.js'
@@ -16,6 +17,9 @@ import { HealthController } from './health.controller.js'
 
 @Module({
   imports: [
+    // Environment configurations
+    ConfigModule.forRoot({ isGlobal: true }),
+
     // Rate limiting: 100 req / 60s per IP
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
 

@@ -127,13 +127,15 @@ export function CustomerList() {
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', search, tier, isActiveFilter, page, pageSize],
+    queryKey: ['customers', search, tier, isActiveFilter, page, pageSize, columnSort.columnId, columnSort.direction],
     queryFn: () => customerApi.getCustomers({
       search,
       tier: tier || undefined,
       isActive: isActiveFilter === '' ? undefined : isActiveFilter === 'true',
       page,
       limit: pageSize,
+      sortBy: columnSort.columnId || undefined,
+      sortOrder: (columnSort.direction as 'asc' | 'desc') || undefined,
     }),
   })
 
@@ -150,30 +152,11 @@ export function CustomerList() {
   })
 
   // ── Computation ──────────────────────────────────────────────────────────────
-  const rawCustomers = (data as any)?.data ?? []
-  const total = (data as any)?.total ?? 0
-  const totalPages = (data as any)?.totalPages ?? 1
+  const rawCustomers = data?.data ?? []
+  const total = data?.total ?? 0
+  const totalPages = data?.totalPages ?? 1
 
-  const processedCustomers = useMemo(() => {
-    return [...rawCustomers].sort((left: any, right: any) => {
-      if (!columnSort.columnId || !columnSort.direction) return 0
-      const directionFactor = columnSort.direction === 'asc' ? 1 : -1
-      let comparison = 0
-
-      switch (columnSort.columnId) {
-        case 'code': comparison = compareText(left.customerCode, right.customerCode); break
-        case 'name': comparison = compareText(left.fullName, right.fullName); break
-        case 'tier': comparison = compareText(left.tier, right.tier); break
-        case 'points': comparison = Number(left.points ?? 0) - Number(right.points ?? 0); break
-        case 'spent': comparison = Number(left.totalSpent ?? 0) - Number(right.totalSpent ?? 0); break
-        case 'orders': comparison = Number(left.totalOrders ?? 0) - Number(right.totalOrders ?? 0); break
-        case 'created': comparison = new Date(left.createdAt ?? 0).getTime() - new Date(right.createdAt ?? 0).getTime(); break
-        case 'status': comparison = Number(Boolean(left.isActive ?? true)) - Number(Boolean(right.isActive ?? true)); break
-        default: comparison = 0
-      }
-      return comparison * directionFactor
-    })
-  }, [rawCustomers, columnSort])
+  const processedCustomers = rawCustomers
 
   const visibleRowIds = useMemo(
     () => processedCustomers.map((c: any) => `c:${c.id}`),
@@ -252,12 +235,12 @@ export function CustomerList() {
 
   // ── Layout Components ─────────────────────────────────────────────────────────
   
-  const renderActiveColumns = () => {
+  const activeColumns = useMemo(() => {
     return orderedVisibleColumns.map((id) => {
       const col = COLUMN_OPTIONS.find((c) => c.id === id)!
       return { ...col, id: id as DisplayColumnId }
     })
-  }
+  }, [orderedVisibleColumns])
 
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd   = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rawCustomers.length)
@@ -409,7 +392,7 @@ export function CustomerList() {
 
       {/* Table */}
       <DataListTable
-        columns={renderActiveColumns()}
+        columns={activeColumns}
         isLoading={isLoading}
         isEmpty={!isLoading && processedCustomers.length === 0}
         emptyText="Không tìm thấy khách hàng nào phù hợp."

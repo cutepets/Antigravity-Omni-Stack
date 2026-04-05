@@ -101,4 +101,21 @@ export type CustomerTier = 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND'
 
 export type TransactionType = 'INCOME' | 'EXPENSE'
 
+export type TransactionSource =
+  | 'MANUAL'
+  | 'ORDER_PAYMENT'
+  | 'ORDER_ADJUSTMENT'
+  | 'STOCK_RECEIPT'
+  | 'HOTEL'
+  | 'GROOMING'
+  | 'OTHER'
+
+export type TransactionReferenceType =
+  | 'MANUAL'
+  | 'ORDER'
+  | 'STOCK_RECEIPT'
+  | 'HOTEL_STAY'
+  | 'GROOMING_SESSION'
+  | 'OTHER'
+
 export type PetGender = 'MALE' | 'FEMALE' | 'UNKNOWN'

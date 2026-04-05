@@ -75,8 +75,6 @@ export default function CageGrid() {
         return 'Đang sử dụng'
       case 'MAINTENANCE':
         return 'Bảo trì'
-      case 'COMPLETED':
-        return 'Hoàn thành'
       default:
         return status
     }

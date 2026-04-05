@@ -1,7 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, UseGuards, UnauthorizedException } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger'
-import { ReportsService, FindTransactionsDto, CreateTransactionDto } from './reports.service.js'
+import type { Request } from 'express'
+import type { JwtPayload } from '@petshop/shared'
+import { ReportsService, FindTransactionsDto, CreateTransactionDto, UpdateTransactionDto } from './reports.service.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
+
+interface AuthenticatedRequest extends Request {
+  user?: JwtPayload
+}
 
 @ApiTags('Reports')
 @Controller('reports')
@@ -9,6 +15,14 @@ import { JwtGuard } from '../auth/guards/jwt.guard.js'
 @ApiBearerAuth()
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
+
+  private getStaffId(req: AuthenticatedRequest): string {
+    const staffId = req.user?.userId
+    if (!staffId) {
+      throw new UnauthorizedException('Thiếu thông tin người dùng trong token')
+    }
+    return staffId
+  }
 
   @Get('dashboard')
   @ApiOperation({ summary: 'KPI Dashboard tổng quan' })
@@ -34,9 +48,6 @@ export class ReportsController {
     return this.reportsService.getTopProducts(Number(limit) || 10)
   }
 
-  // ─── Finance / Sổ quỹ ─────────────────────────────────────────────────────
-  // NOTE: specific routes MUST be declared before /:voucherNumber wildcard
-
   @Get('transactions')
   @ApiOperation({ summary: 'Danh sách thu/chi (Sổ quỹ)' })
   findTransactions(@Query() query: FindTransactionsDto) {
@@ -44,9 +55,25 @@ export class ReportsController {
   }
 
   @Post('transactions')
-  @ApiOperation({ summary: 'Tạo phiếu thu/chi' })
-  createTransaction(@Body() dto: CreateTransactionDto) {
-    return this.reportsService.createTransaction(dto)
+  @ApiOperation({ summary: 'Tạo phiếu thu/chi thủ công' })
+  createTransaction(@Body() dto: CreateTransactionDto, @Req() req: AuthenticatedRequest) {
+    return this.reportsService.createTransaction(dto, this.getStaffId(req))
+  }
+
+  @Patch('transactions/:id')
+  @ApiOperation({ summary: 'Cập nhật phiếu thu/chi thủ công' })
+  updateTransaction(
+    @Param('id') id: string,
+    @Body() dto: UpdateTransactionDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reportsService.updateTransaction(id, dto, this.getStaffId(req))
+  }
+
+  @Delete('transactions/:id')
+  @ApiOperation({ summary: 'Xóa phiếu thu/chi thủ công' })
+  removeTransaction(@Param('id') id: string) {
+    return this.reportsService.removeTransaction(id)
   }
 
   @Get('transactions/:voucherNumber')
