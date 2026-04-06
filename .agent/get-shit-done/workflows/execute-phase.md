@@ -2,6 +2,12 @@
 Execute all plans in a phase using wave-based parallel execution. Orchestrator stays lean — delegates plan execution to subagents.
 </purpose>
 
+<routing_alignment>
+Canonical size: Standard or Heavy.
+
+This workflow is the execution stage for work that was already planned into phases. It should not be the default path for isolated Quick edits.
+</routing_alignment>
+
 <core_principle>
 Orchestrator coordinates, not executes. Each subagent loads the full execute-plan context. Orchestrator: discover plans → analyze deps → group waves → spawn agents → handle checkpoints → collect results.
 </core_principle>

@@ -11,6 +11,12 @@ description: "When setting up github actions, pre-commit hooks, or linting autom
 - **PostToolUse**: After tool execution (auto-format, checks)
 - **Stop**: When session ends (final verification)
 
+## Runtime Notes
+
+- Some runtimes expose `AfterTool` instead of `PostToolUse`
+- Prefer one canonical pre-tool event in config to avoid duplicate execution
+- Document canonical event names first, then list runtime aliases explicitly
+
 ## Auto-Accept Permissions
 
 Use with caution:

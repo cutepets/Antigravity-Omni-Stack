@@ -6,6 +6,11 @@
     "gitnexus": "^1.5.3"
   },
   "scripts": {
+    "agent:audit-workflows": "node .agent/scripts/audit-workflows.js",
+    "agent:audit-skills": "node .agent/scripts/audit-skills.js",
+    "agent:check-orphans": "node .agent/scripts/check-orphans.js",
+    "agent:remove-ghosts": "node .agent/scripts/remove-ghosts.js --write",
+    "agent:update-docs": "node .agent/scripts/update-docs.js --write",
     "gitnexus-update": "node .agent/scripts/gitnexus-sync.js",
     "scan:agent": "npx ecc-agentshield scan --path .agent"
   }

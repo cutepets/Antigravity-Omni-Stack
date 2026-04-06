@@ -1,48 +1,42 @@
 ---
-description: Muốn sửa màu, thêm nút, sửa logic nhỏ? Vào đây.
+description: Incremental enhancement workflow for bounded product improvements that should stay smaller than full creation work.
 ---
 
-# /enhance - Incremental Feature Upgrade
+# /enhance
 
 $ARGUMENTS
 
----
+## Canonical Routing
 
-## 🟢 PHASE 1: Impact Discovery
-**Agent**: `explorer-agent` & `frontend-specialist`
-**Mission**: Map the "Blast Radius."
-- **Action**: Identify all components and services affected by the change.
-- **Action**: Check for breaking CSS or Logic changes.
+- small clear enhancement -> direct Quick execution
+- bounded multi-file improvement -> this workflow
+- redesign or major capability -> `/create`
 
-## 🟡 PHASE 2: Enhancement Plan
-**Agent**: `project-planner`
-**Mission**: Strategic addition.
-- **Action**: Create a mini-plan in the `task.md`.
-- **Note**: For major UI overhauls, invoke `/brainstorm` first.
+## Workflow
 
-## 🔵 PHASE 3: Surgical Implementation
-**Agent**: `frontend-specialist` or `backend-specialist`
-**Mission**: Add the "WOW" factor.
-- **Action**: Implement changes using `ui-ux-pro-max` standards.
-- **Standard**: Follow [clean-code](file:///skills/clean-code/SKILL.md) and [tailwind-patterns](file:///skills/tailwind-patterns/SKILL.md).
+### 1. Bound The Change
 
-## 🔴 PHASE 4: Professional Verification
-**Agent**: `quality-inspector` & `test-engineer`
-**Mission**: Verify the delta.
-- **Action**: Run `/preview` to playtest the UI.
-- **Action**: Verify that existing tests still pass (Regression Check).
-- **Handoff**: Document the change in `walkthrough.md`.
+Identify:
 
----
+- what changes
+- what must stay stable
+- who owns the surface
 
-## Enhancement Principles:
-- **Non-Destructive**: Don't break existing features to add new ones.
-- **Consistent UI**: New elements must match the existing Design System.
-- **Atomic Commits**: Group project changes in logical git commits.
+### 2. Plan The Smallest Safe Upgrade
 
----
+Pick the primary specialist:
 
-## Examples:
-- `/enhance add dark mode toggle`
-- `/enhance integrate Google Auth`
-- `/enhance make the landing page sections fade in`
+- `frontend-specialist`
+- `backend-specialist`
+- `integration-engineer`
+
+### 3. Implement And Verify Delta
+
+Check that the enhancement does not break the existing path it extends.
+
+## Output
+
+- enhancement scope
+- owner
+- affected surface
+- verification needed

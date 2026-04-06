@@ -70,7 +70,7 @@ git log --oneline -5                  # safe cross-platform
 git add .
 
 # ✅ Target changed directories explicitly
-git add .agent/ GEMINI.md docs/ .planning/ .gitignore
+git add .agent/ GEMINI.md README.md docs/ package.json .gitignore
 git commit -m "Auto Backup: $(date)"
 ```
 

@@ -1,47 +1,53 @@
 ---
-description: Server và Pipeline có ổn không? Cài đặt giám sát ngay.
+description: Observability and health workflow for services, jobs, pipelines, and critical paths.
 ---
 
-# /monitor - Full-Stack Observability & Health
+# /monitor
 
 $ARGUMENTS
 
----
+## Canonical Routing
 
-## 🟢 PHASE 1: Topology Discovery
-**Agent**: `devops-engineer` & `explorer-agent`
-**Mission**: Map the "Heartbeat" locations.
-- **Action**: Identify critical services, databases, and CI/CD pipelines.
-- **Action**: Locate existing logging and metrics configuration.
+- runtime health and alerting -> `devops-engineer`
+- debugging noisy or missing telemetry -> `debug-specialist + devops-engineer`
+- user-facing performance signals -> `performance-optimizer`
 
-## 🟡 PHASE 2: Sourcing & Alerting Logic
-**Agent**: `incident-responder` or `devops-engineer`
-**Mission**: Define "Healthy."
-- **Action**: Set thresholds for Error Rates, Latency (p99), and Resource Saturation.
-- **Action**: Configure Alerting routes (Slack, Email, PagerTree).
+## Workflow
 
-## 🔵 PHASE 3: Surgical Instrumentation
-**Agent**: `devops-engineer`
-**Mission**: Install the "Nervous System."
-- **Action**: Setup OpenTelemetry, Prometheus, or Grafana Dashboards.
-- **Action**: Implement log rotation and sanitization filters.
+### 1. Map The Critical Path
 
-## 🔴 PHASE 4: Reliability Audit
-**Agent**: `quality-inspector`
-**Mission**: Verify the "Watchman."
-- **Verification**: Trigger a mock failure to test alert delivery.
-- **Reporting**: Report the Dashboard URL or "Health Status" to the User.
+Primary specialist:
 
----
+- `devops-engineer`
 
-## Observability Principles:
-- **Zero Blindspots**: Monitor the "Critical Path" end-to-end.
-- **No Noise**: Alerts must be actionable; suppress low-signal chatter.
-- **Evidence-Based**: Operational decisions must be based on metrics, not intuition.
+Identify:
 
----
+- services
+- queues
+- databases
+- external dependencies
+- CI or deploy surfaces
 
-## Examples:
-- `/monitor setup uptime tracking`
-- `/monitor dashboard for backend latency`
-- `/monitor check pipeline reliability`
+### 2. Define Healthy State
+
+Specify the metrics and thresholds that actually matter:
+
+- latency
+- error rate
+- saturation
+- availability
+
+### 3. Instrument And Alert
+
+Add or refine telemetry, dashboards, and alert routing.
+
+### 4. Prove It Works
+
+Run a smoke failure or controlled check and confirm the signal appears where expected.
+
+## Output
+
+- monitoring scope
+- signals added or reviewed
+- alerting posture
+- remaining blind spots

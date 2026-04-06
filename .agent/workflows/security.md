@@ -1,48 +1,65 @@
 ---
-description: Sợ bị hack? Quét lỗ hổng và bảo mật ngay theo chuẩn Security Senior.
+description: Security review and hardening workflow for Standard or Heavy work, especially around auth, secrets, external exposure, and privilege boundaries.
 ---
 
-# /security - Professional Armor & Security Audit
+# /security
 
 $ARGUMENTS
 
----
+## Canonical Routing
 
-## 🟢 PHASE 1: Attack Surface Mapping
-**Agent**: `penetration-tester` & `explorer-agent`
-**Mission**: Find where the system is "thin."
-- **Action**: Identify all public endpoints, input fields, and storage locations.
-- **DNA Link**: Check `rules/malware-protection.md` for external link risks.
+- narrow review of one concrete risk -> `security-auditor`
+- security fix requiring code changes -> `security-auditor -> backend-specialist or devops-engineer`
+- cross-surface security effort -> `/orchestrate` or phased GSD execution
 
-## 🟡 PHASE 2: Vulnerability Research & Tooling
-**Agent**: `security-auditor`
-**Mission**: Run the deep scans.
-- **Action**: Run SAST/DAST tools (e.g., `npm audit`, `snyk`, `owasp-zap`).
-- **AI Config Config Scan**: Run `npm run scan:agent` (or `npx ecc-agentshield scan --path .agent`) to check for Prompt Injections, hardcoded API keys, and over-permissive MCP rules.
-- **Research**: Check for common library vulnerabilities (CVEs).
+## Workflow
 
-## 🔵 PHASE 3: Surgical Hardening
-**Agent**: `backend-specialist` & `devops-engineer`
-**Mission**: Patch the leaks.
-- **Action**: Implement Rate Limiting, Input Sanitization, and CSP headers.
-- **Protocol**: Apply "Least Privilege" to all IAM and system roles.
+### 1. Map The Attack Surface
 
-## 🔴 PHASE 4: Verification & Compliance Report
-**Agent**: `quality-inspector`
-**Mission**: Confirm the "Fortress" is secure.
-- **Verification**: Re-run the exploit script to ensure it's blocked.
-- **Artifact**: Create a "Security Risk Table" in the `walkthrough.md`.
+Primary specialist:
 
----
+- `security-auditor`
 
-## Security Mandates:
-- **No Hardcoding**: Reject any plan that hardcodes a secret.
-- **Sanitize Everything**: All user input is untrusted by default.
-- **Zero Trust**: Authentication must be verified at every layer.
+Look at:
 
----
+- public endpoints
+- auth and authorization paths
+- secrets handling
+- third-party integrations
+- logs and data exposure
 
-## Examples:
-- `/security audit all endpoints`
-- `/security scan for data leaks in logs`
-- `/security harden auth flow`
+### 2. Assess Risk
+
+Classify issues by:
+
+- exploitability
+- data impact
+- privilege impact
+- exposure surface
+
+### 3. Harden
+
+Route to:
+
+- `backend-specialist` for application-layer fixes
+- `devops-engineer` for deployment, runtime, or secret-management fixes
+- `integration-engineer` when provider contracts or webhooks are involved
+
+### 4. Re-Verify
+
+Confirm the risky path is closed and that no new breakage was introduced.
+
+## Expected Output
+
+```markdown
+## Security Review: [Scope]
+
+### Findings
+- [Severity] [Issue]
+
+### Required Fixes
+- [Concrete change]
+
+### Verification
+- [How the risk was checked after remediation]
+```

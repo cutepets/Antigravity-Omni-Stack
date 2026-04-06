@@ -1,51 +1,48 @@
 ---
-description: Muốn web chạy mượt? Tối ưu tốc độ và hiệu năng theo chuẩn Performance Expert.
+description: Performance optimization workflow for frontend, backend, or full-stack bottlenecks. Start with measurement, then optimize.
 ---
 
-# /performance - Speed & Efficiency Optimization
+# /performance
 
 $ARGUMENTS
 
----
+## Canonical Routing
 
-## 🟢 PHASE 1: Baseline Profiling
-**Agent**: `performance-optimizer` & `explorer-agent`
-**Mission**: Measure the "Starting Line."
-- **Action**: Run a Lighthouse Audit (Mobile & Desktop).
-- **Action**: Record Core Web Vitals (LCP, FID, CLS).
-- **Tool**: Check for "Network Waterfalls" and large asset sizes.
+- frontend speed issue -> `performance-optimizer + frontend-specialist`
+- backend latency or throughput issue -> `performance-optimizer + backend-specialist`
+- infra bottleneck -> `performance-optimizer + devops-engineer`
 
-## 🟡 PHASE 2: Bottleneck Identification
-**Agent**: `performance-optimizer`
-**Mission**: Find the "Anchor."
-- **Checklist**:
-  - Unoptimized images?
-  - Unused JS/CSS?
-  - N+1 Database queries?
-  - Long hydration times?
+## Workflow
 
-## 🔵 PHASE 3: Surgical Optimization
-**Agent**: `frontend-specialist` & `backend-specialist`
-**Mission**: Cut the weight.
-- **Action**: Implement Lazy Loading, Code Splitting, and Image Compression.
-- **Backend**: Add caching layers (Redis/CDN) and optimize DB indices.
+### 1. Measure First
 
-## 🔴 PHASE 4: Delta Verification & Reporting
-**Agent**: `quality-inspector`
-**Mission**: Prove the gain.
-- **Action**: Run a "Before vs After" Lighthouse Comparison.
-- **Artifact**: Include a performance "Flame Graph" snippet in the `walkthrough.md`.
+Primary specialist:
 
----
+- `performance-optimizer`
 
-## Performance Targets:
-- **Lighthouse**: Target Score > 95 in all categories.
-- **LCP**: < 2.5s.
-- **Bundle Size**: Minimize main-thread JS execution.
+Capture baseline metrics before proposing fixes.
 
----
+### 2. Isolate Bottlenecks
 
-## Examples:
-- `/performance audit home page speed`
-- `/performance optimize images and fonts`
-- `/performance reduce bundle size`
+Look for:
+
+- large bundles or slow hydration
+- inefficient queries or missing indexes
+- network waterfalls
+- cache misses
+- memory or CPU hot spots
+
+### 3. Optimize The Right Layer
+
+Bring in the specialist that owns the bottleneck instead of applying generic tweaks everywhere.
+
+### 4. Verify The Delta
+
+Report before vs after metrics and any tradeoffs introduced.
+
+## Output
+
+- baseline
+- bottleneck summary
+- fixes applied or recommended
+- measured improvement

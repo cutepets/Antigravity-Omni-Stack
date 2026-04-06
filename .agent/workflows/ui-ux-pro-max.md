@@ -1,35 +1,54 @@
 ---
-description: Thiết kế giao diện Visuals Premium với phong cách hiện đại
+description: Frontend design-direction workflow for UI-heavy work. Use before implementation when visual hierarchy, polish, and interaction quality matter.
 ---
 
-# /ui-ux-pro-max - Premium UI Generator
+# /ui-ux-pro-max
 
-> **Chế độ**: Premium Visuals (Modern Aesthetic)
-> **Yêu cầu BẮT BUỘC**: Clean, Minimalist, High Contrast.
+Use this workflow when Antigravity should lead the visual and interaction direction before code execution.
 
-## 🎨 Design Standard
+## Best Fit
 
-Mọi giao diện được tạo bởi workflow này phải tuân thủ chuẩn "Pro Max":
+- landing pages
+- dashboard redesigns
+- UI-heavy product surfaces
+- frontend work where composition and polish matter more than raw implementation speed
 
-1.  **Typography**:
-    -   Sử dụng Font phương tây hiện đại (Inter, Roboto, Poppins).
-    -   Heading đậm, Body thanh thoát.
-2.  **Color Palette**:
-    -   Sử dụng màu Gradient tinh tế.
-    -   Tránh màu quá chói (Neon) trừ khi là điểm nhấn (Accent).
-3.  **Layout**:
-    -   Sử dụng Grid/Flexbox chuẩn.
-    -   Whitespace rộng rãi (Breathable design).
-    -   Sử dụng **Liquid-Glass-Design** (kết hợp blur và gradient nền) cho các thành phần nổi bật.
-4.  **Micro-interactions**:
-    -   Hover effects mượt mà (transition: 0.3s).
-    -   Button có active state rõ ràng.
+## Canonical Owner
 
-## 🛠️ Quy trình thực hiện
-1. **Analyze**: Hiểu rõ user persona.
-2. **Structure**: HTML5 Semantic (Header, Main, Section, Footer).
-3. **Style**: CSS Variables cho màu sắc, spacing.
-4. **Resposive**: Mobile-first approach.
+- `frontend-specialist`
 
----
-**Note**: Focus on Usability and Elegance.
+Optional support:
+
+- `product-manager` for goals and acceptance criteria
+- `qa-engineer` for accessibility and responsive checks
+
+## Required Output
+
+The workflow should produce a UI intent package, not vague inspiration.
+
+That package should include:
+
+- page or component hierarchy
+- visual direction
+- typography and color guidance
+- interaction states
+- responsive constraints
+- accessibility notes
+
+## Quality Bar
+
+- avoid generic card soup
+- define a clear visual direction
+- use intentional typography and spacing
+- document meaningful motion, not random animation
+- keep mobile and desktop behavior explicit
+
+## Handoff Rule
+
+If another executor will implement the UI, hand off:
+
+- the target experience
+- component structure
+- constraints
+- known edge states
+- success criteria for review

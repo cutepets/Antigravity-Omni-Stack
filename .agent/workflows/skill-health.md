@@ -1,54 +1,37 @@
 ---
 name: skill-health
-description: Show skill portfolio health dashboard with charts and analytics
+description: Audit the active skill portfolio and summarize ownership, drift, and cleanup actions.
 command: true
 ---
 
 # Skill Health Dashboard
 
-Shows a comprehensive health dashboard for all skills in the portfolio with success rate sparklines, failure pattern clustering, pending amendments, and version history.
+Use `/skill-health` to audit the current skill portfolio with the scripts that exist in this repo.
 
-## Implementation
-
-Run the skill health CLI in dashboard mode:
+## Canonical Commands
 
 ```bash
-ECC_ROOT="${CLAUDE_PLUGIN_ROOT:-$(node -e "var p=require('path'),f=require('fs'),h=require('os').homedir(),d=p.join(h,'.claude'),q=p.join('scripts','lib','utils.js');if(!f.existsSync(p.join(d,q))){try{var b=p.join(d,'plugins','cache','everything-claude-code');for(var o of f.readdirSync(b))for(var v of f.readdirSync(p.join(b,o))){var c=p.join(b,o,v);if(f.existsSync(p.join(c,q))){d=c;break}}}catch(x){}}console.log(d)")}"
-node "$ECC_ROOT/scripts/skills-health.js" --dashboard
+npm run agent:audit-skills
+npm run agent:check-orphans
 ```
 
-For a specific panel only:
+## What to Report
 
-```bash
-ECC_ROOT="${CLAUDE_PLUGIN_ROOT:-$(node -e "var p=require('path'),f=require('fs'),h=require('os').homedir(),d=p.join(h,'.claude'),q=p.join('scripts','lib','utils.js');if(!f.existsSync(p.join(d,q))){try{var b=p.join(d,'plugins','cache','everything-claude-code');for(var o of f.readdirSync(b))for(var v of f.readdirSync(p.join(b,o))){var c=p.join(b,o,v);if(f.existsSync(p.join(c,q))){d=c;break}}}catch(x){}}console.log(d)")}"
-node "$ECC_ROOT/scripts/skills-health.js" --dashboard --panel failures
-```
+- active skill count
+- orphan skill count
+- missing `SKILL.md` count
+- legacy refs or stale ownership if any
+- skills that need rewrite, archival, or reassignment
 
-For machine-readable output:
+## Output Contract
 
-```bash
-ECC_ROOT="${CLAUDE_PLUGIN_ROOT:-$(node -e "var p=require('path'),f=require('fs'),h=require('os').homedir(),d=p.join(h,'.claude'),q=p.join('scripts','lib','utils.js');if(!f.existsSync(p.join(d,q))){try{var b=p.join(d,'plugins','cache','everything-claude-code');for(var o of f.readdirSync(b))for(var v of f.readdirSync(p.join(b,o))){var c=p.join(b,o,v);if(f.existsSync(p.join(c,q))){d=c;break}}}catch(x){}}console.log(d)")}"
-node "$ECC_ROOT/scripts/skills-health.js" --dashboard --json
-```
+Return:
 
-## Usage
+- the audit totals
+- any exact file paths that failed checks
+- whether all active skills are owned by live agents
+- the next cleanup action if the portfolio is not healthy
 
-```
-/skill-health                    # Full dashboard view
-/skill-health --panel failures   # Only failure clustering panel
-/skill-health --json             # Machine-readable JSON output
-```
+## Notes
 
-## What to Do
-
-1. Run the skills-health.js script with --dashboard flag
-2. Display the output to the user
-3. If any skills are declining, highlight them and suggest running /evolve
-4. If there are pending amendments, suggest reviewing them
-
-## Panels
-
-- **Success Rate (30d)** — Sparkline charts showing daily success rates per skill
-- **Failure Patterns** — Clustered failure reasons with horizontal bar chart
-- **Pending Amendments** — Amendment proposals awaiting review
-- **Version History** — Timeline of version snapshots per skill
+- This workflow uses the repo-local audits, not an external dashboard runtime.

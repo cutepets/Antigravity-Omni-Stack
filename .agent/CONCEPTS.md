@@ -1,48 +1,101 @@
-# 🌌 Antigravity Agent Concepts (Quy chuẩn Hệ thống)
+# Antigravity Concepts
 
-Tài liệu này định nghĩa ba thành phần cốt lõi tạo nên sức mạnh và kỷ luật của Agent trong hệ thống Antigravity.
+This file defines the core building blocks of the Antigravity framework.
 
----
+## 1. Rule
 
-## 📜 1. Rule (Quy tắc) / Persona
-- **English:** Defines **who** the Agent is, their mindset, and behavioral constraints. It acts as the "Constitution" and "Moral Compass".
-- **Tiếng Việt:** Định nghĩa **nhân dạng** và **tâm thế** của Agent. Đây là "Hiến pháp" quy định Agent là ai, cách hành xử chuyên nghiệp và những giới hạn bảo mật/kỹ thuật không bao giờ được vượt qua.
-- **Ví dụ:** Luôn dùng Optional Chaining, không bao giờ xóa code cũ nếu không được yêu cầu.
+Rules define the operating constraints of the system:
 
-## 🧠 2. Skill (Kỹ năng) / Knowledge
-- **English:** Modular knowledge and expertise units that an Agent can "equip". It defines **what** the Agent knows and can do in a specific domain.
-- **Tiếng Việt:** Các module tri thức và chuyên môn mà Agent có thể "trang bị" thêm vào bộ não. Skill định nghĩa Agent am hiểu sâu về lĩnh vực nào để áp dụng vào thực tế.
-- **Ví dụ:** `modern-web-architect` (Chuyên gia web), `security-auditor` (Chuyên gia bảo mật).
+- safety boundaries
+- coding and review expectations
+- routing and verification discipline
+- cross-cutting behavior all specialists must respect
 
-## ⚡ 3. Workflow (Quy trình) / Playbook
-- **English:** Pre-defined, step-by-step execution scripts for complex or high-risk tasks. It defines **how** an Agent performs a specific action.
-- **Tiếng Việt:** Kịch bản thực thi từng bước cho các tác vụ phức tạp hoặc có độ rủi ro cao. Workflow định nghĩa Agent phải làm bước 1, bước 2 như thế nào để đảm bảo chất lượng đầu ra.
-- **Ví dụ:** Luồng `/debug` bắt buộc phải tìm nguyên nhân và tạo test trước khi sửa code.
+Canonical source:
 
----
+- `.agent/rules/GEMINI.md`
+- `.agent/rules/README.md`
 
-### 💡 Sự phối hợp nhịp nhàng (Analogy)
+## 2. Skill
 
-Hãy tưởng tượng hệ thống chuẩn bị xây một ngôi nhà:
+Skills are reusable knowledge modules stored in `.agent/skills/*/SKILL.md`.
 
-| Khái niệm | Ví von thực tế | Vai trò trong hệ thống |
-| :--- | :--- | :--- |
-| **Rule** | **Đạo đức nghề nghiệp** (Cẩn thận, trung thực) | Kiểm soát hành vi & Giới hạn an toàn |
-| **Skill** | **Bằng cấp & Tay nghề** (Biết xây, biết sơn) | Cung cấp tri thức chuyên môn |
-| **Workflow** | **Bản vẽ & Thứ tự thi công** (Móng -> Mái) | Đảm bảo quy trình thực thi chuẩn xác |
+Use skills to:
 
----
+- load domain-specific methods
+- reuse battle-tested checklists or implementation patterns
+- support a specialist with deeper context
 
-## 🔄 4-Step Management Cycle (PDCA)
+Do not use skills to:
 
-Hệ thống vận hành theo chu trình quản trị chất lượng khép kín để đảm bảo kết quả hoàn hảo.
+- replace routing
+- replace ownership
+- mass-regenerate agents or docs
 
-| Bước | Tên | Vai trò Agent | Ý nghĩa |
-| :--- | :--- | :--- | :--- |
-| **1. PLAN** | **Lập kế hoạch** | `project-planner` | Định nghĩa MVP, PRD và lập bản kế hoạch thực thi. |
-| **2. DO** | **Thực hiện** | **Worker Agents** | Xây dựng tính năng theo đúng bản kế hoạch. |
-| **3. CHECK** | **Kiểm tra** | `quality-inspector` | Thanh tra độc lập, chạy test và đối soát tiêu chí thành công. |
-| **4. ACT** | **Điều chỉnh** | `orchestrator` | Tối ưu hóa dựa trên kết quả kiểm tra hoặc cho phép vận hành chính thức. |
+Canonical source:
 
----
-*Tài liệu này được soạn thảo để đảm bảo mọi Agent đều hiểu rõ "luật chơi" của dự án.*
+- `.agent/skills/README.md`
+
+## 3. Agent
+
+Agents are specialist playbooks stored in `.agent/agents/*.md`.
+
+An agent defines:
+
+- when it should be used
+- what it owns
+- what it must hand off
+- what done looks like
+
+Canonical source:
+
+- `.agent/docs/AGENT_STANDARD.md`
+- `.agent/docs/ANTIGRAVITY_ROUTING.md`
+
+## 4. Workflow
+
+Workflows are execution playbooks triggered by commands or operating phases.
+
+There are two layers:
+
+- `.agent/workflows/`
+  User-facing entrypoints and specialist-facing task flows
+- `.agent/get-shit-done/workflows/`
+  Heavier project-management and phased execution flows
+
+## 5. Work Size
+
+Antigravity routes work by execution weight:
+
+- `Quick`
+  Small, local, low-risk work. Prefer one specialist and direct execution.
+- `Standard`
+  Medium complexity. Route to one lead specialist with light handoffs.
+- `Heavy`
+  High-risk or cross-cutting work. Use structured planning, staged execution, and verification.
+
+Canonical source:
+
+- `.agent/docs/ANTIGRAVITY_ROUTING.md`
+
+## 6. Collaboration Model
+
+In this workspace:
+
+- Antigravity is the framework, routing discipline, and operating playbook
+- specialists provide domain ownership
+- Codex is a direct execution surface working inside that framework
+
+Canonical source:
+
+- `.agent/docs/CODEX_COLLABORATION.md`
+
+## 7. Source Of Truth
+
+When docs disagree, prefer this order:
+
+1. `.agent/docs/ANTIGRAVITY_ROUTING.md`
+2. `.agent/docs/AGENT_STANDARD.md`
+3. `.agent/rules/GEMINI.md`
+4. agent frontmatter and agent playbooks in `.agent/agents/`
+5. skill docs in `.agent/skills/`

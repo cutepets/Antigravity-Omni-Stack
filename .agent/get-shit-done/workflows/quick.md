@@ -10,6 +10,12 @@ With `--research` flag: spawns a focused research agent before planning. Investi
 Flags are composable: `--discuss --research --full` gives discussion + research + plan-checking + verification.
 </purpose>
 
+<routing_alignment>
+Canonical size: Quick.
+
+Use this workflow only when the request is self-contained, has clear scope, and does not require Heavy orchestration. If the task expands into architecture changes, workflow-state changes, or multi-module uncertainty, route back to a phased workflow instead.
+</routing_alignment>
+
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
 </required_reading>

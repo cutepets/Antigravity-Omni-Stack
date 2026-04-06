@@ -72,10 +72,10 @@
 /context       → context.md (5KB) — Token scanner: bytes/3.5 estimate
 /compact       → compact.md (4.6KB) — Compress session → .agent/memory/
 /context-budget → context-budget.md (1KB) — Quick overview (stub → skill)
-/save-session  → save-session.md (9.9KB) — Full session persist
-/resume-session → resume-session.md (6.4KB) — Load saved session
+/save-session  → save-session.md (9.9KB) — Repo-local session handoff
+/resume-session → resume-session.md (6.4KB) — Load repo-local handoff
 /checkpoint    → checkpoint.md (1.6KB) — Versioned checkpoint
-/sessions      → sessions.md (14.5KB) — Session history manager
+/sessions      → sessions.md (14.5KB) — Inspect session artifacts
 ```
 
 ### 🤖 Multi-Agent (7)

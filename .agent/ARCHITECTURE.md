@@ -1,107 +1,87 @@
-# Kiến trúc Antigravity Kit (Vietnamese)
+# Antigravity Architecture
 
-> Bộ công cụ mở rộng năng lực Agent AI toàn diện
+Antigravity in this repository is a framework layer built around routing, specialist playbooks, workflow discipline, and maintenance utilities.
 
----
+## System Layers
 
-## 📋 Tổng quan
+### 1. Governance
 
-Antigravity Kit là một hệ thống nhất thể hóa (Unified), được thiết kế để thích ứng theo quy mô dự án (Scale-Adaptive), bao gồm:
+Files:
 
-- **15 Chuyên gia Agent** - Các nhân dạng AI dựa trên vai trò, hoạt động theo 3 chế độ: Solo, Squad, và Factory.
-- **26 Bộ Kỹ năng (Skills)** - Các mô-đun tri thức "Sci-Link" (Liên kết khoa học) chứa đựng 600+ năng lực.
-- **17 Quy trình (Workflows)** - Các chiến dịch thực thi lệnh slash command được điều phối bởi Metadata.
-- **17 Mô-đun DNA (Shared)** - Hạt nhân tri thức nền tảng và tiêu chuẩn bất biến.
+- `.agent/rules/`
+- `.agent/docs/`
 
----
+Purpose:
 
-## 🏗️ Cấu trúc thư mục
+- define routing
+- define shared guardrails
+- define canonical operating contracts
 
-```plaintext
-.agent/
-├── ARCHITECTURE.md          # Tài liệu kiến trúc (Tiếng Anh)
-├── ARCHITECTURE.vi.md       # Tài liệu kiến trúc (Tiếng Việt)
-├── CONCEPTS.md              # Định nghĩa Rule, Skill, Workflow
-├── agents/                  # 20 Specialist Agents
-├── skills/                  # 550+ Skills
-├── workflows/               # 11 Slash Commands
-├── rules/                   # Global Rules (Quy tắc toàn cục)
-└── scripts/                 # Master Validation Scripts (Kịch bản kiểm tra)
-```
+### 2. Specialist Layer
 
----
+Files:
 
-## 🤖 Hệ thống Agent (15 Chuyên gia chính)
+- `.agent/agents/`
+- `.agent/skills/`
 
-| Agent | Vai trò | Trách nhiệm |
-| ----- | ---- | -------------- |
-| `orchestrator` | **Thuyền trưởng** | Điều phối luồng chiến lược & Quyết định cuối cùng |
-| `quality-inspector` | **Thanh tra viên** | Kiểm tra, Xác thực & Kiểm toán (Cổng chặn cuối cùng) |
-| `project-planner` | **Kiến trúc sư** | Chiến lược, Yêu cầu & MVP Mapping |
-| `backend-specialist` | **Worker** | Logic, API & Cấu trúc Dữ liệu (SQL Master) |
-| `frontend-specialist`| **Worker** | UI, UX & Hiệu suất Web (Premium UI) |
-| `security-auditor` | **Worker** | Bảo mật phòng thủ & Tấn công (Security Armor) |
-| `test-engineer` | **Worker** | Hạ tầng kiểm thử & TDD |
-| `cloud-architect` | **Worker** | CI/CD, Cloud & Triển khai hệ thống |
-| `codebase-expert` | **Worker** | Phân tích & Tái cấu trúc mã nguồn (Refactoring) |
-| `mobile-developer` | **Worker** | Phát triển ứng dụng di động Full-stack |
-| `game-developer` | **Worker** | Phát triển Game và trải nghiệm nhúng |
-| `debugger` | **Worker** | Xử lý sự cố & Sửa lỗi nóng (Hotfixing) |
-| `seo-specialist` | **Worker** | Tăng trưởng & Tối ưu hóa tìm kiếm (GEO/SEO) |
+Purpose:
 
----
+- assign ownership by domain
+- provide reusable specialist context
+- support structured handoffs
 
-## 🧩 Hệ thống Kỹ năng (Skills)
+### 3. Execution Layer
 
-Các miền tri thức mô-đun mà Agent có thể tải theo yêu cầu dựa trên ngữ cảnh công việc.
+Files:
 
-### Phát triển Web & giao diện:
-- `modern-web-architect`: Kiến trúc Next.js/React hiện đại.
-- `ui-ux-pro-max`: Thư viện 50+ style và 21 bảng màu cao cấp.
-- `frontend-design`: Các mẫu thiết kế UI/UX và Design System.
+- `.agent/workflows/`
+- `.agent/get-shit-done/workflows/`
+- `.agent/hooks/`
+- `.agent/settings.json`
 
-### Backend & Infrastructure:
-- `api-patterns`: Chuẩn thiết kế REST, GraphQL, tRPC.
-- `database-design`: Thiết kế Schema 3NF và tối ưu hóa truy vấn.
-- `deployment-engineer`: Quy trình CI/CD và triển khai Docker/K8s.
+Purpose:
 
-### Bảo mật & Chất lượng:
-- `security-auditor`: Kiểm toán bảo mật theo chuẩn OWASP.
-- `testing-master`: Chiến lược kiểm thử TDD/E2E toàn diện.
-- `production-code-audit`: Quét và chuẩn hóa mã nguồn lên cấp độ doanh nghiệp.
+- route direct commands
+- enforce runtime checks
+- run phased execution for larger work
 
----
+### 4. Maintenance Layer
 
-## 🔄 Quy trình làm việc (11 Workflows)
+Files:
 
-Kích hoạt các quy trình bằng lệnh `/command`.
+- `.agent/scripts/`
+- `docs/CODEMAPS/`
 
-- `/brainstorm`: Khám phá ý tưởng theo phương pháp Socratic.
-- `/create`: Khởi tạo tính năng hoặc dự án mới.
-- `/plan`: Phân rã tác vụ và lập kế hoạch (Project Planner).
-- `/orchestrate`: Điều phối đa Agent cho bài toán phức tạp.
-- `/ui-ux-pro-max`: Thiết kế giao diện Premium.
+Purpose:
 
----
+- audit framework drift
+- verify skill and workflow coverage
+- regenerate lightweight metadata
 
-## 🛠️ Kịch bản kiểm tra (Scripts)
+## Design Principles
 
-Hệ thống sử dụng các kịch bản kiểm tra tự động để đảm bảo chất lượng đầu ra.
+- prefer canonical docs over marketing-style overviews
+- prefer additive maintenance over destructive regeneration
+- prefer explicit routing over implicit persona theater
+- keep heavy workflows available, but do not force them onto Quick work
+- keep compatibility surfaces only when they do not fight the canonical layer
 
-- **`checklist.py`**: Kiểm tra các tiêu chí cốt lõi (Bảo mật, Lint, Schema, Test cơ bản).
-- **`verify_all.py`**: Kiểm tra toàn diện (Lighthouse, E2E Playwright, Bundle Analysis).
+## Source Of Truth
 
----
+Use this precedence order:
 
-## 📊 Chỉ số hệ thống
+1. `.agent/docs/ANTIGRAVITY_ROUTING.md`
+2. `.agent/docs/AGENT_STANDARD.md`
+3. `.agent/docs/CODEX_COLLABORATION.md`
+4. `.agent/rules/GEMINI.md`
+5. `.agent/settings.json`
 
-| Chỉ số | Giá trị |
-| ------ | ----- |
-| **Tổng số Agent** | 15 |
-| **Tổng số Kỹ năng** | 26 Master Kits (Chứa 600+ năng lực) |
-| **Quy trình tiêu chuẩn** | 17 |
-| **Độ phủ nghiệp vụ** | ~98% Web/Mobile/DevOps/AI/Security |
+## Current Reality
 
----
+The framework is no longer the old generated system.
+It is now a maintained specialist framework with:
 
-**Antigravity Kit** - Hệ thống được thiết kế để chuẩn hóa sức mạnh trí tuệ AI vào quy trình sản xuất phần mềm chuyên nghiệp. 🛰️🚀
+- explicit agent playbooks
+- audited skill ownership
+- hook-driven safety checks
+- workflow routing by work size and specialty

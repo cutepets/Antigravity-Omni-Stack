@@ -1,136 +1,68 @@
-# Everything Claude Code (ECC) — Agent Instructions
+# Antigravity Agents
 
-This is a **production-ready AI coding plugin** providing specialized agents, skills, and automated hook workflows for software development.
+This file is the overview for the specialist roster inside `.agent/agents/`.
 
-**Version:** 2.0.0 (Optimized for Web/NodeJS Focus)
+## Core Roles
 
-## Core Principles
+### Orchestration and product
 
-1. **Agent-First** — Delegate to specialized agents for domain tasks
-2. **Test-Driven** — Write tests before implementation, 80%+ coverage required
-3. **Security-First** — Never compromise on security; validate all inputs
-4. **Immutability** — Always create new objects, never mutate existing ones
-5. **Plan Before Execute** — Plan complex features before writing code
+- `ai-orchestrator`
+- `product-manager`
+- `erp-business-analyst`
 
-## Available Agents
+### Engineering
 
-| Agent | Purpose | When to Use |
-|-------|---------|-------------|
-| backend-specialist | Backend Architecture & APIs | Database schema, REST/GraphQL endpoints, core logic |
-| frontend-specialist | Web Apps & UI/UX | React/Next.js, UI styling, frontend state |
-| mobile-developer | Mobile Apps | React Native/Expo, native mobile features |
-| devops-engineer | Environment / CI/CD Pipeline | Infrastructure, Docker, deployments |
-| code-reviewer | Code quality and maintainability | PR review, security scans, refactoring |
+- `system-architect`
+- `backend-specialist`
+- `frontend-specialist`
+- `mobile-developer`
+- `database-architect`
+- `python-specialist`
+- `mcp-developer`
+- `integration-engineer`
 
-## Agent Orchestration
+### Quality, safety, and operations
 
-Use agents proactively without user prompt:
-- Frontend/Web tasks → **frontend-specialist**
-- Backend structure & Database handling → **backend-specialist**
-- Native mobile / App dev → **mobile-developer**
-- Final validation & Code cleanup → **code-reviewer**
-- CI/CD / Docker Configs → **devops-engineer**
+- `qa-engineer`
+- `code-reviewer`
+- `security-auditor`
+- `debug-specialist`
+- `performance-optimizer`
+- `devops-engineer`
+- `research-specialist`
 
-Use parallel execution for independent operations — launch multiple agents simultaneously.
+## How To Read The Roster
 
-## Security Guidelines
+Each agent file defines:
 
-**Before ANY commit:**
-- No hardcoded secrets (API keys, passwords, tokens)
-- All user inputs validated
-- SQL injection prevention (parameterized queries)
-- XSS prevention (sanitized HTML)
-- CSRF protection enabled
-- Authentication/authorization verified
-- Rate limiting on all endpoints
-- Error messages don't leak sensitive data
+- when to use it
+- what it owns
+- what it must not own
+- required inputs
+- working process
+- mandatory output format
+- handoff rules
 
-**Secret management:** NEVER hardcode secrets. Use environment variables or a secret manager. Validate required secrets at startup. Rotate any exposed secrets immediately.
+Canonical source:
 
-**If security issue found:** STOP → use security-reviewer agent → fix CRITICAL issues → rotate exposed secrets → review codebase for similar issues.
+- `.agent/agents/*.md`
+- `.agent/docs/AGENT_STANDARD.md`
+- `.agent/docs/ANTIGRAVITY_ROUTING.md`
 
-## Coding Style
+## Skill Ownership Status
 
-**Immutability (CRITICAL):** Always create new objects, never mutate. Return new copies with changes applied.
+The current framework state is:
 
-**File organization:** Many small files over few large ones. 200-400 lines typical, 800 max. Organize by feature/domain, not by type. High cohesion, low coupling.
+- all `108` active skills are assigned to agents
+- `0` orphan active skills
+- `0` active skills missing `SKILL.md`
 
-**Error handling:** Handle errors at every level. Provide user-friendly messages in UI code. Log detailed context server-side. Never silently swallow errors.
+Verify with:
 
-**Input validation:** Validate all user input at system boundaries. Use schema-based validation. Fail fast with clear messages. Never trust external data.
+- `npm run agent:audit-skills`
+- `npm run agent:check-orphans`
 
-**Code quality checklist:**
-- Functions small (<50 lines), files focused (<800 lines)
-- No deep nesting (>4 levels)
-- Proper error handling, no hardcoded values
-- Readable, well-named identifiers
+## Maintenance Rule
 
-## Testing Requirements
-
-**Minimum coverage: 80%**
-
-Test types (all required):
-1. **Unit tests** — Individual functions, utilities, components
-2. **Integration tests** — API endpoints, database operations
-3. **E2E tests** — Critical user flows
-
-**TDD workflow (mandatory):**
-1. Write test first (RED) — test should FAIL
-2. Write minimal implementation (GREEN) — test should PASS
-3. Refactor (IMPROVE) — verify coverage 80%+
-
-Troubleshoot failures: check test isolation → verify mocks → fix implementation (not tests, unless tests are wrong).
-
-## Development Workflow
-
-1. **Plan** — Use planner agent, identify dependencies and risks, break into phases
-2. **TDD** — Use tdd-guide agent, write tests first, implement, refactor
-3. **Review** — Use code-reviewer agent immediately, address CRITICAL/HIGH issues
-4. **Capture knowledge in the right place**
-   - Personal debugging notes, preferences, and temporary context → auto memory
-   - Team/project knowledge (architecture decisions, API changes, runbooks) → the project's existing docs structure
-   - If the current task already produces the relevant docs or code comments, do not duplicate the same information elsewhere
-   - If there is no obvious project doc location, ask before creating a new top-level file
-5. **Commit** — Conventional commits format, comprehensive PR summaries
-
-## Git Workflow
-
-**Commit format:** `<type>: <description>` — Types: feat, fix, refactor, docs, test, chore, perf, ci
-
-**PR workflow:** Analyze full commit history → draft comprehensive summary → include test plan → push with `-u` flag.
-
-## Architecture Patterns
-
-**API response format:** Consistent envelope with success indicator, data payload, error message, and pagination metadata.
-
-**Repository pattern:** Encapsulate data access behind standard interface (findAll, findById, create, update, delete). Business logic depends on abstract interface, not storage mechanism.
-
-**Skeleton projects:** Search for battle-tested templates, evaluate with parallel agents (security, extensibility, relevance), clone best match, iterate within proven structure.
-
-## Context Management & Performance
-
-**Context management:** Avoid last 20% of context window for large refactoring and multi-file features. Lower-sensitivity tasks (single edits, docs, simple fixes) tolerate higher utilization. AI must heavily prune context logs dynamically to preserve budget. 
-
-**Build troubleshooting:** Use build-error-resolver agent → analyze errors → fix incrementally → verify after each fix.
-
-## Project Structure
-
-```
-agents/          — Mapped specialized subagents
-skills/          — Workflow skills and domain knowledge 
-archive/         — Archived components and old languages for cleanup
-commands/        — Slash commands
-hooks/           — Trigger-based automations
-rules/           — Always-follow guidelines (common + per-language)
-scripts/         — Node.js utilities
-mcp-configs/     — MCP server configurations
-tests/           — Test suite
-```
-
-## Success Metrics
-
-- All tests pass with 80%+ coverage
-- No security vulnerabilities
-- Code is readable and maintainable
-- Performance is acceptable
-- User requirements are met
+Do not regenerate the roster with legacy remap scripts.
+Update the specialist files directly and keep skill ownership auditable.

@@ -1,50 +1,50 @@
 ---
-description: Lười viết docs? Để AI tự viết cho chuyên nghiệp và đầy đủ.
+description: Documentation workflow for repo guides, technical explanations, and usage references that must match current code and workflow reality.
 ---
 
-# /document - Knowledge & Documentation System
+# /document
 
 $ARGUMENTS
 
----
+## Canonical Routing
 
-## 🟢 PHASE 1: Codebase Extraction
-**Agent**: `explorer-agent` & `documentation-writer`
-**Mission**: Understand what needs explaining.
-- **Action**: Extract Docstrings, Type Definitions, and API routes.
-- **Action**: Identify "Knowledge Gaps" in current documentation.
+- technical explanation -> `code-reviewer` or the owning specialist
+- user-facing setup or usage docs -> `product-manager` plus the owning specialist
+- large doc refresh -> route through this workflow before editing
 
-## 🟡 PHASE 2: Logic & Structural Drafting
-**Agent**: `documentation-writer`
-**Mission**: Create the narrative.
-- **Protocol**: 
-  - Why does this code exist? (Business Logic).
-  - How do I use it? (Quick Start/Examples).
-  - What are the risks? (Caveats/Notes).
-- **Format**: Use GitHub Flavored Markdown (GFM) with appropriate Alerts.
+## Workflow
 
-## 🔵 PHASE 3: Surgical Update
-**Agent**: `documentation-writer`
-**Mission**: Apply the knowledge.
-- **Action**: Create or Update `README.md`, `API.md`, or code comments.
-- **Standard**: Follow [documentation-templates](file:///skills/documentation-templates/SKILL.md).
+### 1. Extract The Real Source Of Truth
 
-## 🔴 PHASE 4: Clarity Audit & Sync
-**Agent**: `quality-inspector` & `seo-specialist`
-**Mission**: Ensure the docs are discoverable and clear.
-- **Verification**: Run `textlint` and check for broken links.
-- **Artifact**: Create a unified `walkthrough.md` if this was a major doc update.
+Read:
 
----
+- code
+- config
+- current workflow docs
+- planning artifacts if relevant
 
-## Documentation Mandates:
-- **No Stale Docs**: Documentation must match current code state.
-- **AI-Ready**: Use structured headers to help other agents find context.
-- **User-Centric**: Write for the persona appropriate for the file (Dev vs User).
+### 2. Draft For The Actual Audience
 
----
+Choose one audience:
 
-## Examples:
-- `/document this entire directory`
-- `/document the authentication flow`
-- `/document generate API reference`
+- developers
+- operators
+- end users
+
+### 3. Update Only What Matches Reality
+
+Docs should reflect current behavior, not intended future behavior.
+
+### 4. Verify Clarity
+
+Check for:
+
+- broken links
+- stale commands
+- missing prerequisites
+
+## Output
+
+- scope of documentation updated
+- source of truth used
+- remaining gaps or follow-up docs

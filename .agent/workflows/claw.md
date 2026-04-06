@@ -1,51 +1,35 @@
 ---
-description: Start NanoClaw v2 — ECC's persistent, zero-dependency REPL with model routing, skill hot-load, branching, compaction, export, and metrics.
+description: Inspect Claw session artifacts and continuity data stored in this repository.
 ---
 
 # Claw Command
 
-Start an interactive AI agent session with persistent markdown history and operational controls.
+Use `/claw` when you need to inspect, explain, or hand off the local Claw runtime state rather than launch an external REPL.
 
-## Usage
+## Canonical Artifact Locations
 
-```bash
-node scripts/claw.js
-```
+- `claw-code/.port_sessions/` -> raw session payloads
+- `.agent/memory/` -> compaction or memory snapshots
+- `.agent/logs/session-audit.log` -> end-of-session audit trail
 
-Or via npm:
+## Standard Loop
 
-```bash
-npm run claw
-```
+1. Inspect the active session payload in `claw-code/.port_sessions/`.
+2. Check whether a memory compaction snapshot exists in `.agent/memory/`.
+3. Review `.agent/logs/session-audit.log` for recent close-out status.
+4. Summarize current state, continuity risk, and missing artifacts.
 
-## Environment Variables
+## Output Contract
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CLAW_SESSION` | `default` | Session name (alphanumeric + hyphens) |
-| `CLAW_SKILLS` | *(empty)* | Comma-separated skills loaded at startup |
-| `CLAW_MODEL` | `sonnet` | Default model for the session |
+Return:
 
-## REPL Commands
+- active session file
+- last memory snapshot, if any
+- audit status
+- missing continuity artifacts
+- recommended next operator action
 
-```text
-/help                          Show help
-/clear                         Clear current session history
-/history                       Print full conversation history
-/sessions                      List saved sessions
-/model [name]                  Show/set model
-/load <skill-name>             Hot-load a skill into context
-/branch <session-name>         Branch current session
-/search <query>                Search query across sessions
-/compact                       Compact old turns, keep recent context
-/export <md|json|txt> [path]   Export session
-/metrics                       Show session metrics
-exit                           Quit
-```
+## Guardrails
 
-## Notes
-
-- NanoClaw remains zero-dependency.
-- Sessions are stored at `~/.claude/claw/<session>.md`.
-- Compaction keeps the most recent turns and writes a compaction header.
-- Export supports markdown, JSON turns, and plain text.
+- Do not claim a launch script exists unless it is present in the repo.
+- Treat the repo artifacts as the source of truth for local Claw continuity.

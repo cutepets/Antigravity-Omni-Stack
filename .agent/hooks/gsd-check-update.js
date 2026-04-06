@@ -11,10 +11,7 @@ const { spawn } = require('child_process');
 const homeDir = os.homedir();
 const cwd = process.cwd();
 
-// Detect runtime config directory (supports Claude, OpenCode, Gemini)
-// Respects CLAUDE_CONFIG_DIR for custom config directory setups
 function detectConfigDir(baseDir) {
-  // Check env override first (supports multi-account setups)
   const envDir = process.env.CLAUDE_CONFIG_DIR;
   if (envDir && fs.existsSync(path.join(envDir, 'get-shit-done', 'VERSION'))) {
     return envDir;
@@ -32,16 +29,13 @@ const projectConfigDir = detectConfigDir(cwd);
 const cacheDir = path.join(globalConfigDir, 'cache');
 const cacheFile = path.join(cacheDir, 'gsd-update-check.json');
 
-// VERSION file locations (check project first, then global)
 const projectVersionFile = path.join(projectConfigDir, 'get-shit-done', 'VERSION');
 const globalVersionFile = path.join(globalConfigDir, 'get-shit-done', 'VERSION');
 
-// Ensure cache directory exists
 if (!fs.existsSync(cacheDir)) {
   fs.mkdirSync(cacheDir, { recursive: true });
 }
 
-// Run check in background (spawn background process, windowsHide prevents console flash)
 const child = spawn(process.execPath, ['-e', `
   const fs = require('fs');
   const path = require('path');
@@ -51,7 +45,6 @@ const child = spawn(process.execPath, ['-e', `
   const projectVersionFile = ${JSON.stringify(projectVersionFile)};
   const globalVersionFile = ${JSON.stringify(globalVersionFile)};
 
-  // Check project directory first (local install), then global
   let installed = '0.0.0';
   let configDir = '';
   try {
@@ -64,13 +57,19 @@ const child = spawn(process.execPath, ['-e', `
     }
   } catch (e) {}
 
-  // Check for stale hooks — compare hook version headers against installed VERSION
-  // Hooks live inside get-shit-done/hooks/, not configDir/hooks/
+  // Antigravity stores active hooks in configDir/hooks/. Older installs may
+  // still keep copies in get-shit-done/hooks/, so check both.
   let staleHooks = [];
   if (configDir) {
-    const hooksDir = path.join(configDir, 'get-shit-done', 'hooks');
+    const hookDirs = [
+      path.join(configDir, 'hooks'),
+      path.join(configDir, 'get-shit-done', 'hooks'),
+    ];
     try {
-      if (fs.existsSync(hooksDir)) {
+      for (const hooksDir of hookDirs) {
+        if (!fs.existsSync(hooksDir)) {
+          continue;
+        }
         const hookFiles = fs.readdirSync(hooksDir).filter(f => f.startsWith('gsd-') && f.endsWith('.js'));
         for (const hookFile of hookFiles) {
           try {
@@ -79,11 +78,10 @@ const child = spawn(process.execPath, ['-e', `
             if (versionMatch) {
               const hookVersion = versionMatch[1].trim();
               if (hookVersion !== installed && !hookVersion.includes('{{')) {
-                staleHooks.push({ file: hookFile, hookVersion, installedVersion: installed });
+                staleHooks.push({ file: hookFile, hookVersion, installedVersion: installed, source: hooksDir });
               }
             } else {
-              // No version header at all — definitely stale (pre-version-tracking)
-              staleHooks.push({ file: hookFile, hookVersion: 'unknown', installedVersion: installed });
+              staleHooks.push({ file: hookFile, hookVersion: 'unknown', installedVersion: installed, source: hooksDir });
             }
           } catch (e) {}
         }
@@ -108,7 +106,7 @@ const child = spawn(process.execPath, ['-e', `
 `], {
   stdio: 'ignore',
   windowsHide: true,
-  detached: true  // Required on Windows for proper process detachment
+  detached: true
 });
 
 child.unref();

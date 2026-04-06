@@ -72,8 +72,8 @@
 ## Session Persistence
 
 ```
-~/.claude/session-data/  ← /save-session output
-  session-YYYY-MM-DD-*.md
+.agent/memory/session-handoffs/  ← /save-session output
+  YYYY-MM-DD-<short-id>.md
 ```
 
 ## Knowledge Accumulation Files

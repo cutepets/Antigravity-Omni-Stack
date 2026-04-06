@@ -1,43 +1,55 @@
 ---
-description: Sắp bàn giao khách? Kiểm tra lại toàn diện cho chắc theo chuẩn Auditor.
+description: Release-readiness or quality audit across correctness, verification, and compliance. Use near handoff or before shipping.
 ---
 
-# /audit - Final Professional Sign-off
+# /audit
 
 $ARGUMENTS
 
----
+## Canonical Routing
 
-## 🟢 PHASE 1: Asset Reconnaissance
-**Agent**: `explorer-agent`
-**Mission**: Identify every file changed in the current task.
-- **Action**: Run `git status` or check `task.md` for modified files.
+- implementation quality audit -> `code-reviewer`
+- security-sensitive audit -> `security-auditor`
+- release-readiness audit -> `qa-engineer + code-reviewer`, with `security-auditor` when needed
 
-## 🟡 PHASE 2: Compliance Review
-**Agent**: `security-auditor` & `quality-inspector`
-**Mission**: Verify against internal standards.
-- **Checklist**:
-  - [ ] No hardcoded secrets?
-  - [ ] No `any` types or lint errors?
-  - [ ] Does it match `GEMINI.md` architecture?
-  - [ ] Is it accessible (A11y check)?
-  - [ ] Agent configurations (AI rules/prompts) scanned using `ecc-agentshield`?
+## Workflow
 
-## 🔵 PHASE 3: Functional Stress Test
-**Agent**: `test-engineer`
-**Mission**: Try to break it.
-- **Action**: Run `/test` and `/performance` suites.
-- **Audit**: Verify error boundary handling.
+### 1. Gather Evidence
 
-## 🔴 PHASE 4: Certification & Master Walkthrough
-**Agent**: `quality-inspector`
-**Mission**: Issue the "Safe to Release" signal.
-- **Artifact**: Create the 100% verified `walkthrough.md`.
-- **Reporting**: Final summary with "Ready for Ops" certification.
+Review:
 
----
+- changed files
+- validation results
+- known issues
+- unresolved risks
 
-## Key Principles:
-- **Zero Tolerance**: If a single critical rule is broken, the audit is REJECTED.
-- **Fact-Based**: No "It looks good" — only "It passed [X] test."
-- **Traceable**: Link every finding to a specific line of code.
+### 2. Run The Audit Lenses
+
+Use the right mix:
+
+- `code-reviewer` for correctness and maintainability
+- `qa-engineer` for verification coverage
+- `security-auditor` for security or data exposure
+
+### 3. Report Release Readiness
+
+The result should clearly say:
+
+- ready
+- needs work
+- blocked
+
+## Output
+
+```markdown
+## Audit Report: [Scope]
+
+### Findings
+- [Severity] [Issue]
+
+### Verification Status
+- [What was checked]
+
+### Recommendation
+- [Ready | Needs work | Blocked]
+```

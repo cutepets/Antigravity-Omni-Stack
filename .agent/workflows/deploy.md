@@ -1,51 +1,45 @@
 ---
-description: Code xong rồi? Đẩy lên Server/Vercel thôi.
+description: Deployment workflow for preview or production releases with preflight, runtime checks, and rollback awareness.
 ---
 
-# /deploy - Production Release System
+# /deploy
 
 $ARGUMENTS
 
----
+## Canonical Owner
 
-## 🟢 PHASE 1: Pre-Flight Integrity Check
-**Agent**: `devops-engineer` & `security-auditor`
-**Mission**: Ensure the code is "Deployable."
-- **Action**: Run `npm run build` and `npm test`.
-- **Checklist**:
-  - [ ] Zero Lint/TS errors.
-  - [ ] All security patches applied (`npm audit`).
-  - [ ] Environment variables configured in Production.
+- `devops-engineer`
 
-## 🟡 PHASE 2: Artifact Creation & Gating
-**Agent**: `devops-engineer`
-**Mission**: Build the release.
-- **Action**: Create the production bundle/container.
-- **Gate**: Stop and verify the "Pre-deploy Checklist" success.
+Optional support:
 
-## 🔵 PHASE 3: Surgical Deployment
-**Agent**: `devops-engineer`
-**Mission**: Switch the traffic.
-- **Action**: Execute `vercel --prod`, `railway up`, or target platform command.
-- **Strategy**: Use Blue/Green or Canary if supported by the infrastructure.
+- `security-auditor`
+- `performance-optimizer`
 
-## 🔴 PHASE 4: Health Audit & Verification
-**Agent**: `performance-optimizer` & `incident-responder`
-**Mission**: Verify the "Live" state.
-- **Action**: Check Production URL response time and status.
-- **Action**: Verify Database connectivity in the live environment.
-- **Artifact**: Provide the Production URL and Health Badge to the User.
+## Workflow
 
----
+### 1. Preflight
 
-## Deployment Rules:
-- **No Yolo-Deploy**: Never deploy without a successful local build.
-- **Rollback Ready**: Always have a plan to return to the previous version.
-- **Zero Downtime**: Prioritize strategies that don't break the user experience.
+Confirm the release is actually deployable:
 
----
+- build passes
+- relevant tests pass
+- env vars and secrets are present
 
-## Examples:
-- `/deploy production`
-- `/deploy preview`
-- `/deploy check`
+### 2. Execute The Release
+
+Use the target platform path and note the rollback strategy.
+
+### 3. Verify Live Health
+
+Check:
+
+- app comes up
+- critical route works
+- key dependency connections succeed
+
+## Output
+
+- target environment
+- deployment result
+- health status
+- rollback note if needed

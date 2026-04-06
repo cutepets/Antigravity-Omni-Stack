@@ -1,51 +1,88 @@
 ---
-description: Muốn tạo tính năng mới hoặc dự án từ A-Z? Sử dụng bộ máy nhân sự chuyên nghiệp.
+description: Full-cycle feature or product creation entrypoint. Use for Standard-to-Heavy work that needs shaping, design, implementation, and verification.
 ---
 
-# /create - Full-Cycle Product Creation
+# /create
 
 $ARGUMENTS
 
----
+Use `/create` when the request is larger than a direct fix and should move through a structured creation flow.
 
-## 🟢 PHASE 1: Requirements Discovery
-**Agent**: `product-manager` & `explorer-agent`
-**Mission**: Define the "What" and "Why."
-- **Action**: Analyze User Intent and map to project scale.
-- **Verification**: Ensure no conflict with existing system architecture.
+## Canonical Flow
 
-## 🟡 PHASE 2: Strategic Architecture (PLAN)
-**Agent**: `project-planner`
-**Mission**: Define the "How."
-- **Workflow Link**: Invokes `/plan` automatically.
-- **Artifact**: Create `docs/PLAN-{slug}.md`.
-- **Mandatory**: User MUST approve the plan before Phase 3 begins.
+### 1. Scope And Outcome
 
-## 🔵 PHASE 3: Surgical Execution
-**Agent**: `orchestrator`
-**Mission**: Direct the "Heavy Lifters."
-- **Choreography**: 
-  1. `database-architect` (Schema first).
-  2. `backend-specialist` (APIs/Logic).
-  3. `frontend-specialist` (Design/UI).
-  4. `documentation-writer` (Sync docs).
+Primary specialist:
 
-## 🔴 PHASE 4: Professional Audit & Handoff
-**Agent**: `quality-inspector` & `test-engineer`
-**Mission**: Defend the Quality Gate.
-- **Verification**: Run `/test` and `/security` workflows.
-- **Artifact**: Create the final `walkthrough.md` with proof of work.
+- `product-manager`
 
----
+Optional support:
 
-## Rules of Engagement:
-- **No Placeholders**: Every generated asset must be functional.
-- **Security-First**: No hardcoded keys, ever.
-- **Wow Factor**: Frontend work must use `ui-ux-pro-max` standards.
+- `erp-business-analyst`
+- `system-architect`
 
----
+Goal:
 
-## Examples:
-- `/create e-commerce dashboard with analytics`
-- `/create inventory management CLI in Rust`
-- `/create portfolio site with video backgrounds`
+- restate the problem
+- define the target outcome
+- classify work as `Standard` or `Heavy`
+- identify acceptance criteria
+
+### 2. Solution Framing
+
+Primary specialist:
+
+- `system-architect` for architecture-heavy work
+- `erp-business-analyst` for ERP or business-rule-heavy work
+- `frontend-specialist` for UI-led creation
+
+Goal:
+
+- define implementation boundaries
+- clarify data contracts or workflow rules
+- decide whether phased execution is needed
+
+### 3. Implementation
+
+Route to the primary builder:
+
+- `backend-specialist`
+- `frontend-specialist`
+- `mobile-developer`
+- `integration-engineer`
+- `python-specialist`
+
+Support specialists join only when the task truly crosses boundaries.
+
+### 4. Verification And Release Readiness
+
+Primary specialists:
+
+- `qa-engineer`
+- `code-reviewer`
+- `security-auditor` when auth, payments, secrets, or external exposure matter
+
+## Routing Rule
+
+- Small and self-contained -> prefer direct execution instead of `/create`
+- Standard -> lightweight plan plus targeted implementation
+- Heavy -> use staged planning, handoffs, and verification
+
+If phased artifacts are needed, route into `.agent/get-shit-done/workflows/`.
+
+## Required Deliverables
+
+- scope and acceptance criteria
+- architecture or workflow decisions when needed
+- implementation handoff
+- verification result
+
+## Frontend Rule
+
+When the task is UI-heavy, `/create` should route through `frontend-specialist` and may use `/ui-ux-pro-max` before implementation.
+
+## Examples
+
+- `/create customer portal with role-based access`
+- `/create ERP stock adjustment workflow with audit trail`
+- `/create admin dashboard with backend API and responsive UI`

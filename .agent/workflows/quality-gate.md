@@ -1,33 +1,28 @@
 ---
-description: Quality Gate Command
+description: Run the local quality pipeline on demand for a file or project scope.
 ---
 
 # Quality Gate Command
 
-Run the ECC quality pipeline on demand for a file or project scope.
+Use `/quality-gate` to run the repo's available quality checks on demand for a path or the whole project.
 
 ## Usage
 
 `/quality-gate [path|.] [--fix] [--strict]`
 
 - default target: current directory (`.`)
-- `--fix`: allow auto-format/fix where configured
-- `--strict`: fail on warnings where supported
+- `--fix`: allow autofix where the repo supports it
+- `--strict`: fail on warnings where the toolchain supports it
 
 ## Pipeline
 
-1. Detect language/tooling for target.
+1. Detect language and toolchain for the target.
 2. Run formatter checks.
-3. Run lint/type checks when available.
-4. Produce a concise remediation list.
+3. Run lint and type checks when available.
+4. Run targeted tests when the affected area has them.
+5. Produce a concise remediation list.
 
 ## Notes
 
-This command mirrors hook behavior but is operator-invoked.
-
-## Arguments
-
-$ARGUMENTS:
-- `[path|.]` optional target path
-- `--fix` optional
-- `--strict` optional
+- Prefer existing repo scripts over invented commands.
+- If a quality layer is missing, report that gap explicitly instead of pretending it passed.

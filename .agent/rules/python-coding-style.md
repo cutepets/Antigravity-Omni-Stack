@@ -5,7 +5,7 @@ glob: "**/*.py"
 
 # Python Coding Style
 
-> This file extends [common/coding-style.md](../common/coding-style.md) with Python specific content.
+> This file extends [common-coding-style.md](./common-coding-style.md) with Python specific content.
 
 ## Standards
 

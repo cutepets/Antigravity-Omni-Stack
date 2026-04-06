@@ -5,7 +5,7 @@ glob: "**/*.py"
 
 # Python Security
 
-> This file extends [common/security.md](../common/security.md) with Python specific content.
+> This file extends [common-security.md](./common-security.md) with Python specific content.
 
 ## Secret Management
 

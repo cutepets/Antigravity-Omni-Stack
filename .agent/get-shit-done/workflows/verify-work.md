@@ -4,6 +4,12 @@ Validate built features through conversational testing with persistent state. Cr
 User tests, the agent records. One test at a time. Plain text responses.
 </purpose>
 
+<routing_alignment>
+Canonical role: verification stage for Standard or Heavy work, or for any user-visible change that needs explicit acceptance checking.
+
+Use this after execution when behavior needs to be proven, especially for frontend, workflow, and regression-sensitive changes.
+</routing_alignment>
+
 <available_agent_types>
 Valid GSD subagent types (use exact names — do not fall back to 'general-purpose'):
 - gsd-planner — Creates detailed plans from phase scope

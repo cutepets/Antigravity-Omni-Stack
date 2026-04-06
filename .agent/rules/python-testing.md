@@ -5,7 +5,7 @@ glob: "**/*.py"
 
 # Python Testing
 
-> This file extends [common/testing.md](../common/testing.md) with Python specific content.
+> This file extends [common-testing.md](./common-testing.md) with Python specific content.
 
 ## Framework
 

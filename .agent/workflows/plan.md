@@ -1,117 +1,75 @@
 ---
-description: Restate requirements, assess risks, and create step-by-step implementation plan. WAIT for user CONFIRM before touching any code.
+description: Restate scope, classify work size, and produce a lightweight or staged plan before implementation when the task is Standard or Heavy.
 ---
 
-# Plan Command
+# /plan
 
-This command invokes the **planner** agent to create a comprehensive implementation plan before writing any code.
+Use `/plan` when the work is too large or risky for direct Quick execution.
 
-## What This Command Does
+This command should align with `.agent/docs/ANTIGRAVITY_ROUTING.md`, not with older planner-only conventions.
 
-1. **Restate Requirements** - Clarify what needs to be built
-2. **Identify Risks** - Surface potential issues and blockers
-3. **Create Step Plan** - Break down implementation into phases
-4. **Wait for Confirmation** - MUST receive user approval before proceeding
+## Canonical Role
 
-## When to Use
+`/plan` is the human-facing planning entrypoint for:
 
-Use `/plan` when:
-- Starting a new feature
-- Making significant architectural changes
-- Working on complex refactoring
-- Multiple files/components will be affected
-- Requirements are unclear or ambiguous
+- Standard work that needs a short implementation plan
+- Heavy work that needs staged execution, risks, and handoffs
 
-## How It Works
+It is not required for every Quick task.
 
-The planner agent will:
+## When To Use
 
-1. **Analyze the request** and restate requirements in clear terms
-2. **Break down into phases** with specific, actionable steps
-3. **Identify dependencies** between components
-4. **Assess risks** and potential blockers
-5. **Estimate complexity** (High/Medium/Low)
-6. **Present the plan** and WAIT for your explicit confirmation
+Use `/plan` for:
 
-## Example Usage
+- multi-file implementation in one bounded area
+- architecture or data-contract changes
+- ERP or workflow-state changes
+- security-sensitive work
+- tasks where ambiguity would cause rework
 
-```
-User: /plan I need to add real-time notifications when markets resolve
+Skip `/plan` for:
 
-Agent (planner):
-# Implementation Plan: Real-Time Market Resolution Notifications
+- typo fixes
+- tiny config changes
+- isolated one-file edits with obvious blast radius
 
-## Requirements Restatement
-- Send notifications to users when markets they're watching resolve
-- Support multiple notification channels (in-app, email, webhook)
-- Ensure notifications are delivered reliably
-- Include market outcome and user's position result
+## Default Routing
 
-## Implementation Phases
+- Quick -> execute directly with the right specialist mindset
+- Standard -> `/plan`, then implement and verify
+- Heavy -> `/plan`, then route into staged execution or GSD phase workflows
 
-### Phase 1: Database Schema
-- Add notifications table with columns: id, user_id, market_id, type, status, created_at
-- Add user_notification_preferences table for channel preferences
-- Create indexes on user_id and market_id for performance
+## Expected Output
 
-### Phase 2: Notification Service
-- Create notification service in lib/notifications.ts
-- Implement notification queue using BullMQ/Redis
-- Add retry logic for failed deliveries
-- Create notification templates
+The plan should produce:
 
-### Phase 3: Integration Points
-- Hook into market resolution logic (when status changes to "resolved")
-- Query all users with positions in market
-- Enqueue notifications for each user
+1. scope restatement
+2. size classification: `Quick`, `Standard`, or `Heavy`
+3. primary specialist and optional support specialist
+4. implementation slices or phases
+5. risks, assumptions, and handoff points
+6. explicit next step
 
-### Phase 4: Frontend Components
-- Create NotificationBell component in header
-- Add NotificationList modal
-- Implement real-time updates via Supabase subscriptions
-- Add notification preferences page
+## Confirmation Rule
 
-## Dependencies
-- Redis (for queue)
-- Email service (SendGrid/Resend)
-- Supabase real-time subscriptions
+User confirmation is strongly recommended before code work when:
 
-## Risks
-- HIGH: Email deliverability (SPF/DKIM required)
-- MEDIUM: Performance with 1000+ users per market
-- MEDIUM: Notification spam if markets resolve frequently
-- LOW: Real-time subscription overhead
+- the task is Heavy
+- the architecture may shift
+- the user asked for a plan first
 
-## Estimated Complexity: MEDIUM
-- Backend: 4-6 hours
-- Frontend: 3-4 hours
-- Testing: 2-3 hours
-- Total: 9-13 hours
+For Standard work, confirmation is optional if the requested task is already concrete and low ambiguity.
 
-**WAITING FOR CONFIRMATION**: Proceed with this plan? (yes/no/modify)
-```
+## Recommended Specialist Mapping
 
-## Important Notes
+- product or scope shaping -> `product-manager`
+- ERP rules -> `erp-business-analyst`
+- architecture -> `system-architect`
+- backend implementation plan -> `backend-specialist`
+- frontend implementation plan -> `frontend-specialist`
 
-**CRITICAL**: The planner agent will **NOT** write any code until you explicitly confirm the plan with "yes" or "proceed" or similar affirmative response.
+## Next Commands
 
-If you want changes, respond with:
-- "modify: [your changes]"
-- "different approach: [alternative]"
-- "skip phase 2 and do phase 3 first"
-
-## Integration with Other Commands
-
-After planning:
-- Use `/tdd` to implement with test-driven development
-- Use `/build-fix` if build errors occur
-- Use `/code-review` to review completed implementation
-
-> **Need deeper planning?** Use `/prp-plan` for artifact-producing planning with PRD integration, codebase analysis, and pattern extraction. Use `/prp-implement` to execute those plans with rigorous validation loops.
-
-## Related Agents
-
-This command invokes the `planner` agent provided by ECC.
-
-For manual installs, the source file lives at:
-`agents/planner.md`
+- direct execution after an approved Standard plan
+- `/orchestrate` when handoffs across specialists are required
+- GSD workflows when phase artifacts or staged execution are needed

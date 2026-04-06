@@ -72,7 +72,7 @@ User gõ /plan → Workflow(.agent/workflows/plan.md) được load
 | `package.json` | Node.js scripts cho framework tooling |
 | `settings.json` | Framework settings |
 | `config.json` | Cấu hình runtime |
-| `ecc-install-state.json` | ECC install tracking |
+| `ecc-install-state.json` | Historical install metadata |
 | `gsd-file-manifest.json` | GSD framework manifest |
 
 ## Scale Modes

@@ -1,6 +1,6 @@
 ---
 name: agent-framework-maintenance
-description: Systematic protocol for auditing, maintaining, and evolving the Antigravity 17-agent framework. Covers orphan skill detection, agent creation, skill archival, and coverage verification.
+description: Systematic protocol for auditing, maintaining, and evolving the Antigravity specialist-agent framework. Covers orphan skill detection, assignment hygiene, archival, and coverage verification.
 evolved_from:
   - P003-orphan-detection-script
   - P006-skill-domain-rules
@@ -12,33 +12,16 @@ version: 1.0.0
 
 # Agent Framework Maintenance Skill
 
-Systematic maintenance protocol for the Antigravity 17-agent framework.
+Systematic maintenance protocol for the Antigravity specialist-agent framework.
 Auto-triggers when: auditing agents, resolving orphan skills, creating new agents.
 
 ## 🔍 Step 1: Orphan Detection
 
-Run this script to find all unassigned skills:
+Run the canonical audit scripts from repo root:
 
 ```javascript
-// node -e "<script>" from repo root
-const fs = require('fs'), path = require('path');
-const agentsDir = '.agent/agents';
-const coveredSkills = new Set();
-
-fs.readdirSync(agentsDir).filter(f => f.endsWith('.md')).forEach(af => {
-  const c = fs.readFileSync(path.join(agentsDir, af), 'utf8');
-  [...c.matchAll(/^  - (.+)$/gm)].forEach(m => coveredSkills.add(m[1].trim()));
-});
-
-const skillFolders = fs.readdirSync('.agent/skills', { withFileTypes: true })
-  .filter(d => d.isDirectory() && !d.name.startsWith('_'))
-  .map(d => d.name);
-
-const orphans = skillFolders.filter(s => !coveredSkills.has(s));
-console.log(`Total agents: ${fs.readdirSync(agentsDir).length}`);
-console.log(`Skill folders: ${skillFolders.length}`);
-console.log(`Covered: ${coveredSkills.size}`);
-console.log(`Orphans (${orphans.length}):`, orphans.sort());
+node .agent/scripts/audit-skills.js
+node .agent/scripts/check-orphans.js
 ```
 
 ## 📐 Step 2: Skill Domain Assignment Rules
@@ -53,10 +36,10 @@ console.log(`Orphans (${orphans.length}):`, orphans.sort());
 ## 🗂️ Step 3: Archive Protocol
 
 ```bash
-# Never delete — always archive
+# Never mass-delete. Archive or mark legacy deliberately.
 mkdir -p .agent/skills/_archive/{skill-name}
 cp .agent/skills/{skill-name}/SKILL.md .agent/skills/_archive/{skill-name}/SKILL.md
-# Original folder stays for rollback
+# Move supporting resources only if the skill is truly retired.
 ```
 
 Archive conditions:
@@ -71,7 +54,7 @@ Archive conditions:
 - No existing agent covers that domain well
 - The domain requires different reasoning depth than current agents
 
-**Agent template:** See `agent-continuous-learning` P005 pattern.
+**Agent template:** See `.agent/docs/AGENT_STANDARD.md`.
 
 **Model selection:**
 - `claude-haiku-3-5` → Fast lookup, docs, simple transforms
@@ -82,36 +65,9 @@ Archive conditions:
 
 After any agent modification:
 
-```javascript
-// Quick coverage check
-const after = orphans.length;
-console.log(`Orphans reduced: before → after`);
-// Target: 0 true orphans (archived excluded)
+```bash
+node .agent/scripts/audit-skills.js
+node .agent/scripts/check-orphans.js
 ```
 
-Also update skill counts in agent body text:
-```
-You are granted access to N deep methodologies...
-```
-
-## 📋 Agent Roster (v5.0 — April 2026)
-
-| Agent | Model | Skills | Domain |
-|-------|-------|--------|--------|
-| system-architect | sonnet | 49 | Architecture, patterns, migration |
-| devops-engineer | sonnet | 46 | CI/CD, cloud, observability, infra |
-| frontend-specialist | sonnet | 41 | React, UI/UX, a11y, D3 |
-| ai-orchestrator | opus | 36 | Swarms, memory, routing |
-| product-manager | haiku | 31 | Docs, planning, business |
-| python-specialist | sonnet | 31 | Python, ML, data |
-| backend-specialist | sonnet | 31 | Node, NestJS, APIs |
-| qa-engineer | sonnet | 28 | E2E, TDD, accessibility |
-| code-reviewer | haiku | 24 | Review, lint, bug detection |
-| security-auditor | sonnet | 23 | OWASP, STRIDE, compliance |
-| database-architect | sonnet | 20 | SQL, NoSQL, schema |
-| integration-engineer | sonnet | 20 | Realtime, webhooks, payment |
-| performance-optimizer | sonnet | 19 | Perf, profiling, bundles |
-| research-specialist | haiku | 19 | Search, scrape, synthesis |
-| **debug-specialist** | sonnet | 18 | **Runtime debug, RCA, incident** |
-| mcp-developer | sonnet | 18 | MCP servers, tool building |
-| mobile-developer | sonnet | 16 | React Native, iOS, Android |
+Do not maintain static roster counts inside this skill. Use the audit scripts and current agent files as the source of truth.

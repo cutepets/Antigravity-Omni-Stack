@@ -46,7 +46,7 @@ node -e "..."                 # ✅ safe
 git add .
 
 # ✅ Target specific directories
-git add .agent/ GEMINI.md docs/ .planning/ .gitignore
+git add .agent/ GEMINI.md README.md docs/ package.json .gitignore
 $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 git commit -m "Auto Backup: $ts — <description>"
 ```

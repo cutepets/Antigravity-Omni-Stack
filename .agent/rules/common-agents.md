@@ -7,28 +7,30 @@ description: "When coordinating multi-agent workflows or assigning responsibilit
 
 ## Available Agents
 
-Located in `~/.claude/agents/`:
+Located in `.agent/agents/`:
 
 | Agent | Purpose | When to Use |
 |-------|---------|-------------|
-| planner | Implementation planning | Complex features, refactoring |
-| architect | System design | Architectural decisions |
-| tdd-guide | Test-driven development | New features, bug fixes |
+| product-manager | Scope and acceptance criteria | Product shaping, tradeoffs |
+| erp-business-analyst | Business workflow rules | ERP logic, states, invariants |
+| system-architect | System design | Architectural decisions |
+| backend-specialist | Backend implementation | APIs, services, domain logic |
+| frontend-specialist | Frontend implementation | UI, UX, accessibility |
+| database-architect | Data integrity | Schema, constraints, migrations |
 | code-reviewer | Code review | After writing code |
-| security-reviewer | Security analysis | Before commits |
-| build-error-resolver | Fix build errors | When build fails |
-| e2e-runner | E2E testing | Critical user flows |
-| refactor-cleaner | Dead code cleanup | Code maintenance |
-| doc-updater | Documentation | Updating docs |
-| rust-reviewer | Rust code review | Rust projects |
+| qa-engineer | Testing and verification | Regression, acceptance, E2E |
+| security-auditor | Security analysis | Before commits |
+| debug-specialist | Root-cause diagnosis | Bugs, crashes, difficult failures |
+| performance-optimizer | Performance analysis | Bottlenecks, latency, memory |
+| devops-engineer | Runtime and deployment | CI/CD, infra, operations |
 
 ## Immediate Agent Usage
 
 No user prompt needed:
-1. Complex feature requests - Use **planner** agent
+1. Complex feature requests - Use `product-manager`, `erp-business-analyst`, or `system-architect` as appropriate
 2. Code just written/modified - Use **code-reviewer** agent
-3. Bug fix or new feature - Use **tdd-guide** agent
-4. Architectural decision - Use **architect** agent
+3. Bug fix - Use `debug-specialist`, then route to the owning implementation specialist
+4. Architectural decision - Use **system-architect** agent
 
 ## Parallel Task Execution
 

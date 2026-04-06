@@ -22,6 +22,8 @@
     ]
   },
   "hooks": {
+    "context_warnings": true,
+    "workflow_guard": false,
     "SessionStart": [
       {
         "hooks": [
@@ -33,16 +35,6 @@
       }
     ],
     "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .agent/hooks/gsd-prompt-guard.js",
-            "timeout": 5
-          }
-        ]
-      },
       {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
@@ -67,18 +59,6 @@
             "type": "command",
             "command": "node .agent/hooks/gsd-context-monitor.js",
             "timeout": 10
-          }
-        ]
-      }
-    ],
-    "BeforeTool": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .agent/hooks/gsd-prompt-guard.js",
-            "timeout": 5
           }
         ]
       }

@@ -1,15 +1,7 @@
 #!/usr/bin/env node
 // gsd-hook-version: 1.30.0
-// GSD Workflow Guard — PreToolUse hook
-// Detects when Claude attempts file edits outside a GSD workflow context
-// (no active /gsd: command or Task subagent) and injects an advisory warning.
-//
-// This is a SOFT guard — it advises, not blocks. The edit still proceeds.
-// The warning nudges Claude to use /plan or /aside instead of
-// making direct edits that bypass state tracking.
-//
-// Enable via config: hooks.workflow_guard: true (default: false)
-// Only triggers on Write/Edit tool calls to non-.agent/.gemini/ files.
+// GSD Workflow Guard - PreToolUse hook
+// Detects direct edits outside a tracked workflow context and emits an advisory warning.
 
 const fs = require('fs');
 const path = require('path');
@@ -24,27 +16,19 @@ process.stdin.on('end', () => {
     const data = JSON.parse(input);
     const toolName = data.tool_name;
 
-    // Only guard Write and Edit tool calls
-    if (toolName !== 'Write' && toolName !== 'Edit') {
+    if (toolName !== 'Write' && toolName !== 'Edit' && toolName !== 'MultiEdit') {
       process.exit(0);
     }
 
-    // Check if we're inside a GSD workflow (Task subagent or /gsd: command)
-    // Subagents have a session_id that differs from the parent
-    // and typically have a description field set by the orchestrator
     if (data.tool_input?.is_subagent || data.session_type === 'task') {
       process.exit(0);
     }
 
-    // Check the file being edited
     const filePath = data.tool_input?.file_path || data.tool_input?.path || '';
-
-    // Allow edits to .agent/.gemini/ files (GSD state management)
-    if ((filePath.includes('.agent/') || filePath.includes('.agent\\') || filePath.includes('.gemini/') || filePath.includes('.gemini\\'))) {
+    if (filePath.includes('.agent/') || filePath.includes('.agent\\') || filePath.includes('.gemini/') || filePath.includes('.gemini\\')) {
       process.exit(0);
     }
 
-    // Allow edits to common config/docs files that don't need GSD tracking
     const allowedPatterns = [
       /\.gitignore$/,
       /\.env/,
@@ -53,42 +37,39 @@ process.stdin.on('end', () => {
       /GEMINI\.md$/,
       /settings\.json$/,
     ];
-    if (allowedPatterns.some(p => p.test(filePath))) {
+    if (allowedPatterns.some(pattern => pattern.test(filePath))) {
       process.exit(0);
     }
 
-    // Check if workflow guard is enabled
     const cwd = data.cwd || process.cwd();
     const configPath = path.join(cwd, '.agent', 'settings.json');
-    if (fs.existsSync(configPath)) {
-      try {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        if (!config.hooks?.workflow_guard) {
-          process.exit(0); // Guard disabled (default)
-        }
-      } catch (e) {
-        process.exit(0);
-      }
-    } else {
-      process.exit(0); // No GSD project — don't guard
+    if (!fs.existsSync(configPath)) {
+      process.exit(0);
     }
 
-    // If we get here: GSD project, guard enabled, file edit outside .agent/.gemini/,
-    // not in a subagent context. Inject advisory warning.
+    let config;
+    try {
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch {
+      process.exit(0);
+    }
+
+    if (!config.hooks?.workflow_guard) {
+      process.exit(0);
+    }
+
     const output = {
       hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        additionalContext: `⚠️ WORKFLOW ADVISORY: You're editing ${path.basename(filePath)} directly without a GSD command. ` +
-          'This edit will not be tracked in STATE.md or produce a SUMMARY.md. ' +
-          'Consider using /aside for trivial fixes or /plan for larger changes ' +
-          'to maintain project state tracking. ' +
-          'If this is intentional (e.g., user explicitly asked for a direct edit), proceed normally.'
+        hookEventName: 'PreToolUse',
+        additionalContext: `\u26a0\ufe0f WORKFLOW ADVISORY: You're editing ${path.basename(filePath)} directly without a tracked Antigravity workflow. ` +
+          'This edit will not be reflected in workflow state artifacts automatically. ' +
+          'Consider using /plan or the appropriate GSD workflow if you want state tracking. ' +
+          'If the user explicitly asked for a direct edit, proceed normally.'
       }
     };
 
     process.stdout.write(JSON.stringify(output));
-  } catch (e) {
-    // Silent fail — never block tool execution
+  } catch {
     process.exit(0);
   }
 });

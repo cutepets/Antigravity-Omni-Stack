@@ -2,6 +2,12 @@
 Create executable phase prompts (PLAN.md files) for a roadmap phase with integrated research and verification. Default flow: Research (if needed) -> Plan -> Verify -> Done. Orchestrates gsd-phase-researcher, gsd-planner, and gsd-plan-checker agents with a revision loop (max 3 iterations).
 </purpose>
 
+<routing_alignment>
+Canonical size: Standard or Heavy.
+
+Use this workflow when work has already crossed the threshold where structured phase artifacts are useful. Do not force obviously Quick tasks through phase planning.
+</routing_alignment>
+
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
 

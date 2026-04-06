@@ -1,67 +1,29 @@
-# RESOURCES.md - Kho lưu trữ liên kết quan trọng
+# Antigravity Resources
 
-## 📦 Repositories Liên Quan
-Lưu trữ danh sách các repo nguồn để tiện cho việc cập nhật hệ thống sau này.
+Reference list for important internal and external resources used by this framework.
 
-### Core System
-- **Google Antigravity Lab**: `https://github.com/Dokhacgiakhoa/antigravity-lab` (Repo hiện tại)
-- **Google Antigravity Core**: `https://github.com/Dokhacgiakhoa/antigravity-ide` (Core CLI & Skills)
+## Internal Sources Of Truth
 
-### 🚀 Agent Skills Standard (The Protocol)
-- **Repository**: [HoangNguyen0403/agent-skills-standard](https://github.com/HoangNguyen0403/agent-skills-standard)
-- **Role**: Foundation / Specification
-- **Description**: Defines the folder structure (`SKILL.md`), Token Economy, and metadata format used by this IDE.
+- `.agent/rules/GEMINI.md` -> governance and safety
+- `.agent/docs/ANTIGRAVITY_ROUTING.md` -> routing by work size and specialization
+- `.agent/docs/AGENT_STANDARD.md` -> canonical agent contract
+- `.agent/docs/CODEX_COLLABORATION.md` -> Codex + Antigravity operating model
+- `.agent/skills/README.md` -> skill layer guide
+- `.agent/workflows/README.md` -> workflow entrypoints
+- `.agent/get-shit-done/workflows/README.md` -> heavy workflow engine
 
-### 🧠 Anthropics Skills (The Intelligence)
-- **Repository**: [anthropics/skills](https://github.com/anthropics/skills)
-- **Role**: Skill Implementation / Upstream Source
-- **Description**: Official repository from Anthropic containing production-ready skills for Claude.
-    - **Key Document Skills**: PDF, DOCX, XLSX parsing.
-    - **Creative Skills**: Art, Music, Design workflows.
+## Repository Metadata
 
-### Official Documentation (The Source of Truth)
-- **Antigravity Docs**: `https://antigravity.google/docs`
-- **Agent Configuration**: `https://developers.google.com/antigravity/agent-configuration`
-- **Model Context Protocol (MCP)**: `https://modelcontextprotocol.io/`
-- **Gemini MCP Server**: `https://github.com/google-gemini/mcp-server`
+- `.agent/ecc-install-state.json` -> historical install metadata from the original framework import
+- `.agent/gsd-file-manifest.json` -> GSD manifest and file fingerprint data
 
-### Antigravity Skills Ecosystem
-- **Official MCP Servers**: `https://github.com/modelcontextprotocol/servers` (Testing, Search, Finance, Standard Blueprints)
-  - *🚀 Đã rà soát cập nhật mới nhất từ upstream gồm các integrations mạnh mẽ:*
-  - `AgentOps MCP`: `https://github.com/AgentOps-AI/agentops-mcp` (Cung cấp tracing và debug cho AI agents)
-  - `AgentQL MCP`: `https://github.com/tinyfish-io/agentql-mcp` (Trích xuất dữ liệu có cấu trúc từ web)
-  - `Apify MCP`: `https://github.com/apify/apify-mcp-server` (Cung cấp hàng ngàn API cho Web Scraping)
-  - `Algolia MCP`: `https://github.com/algolia/mcp` (Quản lý Search Indices)
-  - `Cloud Providers`: `Alibaba Cloud`, `AWS`, `Aiven` (Đã hỗ trợ quản lý tài nguyên mây nguyên bản)
-- **Antigravity Skills Tutorial**: `https://github.com/rominirani/antigravity-skills` (Levels 1-5)
-- **Antigravity Kit (VUDOVN)**: `https://github.com/vudovn/antigravity-kit`
-- **Awesome Skills (Sickn33)**: `https://github.com/sickn33/antigravity-awesome-skills`
-- **UI/UX Pro Max (NextLevelBuilder)**: `https://github.com/nextlevelbuilder/ui-ux-pro-max-skill`
+## External References
 
-### Community Skills Collections
-- **MCP Server Registry (Glama)**: `https://glama.ai/mcp/servers`
-- **Cursor Directory (Rules)**: `https://cursor.directory/`
-- **System Prompts**: `https://github.com/mustvlad/ChatGPT-System-Prompts`
-- **Vercel Agent Skills**: `https://github.com/vercel-labs/agent-skills/tree/main/skills`
-- **Anthony Fu Skills**: `https://github.com/antfu/skills`
-- **Search & Testing MCP**: `https://github.com/modelcontextprotocol/servers/tree/main/src/testing` (Playwright/Selenium)
+- Model Context Protocol: `https://modelcontextprotocol.io/`
+- MCP Servers Registry: `https://github.com/modelcontextprotocol/servers`
+- GitNexus docs and CLI: project-local via `gitnexus` and MCP tools
 
-### Advanced AI Frameworks & Agents
-- **Microsoft AutoGen**: `https://github.com/microsoft/autogen` (v0.4+ Async/Event-driven Architecture)
-- **LangGraph**: `https://github.com/langchain-ai/langgraph` (Distributed Execution & Subgraphs)
-- **Microsoft Semantic Kernel**: `https://github.com/microsoft/semantic-kernel`
-- **SuperAGI**: `https://github.com/TransformerOptimus/SuperAGI`
+## Maintenance Notes
 
-### Automation & Workflows
-- **n8n**: `https://github.com/n8n-io/n8n`
-
-### Prompts & Productivity Tools
-- **Fabric (Daniel Miessler)**: `https://github.com/danielmiessler/fabric` (New: AI Safety Patterns)
-- **Awesome ChatGPT Prompts**: `https://github.com/f/prompts.chat`
-
----
-
-## 🔄 Hướng dẫn Cập nhật (Manual Update)
-Khi cần cập nhật từ các nguồn trên, sử dụng lệnh:
-1. `git pull <repo_url>`
-2. Hoặc dùng CLI: `npx antigravity-ide update`
+- Treat internal `.agent/docs`, `.agent/rules`, `.agent/agents`, `.agent/skills`, and workflow files as canonical over older historical material.
+- Treat `ecc-install-state.json` as historical provenance, not a runtime control surface.

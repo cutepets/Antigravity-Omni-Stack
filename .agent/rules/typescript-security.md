@@ -5,7 +5,7 @@ glob: "**/*.{ts,tsx}"
 
 # TypeScript/JavaScript Security
 
-> This file extends [common/security.md](../common/security.md) with TypeScript/JavaScript specific content.
+> This file extends [common-security.md](./common-security.md) with TypeScript/JavaScript specific content.
 
 ## Secret Management
 
@@ -23,4 +23,4 @@ if (!apiKey) {
 
 ## Agent Support
 
-- Use **security-reviewer** skill for comprehensive security audits
+- Use `security-auditor` for comprehensive security audits

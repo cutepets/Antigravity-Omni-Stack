@@ -2,47 +2,65 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-console.log('[GitNexus Sync] Running npx gitnexus analyze --embeddings...');
-try {
-  execSync('npx gitnexus analyze --embeddings', { stdio: 'inherit' });
-} catch (error) {
-  console.error('[GitNexus Sync] Failed to run analyze.', error.message);
-}
+const args = new Set(process.argv.slice(2));
+const statusOnly = args.has('--status-only');
+const forceEmbeddings = args.has('--embeddings');
+const cwd = process.cwd();
+const metaPath = path.join(cwd, '.gitnexus', 'meta.json');
 
-// 1. Copy & Move skills
-const sourceSkills = path.join(process.cwd(), '.claude', 'skills', 'gitnexus');
-const destSkills = path.join(process.cwd(), '.agent', 'skills', 'gitnexus');
-
-if (fs.existsSync(sourceSkills)) {
-  console.log('[GitNexus Sync] Integrating skills to .agent/skills/gitnexus...');
-  if (fs.existsSync(destSkills)) {
-    fs.rmSync(destSkills, { recursive: true, force: true });
+function readEmbeddingCount() {
+  if (!fs.existsSync(metaPath)) {
+    return 0;
   }
-  fs.cpSync(sourceSkills, destSkills, { recursive: true });
-  fs.rmSync(sourceSkills, { recursive: true, force: true });
+
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    return Number(meta?.stats?.embeddings || 0);
+  } catch {
+    return 0;
+  }
 }
 
-// 2. Cleanup leftovers
-const claudeDir = path.join(process.cwd(), '.claude');
-const claudeMd = path.join(process.cwd(), 'CLAUDE.md');
+function scanLegacyGitnexusPaths() {
+  const targets = ['AGENTS.md', 'CLAUDE.md', 'README.md', 'docs/CODEMAPS/dependencies.md'];
+  const hits = [];
 
-if (fs.existsSync(claudeDir)) {
-  console.log('[GitNexus Sync] Pruning dummy .claude directory...');
-  fs.rmSync(claudeDir, { recursive: true, force: true });
-}
-if (fs.existsSync(claudeMd)) {
-  console.log('[GitNexus Sync] Removing redundant CLAUDE.md...');
-  fs.rmSync(claudeMd, { force: true });
-}
+  for (const relativePath of targets) {
+    const filePath = path.join(cwd, relativePath);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
 
-// 3. Patch AGENTS.md
-const agentsMd = path.join(process.cwd(), 'AGENTS.md');
-if (fs.existsSync(agentsMd)) {
-  console.log('[GitNexus Sync] Patching AGENTS.md paths to map with .agent architecture...');
-  let content = fs.readFileSync(agentsMd, 'utf8');
-  // GitNexus forces .claude paths, we replace them back to .agent
-  content = content.replace(/\.claude\/skills\/gitnexus/g, '.agent/skills/gitnexus');
-  fs.writeFileSync(agentsMd, content);
+    const content = fs.readFileSync(filePath, 'utf8');
+    if (content.includes('.claude/skills/gitnexus')) {
+      hits.push(relativePath);
+    }
+  }
+
+  return hits;
 }
 
-console.log('[GitNexus Sync] Successfully tamed GitNexus! System is clean.');
+const embeddingCount = readEmbeddingCount();
+const useEmbeddings = forceEmbeddings || embeddingCount > 0;
+const command = useEmbeddings ? 'npx gitnexus analyze --embeddings' : 'npx gitnexus analyze';
+
+console.log('\n[gitnexus-sync]');
+console.log(`- embeddings detected: ${embeddingCount}`);
+console.log(`- analyze command: ${command}`);
+
+const legacyPathHits = scanLegacyGitnexusPaths();
+console.log(`- legacy .claude GitNexus path refs: ${legacyPathHits.length}`);
+for (const hit of legacyPathHits) {
+  console.log(`  - ${hit}`);
+}
+
+if (statusOnly) {
+  process.exit(0);
+}
+
+try {
+  execSync(command, { stdio: 'inherit' });
+} catch (error) {
+  console.error(`[gitnexus-sync] Analyze failed: ${error.message}`);
+  process.exit(1);
+}

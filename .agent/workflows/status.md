@@ -1,47 +1,46 @@
 ---
-description: Dự án đang đến đâu rồi? Xem Dashboard báo cáo chuyên nghiệp.
+description: Project status snapshot for current work, blockers, and next recommended action.
 ---
 
-# /status - Executive Project Dashboard
+# /status
 
 $ARGUMENTS
 
----
+## Canonical Owner
 
-## 🟢 PHASE 1: Data Aggregation
-**Agent**: `product-owner` & `explorer-agent`
-**Mission**: Gather the "Pulse" of the project.
-- **Action**: Read `task.md`, `walkthrough.md`, and `ERRORS.md`.
-- **Action**: Check git history for recent velocity.
+- `product-manager`
 
-## 🟡 PHASE 2: Logic & Health Assessment
-**Agent**: `product-owner`
-**Mission**: Analyze the "Vitals."
-- **Checks**:
-  - Are milestones being hit?
-  - Is technical debt (ERRORS.md) increasing?
-  - Is the plan still aligned with the goal?
+Optional support:
 
-## 🔵 PHASE 3: Dashboard Synthesis
-**Agent**: `product-owner`
-**Mission**: Create a visual overview.
-- **Action**: Generate a Markdown-friendly dashboard with progress bars and status badges.
+- `ai-orchestrator` for workflow state
+- `qa-engineer` when verification debt matters
 
-## 🔴 PHASE 4: Professional Reporting
-**Agent**: `orchestrator`
-**Mission**: Deliver the "Executive Summary."
-- **Artifact**: A concise, professional message to the User summarizing current state and next immediate steps.
+## Workflow
 
----
+### 1. Gather Current Signals
 
-## Status Indicators:
-- 🟢 **Healthy**: On track, no blockers.
-- 🟡 **Warning**: Minor delays or increasing errors.
-- 🔴 **Blocked**: Critical dependencies or major bugs.
+Review the active planning and reporting artifacts that actually exist in this repo, especially:
 
----
+- `.planning/`
+- recent workflow outputs
+- `ERRORS.md`
+- git activity
 
-## Examples:
-- `/status`
-- `/status focus on infrastructure`
-- `/status show recent errors`
+### 2. Assess Current State
+
+Summarize:
+
+- what is in progress
+- what is blocked
+- what is done
+- what should happen next
+
+### 3. Keep It Actionable
+
+The result should help the user decide the next command, not just describe history.
+
+## Output
+
+- current focus
+- blockers or risks
+- recommended next command

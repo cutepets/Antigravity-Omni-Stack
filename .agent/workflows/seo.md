@@ -1,51 +1,43 @@
 ---
-description: Muốn lên Top Google và AI Search? Tối ưu SEO/GEO ngay.
+description: Search visibility workflow for content, metadata, semantic structure, and discoverability improvements.
 ---
 
-# /seo - Strategic Visibility & GEO Optimization
+# /seo
 
 $ARGUMENTS
 
----
+## Canonical Routing
 
-## 🟢 PHASE 1: Semantic Discovery
-**Agent**: `seo-specialist` & `explorer-agent`
-**Mission**: Map the "Search Landscape."
-- **Action**: Identify target keywords and "Search Intent."
-- **Action**: Audit current Meta Tags, Headers, and Alt text.
-- **DNA Link**: Check `rules/seo-fundamentals.md`.
+- content and intent shaping -> `product-manager`
+- implementation of metadata and structure -> `frontend-specialist`
+- performance-sensitive pages -> `performance-optimizer`
 
-## 🟡 PHASE 2: Technical & GEO Audit
-**Agent**: `seo-specialist`
-**Mission**: Optimize for AI Search (GEO).
-- **Checks**:
-  - High-density information?
-  - Cited sources and authority?
-  - JSON-LD / Schema richness?
-  - Core Web Vitals impact?
+## Workflow
 
-## 🔵 PHASE 3: Surgical Content Optimization
-**Agent**: `documentation-writer` & `frontend-specialist`
-**Mission**: Implement the findings.
-- **Action**: Update Page Titles, Descriptions, and Semantic HTML.
-- **Action**: Inject structured data (Schema.org).
+### 1. Define Search Intent
 
-## 🔴 PHASE 4: Visibility Gating
-**Agent**: `quality-inspector`
-**Mission**: Certify the "Search-Ready" status.
-- **Verification**: Run Lighthouse SEO audit.
-- **Artifact**: Provide a "Search Visibility Report" in the `walkthrough.md`.
+Clarify:
 
----
+- target page or content set
+- user intent
+- important keywords or queries
 
-## SEO Objectives:
-- **100/100**: Target Lighthouse SEO score.
-- **GEO-Ready**: Content must be high-signal for AI crawlers.
-- **Accessible**: Semantic HTML is good for both bots and humans.
+### 2. Audit Visibility Signals
 
----
+Review:
 
-## Examples:
-- `/seo audit product page`
-- `/seo optimize blog post for AI search`
-- `/seo check schema.org implementation`
+- titles and descriptions
+- semantic HTML
+- structured data
+- internal linking
+- performance impact
+
+### 3. Implement And Recheck
+
+Apply targeted improvements and verify they do not hurt usability.
+
+## Output
+
+- visibility issues found
+- fixes applied or recommended
+- remaining constraints

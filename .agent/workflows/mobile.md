@@ -1,27 +1,51 @@
 ---
-description: native mobile application development and optimization.
+description: Mobile application workflow for React Native or native surfaces. Use when touch behavior, device constraints, or mobile release quality matter.
 ---
 
-## 📱 Quy trình Phát triển Di động
+# /mobile
 
-Tối ưu hóa mã nguồn cho môi trường Mobile (React Native / Expo / Flutter).
+$ARGUMENTS
 
-### 1. Thiết kế Mobile-First
-- Chuyên gia: `mobile-developer`.
-- Áp dụng `mobile-design` skill và `web-design-guidelines`.
-- Kiểm tra Touch Targets, Safe Areas và Accessibility.
+## Canonical Owner
 
-### 2. Tối ưu Hiệu suất
-- Kiểm tra kích thước bundle, lazy loading image.
-- Tối ưu hóa bộ nhớ và pin.
+- `mobile-developer`
 
-### 3. Kiểm thử đa thiết bị (Emulator/Simulator)
-- QA: `qa-automation-engineer`.
-- Chạy test trên các độ phân giải màn hình khác nhau.
+Optional support:
 
-### 4. Chuẩn bị Store
-- Cấu hình Metadata, Screenshots và App Icons.
-- Kiểm tra các yêu cầu của App Store / Play Store.
+- `frontend-specialist` for shared design systems
+- `qa-engineer` for device and regression coverage
 
-// turbo
-`npx expo prebuild`
+## Workflow
+
+### 1. Frame The Mobile Surface
+
+Clarify:
+
+- platform scope
+- device constraints
+- online or offline expectations
+- navigation and state model
+
+### 2. Implement For Real Device Behavior
+
+Account for:
+
+- safe areas
+- touch targets
+- performance on lower-end devices
+- network and sync behavior
+
+### 3. Verify On Device Classes
+
+Run the right mix of:
+
+- simulator or emulator checks
+- device-specific regression checks
+- release-readiness checks
+
+## Output
+
+- implementation scope
+- device constraints
+- validation status
+- store or release blockers if any

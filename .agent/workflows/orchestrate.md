@@ -1,231 +1,94 @@
 ---
-description: Sequential and tmux/worktree orchestration guidance for multi-agent workflows.
+description: Staged specialist orchestration for Heavy work, or for Standard work that truly needs handoffs across domains.
 ---
 
-# Orchestrate Command
+# /orchestrate
 
-Sequential agent workflow for complex tasks.
+Use `/orchestrate` when one specialist is not enough and the task needs explicit handoffs.
 
-## Usage
+This command should follow the current specialist set and the `HANDOFF` contract from `.agent/docs/AGENT_STANDARD.md`.
 
-`/orchestrate [workflow-type] [task-description]`
+## Best Fit
 
-## Workflow Types
+- Heavy cross-module changes
+- ERP flows with business and technical handoffs
+- architecture plus implementation plus verification
+- security-sensitive or high-risk changes
+
+Do not use `/orchestrate` for trivial Quick work.
+
+## Canonical Workflow Types
 
 ### feature
-Full feature implementation workflow:
-```
-planner -> tdd-guide -> code-reviewer -> security-reviewer
-```
+
+Recommended path:
+
+`product-manager or erp-business-analyst -> system-architect if needed -> primary implementation specialist -> qa-engineer -> code-reviewer`
 
 ### bugfix
-Bug investigation and fix workflow:
-```
-planner -> tdd-guide -> code-reviewer
-```
+
+Recommended path:
+
+`debug-specialist -> primary implementation specialist -> qa-engineer -> code-reviewer`
 
 ### refactor
-Safe refactoring workflow:
-```
-architect -> code-reviewer -> tdd-guide
-```
+
+Recommended path:
+
+`system-architect -> backend-specialist or frontend-specialist -> code-reviewer`
 
 ### security
-Security-focused review:
-```
-security-reviewer -> code-reviewer -> architect
-```
 
-## Execution Pattern
+Recommended path:
 
-For each agent in the workflow:
+`security-auditor -> backend-specialist or devops-engineer -> qa-engineer -> code-reviewer`
 
-1. **Invoke agent** with context from previous agent
-2. **Collect output** as structured handoff document
-3. **Pass to next agent** in chain
-4. **Aggregate results** into final report
+## Handoff Contract
 
-## Handoff Document Format
-
-Between agents, create handoff document:
+Every stage should emit:
 
 ```markdown
-## HANDOFF: [previous-agent] -> [next-agent]
+## HANDOFF: [source-agent] -> [target-agent]
 
 ### Context
-[Summary of what was done]
+[What is being worked on and why]
 
 ### Findings
-[Key discoveries or decisions]
+- [Key discovery]
+- [Key decision]
+- [Critical constraint]
 
 ### Files Modified
-[List of files touched]
+- [Path or "None"]
 
 ### Open Questions
-[Unresolved items for next agent]
+- [Remaining ambiguity]
 
 ### Recommendations
-[Suggested next steps]
+- [Concrete next step]
 ```
 
-## Example: Feature Workflow
+## Routing Guidance
 
-```
-/orchestrate feature "Add user authentication"
-```
+- Standard task with one main specialist -> prefer `/plan` or direct execution
+- Heavy task with multiple specialist boundaries -> use `/orchestrate`
+- Phase-based execution required -> hand off to GSD workflows
 
-Executes:
+## Parallel Review
 
-1. **Planner Agent**
-   - Analyzes requirements
-   - Creates implementation plan
-   - Identifies dependencies
-   - Output: `HANDOFF: planner -> tdd-guide`
+Independent review passes may run in parallel when the write scope is already stable:
 
-2. **TDD Guide Agent**
-   - Reads planner handoff
-   - Writes tests first
-   - Implements to pass tests
-   - Output: `HANDOFF: tdd-guide -> code-reviewer`
+- `qa-engineer`
+- `code-reviewer`
+- `security-auditor`
 
-3. **Code Reviewer Agent**
-   - Reviews implementation
-   - Checks for issues
-   - Suggests improvements
-   - Output: `HANDOFF: code-reviewer -> security-reviewer`
+## Output
 
-4. **Security Reviewer Agent**
-   - Security audit
-   - Vulnerability check
-   - Final approval
-   - Output: Final Report
+The final orchestration report should state:
 
-## Final Report Format
-
-```
-ORCHESTRATION REPORT
-====================
-Workflow: feature
-Task: Add user authentication
-Agents: planner -> tdd-guide -> code-reviewer -> security-reviewer
-
-SUMMARY
--------
-[One paragraph summary]
-
-AGENT OUTPUTS
--------------
-Planner: [summary]
-TDD Guide: [summary]
-Code Reviewer: [summary]
-Security Reviewer: [summary]
-
-FILES CHANGED
--------------
-[List all files modified]
-
-TEST RESULTS
-------------
-[Test pass/fail summary]
-
-SECURITY STATUS
----------------
-[Security findings]
-
-RECOMMENDATION
---------------
-[SHIP / NEEDS WORK / BLOCKED]
-```
-
-## Parallel Execution
-
-For independent checks, run agents in parallel:
-
-```markdown
-### Parallel Phase
-Run simultaneously:
-- code-reviewer (quality)
-- security-reviewer (security)
-- architect (design)
-
-### Merge Results
-Combine outputs into single report
-```
-
-For external tmux-pane workers with separate git worktrees, use `node scripts/orchestrate-worktrees.js plan.json --execute`. The built-in orchestration pattern stays in-process; the helper is for long-running or cross-harness sessions.
-
-When workers need to see dirty or untracked local files from the main checkout, add `seedPaths` to the plan file. ECC overlays only those selected paths into each worker worktree after `git worktree add`, which keeps the branch isolated while still exposing in-flight local scripts, plans, or docs.
-
-```json
-{
-  "sessionName": "workflow-e2e",
-  "seedPaths": [
-    "scripts/orchestrate-worktrees.js",
-    "scripts/lib/tmux-worktree-orchestrator.js",
-    ".claude/plan/workflow-e2e-test.json"
-  ],
-  "workers": [
-    { "name": "docs", "task": "Update orchestration docs." }
-  ]
-}
-```
-
-To export a control-plane snapshot for a live tmux/worktree session, run:
-
-```bash
-node scripts/orchestration-status.js .claude/plan/workflow-visual-proof.json
-```
-
-The snapshot includes session activity, tmux pane metadata, worker states, objectives, seeded overlays, and recent handoff summaries in JSON form.
-
-## Operator Command-Center Handoff
-
-When the workflow spans multiple sessions, worktrees, or tmux panes, append a control-plane block to the final handoff:
-
-```markdown
-CONTROL PLANE
--------------
-Sessions:
-- active session ID or alias
-- branch + worktree path for each active worker
-- tmux pane or detached session name when applicable
-
-Diffs:
-- git status summary
-- git diff --stat for touched files
-- merge/conflict risk notes
-
-Approvals:
-- pending user approvals
-- blocked steps awaiting confirmation
-
-Telemetry:
-- last activity timestamp or idle signal
-- estimated token or cost drift
-- policy events raised by hooks or reviewers
-```
-
-This keeps planner, implementer, reviewer, and loop workers legible from the operator surface.
-
-## Arguments
-
-$ARGUMENTS:
-- `feature <description>` - Full feature workflow
-- `bugfix <description>` - Bug fix workflow
-- `refactor <description>` - Refactoring workflow
-- `security <description>` - Security review workflow
-- `custom <agents> <description>` - Custom agent sequence
-
-## Custom Workflow Example
-
-```
-/orchestrate custom "architect,tdd-guide,code-reviewer" "Redesign caching layer"
-```
-
-## Tips
-
-1. **Start with planner** for complex features
-2. **Always include code-reviewer** before merge
-3. **Use security-reviewer** for auth/payment/PII
-4. **Keep handoffs concise** - focus on what next agent needs
-5. **Run verification** between agents if needed
+- task summary
+- specialists involved
+- key decisions
+- files or areas affected
+- verification status
+- ship / needs work / blocked recommendation

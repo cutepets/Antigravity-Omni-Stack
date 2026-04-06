@@ -1,50 +1,57 @@
 ---
-description: Bí ý tưởng? Dùng cái này để AI gợi ý theo chuẩn Senior.
+description: Structured option generation before committing to a solution. Best for discovery and tradeoff work, not direct implementation.
 ---
 
-# /brainstorm - Structured Strategic Exploration
+# /brainstorm
 
 $ARGUMENTS
 
----
+## Canonical Routing
 
-## 🟢 PHASE 1: Domain Discovery
-**Agent**: `explorer-agent`
-**Mission**: Understand the boundaries of the problem.
-- **Action**: Scan relevant files for context.
-- **DNA Link**: Map the request to the correct scale in `GEMINI.md`.
+- Quick question with a few options -> `product-manager` or the relevant specialist
+- Standard discovery needing tradeoffs -> `product-manager` plus one domain specialist
+- Heavy ambiguity across business, architecture, and implementation -> follow with `/plan` or `/orchestrate`
 
-## 🟡 PHASE 2: Multi-Option Generation
-**Agent**: `project-planner` or specific specialist
-**Mission**: Divergent thinking.
-- **Action**: Provide at least 3 distinct approaches:
-  - **Option A**: Conservative/Safe.
-  - **Option B**: Modern/Aggressive.
-  - **Option C**: Creative/Out-of-the-box.
-- **Artifact**: Create a comparison table with Pros, Cons, and Effort.
+## Workflow
 
-## 🔵 PHASE 3: Competitive Analysis & Recommendation
-**Agent**: `product-manager`
-**Mission**: Convergent thinking.
-- **Action**: Analyze tradeoffs against the original goal.
-- **Action**: State a professional recommendation with clear rationale.
+### 1. Frame The Problem
 
-## 🔴 PHASE 4: Strategic Handoff
-**Agent**: `project-planner`
-**Mission**: Prepare for action.
-- **Action**: Ask the user which path to take.
-- **Transition**: Ready to trigger `/plan` based on selection.
+Primary specialist:
 
----
+- `product-manager`
 
-## Brainstorming Rules:
-- **No Code**: Focus on architecture and logic.
-- **Honest Tradeoffs**: Don't hide complexity.
-- **User-Centric**: Tailor solutions to the user's specific context.
+Optional support:
 
----
+- `erp-business-analyst`
+- `system-architect`
+- `frontend-specialist`
+- `backend-specialist`
 
-## Examples:
-- `/brainstorm state management strategy`
-- `/brainstorm database schema for social media`
-- `/brainstorm UI design system for mobile`
+### 2. Generate Distinct Options
+
+Produce at least three realistic approaches:
+
+- conservative
+- balanced
+- aggressive
+
+### 3. Compare Tradeoffs
+
+For each option, compare:
+
+- upside
+- risk
+- effort
+- dependencies
+- who should lead implementation
+
+### 4. Recommend A Path
+
+Close with one recommended option and the clearest next command.
+
+## Output
+
+- problem framing
+- options table
+- recommendation
+- next step: direct execution, `/plan`, or `/create`

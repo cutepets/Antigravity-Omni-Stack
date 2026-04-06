@@ -1,33 +1,30 @@
 ---
 name: nanoclaw-repl
-description: Operate and extend NanoClaw v2, ECC's zero-dependency session-aware REPL built on claude -p.
-origin: ECC
+description: Inspect and extend the local NanoClaw continuity layer used by this repository.
+origin: antigravity-import
 ---
 
 # NanoClaw REPL
 
-Use this skill when running or extending `scripts/claw.js`.
+Use this skill when working with the repo's NanoClaw continuity artifacts such as `claw-code/.port_sessions/`, `.agent/memory/`, and session audit logs.
 
 ## Capabilities
 
-- persistent markdown-backed sessions
-- model switching with `/model`
-- dynamic skill loading with `/load`
-- session branching with `/branch`
-- cross-session search with `/search`
-- history compaction with `/compact`
-- export to md/json/txt with `/export`
-- session metrics with `/metrics`
+- raw session payload inspection
+- continuity handoff support
+- memory snapshot review
+- audit trail review
+- local session artifact hygiene
 
 ## Operating Guidance
 
-1. Keep sessions task-focused.
-2. Branch before high-risk changes.
-3. Compact after major milestones.
-4. Export before sharing or archival.
+1. Keep continuity artifacts task-focused and easy to resume from.
+2. Prefer repo-local artifacts over external user-home storage.
+3. Compact or summarize after major milestones.
+4. Record exact next steps before handoff or archival.
 
 ## Extension Rules
 
-- keep zero external runtime dependencies
-- preserve markdown-as-database compatibility
-- keep command handlers deterministic and local
+- keep repo-local continuity deterministic and easy to inspect
+- preserve compatibility with the local artifact layout
+- avoid references to runtimes or launch scripts that are not present in this repo

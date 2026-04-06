@@ -1,64 +1,78 @@
 ---
-description: Gặp lỗi khó sửa? Để AI soi log và sửa giúp bạn theo quy trình chuyên nghiệp.
+description: Debugging workflow for Quick or Standard bug work. Start with evidence, isolate root cause, then route to the right implementation specialist.
 ---
 
-# /debug - Systematic Debugging System
+# /debug
 
 $ARGUMENTS
 
----
+## Canonical Routing
 
-## 🟢 PHASE 1: Forensic Discovery (The "Crime Scene")
-**Agent**: `explorer-agent` & `debugger`
-**Mission**: Isolate the exact point of failure.
-- **Action**: Read the Stack Trace or Terminal Logs.
-- **Action**: Locate the failing file:line.
-- **DNA Link**: Consult `rules/error-logging.md` to see if this is a known recurring issue.
+- Quick bug with clear root cause -> `debug-specialist` plus direct fix
+- Standard bug requiring investigation -> `debug-specialist -> implementation specialist -> qa-engineer`
+- Heavy incident spanning architecture or operations -> escalate to `/orchestrate` or GSD
 
-## 🟡 PHASE 2: Root Cause Analysis (RCA)
-**Agent**: `debugger`
-**Mission**: Formulate a hypothesis (Why is it broken?).
-- **Hypothesis Checklist**:
-  - Null/Undefined safety?
-  - Race condition / Sync error?
-  - Missing environment variable?
-  - Breaking dependency change?
-- **Artifact**: Propose the fix to the User with [Pros/Cons].
+## Workflow
 
-## 🔵 PHASE 3: Surgical Repair
-**Agent**: `backend-specialist` or `frontend-specialist`
-**Mission**: Apply the targetted fix.
-- **Correction**: Wrap sensitive logic in `try...catch`.
-- **Defensive API**: Use Optional Chaining (`?.`) and Nullish Coalescing (`??`).
+### 1. Evidence Collection
 
-## 🔴 PHASE 4: Verification & Post-Mortem
-**Agent**: `test-engineer` & `quality-inspector`
-**Mission**: Ensure the "Bleeding" has stopped.
-- **Action**: Run the failing test case to confirm FIX.
-- **Reporting**: Log the incident in `ERRORS.md`.
-- **Handoff**: Create a `walkthrough.md` explaining the fix.
+Primary specialist:
 
----
+- `debug-specialist`
 
-## Output Format:
+Read:
+
+- stack traces
+- logs
+- failing test output
+- reproduction steps
+- recent change context
+
+### 2. Root-Cause Framing
+
+The debug pass should identify:
+
+- failing surface
+- likely root cause
+- confidence level
+- smallest safe fix
+
+### 3. Repair
+
+Route to:
+
+- `backend-specialist`
+- `frontend-specialist`
+- `integration-engineer`
+- `devops-engineer`
+
+depending on where the failure actually lives.
+
+### 4. Verification
+
+Use:
+
+- targeted reproduction
+- automated test where practical
+- regression check
+
+`qa-engineer` should join when the bug affects user-visible flows or risky behavior.
+
+## Expected Output
+
 ```markdown
-## 🐞 Debug Report: [Bug Title]
+## Debug Report: [Issue]
 
 ### Root Cause
-[One sentence explanation]
+[Most likely cause and confidence]
 
-### The Fix
-[Diff or explanation]
+### Fix Strategy
+- [Smallest safe change]
 
 ### Verification
-- [ ] Test case passed
-- [ ] No regression found
-- [ ] Error logged in ERRORS.md
+- [How the bug was reproduced]
+- [How the fix was checked]
+
+### Escalations
+- [Any remaining risk or follow-up]
 ```
-
----
-
-## Key Principles:
-- **Evidence-First**: Don't guess, use the logs.
-- **Regression-Aware**: Every fix must come with a test case to prevent it from returning.
-- **Clean Fix**: Don't use "band-aid" fixes unless it's a critical production outage.

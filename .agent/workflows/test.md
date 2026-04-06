@@ -1,47 +1,70 @@
 ---
-description: Sợ bug khi sửa code? Viết test tự động theo chuẩn TDD Master.
+description: Testing and verification workflow. Use for targeted checks, regression coverage, or stronger QA on Standard and Heavy work.
 ---
 
-# /test - TDD & Verification Suite
+# /test
 
 $ARGUMENTS
 
----
+## Canonical Routing
 
-## 🟢 PHASE 1: Code Analysis & Edge Case Mapping
-**Agent**: `test-engineer`
-**Mission**: Map the "Search Space" of potential bugs.
-- **Action**: Identify all public functions, API routes, and logic branches.
-- **Discovery**: Generate a "Gherkin" style list of test scenarios (Given/When/Then).
+- Quick change -> targeted local verification
+- Standard feature or bugfix -> `qa-engineer` defines and runs the right test mix
+- Heavy or risky workflow -> testing becomes a required verification gate before close-out
 
-## 🟡 PHASE 2: Test Architecture & Mocking
-**Agent**: `test-engineer`
-**Mission**: Build the testing base.
-- **Action**: Configure mocks for DB, External APIs, and system clock.
-- **Artifact**: Write a Test Plan in the `implementation_plan.md`.
+## Workflow
 
-## 🔵 PHASE 3: Execution (The RED-GREEN Loop)
-**Agent**: `qa-automation-engineer`
-**Mission**: Automate the verification.
-- **Action**: Write and run unit, integration, and E2E tests.
-- **Audit**: Every test must fail at least once (verify the test is valid).
+### 1. Scope The Risk
 
-## 🔴 PHASE 4: Coverage & Quality Sign-off
-**Agent**: `quality-inspector`
-**Mission**: Verify the safety net.
-- **Action**: Check code coverage metrics.
-- **Artifact**: Report Pass/Fail stats in the final `walkthrough.md`.
+Primary specialist:
 
----
+- `qa-engineer`
 
-## Patterns of Excellence:
-- **One Assertion**: Each test tests one thing.
-- **Fast Feedback**: Unit tests should run in <1s.
-- **Hermeticity**: Tests must not share state or depend on network.
+Identify:
 
----
+- changed behavior
+- critical paths
+- regression surfaces
+- whether unit, integration, E2E, or manual checks are needed
 
-## Examples:
-- `/test auth service`
-- `/test coverage src/utils`
-- `/test fix failed tests`
+### 2. Define The Test Set
+
+The test set should be proportional:
+
+- Quick -> minimal targeted checks
+- Standard -> focused regression and acceptance coverage
+- Heavy -> full behavior coverage for the affected workflow
+
+### 3. Execute And Record
+
+Run the relevant checks and report:
+
+- what was executed
+- what passed
+- what failed
+- what remains unverified
+
+### 4. Escalate If Needed
+
+Bring in:
+
+- `security-auditor` for auth, payments, PII, or trust boundaries
+- `code-reviewer` for maintainability gaps
+- `debug-specialist` when a test exposes a non-obvious failure
+
+## Expected Output
+
+```markdown
+## Verification Report: [Scope]
+
+### Coverage
+- [Unit]
+- [Integration]
+- [E2E or manual]
+
+### Results
+- [Pass or fail summary]
+
+### Gaps
+- [What is still not proven]
+```
