@@ -3,8 +3,8 @@ import { PageContainer } from '@/components/layout/PageLayout'
 import { FinanceWorkspace } from './_components/finance-workspace'
 
 export const metadata: Metadata = {
-  title: 'So quy | Petshop',
-  description: 'Theo doi thu chi va dong tien tai quầy',
+  title: 'Sổ quỹ | Petshop',
+  description: 'Theo dõi thu chi và dòng tiền tại quầy',
 }
 
 export default function FinancePage() {

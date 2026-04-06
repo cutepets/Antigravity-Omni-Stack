@@ -83,12 +83,12 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
       return financeApi.create(payload)
     },
     onSuccess: () => {
-      toast.success(transaction ? 'Da cap nhat phieu thu chi' : 'Da tao phieu thu chi')
+      toast.success(transaction ? 'Đã cập nhật phiếu thu chi' : 'Đã tạo phiếu thu chi')
       queryClient.invalidateQueries({ queryKey: ['finance', 'transactions'] })
       onClose()
     },
     onError: () => {
-      toast.error(transaction ? 'Khong the cap nhat phieu thu chi' : 'Khong the tao phieu thu chi')
+      toast.error(transaction ? 'Không thể cập nhật phiếu thu chi' : 'Không thể tạo phiếu thu chi')
     },
   })
 
@@ -102,9 +102,9 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-foreground">{isEditing ? 'Chinh sua phieu thu chi' : 'Tao phieu thu chi'}</h2>
+            <h2 className="text-xl font-semibold text-foreground">{isEditing ? 'Chỉnh sửa phiếu thu chi' : 'Tạo phiếu thu chi'}</h2>
             <p className="mt-1 text-sm text-foreground-muted">
-              {isEditing ? 'Cap nhat manual voucher trong so quy hien tai.' : 'Manual voucher se vao so quy ngay sau khi luu.'}
+              {isEditing ? 'Cập nhật manual voucher trong sổ quỹ hiện tại.' : 'Manual voucher sẽ vào sổ quỹ ngay sau khi lưu.'}
             </p>
           </div>
           <button
@@ -118,7 +118,7 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
-            <span className="text-sm text-foreground-muted">Loai phieu</span>
+            <span className="text-sm text-foreground-muted">Loại phiếu</span>
             <select
               value={form.type}
               onChange={(event) =>
@@ -126,13 +126,13 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
               }
               className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
             >
-              <option value="INCOME">Phieu thu</option>
-              <option value="EXPENSE">Phieu chi</option>
+              <option value="INCOME">Phiếu thu</option>
+              <option value="EXPENSE">Phiếu chi</option>
             </select>
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm text-foreground-muted">So tien</span>
+            <span className="text-sm text-foreground-muted">Số tiền</span>
             <input
               type="number"
               min={0}
@@ -143,21 +143,21 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm text-foreground-muted">Hinh thuc thanh toan</span>
+            <span className="text-sm text-foreground-muted">Hình thức thanh toán</span>
             <select
               value={form.paymentMethod ?? ''}
               onChange={(event) => setForm((current: CreateFinanceTransactionInput) => ({ ...current, paymentMethod: event.target.value }))}
               className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
             >
-              <option value="CASH">Tien mat</option>
-              <option value="BANK">Chuyen khoan</option>
+              <option value="CASH">Tiền mặt</option>
+              <option value="BANK">Chuyển khoản</option>
               <option value="MOMO">MoMo</option>
-              <option value="CARD">The</option>
+              <option value="CARD">Thẻ</option>
             </select>
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm text-foreground-muted">Chi nhanh</span>
+            <span className="text-sm text-foreground-muted">Chi nhánh</span>
             <select
               value={form.branchId ?? ''}
               onChange={(event) =>
@@ -165,7 +165,7 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
               }
               className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
             >
-              <option value="">Tat ca he thong</option>
+              <option value="">Tất cả hệ thống</option>
               {branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
@@ -176,18 +176,18 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
         </div>
 
         <label className="mt-4 block space-y-2">
-          <span className="text-sm text-foreground-muted">Mo ta</span>
+          <span className="text-sm text-foreground-muted">Mô tả</span>
           <input
             value={form.description}
             onChange={(event) => setForm((current: CreateFinanceTransactionInput) => ({ ...current, description: event.target.value }))}
             className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
-            placeholder="Vi du: Thu bo sung, chi nha cung cap, hoan tien..."
+            placeholder="Ví dụ: Thu bổ sung, chi nhà cung cấp, hoàn tiền..."
           />
         </label>
 
         <div ref={customerPanelRef} className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
-            <span className="text-sm text-foreground-muted">Nguoi nop/nhan</span>
+            <span className="text-sm text-foreground-muted">Người nộp/nhận</span>
             <input
               value={form.payerName ?? ''}
               onChange={(event) => {
@@ -196,7 +196,7 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
                 setCustomerSearch(value)
               }}
               className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
-              placeholder="Nhap ten khach hang hoac doi tac"
+              placeholder="Nhập tên khách hàng hoặc đối tác"
             />
             {deferredCustomerSearch.trim().length >= 2 && customers.length > 0 ? (
               <div className="rounded-2xl border border-border bg-background-secondary p-2">
@@ -223,12 +223,12 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm text-foreground-muted">Ghi chu</span>
+            <span className="text-sm text-foreground-muted">Ghi chú</span>
             <input
               value={form.notes ?? ''}
               onChange={(event) => setForm((current: CreateFinanceTransactionInput) => ({ ...current, notes: event.target.value }))}
               className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none focus:border-primary-500"
-              placeholder="Ghi chu noi bo"
+              placeholder="Ghi chú nội bộ"
             />
           </label>
         </div>
@@ -239,7 +239,7 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
             onClick={onClose}
             className="inline-flex h-11 items-center rounded-xl border border-border px-4 text-sm font-medium text-foreground-muted transition-colors hover:text-foreground"
           >
-            Dong
+            Đóng
           </button>
           <button
             type="button"
@@ -247,7 +247,7 @@ export function CreateTransactionModal({ branches, transaction, onClose }: Creat
             onClick={() => saveTransaction.mutate()}
             className="inline-flex h-11 items-center rounded-xl bg-primary-500 px-5 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saveTransaction.isPending ? 'Dang luu...' : isEditing ? 'Luu cap nhat' : 'Luu giao dich'}
+            {saveTransaction.isPending ? 'Đang lưu...' : isEditing ? 'Lưu cập nhật' : 'Lưu giao dịch'}
           </button>
         </div>
       </div>
