@@ -166,7 +166,7 @@ export class InventoryService {
       total = filteredProducts.length
       data = filteredProducts.slice(skip, skip + Number(limit))
     } else {
-      ;[data, total] = await Promise.all([
+      [data, total] = await Promise.all([
         this.db.product.findMany({
           where,
           skip,

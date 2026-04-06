@@ -106,7 +106,9 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
             setAttributes(parsedAttr)
           }
         }
-      } catch (e) {}
+      } catch {
+        // Ignore malformed legacy attributes and keep the default editor state.
+      }
     } else if (isOpen) {
       setFormData({
         name: '', sku: '', productCode: '', barcode: '',

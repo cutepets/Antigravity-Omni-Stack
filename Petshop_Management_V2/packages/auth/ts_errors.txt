@@ -1,0 +1,42 @@
+src/jwt/sign.ts(2,33): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/index.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  The file is in the program because:
+    Imported via '@petshop/shared' from file 'C:/Dev2/Petshop_Management_V2/packages/auth/src/jwt/sign.ts'
+    Imported via '@petshop/shared' from file 'C:/Dev2/Petshop_Management_V2/packages/auth/src/jwt/verify.ts'
+    Imported via '@petshop/shared' from file 'C:/Dev2/Petshop_Management_V2/packages/auth/src/rbac/permissions.ts'
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(2,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/core.types.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  The file is in the program because:
+    Imported via './types/core.types.js' from file 'C:/Dev2/Petshop_Management_V2/packages/shared/src/index.ts'
+    Imported via './core.types.js' from file 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/customer.types.ts'
+    Imported via './core.types.js' from file 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/pet.types.ts'
+    Imported via './core.types.js' from file 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/order.types.ts'
+    Imported via './core.types.js' from file 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/product.types.ts'
+    Imported via './core.types.js' from file 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/domain.types.ts'
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(3,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/customer.types.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(4,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/pet.types.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(5,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/order.types.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  The file is in the program because:
+    Imported via './types/order.types.js' from file 'C:/Dev2/Petshop_Management_V2/packages/shared/src/index.ts'
+    Imported via './order.types.js' from file 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/pos.types.ts'
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(6,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/product.types.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(7,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/domain.types.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(12,8): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/types/pos.types.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(15,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/utils/search.utils.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(16,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/utils/id.utils.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(17,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/utils/currency.utils.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(18,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/utils/date.utils.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(21,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/constants/index.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"
+../shared/src/index.ts(24,15): error TS6059: File 'C:/Dev2/Petshop_Management_V2/packages/shared/src/errors/index.ts' is not under 'rootDir' 'C:/Dev2/Petshop_Management_V2/packages/auth/src'. 'rootDir' is expected to contain all source files.
+  File is CommonJS module because 'C:/Dev2/Petshop_Management_V2/packages/shared/package.json' does not have field "type"

@@ -14,7 +14,7 @@ import { UserSettingsDrawer } from './user-settings-drawer'
 function resolveHeaderTitle(pathname: string) {
   if (pathname.startsWith('/finance')) return 'So quy'
   if (pathname.startsWith('/products')) return 'San pham & Kho'
-  if (pathname.startsWith('/orders')) return 'Quan ly Don hang'
+  if (pathname.startsWith('/orders')) return 'Quản lý Đơn hàng'
   if (pathname.startsWith('/customers')) return 'Khach hang'
   if (pathname.startsWith('/inventory/stock')) return 'Kho hang'
   if (pathname.startsWith('/inventory/suppliers')) return 'Nha cung cap'

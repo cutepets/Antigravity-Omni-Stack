@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -89,7 +89,7 @@ function PaginationControls({
           disabled={page === 1}
           className="inline-flex h-8 items-center rounded-xl border border-border px-3 text-xs font-semibold text-foreground transition-colors disabled:opacity-40 hover:border-primary-500 hover:text-primary-500"
         >
-          Trước
+          TrÆ°á»›c
         </button>
         <button
           type="button"
@@ -144,12 +144,12 @@ function TagDictionaryCard({
       return res.data
     },
     onSuccess: () => {
-      toast.success(`Đã thêm ${title.toLowerCase()}`)
+      toast.success(`ÄÃ£ thÃªm ${title.toLowerCase()}`)
       queryClient.invalidateQueries({ queryKey })
       setSearch('')
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || `Không thể thêm ${title.toLowerCase()}`)
+      toast.error(error?.response?.data?.message || `KhÃ´ng thá»ƒ thÃªm ${title.toLowerCase()}`)
     },
   })
 
@@ -159,11 +159,11 @@ function TagDictionaryCard({
       return res.data
     },
     onSuccess: () => {
-      toast.success(`Đã xóa ${title.toLowerCase()}`)
+      toast.success(`ÄÃ£ xÃ³a ${title.toLowerCase()}`)
       queryClient.invalidateQueries({ queryKey })
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || `Không thể xóa ${title.toLowerCase()}`)
+      toast.error(error?.response?.data?.message || `KhÃ´ng thá»ƒ xÃ³a ${title.toLowerCase()}`)
     },
   })
 
@@ -183,7 +183,7 @@ function TagDictionaryCard({
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={`Tìm ${title.toLowerCase()}...`}
+            placeholder={`TÃ¬m ${title.toLowerCase()}...`}
             className="h-12 w-full rounded-2xl border border-border bg-background pl-11 pr-4 text-sm outline-none transition-colors focus:border-primary-500"
           />
         </div>
@@ -197,7 +197,7 @@ function TagDictionaryCard({
             className="inline-flex items-center gap-2 rounded-2xl border border-primary-500/30 bg-primary-500/10 px-4 py-2 text-sm font-semibold text-primary-400 transition-colors hover:bg-primary-500/15 disabled:opacity-60"
           >
             {createMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-            {addLabel} "{search.trim()}"
+            {addLabel} &quot;{search.trim()}&quot;
           </button>
         )}
 
@@ -207,7 +207,7 @@ function TagDictionaryCard({
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/60 px-4 py-5 text-sm text-foreground-muted">
-            {search.trim() ? 'Không tìm thấy mục phù hợp.' : `Chưa có ${title.toLowerCase()} nào.`}
+            {search.trim() ? 'KhÃ´ng tÃ¬m tháº¥y má»¥c phÃ¹ há»£p.' : `ChÆ°a cÃ³ ${title.toLowerCase()} nÃ o.`}
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -220,7 +220,7 @@ function TagDictionaryCard({
                 <button
                   type="button"
                   onClick={() => {
-                    if (confirm(`Xóa "${item.name}"?`)) deleteMutation.mutate(item.id)
+                    if (confirm(`XÃ³a "${item.name}"?`)) deleteMutation.mutate(item.id)
                   }}
                   className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-foreground-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
                 >
@@ -258,7 +258,7 @@ function CategoryCard() {
       return res.data
     },
     onSuccess: () => {
-      toast.success('Đã thêm danh mục')
+      toast.success('ÄÃ£ thÃªm danh má»¥c')
       queryClient.invalidateQueries({ queryKey })
       setDraftName('')
     },
@@ -270,7 +270,7 @@ function CategoryCard() {
       return res.data
     },
     onSuccess: () => {
-      toast.success('Đã cập nhật danh mục')
+      toast.success('ÄÃ£ cáº­p nháº­t danh má»¥c')
       queryClient.invalidateQueries({ queryKey })
       setEditingItemId(null)
       setEditingName('')
@@ -283,7 +283,7 @@ function CategoryCard() {
       return res.data
     },
     onSuccess: () => {
-      toast.success('Đã xóa danh mục')
+      toast.success('ÄÃ£ xÃ³a danh má»¥c')
       queryClient.invalidateQueries({ queryKey })
     },
   })
@@ -294,7 +294,7 @@ function CategoryCard() {
 
   return (
     <div data-hotkey-scope className="overflow-hidden rounded-3xl border border-border/70 bg-background-secondary shadow-sm">
-      <CardHeader title="Danh mục" subtitle="Thức ăn, vệ sinh, thuốc..." count={items.length} icon={Tags} />
+      <CardHeader title="Danh má»¥c" subtitle="Thá»©c Äƒn, vá»‡ sinh, thuá»‘c..." count={items.length} icon={Tags} />
 
       <div className="space-y-3 p-5">
         <div className="rounded-2xl border border-primary-500/30 bg-primary-500/5 p-2">
@@ -302,14 +302,14 @@ function CategoryCard() {
             <input
               value={draftName}
               onChange={(event) => setDraftName(event.target.value)}
-              placeholder="Thêm mới..."
+              placeholder="ThÃªm má»›i..."
               className="h-11 flex-1 rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
             />
             <button
               type="button"
               onClick={() => {
                 const value = draftName.trim()
-                if (!value) return toast.error('Vui lòng nhập tên danh mục')
+                if (!value) return toast.error('Vui lÃ²ng nháº­p tÃªn danh má»¥c')
                 createMutation.mutate(value)
               }}
               data-hotkey-enter
@@ -326,14 +326,14 @@ function CategoryCard() {
           </div>
         ) : items.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/60 px-4 py-5 text-sm text-foreground-muted">
-            Chưa có danh mục nào.
+            ChÆ°a cÃ³ danh má»¥c nÃ o.
           </div>
         ) : (
           <div className="space-y-3">
             <div className="overflow-hidden rounded-2xl border border-border/50">
               <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3 border-b border-border/50 bg-background-secondary px-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-foreground-muted">
-                <span>Tên danh mục</span>
-                <span className="text-right">Thao tác</span>
+                <span>TÃªn danh má»¥c</span>
+                <span className="text-right">Thao tÃ¡c</span>
               </div>
 
               {pagedItems.map((item) => (
@@ -382,7 +382,7 @@ function CategoryCard() {
                         <button
                           type="button"
                           onClick={() => {
-                            if (confirm(`Xóa "${item.name}"?`)) deleteMutation.mutate(item.id)
+                            if (confirm(`XÃ³a "${item.name}"?`)) deleteMutation.mutate(item.id)
                           }}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
                         >
@@ -441,12 +441,12 @@ function PriceBookCard() {
       return res.data
     },
     onSuccess: () => {
-      toast.success('Đã thêm bảng giá')
+      toast.success('ÄÃ£ thÃªm báº£ng giÃ¡')
       queryClient.invalidateQueries({ queryKey })
       setDraftName('')
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Không thể thêm bảng giá')
+      toast.error(error?.response?.data?.message || 'KhÃ´ng thá»ƒ thÃªm báº£ng giÃ¡')
     },
   })
 
@@ -469,11 +469,11 @@ function PriceBookCard() {
       }
     },
     onSuccess: () => {
-      toast.success('Đã xóa bảng giá')
+      toast.success('ÄÃ£ xÃ³a báº£ng giÃ¡')
       queryClient.invalidateQueries({ queryKey })
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Không thể xóa bảng giá')
+      toast.error(error?.response?.data?.message || 'KhÃ´ng thá»ƒ xÃ³a báº£ng giÃ¡')
     },
   })
 
@@ -492,11 +492,11 @@ function PriceBookCard() {
       )
     },
     onSuccess: () => {
-      toast.success('Đã cập nhật thứ tự bảng giá')
+      toast.success('ÄÃ£ cáº­p nháº­t thá»© tá»± báº£ng giÃ¡')
       queryClient.invalidateQueries({ queryKey })
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Không thể cập nhật thứ tự bảng giá')
+      toast.error(error?.response?.data?.message || 'KhÃ´ng thá»ƒ cáº­p nháº­t thá»© tá»± báº£ng giÃ¡')
     },
   })
 
@@ -515,7 +515,7 @@ function PriceBookCard() {
 
   return (
     <div data-hotkey-scope className="overflow-hidden rounded-3xl border border-border/70 bg-background-secondary shadow-sm">
-      <CardHeader title="Bảng giá bán" subtitle="Giá lẻ, giá sỉ, giá đại lý..." count={orderedItems.length} icon={BadgeDollarSign} />
+      <CardHeader title="Báº£ng giÃ¡ bÃ¡n" subtitle="GiÃ¡ láº», giÃ¡ sá»‰, giÃ¡ Ä‘áº¡i lÃ½..." count={orderedItems.length} icon={BadgeDollarSign} />
 
       <div className="space-y-3 p-5">
         <div className="rounded-2xl border border-primary-500/30 bg-primary-500/5 p-2">
@@ -523,14 +523,14 @@ function PriceBookCard() {
             <input
               value={draftName}
               onChange={(event) => setDraftName(event.target.value)}
-              placeholder="Thêm bảng giá..."
+              placeholder="ThÃªm báº£ng giÃ¡..."
               className="h-11 flex-1 rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
             />
             <button
               type="button"
               onClick={() => {
                 const value = draftName.trim()
-                if (!value) return toast.error('Vui lòng nhập tên bảng giá')
+                if (!value) return toast.error('Vui lÃ²ng nháº­p tÃªn báº£ng giÃ¡')
                 createMutation.mutate(value)
               }}
               data-hotkey-enter
@@ -547,16 +547,16 @@ function PriceBookCard() {
           </div>
         ) : orderedItems.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/60 px-4 py-5 text-sm text-foreground-muted">
-            Chưa có bảng giá nào.
+            ChÆ°a cÃ³ báº£ng giÃ¡ nÃ o.
           </div>
         ) : (
           <div className="space-y-3">
             <div className="overflow-hidden rounded-2xl border border-border/50">
               <div className="grid grid-cols-[72px_minmax(0,1fr)_88px_88px] gap-3 border-b border-border/50 bg-background-secondary px-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-foreground-muted">
-                <span>Thứ tự</span>
-                <span>Tên bảng giá</span>
-                <span className="text-center">Mặc định</span>
-                <span className="text-right">Thao tác</span>
+                <span>Thá»© tá»±</span>
+                <span>TÃªn báº£ng giÃ¡</span>
+                <span className="text-center">Máº·c Ä‘á»‹nh</span>
+                <span className="text-right">Thao tÃ¡c</span>
               </div>
 
               {pagedItems.map((item) => {
@@ -585,13 +585,13 @@ function PriceBookCard() {
 
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-foreground">{item.name}</div>
-                      <div className="truncate text-xs text-foreground-muted">Kênh {item.channel ?? 'GENERAL'} · Thứ tự {absoluteIndex + 1}</div>
+                      <div className="truncate text-xs text-foreground-muted">KÃªnh {item.channel ?? 'GENERAL'} Â· Thá»© tá»± {absoluteIndex + 1}</div>
                     </div>
 
                     <div className="flex justify-center">
                       {absoluteIndex === 0 ? (
                         <span className="inline-flex rounded-full bg-primary-500/10 px-2.5 py-1 text-xs font-bold text-primary-400">
-                          Mặc định
+                          Máº·c Ä‘á»‹nh
                         </span>
                       ) : (
                         <span className="text-xs text-foreground-muted">-</span>
@@ -602,7 +602,7 @@ function PriceBookCard() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (confirm(`Xóa "${item.name}"?`)) {
+                          if (confirm(`XÃ³a "${item.name}"?`)) {
                             deleteMutation.mutate({
                               id: item.id,
                               remainingItems: orderedItems.filter((candidate) => candidate.id !== item.id),
@@ -635,10 +635,10 @@ export default function InventorySettingsPage() {
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <Link href="/settings" className="inline-flex items-center font-medium text-foreground-muted transition-colors hover:text-primary-500">
               <ArrowLeft size={16} className="mr-2" />
-              Quay lại cài đặt
+              Quay láº¡i cÃ i Ä‘áº·t
             </Link>
             <span className="text-foreground-muted">/</span>
-            <span className="font-medium text-foreground">Cấu hình kho</span>
+            <span className="font-medium text-foreground">Cáº¥u hÃ¬nh kho</span>
           </div>
 
           <div className="flex items-start gap-4">
@@ -646,9 +646,9 @@ export default function InventorySettingsPage() {
               <Settings size={24} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground-base">Cấu hình kho hàng</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground-base">Cáº¥u hÃ¬nh kho hÃ ng</h1>
               <p className="mt-1 text-sm text-foreground-muted">
-                Quản lý nhanh các danh mục dùng cho sản phẩm, quy đổi và bảng giá bán trong hệ thống.
+                Quáº£n lÃ½ nhanh cÃ¡c danh má»¥c dÃ¹ng cho sáº£n pháº©m, quy Ä‘á»•i vÃ  báº£ng giÃ¡ bÃ¡n trong há»‡ thá»‘ng.
               </p>
             </div>
           </div>
@@ -659,7 +659,7 @@ export default function InventorySettingsPage() {
           className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border bg-background-secondary px-4 text-sm font-semibold text-foreground transition-colors hover:border-primary-500 hover:text-primary-500"
         >
           <Users size={16} />
-          Cấu hình khách hàng
+          Cáº¥u hÃ¬nh khÃ¡ch hÃ ng
           <ChevronRight size={16} />
         </Link>
       </div>
@@ -668,17 +668,17 @@ export default function InventorySettingsPage() {
         <TagDictionaryCard
           endpoint="/inventory/units"
           queryKey={['settings', 'inventory', 'units']}
-          title="Đơn vị bán"
-          subtitle="cái, kg, hộp, túi..."
-          addLabel="Thêm đơn vị"
+          title="ÄÆ¡n vá»‹ bÃ¡n"
+          subtitle="cÃ¡i, kg, há»™p, tÃºi..."
+          addLabel="ThÃªm Ä‘Æ¡n vá»‹"
           icon={Scale}
         />
         <TagDictionaryCard
           endpoint="/inventory/brands"
           queryKey={['settings', 'inventory', 'brands']}
-          title="Nhãn hiệu"
+          title="NhÃ£n hiá»‡u"
           subtitle="Royal Canin, Pedigree, Whiskas..."
-          addLabel="Thêm mới"
+          addLabel="ThÃªm má»›i"
           icon={Package}
         />
         <CategoryCard />

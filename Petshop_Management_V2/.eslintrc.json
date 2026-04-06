@@ -4,10 +4,31 @@
     "node": true,
     "es2022": true
   },
-  "extends": ["eslint:recommended"],
   "parserOptions": {
     "ecmaVersion": 2022,
     "sourceType": "module"
   },
-  "ignorePatterns": ["dist", "node_modules", ".next", ".turbo"]
+  "extends": ["eslint:recommended"],
+  "ignorePatterns": ["dist", "node_modules", ".next", ".turbo", "**/*.d.ts"],
+  "overrides": [
+    {
+      "files": ["**/*.ts", "**/*.tsx"],
+      "parser": "@typescript-eslint/parser",
+      "plugins": ["@typescript-eslint"],
+      "rules": {
+        "no-irregular-whitespace": [
+          "error",
+          {
+            "skipComments": true,
+            "skipJSXText": true,
+            "skipRegExps": true,
+            "skipStrings": true,
+            "skipTemplates": true
+          }
+        ],
+        "no-undef": "off",
+        "no-unused-vars": "off"
+      }
+    }
+  ]
 }

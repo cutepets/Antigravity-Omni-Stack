@@ -55,21 +55,27 @@ export async function loadBreedsFromDB(): Promise<BreedEntry[]> {
   try {
     const configs = await settingsApi.getConfigs()
     if (configs[KEY_BREEDS]) return JSON.parse(configs[KEY_BREEDS])
-  } catch {}
+  } catch {
+    // Fall back to defaults when the stored value is missing or malformed.
+  }
   return DEFAULT_BREEDS
 }
 export async function loadTempsFromDB(): Promise<string[]> {
   try {
     const configs = await settingsApi.getConfigs()
     if (configs[KEY_TEMPERS]) return JSON.parse(configs[KEY_TEMPERS])
-  } catch {}
+  } catch {
+    // Fall back to defaults when the stored value is missing or malformed.
+  }
   return DEFAULT_TEMPERS
 }
 export async function loadVaccinesFromDB(): Promise<VaccineOption[]> {
   try {
     const configs = await settingsApi.getConfigs()
     if (configs[KEY_VACCINES]) return JSON.parse(configs[KEY_VACCINES])
-  } catch {}
+  } catch {
+    // Fall back to defaults when the stored value is missing or malformed.
+  }
   return DEFAULT_VACCINES
 }
 

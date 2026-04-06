@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -62,15 +62,15 @@ export function CreateReceiptForm() {
           addProductToReceipt(products[0])
           setSearch('') // Clear search after adding
         } else if (products.length > 1) {
-          toast.info('Tìm thấy nhiều sản phẩm, vui lòng chọn từ danh sách dropdown (Chưa vẽ popup, tạm lấy SP đầu tiên)')
+          toast.info('TÃ¬m tháº¥y nhiá»u sáº£n pháº©m, vui lÃ²ng chá»n tá»« danh sÃ¡ch dropdown (ChÆ°a váº½ popup, táº¡m láº¥y SP Ä‘áº§u tiÃªn)')
           // In a real app, you'd show a dropdown. We'll just take the first for simplicity if exact match fails
           addProductToReceipt(products[0])
           setSearch('')
         } else {
-          toast.error('Không tìm thấy sản phẩm với mã này!')
+          toast.error('KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m vá»›i mÃ£ nÃ y!')
         }
       } catch (error) {
-        toast.error('Lỗi tìm kiếm sản phẩm')
+        toast.error('Lá»—i tÃ¬m kiáº¿m sáº£n pháº©m')
       } finally {
         setIsSearching(false)
         // Keep focus on input for next scan
@@ -115,18 +115,18 @@ export function CreateReceiptForm() {
   const createMutation = useMutation({
     mutationFn: (data: any) => stockApi.createReceipt(data),
     onSuccess: (res) => {
-      toast.success('Đã tạo phiếu nhập lưu nháp thành công!')
+      toast.success('ÄÃ£ táº¡o phiáº¿u nháº­p lÆ°u nhÃ¡p thÃ nh cÃ´ng!')
       queryClient.invalidateQueries({ queryKey: ['receipts'] })
       router.push(`/inventory/receipts/${res.data?.data?.id || res.data?.id}`)
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi tạo phiếu')
+      toast.error(err.response?.data?.message || 'CÃ³ lá»—i xáº£y ra khi táº¡o phiáº¿u')
     }
   })
 
   const handleSave = () => {
     if (items.length === 0) {
-      toast.error('Vui lòng thêm ít nhất 1 sản phẩm vào phiếu nhập')
+      toast.error('Vui lÃ²ng thÃªm Ã­t nháº¥t 1 sáº£n pháº©m vÃ o phiáº¿u nháº­p')
       return
     }
     createMutation.mutate({
@@ -153,7 +153,7 @@ export function CreateReceiptForm() {
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Quét mã vạch (Barcode) hoặc gõ mã sản phẩm rồi ấn Enter..."
+              placeholder="QuÃ©t mÃ£ váº¡ch (Barcode) hoáº·c gÃµ mÃ£ sáº£n pháº©m rá»“i áº¥n Enter..."
               className="form-input pl-10 pr-4 py-3 w-full text-lg shadow-sm"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -167,7 +167,7 @@ export function CreateReceiptForm() {
             )}
           </div>
           <p className="text-xs text-foreground-muted flex items-center gap-1">
-            <AlertTriangle size={12} /> Hỗ trợ nhập liệu bằng súng bắn mã vạch. Bắn xong hệ thống tự Enter.
+            <AlertTriangle size={12} /> Há»— trá»£ nháº­p liá»‡u báº±ng sÃºng báº¯n mÃ£ váº¡ch. Báº¯n xong há»‡ thá»‘ng tá»± Enter.
           </p>
         </div>
 
@@ -177,10 +177,10 @@ export function CreateReceiptForm() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Sản phẩm</th>
+                  <th>Sáº£n pháº©m</th>
                   <th className="w-24 text-center">SL</th>
-                  <th className="w-32 text-right">Đơn giá nhập</th>
-                  <th className="w-32 text-right">Thành tiền</th>
+                  <th className="w-32 text-right">ÄÆ¡n giÃ¡ nháº­p</th>
+                  <th className="w-32 text-right">ThÃ nh tiá»n</th>
                   <th className="w-12"></th>
                 </tr>
               </thead>
@@ -188,7 +188,7 @@ export function CreateReceiptForm() {
                 {items.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-16 text-center text-foreground-muted">
-                      Chưa có sản phẩm nào. Lướt quét mã vạch ở ô trên để thêm.
+                      ChÆ°a cÃ³ sáº£n pháº©m nÃ o. LÆ°á»›t quÃ©t mÃ£ váº¡ch á»Ÿ Ã´ trÃªn Ä‘á»ƒ thÃªm.
                     </td>
                   </tr>
                 ) : (
@@ -229,16 +229,16 @@ export function CreateReceiptForm() {
                             {item.sellingPrice > 0 && (
                               <div className={`text-[11px] font-medium flex items-center justify-end w-full ${isLoss ? 'text-error' : 'text-success'}`}>
                                 {isLoss ? (
-                                  <><AlertTriangle size={10} className="mr-0.5" /> Lỗ hoặc huề vốn ({profitMargin.toFixed(1)}%)</>
+                                  <><AlertTriangle size={10} className="mr-0.5" /> Lá»— hoáº·c huá» vá»‘n ({profitMargin.toFixed(1)}%)</>
                                 ) : (
-                                  <>Lãi: {profitMargin.toFixed(1)}%</>
+                                  <>LÃ£i: {profitMargin.toFixed(1)}%</>
                                 )}
                               </div>
                             )}
                           </div>
                         </td>
                         <td className="text-right font-bold text-primary-600">
-                          {totalLine.toLocaleString('vi-VN')}₫
+                          {totalLine.toLocaleString('vi-VN')}â‚«
                         </td>
                         <td className="text-center">
                           <button 
@@ -261,16 +261,16 @@ export function CreateReceiptForm() {
       <div className="flex flex-col gap-4">
         {/* Receipt Settings */}
         <div className="card p-4 flex flex-col gap-4">
-          <h3 className="font-bold border-b border-border pb-2">Thông tin phiếu nhập</h3>
+          <h3 className="font-bold border-b border-border pb-2">ThÃ´ng tin phiáº¿u nháº­p</h3>
           
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Nhà cung cấp</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">NhÃ  cung cáº¥p</label>
             <select 
               className="form-input w-full"
               value={supplierId}
               onChange={(e) => setSupplierId(e.target.value)}
             >
-              <option value="">-- Chọn khách lẻ / Không rõ --</option>
+              <option value="">-- Chá»n khÃ¡ch láº» / KhÃ´ng rÃµ --</option>
               {suppliers.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.name} {s.phone ? `(${s.phone})` : ''}</option>
               ))}
@@ -278,11 +278,11 @@ export function CreateReceiptForm() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Ghi chú phiếu nhập</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Ghi chÃº phiáº¿u nháº­p</label>
             <textarea 
               className="form-input w-full resize-none"
               rows={3}
-              placeholder="Vd: Nhập hàng đợt 1 tháng 4..."
+              placeholder="Vd: Nháº­p hÃ ng Ä‘á»£t 1 thÃ¡ng 4..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -292,12 +292,12 @@ export function CreateReceiptForm() {
         {/* Summary & Save */}
         <div className="card p-4 bg-primary-500/5 border-primary-500/20">
           <div className="flex justify-between items-center mb-2 text-foreground-muted text-sm">
-            <span>Tổng số lượng:</span>
-            <span>{items.reduce((s, i) => s + i.quantity, 0)} sản phẩm</span>
+            <span>Tá»•ng sá»‘ lÆ°á»£ng:</span>
+            <span>{items.reduce((s, i) => s + i.quantity, 0)} sáº£n pháº©m</span>
           </div>
           <div className="flex justify-between items-end mt-2 pt-2 border-t border-primary-500/10">
-            <span className="font-bold text-foreground">Tổng tiền:</span>
-            <span className="text-2xl font-black text-primary-600">{totalAmount.toLocaleString('vi-VN')}₫</span>
+            <span className="font-bold text-foreground">Tá»•ng tiá»n:</span>
+            <span className="text-2xl font-black text-primary-600">{totalAmount.toLocaleString('vi-VN')}â‚«</span>
           </div>
 
           <button 
@@ -305,14 +305,14 @@ export function CreateReceiptForm() {
             disabled={createMutation.isPending || items.length === 0}
             onClick={handleSave}
           >
-            {createMutation.isPending ? 'Đang xử lý...' : (
+            {createMutation.isPending ? 'Äang xá»­ lÃ½...' : (
               <>
-                <Save size={18} /> Lưu Phiếu Nháp
+                <Save size={18} /> LÆ°u Phiáº¿u NhÃ¡p
               </>
             )}
           </button>
           <p className="text-center text-xs text-foreground-muted mt-2">
-            Phiếu sẽ được lưu ở trạng thái "Bản nháp", kho chưa được cộng ngay.
+            Phiáº¿u sáº½ Ä‘Æ°á»£c lÆ°u á»Ÿ tráº¡ng thÃ¡i &quot;Báº£n nhÃ¡p&quot;, kho chÆ°a Ä‘Æ°á»£c cá»™ng ngay.
           </p>
         </div>
       </div>
