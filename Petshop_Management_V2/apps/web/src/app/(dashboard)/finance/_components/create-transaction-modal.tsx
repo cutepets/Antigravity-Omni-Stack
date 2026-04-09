@@ -396,7 +396,7 @@ export function CreateTransactionModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm">
       <div
         className={`relative flex max-h-[90vh] w-full max-w-[760px] flex-col overflow-hidden rounded-3xl border bg-background-base shadow-2xl ${theme.shell}`}
         onClick={(event) => event.stopPropagation()}
