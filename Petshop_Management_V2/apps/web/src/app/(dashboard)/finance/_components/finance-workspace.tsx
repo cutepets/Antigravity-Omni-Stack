@@ -559,7 +559,7 @@ export function FinanceWorkspace() {
             }}
             totalItemText={
               <>
-                Hien thi <strong className="px-1 text-foreground">{total}</strong> giao dich.
+                Hiển thị <strong className="px-1 text-foreground">{total}</strong> giao dịch.
               </>
             }
           />
