@@ -11,12 +11,7 @@ export const metadata: Metadata = {
 export default function ReceiptsPage() {
   return (
     <>
-      <div className="mb-4">
-        <p className="text-foreground-muted text-sm flex items-center gap-2">
-          <FileDown size={15} className="text-primary-500" /> 
-          Lịch sử các phiếu nhập kho, mua hàng từ nhà cung cấp.
-        </p>
-      </div>
+
       <ReceiptList />
     </>
   )

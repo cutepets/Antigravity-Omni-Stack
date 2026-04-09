@@ -3,6 +3,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuthorization } from '@/hooks/useAuthorization'
 import { hotelApi, Cage } from '@/lib/api/hotel.api'
 
 interface ManageCagesDialogProps {
@@ -12,10 +13,12 @@ interface ManageCagesDialogProps {
 
 export default function ManageCagesDialog({ isOpen, onClose }: ManageCagesDialogProps) {
   const queryClient = useQueryClient()
+  const { hasAnyPermission } = useAuthorization()
   
   const [name, setName] = useState('')
   const [lineType, setLineType] = useState<Cage['type']>('REGULAR')
   const [description, setDescription] = useState('')
+  const canManageCages = hasAnyPermission(['hotel.create', 'hotel.update', 'hotel.cancel'])
 
   const createCageMutation = useMutation({
     mutationFn: hotelApi.createCage,
@@ -29,12 +32,15 @@ export default function ManageCagesDialog({ isOpen, onClose }: ManageCagesDialog
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canManageCages) return
     createCageMutation.mutate({
       name,
       type: lineType,
       description,
     })
   }
+
+  if (!isOpen || !canManageCages) return null
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -54,6 +60,7 @@ export default function ManageCagesDialog({ isOpen, onClose }: ManageCagesDialog
               <input
                 required
                 value={name}
+                disabled={!canManageCages}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ví dụ: P-01, V-02..."
                 className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -64,6 +71,7 @@ export default function ManageCagesDialog({ isOpen, onClose }: ManageCagesDialog
               <label className="text-sm font-medium leading-none">Phân loại</label>
               <select
                 value={lineType}
+                disabled={!canManageCages}
                 onChange={(e) => setLineType(e.target.value as Cage['type'])}
                 className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
@@ -76,6 +84,7 @@ export default function ManageCagesDialog({ isOpen, onClose }: ManageCagesDialog
               <label className="text-sm font-medium leading-none">Mô tả (Tùy chọn)</label>
               <textarea
                 value={description}
+                disabled={!canManageCages}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Kích thước, vị trí..."
                 rows={3}
@@ -93,7 +102,7 @@ export default function ManageCagesDialog({ isOpen, onClose }: ManageCagesDialog
               </button>
               <button
                 type="submit"
-                disabled={createCageMutation.isPending}
+                disabled={!canManageCages || createCageMutation.isPending}
                 className="px-4 py-2 bg-indigo-600 rounded-md text-sm font-medium text-white hover:bg-indigo-700 transition flex items-center justify-center min-w-[120px]"
               >
                 {createCageMutation.isPending ? 'Đang tạo...' : 'Lưu thông tin'}

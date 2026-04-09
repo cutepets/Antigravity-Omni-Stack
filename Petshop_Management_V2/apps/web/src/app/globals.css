@@ -59,7 +59,13 @@
     --fg2: 220 15% 32%;
     --fg3: 220 10% 48%;
     --bd: 220 15% 82%;
-    --radius: 0.75rem; 
+    --radius: 0.75rem;
+
+    /* ── Animation duration variables (controlled by AnimationProvider) ── */
+    --dur-page:  300ms;   /* page / tab fade-in, slide-in */
+    --dur-modal: 200ms;   /* modal / drawer zoom-in */
+    --dur-hover: 150ms;   /* button, row hover transitions */
+    --dur-theme: 500ms;   /* body background-color (dark/light) */
   }
 
   /* Dark mode - Pro Max Solid Dark Slate */
@@ -77,13 +83,30 @@
     border-color: var(--color-border);
   }
 
-  
   body {
     background-color: var(--color-background-base);
     color: var(--color-foreground-base);
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
-    transition: background-color 0.5s ease;
+    transition: background-color var(--dur-theme) ease;
+  }
+
+  /* ── Apply duration vars to CSS keyframe animations ── */
+  .animate-fade-in     { animation-duration: var(--dur-page)  !important; }
+  .animate-slide-in    { animation-duration: var(--dur-page)  !important; }
+  .animate-slide-in-right { animation-duration: var(--dur-modal) !important; }
+
+  /* tailwindcss-animate: animate-in (fade-in, zoom-in, slide-in-from-*) */
+  .animate-in {
+    --tw-animate-duration: var(--dur-modal);
+  }
+
+  /* Hover / transition-all / transition-colors */
+  .btn-primary, .btn-outline, .liquid-button,
+  .data-table tbody tr,
+  .form-input,
+  a, button {
+    transition-duration: var(--dur-hover) !important;
   }
 }
 

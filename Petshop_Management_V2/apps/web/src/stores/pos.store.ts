@@ -27,6 +27,30 @@ interface PosStore {
   setOutOfStockHidden: (hidden: boolean) => void;
   isMultiSelect: boolean;
   setIsMultiSelect: (val: boolean) => void;
+  
+  autoFocusSearch: boolean;
+  setAutoFocusSearch: (val: boolean) => void;
+  barcodeMode: boolean;
+  setBarcodeMode: (val: boolean) => void;
+  soundEnabled: boolean;
+  setSoundEnabled: (val: boolean) => void;
+  zoomLevel: number;
+  setZoomLevel: (val: number) => void;
+  defaultPayment: string;
+  setDefaultPayment: (val: string) => void;
+
+  // ── Print Settings ───────────────────────────────────────────
+  printerIp: string;
+  setPrinterIp: (ip: string) => void;
+  paperSize: string;
+  setPaperSize: (size: string) => void;
+  autoPrint: boolean;
+  setAutoPrint: (val: boolean) => void;
+  autoPrintQR: boolean;
+  setAutoPrintQR: (val: boolean) => void;
+
+  receiptData: any | null;
+  setReceiptData: (data: any | null) => void;
 
   // ── Tab Actions ──────────────────────────────────────────────
   addTab: () => void;
@@ -73,6 +97,7 @@ interface PosStore {
     orderNumber: string;
     paymentStatus: string;
     amountPaid: number;
+    branchId?: string;
     customerId?: string;
     customerName: string;
     cart: CartItem[];
@@ -114,6 +139,29 @@ export const usePosStore = create<PosStore>()(
         setOutOfStockHidden: (hidden) => set({ outOfStockHidden: hidden }),
         isMultiSelect: false,
         setIsMultiSelect: (val) => set({ isMultiSelect: val }),
+
+        autoFocusSearch: true,
+        setAutoFocusSearch: (val) => set({ autoFocusSearch: val }),
+        barcodeMode: true,
+        setBarcodeMode: (val) => set({ barcodeMode: val }),
+        soundEnabled: true,
+        setSoundEnabled: (val) => set({ soundEnabled: val }),
+        zoomLevel: 100,
+        setZoomLevel: (val) => set({ zoomLevel: val }),
+        defaultPayment: 'CASH',
+        setDefaultPayment: (val) => set({ defaultPayment: val }),
+
+        printerIp: '',
+        setPrinterIp: (ip) => set({ printerIp: ip }),
+        paperSize: 'K80',
+        setPaperSize: (size) => set({ paperSize: size }),
+        autoPrint: true,
+        setAutoPrint: (val) => set({ autoPrint: val }),
+        autoPrintQR: true,
+        setAutoPrintQR: (val) => set({ autoPrintQR: val }),
+
+        receiptData: null,
+        setReceiptData: (data) => set({ receiptData: data }),
 
         // ── Tab Actions ──────────────────────────────────────────
         addTab: () => {
@@ -350,6 +398,7 @@ export const usePosStore = create<PosStore>()(
                 existingOrderNumber: data.orderNumber,
                 existingPaymentStatus: data.paymentStatus,
                 existingAmountPaid: data.amountPaid,
+                branchId: data.branchId,
               },
             ],
             activeTabId: newTab.id,
@@ -379,11 +428,28 @@ export const usePosStore = create<PosStore>()(
     },
     {
       name: 'pos-v2-storage',
-      partialize: (state) => ({
-        tabs: state.tabs,
-        activeTabId: state.activeTabId,
-        outOfStockHidden: state.outOfStockHidden,
-      }),
+      partialize: (state) => {
+        const draftTabs = state.tabs.filter(t => !t.existingOrderId);
+        const persistTabs = draftTabs.length > 0 ? draftTabs : [createNewTab(`tab-${Date.now()}`)];
+        const persistActiveTabId = persistTabs.find(t => t.id === state.activeTabId) 
+          ? state.activeTabId 
+          : persistTabs[0].id;
+
+        return {
+          tabs: persistTabs,
+          activeTabId: persistActiveTabId,
+          outOfStockHidden: state.outOfStockHidden,
+          autoFocusSearch: state.autoFocusSearch,
+          barcodeMode: state.barcodeMode,
+          soundEnabled: state.soundEnabled,
+          zoomLevel: state.zoomLevel,
+          defaultPayment: state.defaultPayment,
+          printerIp: state.printerIp,
+          paperSize: state.paperSize,
+          autoPrint: state.autoPrint,
+          autoPrintQR: state.autoPrintQR,
+        };
+      },
     },
   ),
 );

@@ -7,6 +7,10 @@ export class CreateGroomingDto {
 
   @IsString()
   @IsOptional()
+  branchId?: string
+
+  @IsString()
+  @IsOptional()
   staffId?: string
 
   @IsString()
@@ -26,6 +30,10 @@ export class UpdateGroomingDto {
   @IsEnum(GroomingStatus)
   @IsOptional()
   status?: GroomingStatus
+
+  @IsString()
+  @IsOptional()
+  branchId?: string
 
   @IsString()
   @IsOptional()

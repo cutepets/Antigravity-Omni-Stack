@@ -185,7 +185,7 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
             )}
             
             {!loading && query.length > 0 && results.length === 0 && (
-               <div className="p-6 text-[14px] text-gray-500 text-center">Không tìm thấy "{query}"</div>
+               <div className="p-6 text-[14px] text-gray-500 text-center">Không tìm thấy &quot;{query}&quot;</div>
             )}
 
             {!loading && results.length > 0 && (

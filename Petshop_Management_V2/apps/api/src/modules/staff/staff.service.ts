@@ -11,6 +11,7 @@ export interface CreateStaffDto {
   phone?: string
   email?: string
   branchId?: string
+  authorizedBranchIds?: string[]
   
   gender?: string
   dob?: string
@@ -32,6 +33,7 @@ export interface UpdateStaffDto {
   phone?: string
   email?: string
   branchId?: string
+  authorizedBranchIds?: string[]
 
   gender?: string
   dob?: string
@@ -58,7 +60,8 @@ export class StaffService {
         id: true, staffCode: true, username: true, fullName: true,
         role: true, status: true, phone: true, email: true, avatar: true, createdAt: true,
         gender: true, employmentType: true, shiftStart: true, shiftEnd: true, baseSalary: true, branchId: true,
-        branch: { select: { id: true, name: true } }
+        branch: { select: { id: true, name: true } },
+        authorizedBranches: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -74,7 +77,8 @@ export class StaffService {
         role: true, status: true, phone: true, email: true, avatar: true,
         branchId: true, joinDate: true, createdAt: true,
         gender: true, dob: true, identityCode: true, emergencyContactTitle: true, emergencyContactPhone: true,
-        shiftStart: true, shiftEnd: true, baseSalary: true, spaCommissionRate: true, employmentType: true
+        shiftStart: true, shiftEnd: true, baseSalary: true, spaCommissionRate: true, employmentType: true,
+        authorizedBranches: { select: { id: true, name: true } },
       },
     })
     if (!user) throw new NotFoundException('Không tìm thấy nhân viên')
@@ -108,6 +112,9 @@ export class StaffService {
         phone: dto.phone || null,
         email: dto.email || null,
         branchId: dto.branchId || null,
+        ...(dto.authorizedBranchIds && {
+          authorizedBranches: { connect: dto.authorizedBranchIds.map(id => ({ id })) },
+        }),
         
         gender: dto.gender || null,
         dob: dto.dob ? new Date(dto.dob) : null,
@@ -124,6 +131,7 @@ export class StaffService {
       select: {
         id: true, staffCode: true, username: true, fullName: true,
         role: true, status: true, createdAt: true, branchId: true,
+        authorizedBranches: { select: { id: true, name: true } },
       },
     })
   }
@@ -154,6 +162,11 @@ export class StaffService {
         ...('email' in dto && { email: dto.email || null }),
         ...('branchId' in dto && { branchId: dto.branchId || null }),
         ...('avatar' in dto && { avatar: dto.avatar || null }),
+        ...('authorizedBranchIds' in dto && {
+          authorizedBranches: {
+            set: (dto.authorizedBranchIds ?? []).map(bid => ({ id: bid })),
+          },
+        }),
 
         ...('gender' in dto && { gender: dto.gender || null }),
         ...('dob' in dto && { dob: dto.dob ? new Date(dto.dob) : null }),
@@ -170,6 +183,7 @@ export class StaffService {
       select: {
         id: true, staffCode: true, username: true, fullName: true,
         role: true, status: true, phone: true, email: true, branchId: true,
+        authorizedBranches: { select: { id: true, name: true } },
       },
     })
   }

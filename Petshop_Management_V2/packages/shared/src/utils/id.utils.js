@@ -1,16 +1,34 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateVoucherNumber = exports.generateOrderNumber = exports.generateStaffCode = exports.generatePetCode = void 0;
+exports.generateVoucherNumber = exports.generateGroomingSessionCode = exports.generateHotelStayCode = exports.generateOrderNumber = exports.generateStaffCode = exports.generatePetCode = exports.generateCustomerCode = exports.formatDatedSequenceCode = exports.formatSequentialCode = void 0;
 /**
- * Generate pet code: P1B2C3 (P + 6 hex chars)
+ * Generate customer/pet sequential codes
  */
-const generatePetCode = () => {
-    const chars = '0123456789ABCDEF';
-    let res = 'P';
-    for (let i = 0; i < 6; i++)
-        res += chars[Math.floor(Math.random() * 16)];
-    return res;
+const formatSequentialCode = (prefix, sequence, padLength = 6) => `${prefix}${String(sequence).padStart(padLength, '0')}`;
+exports.formatSequentialCode = formatSequentialCode;
+const formatCompactDate = (date, mode) => {
+    const year = mode === 'yyyyMMdd'
+        ? String(date.getFullYear())
+        : String(date.getFullYear()).slice(-2);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
 };
+const formatDatedSequenceCode = (prefix, date, sequence, options) => {
+    const dateMode = options?.dateMode ?? 'yyMMdd';
+    const sequencePadLength = options?.sequencePadLength ?? 3;
+    return `${prefix}${formatCompactDate(date, dateMode)}${String(sequence).padStart(sequencePadLength, '0')}`;
+};
+exports.formatDatedSequenceCode = formatDatedSequenceCode;
+/**
+ * Generate customer code: KH000001
+ */
+const generateCustomerCode = (sequence) => (0, exports.formatSequentialCode)('KH', sequence);
+exports.generateCustomerCode = generateCustomerCode;
+/**
+ * Generate pet code: PET000001
+ */
+const generatePetCode = (sequence) => (0, exports.formatSequentialCode)('PET', sequence);
 exports.generatePetCode = generatePetCode;
 /**
  * Generate staff code: NV00001
@@ -18,16 +36,31 @@ exports.generatePetCode = generatePetCode;
 const generateStaffCode = (sequence) => `NV${String(sequence).padStart(5, '0')}`;
 exports.generateStaffCode = generateStaffCode;
 /**
- * Generate order number: DH260303S0001 (DHYYMMDDSXXXX, reset per day)
+ * Generate order number: DH202604060001
  */
-const generateOrderNumber = (date, sequence) => {
+const generateOrderNumber = (date, sequence) => (0, exports.formatDatedSequenceCode)('DH', date, sequence, {
+    dateMode: 'yyyyMMdd',
+    sequencePadLength: 4,
+});
+exports.generateOrderNumber = generateOrderNumber;
+/**
+ * Generate hotel stay code: H2604TH001
+ */
+const generateHotelStayCode = (date, branchCode, sequence) => {
     const yy = String(date.getFullYear()).slice(-2);
     const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    const seq = String(sequence).padStart(4, '0');
-    return `DH${yy}${mm}${dd}S${seq}`;
+    return `H${yy}${mm}${branchCode}${String(sequence).padStart(3, '0')}`;
 };
-exports.generateOrderNumber = generateOrderNumber;
+exports.generateHotelStayCode = generateHotelStayCode;
+/**
+ * Generate grooming session code: S2604TH001
+ */
+const generateGroomingSessionCode = (date, branchCode, sequence) => {
+    const yy = String(date.getFullYear()).slice(-2);
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    return `S${yy}${mm}${branchCode}${String(sequence).padStart(3, '0')}`;
+};
+exports.generateGroomingSessionCode = generateGroomingSessionCode;
 /**
  * Generate voucher number for transactions
  */

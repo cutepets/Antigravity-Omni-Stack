@@ -1,4 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js'
+import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js'
 import { DatabaseService } from '../../database/database.service.js'
 
 type FinanceTransactionType = 'INCOME' | 'EXPENSE'
@@ -10,6 +12,7 @@ type FinanceTransactionSource =
   | 'HOTEL'
   | 'GROOMING'
   | 'OTHER'
+type TransactionEditScope = 'FULL' | 'NOTES_ONLY'
 
 const TRANSACTION_SOURCES: FinanceTransactionSource[] = [
   'MANUAL',
@@ -29,8 +32,11 @@ const TRANSACTION_REF_TYPES = [
   'GROOMING_SESSION',
   'OTHER',
 ] as const
+const MANUAL_REFERENCE_TYPES = ['MANUAL', 'ORDER', 'STOCK_RECEIPT'] as const
 
 const SEARCHABLE_FIELDS = ['voucherNumber', 'refNumber', 'payerName', 'description', 'payerId'] as const
+const MANUAL_FULL_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000
+const NOTE_ONLY_FIELDS = ['notes'] as const
 
 export interface FindTransactionsDto {
   page?: number | string
@@ -59,12 +65,13 @@ export interface CreateTransactionDto {
   branchName?: string
   payerName?: string
   payerId?: string
-  refType?: 'MANUAL'
+  refType?: (typeof MANUAL_REFERENCE_TYPES)[number]
   refId?: string
   refNumber?: string
   notes?: string
   tags?: string
   date?: string
+  attachmentUrl?: string
 }
 
 export interface UpdateTransactionDto {
@@ -76,9 +83,19 @@ export interface UpdateTransactionDto {
   branchName?: string
   payerName?: string
   payerId?: string
+  refType?: (typeof MANUAL_REFERENCE_TYPES)[number]
+  refId?: string
+  refNumber?: string
   notes?: string
   tags?: string
   date?: string
+  attachmentUrl?: string
+}
+
+type TransactionCapability = {
+  editScope: TransactionEditScope
+  canDelete: boolean
+  lockReason: string | null
 }
 
 function startOfDay(value: string) {
@@ -108,14 +125,123 @@ function toBoolean(value: boolean | string | undefined, fallback = false) {
 export class ReportsService {
   constructor(private readonly db: DatabaseService) {}
 
-  private buildVoucherNumber(type: FinanceTransactionType) {
-    const prefix = type === 'INCOME' ? 'PT' : 'PC'
-    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
-    return `${prefix}-${date}-${random}`
+  private buildVoucherNumber(type: FinanceTransactionType, issuedAt: Date) {
+    return generateFinanceVoucherNumber(this.db, type, issuedAt)
+  }
+
+  private getBranchIdFilter(user?: BranchScopedUser, requestedBranchId?: string | null) {
+    const scopedBranchIds = getScopedBranchIds(user, requestedBranchId)
+    if (!scopedBranchIds) return undefined
+    return scopedBranchIds.length === 1 ? scopedBranchIds[0] : { in: scopedBranchIds }
+  }
+
+  private normalizeManualReferenceType(refType?: string | null): (typeof MANUAL_REFERENCE_TYPES)[number] {
+    const normalized = (refType ?? 'MANUAL').trim().toUpperCase()
+    if ((MANUAL_REFERENCE_TYPES as readonly string[]).includes(normalized)) {
+      return normalized as (typeof MANUAL_REFERENCE_TYPES)[number]
+    }
+
+    throw new BadRequestException('refType khong hop le')
+  }
+
+  private async resolveManualReference(params: {
+    refType?: string | null | undefined
+    refId?: string | null | undefined
+    refNumber?: string | null | undefined
+    user?: BranchScopedUser | undefined
+  }) {
+    const refType = this.normalizeManualReferenceType(params.refType)
+    const rawRefId = params.refId?.trim() || null
+    const rawRefNumber = params.refNumber?.trim() || null
+
+    if (refType === 'MANUAL') {
+      return {
+        refType: 'MANUAL' as const,
+        refId: null,
+        refNumber: null,
+      }
+    }
+
+    if (!rawRefId && !rawRefNumber) {
+      throw new BadRequestException(
+        refType === 'ORDER' ? 'Vui long nhap ma don hang de lien ket' : 'Vui long nhap ma phieu nhap de lien ket',
+      )
+    }
+
+    if (refType === 'ORDER') {
+      const orderWhere: Array<{ id: string } | { orderNumber: string }> = []
+      if (rawRefId) orderWhere.push({ id: rawRefId })
+      if (rawRefNumber) orderWhere.push({ orderNumber: rawRefNumber })
+      const order = await this.db.order.findFirst({
+        where: { OR: orderWhere },
+        select: { id: true, orderNumber: true, branchId: true },
+      })
+
+      if (!order) {
+        throw new NotFoundException('Khong tim thay don hang de lien ket')
+      }
+
+      assertBranchAccess(order.branchId, params.user)
+
+      return {
+        refType: 'ORDER' as const,
+        refId: order.id,
+        refNumber: order.orderNumber,
+      }
+    }
+
+    const receiptWhere: Array<{ id: string } | { receiptNumber: string }> = []
+    if (rawRefId) receiptWhere.push({ id: rawRefId })
+    if (rawRefNumber) receiptWhere.push({ receiptNumber: rawRefNumber })
+    const receipt = await this.db.stockReceipt.findFirst({
+      where: { OR: receiptWhere },
+      select: { id: true, receiptNumber: true, branchId: true },
+    })
+
+    if (!receipt) {
+      throw new NotFoundException('Khong tim thay phieu nhap de lien ket')
+    }
+
+    assertBranchAccess(receipt.branchId, params.user)
+
+    return {
+      refType: 'STOCK_RECEIPT' as const,
+      refId: receipt.id,
+      refNumber: receipt.receiptNumber,
+    }
+  }
+
+  private getTransactionCapability(tx: { isManual?: boolean | null; source?: string | null; createdAt?: Date | string | null }): TransactionCapability {
+    const isManual = tx.isManual ?? tx.source === 'MANUAL'
+    const createdAt = tx.createdAt ? new Date(tx.createdAt) : null
+    const createdAtMs = createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.getTime() : Date.now()
+
+    if (!isManual) {
+      return {
+        editScope: 'NOTES_ONLY',
+        canDelete: false,
+        lockReason: 'Phiếu đồng bộ chỉ được cập nhật ghi chú.',
+      }
+    }
+
+    if (Date.now() - createdAtMs <= MANUAL_FULL_EDIT_WINDOW_MS) {
+      return {
+        editScope: 'FULL',
+        canDelete: true,
+        lockReason: null,
+      }
+    }
+
+    return {
+      editScope: 'NOTES_ONLY',
+      canDelete: false,
+      lockReason: 'Phiếu tự tạo chỉ được sửa hoặc xóa toàn bộ trong 24 giờ đầu. Sau đó chỉ còn sửa ghi chú.',
+    }
   }
 
   private normalizeTransaction(tx: any) {
+    const capability = this.getTransactionCapability(tx)
+
     return {
       id: tx.id,
       voucherNumber: tx.voucherNumber,
@@ -123,10 +249,22 @@ export class ReportsService {
       amount: tx.amount,
       description: tx.description,
       category: tx.category ?? null,
+      paymentMethod: tx.paymentMethod ?? null,
+      branchId: tx.branchId ?? null,
+      branchName: tx.branchName ?? tx.branch?.name ?? null,
+      payerId: tx.payerId ?? null,
+      payerName: tx.payerName ?? null,
+      refType: tx.refType ?? null,
+      refId: tx.refId ?? null,
+      refNumber: tx.refNumber ?? null,
       notes: tx.notes ?? null,
       tags: tx.tags ?? null,
       source: tx.source ?? 'OTHER',
       isManual: tx.isManual ?? (tx.source === 'MANUAL'),
+      attachmentUrl: tx.attachmentUrl ?? null,
+      editScope: capability.editScope,
+      canDelete: capability.canDelete,
+      lockReason: capability.lockReason,
       date: tx.date,
       createdAt: tx.createdAt,
       updatedAt: tx.updatedAt,
@@ -139,11 +277,21 @@ export class ReportsService {
     }
   }
 
-  private buildTransactionWhere(query: FindTransactionsDto, options?: { beforeDate?: Date }) {
+  private buildTransactionWhere(
+    query: FindTransactionsDto,
+    options?: { beforeDate?: Date; user?: BranchScopedUser; requestedBranchId?: string | null },
+  ) {
     const where: any = {}
+    const branchIdFilter = this.getBranchIdFilter(options?.user, query.branchId ?? options?.requestedBranchId)
 
     if (query.type && query.type !== 'ALL') where.type = query.type
     if (query.createdById) where.staffId = query.createdById
+    if (branchIdFilter !== undefined) where.branchId = branchIdFilter
+    if (query.paymentMethod) where.paymentMethod = query.paymentMethod
+    if (query.source && query.source !== 'ALL') where.source = query.source
+    if (query.refNumber?.trim()) where.refNumber = { contains: query.refNumber.trim(), mode: 'insensitive' }
+    if (query.description?.trim()) where.description = { contains: query.description.trim(), mode: 'insensitive' }
+    if (query.payerName?.trim()) where.payerName = { contains: query.payerName.trim(), mode: 'insensitive' }
 
     if (options?.beforeDate) {
       where.date = { lt: options.beforeDate }
@@ -165,10 +313,13 @@ export class ReportsService {
     return where
   }
 
-  async getDashboard() {
+  async getDashboard(user?: BranchScopedUser, requestedBranchId?: string) {
     const today = new Date()
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+    const branchIdFilter = this.getBranchIdFilter(user, requestedBranchId)
+    const branchScope = branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}
+    const customerBranchWhere = branchIdFilter !== undefined ? { branchId: branchIdFilter } : null
 
     const [
       todayOrders,
@@ -180,23 +331,24 @@ export class ReportsService {
       activeHotelStays,
     ] = await Promise.all([
       this.db.order.aggregate({
-        where: { createdAt: { gte: startOfDay }, paymentStatus: { in: ['PAID', 'COMPLETED'] } },
+        where: { ...branchScope, createdAt: { gte: startOfDay }, paymentStatus: { in: ['PAID', 'COMPLETED'] } },
         _sum: { total: true },
         _count: true,
       }),
       this.db.order.aggregate({
-        where: { createdAt: { gte: startOfMonth }, paymentStatus: { in: ['PAID', 'COMPLETED'] } },
+        where: { ...branchScope, createdAt: { gte: startOfMonth }, paymentStatus: { in: ['PAID', 'COMPLETED'] } },
         _sum: { total: true },
         _count: true,
       }),
-      this.db.customer.count(),
-      this.db.customer.count({ where: { createdAt: { gte: startOfMonth } } }),
-      this.db.product.count({
-        // @ts-ignore
-        where: { stock: { lte: 5 } },
+      customerBranchWhere ? this.db.customer.count({ where: customerBranchWhere }) : this.db.customer.count(),
+      this.db.customer.count({
+        where: { ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}), createdAt: { gte: startOfMonth } },
       }),
-      this.db.groomingSession.count({ where: { status: { in: ['PENDING', 'IN_PROGRESS'] } } }),
-      this.db.hotelStay.count({ where: { status: 'CHECKED_IN' } } as any),
+      this.db.branchStock.count({
+        where: { ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}), stock: { lte: 5 } },
+      }),
+      this.db.groomingSession.count({ where: { ...branchScope, status: { in: ['PENDING', 'IN_PROGRESS'] } } }),
+      this.db.hotelStay.count({ where: { ...branchScope, status: 'CHECKED_IN' } } as any),
     ])
 
     return {
@@ -215,9 +367,11 @@ export class ReportsService {
     }
   }
 
-  async getRevenueChart(days: number = 7) {
+  async getRevenueChart(days: number = 7, user?: BranchScopedUser, requestedBranchId?: string) {
     const result: { date: string; revenue: number }[] = []
     const today = new Date()
+    const branchIdFilter = this.getBranchIdFilter(user, requestedBranchId)
+    const branchScope = branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}
 
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(today)
@@ -227,6 +381,7 @@ export class ReportsService {
 
       const agg = await this.db.order.aggregate({
         where: {
+          ...branchScope,
           createdAt: { gte: start, lt: end },
           paymentStatus: { in: ['PAID', 'COMPLETED'] },
         },
@@ -242,10 +397,14 @@ export class ReportsService {
     return { success: true, data: result }
   }
 
-  async getTopCustomers(limit: number = 10) {
+  async getTopCustomers(limit: number = 10, user?: BranchScopedUser, requestedBranchId?: string) {
+    const branchIdFilter = this.getBranchIdFilter(user, requestedBranchId)
     const orders = await this.db.order.groupBy({
       by: ['customerId'] as any,
-      where: { paymentStatus: { in: ['PAID', 'COMPLETED'] } },
+      where: {
+        ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
+        paymentStatus: { in: ['PAID', 'COMPLETED'] },
+      },
       _sum: { total: true },
       _count: true,
       orderBy: { _sum: { total: 'desc' } },
@@ -267,10 +426,14 @@ export class ReportsService {
     return { success: true, data }
   }
 
-  async getTopProducts(limit: number = 10) {
+  async getTopProducts(limit: number = 10, user?: BranchScopedUser, requestedBranchId?: string) {
+    const branchIdFilter = this.getBranchIdFilter(user, requestedBranchId)
     const items = await this.db.orderItem.groupBy({
       by: ['productId'] as any,
-      where: { productId: { not: null } },
+      where: {
+        productId: { not: null },
+        ...(branchIdFilter !== undefined ? { order: { is: { branchId: branchIdFilter } } } : {}),
+      },
       _sum: { quantity: true, subtotal: true },
       orderBy: { _sum: { quantity: 'desc' } },
       take: Number(limit),
@@ -291,13 +454,21 @@ export class ReportsService {
     return { success: true, data }
   }
 
-  async findTransactions(query: FindTransactionsDto) {
+  async findTransactions(query: FindTransactionsDto, user?: BranchScopedUser, requestedBranchId?: string) {
     const page = toPositiveInt(query.page, 1)
     const limit = toPositiveInt(query.limit, 20)
     const skip = (page - 1) * limit
-    const where = this.buildTransactionWhere(query)
+    const branchIdFilter = this.getBranchIdFilter(user, query.branchId ?? requestedBranchId)
+    const where = this.buildTransactionWhere(query, {
+      ...(user ? { user } : {}),
+      ...(requestedBranchId !== undefined ? { requestedBranchId } : {}),
+    })
     const openingWhere = query.dateFrom
-      ? this.buildTransactionWhere(query, { beforeDate: startOfDay(query.dateFrom) })
+      ? this.buildTransactionWhere(query, {
+          beforeDate: startOfDay(query.dateFrom),
+          ...(user ? { user } : {}),
+          ...(requestedBranchId !== undefined ? { requestedBranchId } : {}),
+        })
       : null
     const includeMeta = toBoolean(query.includeMeta, true)
 
@@ -309,6 +480,7 @@ export class ReportsService {
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         include: {
           staff: { select: { id: true, fullName: true } },
+          branch: { select: { id: true, name: true } },
         },
       }),
       this.db.transaction.count({ where }),
@@ -337,14 +509,36 @@ export class ReportsService {
     const metaPromise = includeMeta
       ? Promise.all([
           this.db.branch.findMany({
-            where: { isActive: true },
+            where: {
+              isActive: true,
+              ...(branchIdFilter !== undefined ? { id: branchIdFilter } : {}),
+            },
             select: { id: true, name: true },
             orderBy: { name: 'asc' },
           }),
           this.db.user.findMany({
-            where: { transactions: { some: {} } },
+            where: {
+              transactions: {
+                some: branchIdFilter !== undefined ? { branchId: branchIdFilter } : {},
+              },
+            },
             select: { id: true, fullName: true },
             orderBy: { fullName: 'asc' },
+          }),
+          this.db.transaction.findMany({
+            where: {
+              ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
+              paymentMethod: { not: null },
+            },
+            select: { paymentMethod: true },
+            distinct: ['paymentMethod'],
+          }),
+          this.db.transaction.findMany({
+            where: {
+              ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
+            },
+            select: { source: true },
+            distinct: ['source'],
           }),
         ])
       : Promise.resolve(null)
@@ -370,25 +564,33 @@ export class ReportsService {
     }
 
     if (metaResult) {
-      const [branches, creators] = metaResult
+      const [branches, creators, paymentMethods, sources] = metaResult
       data.meta = {
         branches,
-        paymentMethods: [],
+        paymentMethods: paymentMethods
+          .map((item) => item.paymentMethod)
+          .filter((value): value is string => Boolean(value))
+          .sort((left, right) => left.localeCompare(right)),
         creators: creators.map((item) => ({ id: item.id, name: item.fullName })),
-        sources: TRANSACTION_SOURCES,
+        sources: Array.from(new Set([...TRANSACTION_SOURCES, ...sources.map((item) => item.source).filter(Boolean)])).sort(),
       }
     }
 
     return { success: true, data }
   }
 
-  async createTransaction(dto: CreateTransactionDto, staffId: string) {
+  async createTransaction(
+    dto: CreateTransactionDto,
+    staffId: string,
+    user?: BranchScopedUser,
+    requestedBranchId?: string,
+  ) {
     if (!dto.type) throw new BadRequestException('Thiếu loại giao dịch')
     if (!dto.description?.trim()) throw new BadRequestException('Mô tả giao dịch là bắt buộc')
     if (!Number.isFinite(Number(dto.amount)) || Number(dto.amount) <= 0) {
       throw new BadRequestException('Số tiền phải lớn hơn 0')
     }
-    if (dto.refType && dto.refType !== 'MANUAL') {
+    if (dto.refType && !(MANUAL_REFERENCE_TYPES as readonly string[]).includes(dto.refType)) {
       throw new BadRequestException('Phiếu tạo thủ công chỉ hỗ trợ refType MANUAL')
     }
 
@@ -397,19 +599,27 @@ export class ReportsService {
       throw new BadRequestException('Ngày giao dịch không hợp lệ')
     }
 
-    const branch = dto.branchId
+    const manualReference = await this.resolveManualReference({
+      refType: dto.refType,
+      refId: dto.refId,
+      refNumber: dto.refNumber,
+      user,
+    })
+
+    const writableBranchId = resolveWritableBranchId(user, dto.branchId ?? requestedBranchId)
+    const branch = writableBranchId
       ? await this.db.branch.findUnique({
-          where: { id: dto.branchId },
+          where: { id: writableBranchId },
           select: { id: true, name: true },
         })
       : null
 
-    if (dto.branchId && !branch) {
+    if (writableBranchId && !branch) {
       throw new NotFoundException('Không tìm thấy chi nhánh')
     }
 
     for (let attempt = 0; attempt < 5; attempt++) {
-      const voucherNumber = this.buildVoucherNumber(dto.type)
+      const voucherNumber = await this.buildVoucherNumber(dto.type, txDate)
       try {
         const tx = await this.db.transaction.create({
           data: {
@@ -418,11 +628,25 @@ export class ReportsService {
             amount: Number(dto.amount),
             description: dto.description.trim(),
             category: dto.category?.trim() || null,
+            paymentMethod: dto.paymentMethod?.trim() || null,
+            branchId: branch?.id ?? null,
+            branchName: dto.branchName?.trim() || branch?.name || null,
+            payerName: dto.payerName?.trim() || null,
+            payerId: dto.payerId?.trim() || null,
+            refType: manualReference.refType,
+            refId: manualReference.refId,
+            refNumber: manualReference.refNumber,
+            notes: dto.notes?.trim() || null,
+            tags: dto.tags?.trim() || null,
+            attachmentUrl: dto.attachmentUrl?.trim() || null,
+            source: 'MANUAL',
+            isManual: true,
             staffId,
             date: txDate,
           } as any,
           include: {
             staff: { select: { id: true, fullName: true } },
+            branch: { select: { id: true, name: true } },
           },
         })
 
@@ -437,10 +661,29 @@ export class ReportsService {
     throw new Error('Không thể tạo số chứng từ duy nhất, vui lòng thử lại')
   }
 
-  async updateTransaction(id: string, dto: UpdateTransactionDto, _staffId: string) {
+  async updateTransaction(
+    id: string,
+    dto: UpdateTransactionDto,
+    _staffId: string,
+    user?: BranchScopedUser,
+    requestedBranchId?: string,
+  ) {
     const existing = await this.db.transaction.findUnique({ where: { id } as any })
     if (!existing) {
       throw new NotFoundException('Không tìm thấy phiếu thu/chi')
+    }
+
+    assertBranchAccess(existing.branchId, user)
+    const capability = this.getTransactionCapability(existing)
+    const changedKeys = Object.entries(dto)
+      .filter(([, value]) => value !== undefined)
+      .map(([key]) => key)
+    const hasRestrictedChange =
+      capability.editScope !== 'FULL' &&
+      changedKeys.some((key) => !(NOTE_ONLY_FIELDS as readonly string[]).includes(key))
+
+    if (hasRestrictedChange) {
+      throw new ForbiddenException(capability.lockReason ?? 'Phiếu này chỉ được cập nhật ghi chú')
     }
 
     if (dto.amount !== undefined && (!Number.isFinite(Number(dto.amount)) || Number(dto.amount) <= 0)) {
@@ -455,55 +698,97 @@ export class ReportsService {
       }
     }
 
-    const branch = dto.branchId
+    const allowCoreEdit = capability.editScope === 'FULL'
+    const writableBranchId =
+      allowCoreEdit && (dto.branchId !== undefined || requestedBranchId)
+        ? resolveWritableBranchId(user, dto.branchId ?? requestedBranchId)
+        : null
+    const shouldUpdateManualReference =
+      allowCoreEdit && (dto.refType !== undefined || dto.refId !== undefined || dto.refNumber !== undefined)
+
+    const branch = writableBranchId
       ? await this.db.branch.findUnique({
-          where: { id: dto.branchId },
+          where: { id: writableBranchId },
           select: { id: true, name: true },
         })
       : null
 
-    if (dto.branchId && !branch) {
+    if (writableBranchId && !branch) {
       throw new NotFoundException('Không tìm thấy chi nhánh')
     }
+
+    const manualReference = shouldUpdateManualReference
+      ? await this.resolveManualReference({
+          refType: dto.refType ?? existing.refType ?? 'MANUAL',
+          refId: dto.refId,
+          refNumber: dto.refNumber,
+          user,
+        })
+      : null
 
     const updated = await this.db.transaction.update({
       where: { id } as any,
       data: {
-        ...(dto.amount !== undefined ? { amount: Number(dto.amount) } : {}),
-        ...(dto.description !== undefined ? { description: dto.description.trim() } : {}),
-        ...(dto.category !== undefined ? { category: dto.category?.trim() || null } : {}),
-        ...(txDate ? { date: txDate } : {}),
+        ...(allowCoreEdit && dto.amount !== undefined ? { amount: Number(dto.amount) } : {}),
+        ...(allowCoreEdit && dto.description !== undefined ? { description: dto.description.trim() } : {}),
+        ...(allowCoreEdit && dto.category !== undefined ? { category: dto.category?.trim() || null } : {}),
+        ...(allowCoreEdit && dto.paymentMethod !== undefined ? { paymentMethod: dto.paymentMethod?.trim() || null } : {}),
+        ...(allowCoreEdit && (dto.branchId !== undefined || requestedBranchId) ? { branchId: branch?.id ?? null } : {}),
+        ...(allowCoreEdit && (dto.branchId !== undefined || dto.branchName !== undefined || requestedBranchId)
+          ? { branchName: dto.branchName?.trim() || branch?.name || null }
+          : {}),
+        ...(allowCoreEdit && dto.payerName !== undefined ? { payerName: dto.payerName?.trim() || null } : {}),
+        ...(allowCoreEdit && dto.payerId !== undefined ? { payerId: dto.payerId?.trim() || null } : {}),
+        ...(manualReference
+          ? {
+              refType: manualReference.refType,
+              refId: manualReference.refId,
+              refNumber: manualReference.refNumber,
+            }
+          : {}),
+        ...(dto.notes !== undefined ? { notes: dto.notes?.trim() || null } : {}),
+        ...(allowCoreEdit && dto.tags !== undefined ? { tags: dto.tags?.trim() || null } : {}),
+        ...(allowCoreEdit && dto.attachmentUrl !== undefined ? { attachmentUrl: dto.attachmentUrl?.trim() || null } : {}),
+        ...(allowCoreEdit && txDate ? { date: txDate } : {}),
       } as any,
       include: {
         staff: { select: { id: true, fullName: true } },
+        branch: { select: { id: true, name: true } },
       },
     })
 
     return { success: true, data: this.normalizeTransaction(updated) }
   }
 
-  async removeTransaction(id: string) {
+  async removeTransaction(id: string, user?: BranchScopedUser) {
     const existing = await this.db.transaction.findUnique({ where: { id } as any })
     if (!existing) {
       throw new NotFoundException('Không tìm thấy phiếu thu/chi')
     }
 
+    assertBranchAccess(existing.branchId, user)
+    const capability = this.getTransactionCapability(existing)
+    if (!capability.canDelete) {
+      throw new ForbiddenException(capability.lockReason ?? 'Phiếu này không thể xóa')
+    }
     await this.db.transaction.delete({ where: { id } as any })
     return { success: true, message: 'Đã xóa phiếu thu/chi thủ công' }
   }
 
-  async findTransactionByVoucher(voucherNumber: string) {
+  async findTransactionByVoucher(voucherNumber: string, user?: BranchScopedUser) {
     const tx = await this.db.transaction.findFirst({
       where: { voucherNumber } as any,
       include: {
         staff: { select: { id: true, fullName: true } },
+        branch: { select: { id: true, name: true } },
       },
     })
 
     if (!tx) {
-      return { success: false, message: 'Không tìm thấy phiếu thu/chi' }
+      throw new NotFoundException('Không tìm thấy phiếu thu/chi')
     }
 
+    assertBranchAccess(tx.branchId, user)
     return { success: true, data: this.normalizeTransaction(tx) }
   }
 }

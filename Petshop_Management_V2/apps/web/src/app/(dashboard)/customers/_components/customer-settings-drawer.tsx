@@ -1,9 +1,10 @@
 'use client'
 
+import { motion, AnimatePresence } from 'framer-motion'
+import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Check, ChevronRight, Loader2, Pencil, Save, Star, Tag, Trash2, Trophy, Users } from 'lucide-react'
+import { Check, Loader2, Pencil, Save, Star, Tag, Trash2, Trophy, Users, X, Settings as SettingsIcon } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { api } from '@/lib/api'
 import { customerApi } from '@/lib/api/customer.api'
@@ -78,7 +79,9 @@ function parseLoyaltyConfig(configs: Record<string, any> | undefined): LoyaltyCo
       const json = JSON.parse(configs.loyaltyTierRules)
       if (Array.isArray(json) && json.length > 0) parsedRules = json
     }
-  } catch {}
+  } catch {
+    // ignore parsing errors
+  }
 
   return {
     loyaltySpendPerPoint: Number(configs.loyaltySpendPerPoint ?? DEFAULT_LOYALTY_CONFIG.loyaltySpendPerPoint),
@@ -89,7 +92,13 @@ function parseLoyaltyConfig(configs: Record<string, any> | undefined): LoyaltyCo
   }
 }
 
-export default function CustomerSettingsPage() {
+interface CustomerSettingsDrawerProps {
+  isOpen: boolean
+  onClose: () => void
+}
+
+export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDrawerProps) {
+  const [mounted, setMounted] = useState(false)
   const queryClient = useQueryClient()
   const [form, setForm] = useState<LoyaltyConfigState>(DEFAULT_LOYALTY_CONFIG)
   const [groupForm, setGroupForm] = useState({
@@ -102,12 +111,17 @@ export default function CustomerSettingsPage() {
     isDefault: false,
   })
 
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   const { data: configs, isLoading: isLoadingConfigs } = useQuery({
     queryKey: ['settings', 'configs', 'loyalty'],
     queryFn: async () => {
       const res = await api.get('/settings/configs')
       return (res.data.data ?? {}) as Record<string, any>
     },
+    enabled: isOpen,
   })
 
   const { data: customerGroups = [], isLoading: isLoadingGroups } = useQuery({
@@ -116,6 +130,16 @@ export default function CustomerSettingsPage() {
       const res = await api.get('/customer-groups')
       return (res.data.data ?? []) as CustomerGroup[]
     },
+    enabled: isOpen,
+  })
+
+  const { data: priceBooks = [] } = useQuery({
+    queryKey: ['inventory', 'price-books'],
+    queryFn: async () => {
+      const res = await api.get('/inventory/price-books')
+      return (res.data.data ?? res.data ?? []) as Array<{ id: string; name: string }>
+    },
+    enabled: isOpen,
   })
 
   const { data: topCustomersResult, isLoading: isLoadingTopCustomers } = useQuery({
@@ -127,10 +151,13 @@ export default function CustomerSettingsPage() {
         sortOrder: 'desc',
         isActive: true,
       }),
+    enabled: isOpen,
   })
 
   useEffect(() => {
-    setForm(parseLoyaltyConfig(configs))
+    if (configs) {
+      setForm(parseLoyaltyConfig(configs))
+    }
   }, [configs])
 
   const saveConfigMutation = useMutation({
@@ -230,46 +257,49 @@ export default function CustomerSettingsPage() {
     }))
   }
 
-  return (
-    <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-6 py-8 lg:px-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <Link href="/settings" className="inline-flex items-center font-medium text-foreground-muted transition-colors hover:text-primary-500">
-              <ArrowLeft size={16} className="mr-2" />
-              Quay lại cài đặt
-            </Link>
-            <span className="text-foreground-muted">/</span>
-            <Link href="/settings/inventory" className="font-medium text-foreground-muted transition-colors hover:text-primary-500">
-              Cấu hình kho
-            </Link>
-            <span className="text-foreground-muted">/</span>
-            <span className="font-medium text-foreground">Cấu hình khách hàng</span>
-          </div>
+  if (!mounted) return null
 
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary-500/20 bg-primary-500/10 text-primary-500">
-              <Users size={24} />
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50"
+          />
+
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed top-0 right-0 h-full w-[900px] max-w-[100vw] glass-panel border-l border-white/10 z-50 overflow-y-auto flex flex-col"
+            style={{ boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.4)' }}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-white/5 sticky top-0 bg-background/70 backdrop-blur-xl z-10">
+              <div className="flex items-center gap-3 text-primary-400">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary-500/20 bg-primary-500/10 text-primary-500">
+                  <SettingsIcon size={20} />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-lg text-foreground-base">Cài đặt khách hàng</h2>
+                  <p className="text-sm text-foreground-muted">Quản lý hạng thẻ và nhóm khách hàng</p>
+                </div>
+              </div>
+              <button 
+                onClick={onClose}
+                className="p-2 rounded-full hover:bg-white/10 text-foreground-muted transition-colors"
+                title="Đóng"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground-base">Cấu hình khách hàng</h1>
-              <p className="mt-1 text-sm text-foreground-muted">
-                Quản lý tích điểm, hạng thành viên và nhóm khách hàng để áp dụng chính sách giá phù hợp.
-              </p>
-            </div>
-          </div>
-        </div>
 
-        <Link
-          href="/settings/inventory"
-          className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border bg-background-secondary px-4 text-sm font-semibold text-foreground transition-colors hover:border-primary-500 hover:text-primary-500"
-        >
-          Cấu hình kho
-          <ChevronRight size={16} />
-        </Link>
-      </div>
-
-      <div data-hotkey-scope className="rounded-3xl border border-border/70 bg-background-secondary p-6 shadow-sm">
+            <div className="p-6 flex-1 space-y-8 pb-12">
+<div data-hotkey-scope className="rounded-3xl border border-border/70 bg-background-secondary p-6 shadow-sm">
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-lg font-bold text-foreground">
@@ -401,41 +431,79 @@ export default function CustomerSettingsPage() {
         </div>
 
         <div className="mb-6 grid gap-4 xl:grid-cols-[1.4fr_1fr_140px_1.5fr_auto]">
-          <input
-            value={groupForm.name}
-            onChange={(event) => setGroupForm((current) => ({ ...current, name: event.target.value }))}
-            placeholder="Tên nhóm"
-            className="h-11 rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-          />
-          <input
-            value={groupForm.pricePolicy}
-            onChange={(event) => setGroupForm((current) => ({ ...current, pricePolicy: event.target.value }))}
-            placeholder="Chính sách giá"
-            className="h-11 rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-          />
-          <input
-            type="number"
-            value={groupForm.discount}
-            onChange={(event) => setGroupForm((current) => ({ ...current, discount: Number(event.target.value) }))}
-            placeholder="Chiết khấu"
-            className="h-11 rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-          />
-          <input
-            value={groupForm.description}
-            onChange={(event) => setGroupForm((current) => ({ ...current, description: event.target.value }))}
-            placeholder="Mô tả"
-            className="h-11 rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-          />
-          <button
-            type="button"
-            onClick={() => groupMutation.mutate(groupForm)}
-            disabled={groupMutation.isPending || !groupForm.name.trim()}
-            data-hotkey-enter
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {groupMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-            {groupForm.id ? 'Lưu nhóm' : 'Thêm nhóm'}
-          </button>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground-muted">Tên nhóm</span>
+            <input
+              value={groupForm.name}
+              onChange={(event) => setGroupForm((current) => ({ ...current, name: event.target.value }))}
+              placeholder="Khách lẻ"
+              className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground-muted">Chính sách giá</span>
+            <select
+              value={groupForm.pricePolicy}
+              onChange={(event) => setGroupForm((current) => ({ ...current, pricePolicy: event.target.value }))}
+              className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+            >
+              <option value="Giá lẻ">Giá lẻ</option>
+              <option value="Giá sỉ">Giá sỉ</option>
+              {priceBooks.map((pb) => (
+                <option key={pb.id} value={pb.name}>{pb.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground-muted">Chiết khấu (%)</span>
+            <input
+              type="number"
+              value={groupForm.discount}
+              onChange={(event) => setGroupForm((current) => ({ ...current, discount: Number(event.target.value) }))}
+              placeholder="0"
+              className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground-muted">Mô tả</span>
+            <input
+              value={groupForm.description}
+              onChange={(event) => setGroupForm((current) => ({ ...current, description: event.target.value }))}
+              placeholder="Mô tả nhóm"
+              className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground-muted">&nbsp;</span>
+            <button
+              type="button"
+              onClick={() => groupMutation.mutate(groupForm)}
+              disabled={groupMutation.isPending || !groupForm.name.trim()}
+              data-hotkey-enter
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {groupMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+              {groupForm.id ? 'Lưu nhóm' : 'Thêm nhóm'}
+            </button>
+          </label>
+          {groupForm.id && (
+            <button
+              type="button"
+              onClick={() => setGroupForm({
+                id: '',
+                name: '',
+                color: GROUP_COLOR_OPTIONS[0],
+                pricePolicy: 'Giá lẻ',
+                discount: 0,
+                description: '',
+                isDefault: false,
+              })}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground-muted transition-colors hover:text-foreground self-end"
+            >
+              <X size={14} />
+              Hủy sửa
+            </button>
+          )}
         </div>
 
         <div className="mb-6 flex items-center gap-2">
@@ -577,6 +645,12 @@ export default function CustomerSettingsPage() {
           )}
         </div>
       </div>
-    </div>
+      
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>,
+    document.body
   )
 }

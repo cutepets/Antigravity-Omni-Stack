@@ -1,45 +1,60 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
-  UseGuards,
+  Get,
+  Param,
+  Patch,
+  Post,
   Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common'
-import { GroomingService } from './grooming.service.js'
-import { CreateGroomingDto, UpdateGroomingDto } from './dto/grooming.dto.js'
+import type { Request } from 'express'
+import type { JwtPayload } from '@petshop/shared'
+import { Permissions } from '../../common/decorators/permissions.decorator.js'
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
+import { CreateGroomingDto, UpdateGroomingDto } from './dto/grooming.dto.js'
+import { GroomingService } from './grooming.service.js'
+
+interface AuthenticatedRequest extends Request {
+  user?: JwtPayload
+}
 
 @Controller('grooming')
-@UseGuards(JwtGuard)
+@UseGuards(JwtGuard, PermissionsGuard)
 export class GroomingController {
   constructor(private readonly groomingService: GroomingService) {}
 
   @Post()
-  create(@Body() dto: CreateGroomingDto) {
-    return this.groomingService.create(dto)
+  @Permissions('grooming.create')
+  create(@Body() dto: CreateGroomingDto, @Req() req: AuthenticatedRequest) {
+    return this.groomingService.create(dto, req.user, getRequestedBranchId(req))
   }
 
   @Get()
-  findAll(@Query() query: any) {
-    return this.groomingService.findAll(query)
+  @Permissions('grooming.read')
+  findAll(@Query() query: any, @Req() req: AuthenticatedRequest) {
+    return this.groomingService.findAll(query, req.user, getRequestedBranchId(req))
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.groomingService.findOne(id)
+  @Permissions('grooming.read')
+  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.groomingService.findOne(id, req.user)
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateGroomingDto) {
-    return this.groomingService.update(id, dto)
+  @Permissions('grooming.update', 'grooming.start', 'grooming.complete', 'grooming.cancel')
+  update(@Param('id') id: string, @Body() dto: UpdateGroomingDto, @Req() req: AuthenticatedRequest) {
+    return this.groomingService.update(id, dto, req.user, getRequestedBranchId(req))
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.groomingService.remove(id)
+  @Permissions('grooming.cancel')
+  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.groomingService.remove(id, req.user)
   }
 }

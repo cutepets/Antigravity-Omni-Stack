@@ -11,12 +11,7 @@ export const metadata: Metadata = {
 export default function StockPage() {
   return (
     <>
-      <div className="mb-4">
-        <p className="text-foreground-muted text-sm flex items-center gap-2">
-          <AlertCircle size={15} className="text-primary-500" /> 
-          Theo dõi số lượng hàng hóa trong kho, thiết lập định mức tối thiểu.
-        </p>
-      </div>
+
       <StockList />
     </>
   )

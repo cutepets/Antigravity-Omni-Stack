@@ -28,7 +28,6 @@ const moneyRaw = (n: number) => new Intl.NumberFormat('vi-VN').format(n) + ' đ'
 function PosPageContent() {
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<any>(null);
   const [showHotelCheckout, setShowHotelCheckout] = useState(false);
-  const [receiptData, setReceiptData] = useState<any>(null);
   const [noteEditingId, setNoteEditingId] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -57,14 +56,18 @@ function PosPageContent() {
             orderId: data.id,
             orderNumber: data.orderNumber || data.id,
             paymentStatus: data.paymentStatus || 'PENDING',
-            amountPaid: data.amountPaid || 0,
+            amountPaid: data.paidAmount ?? data.amountPaid ?? 0,
+            branchId: data.branchId,
             customerId: data.customer?.id,
             customerName: data.customer?.name || data.customer?.fullName || 'Khách lẻ',
             cart: data.items.map((i: any) => ({
               id: i.id,
+              orderItemId: i.id,
               productId: i.productId,
               productVariantId: i.productVariantId,
               serviceId: i.serviceId,
+              serviceVariantId: i.serviceVariantId,
+              petId: i.petId,
               description: i.name || i.description,
               sku: i.sku || '',
               unitPrice: i.unitPrice || 0,
@@ -72,8 +75,20 @@ function PosPageContent() {
               image: i.image || '',
               unit: i.unit || 'cái',
               quantity: i.quantity || 1,
-              hotelDetails: i.hotelDetails,
-              groomingDetails: i.groomingDetails,
+              hotelDetails: i.hotelDetails ? {
+                petId: i.hotelDetails.petId,
+                checkIn: i.hotelDetails.checkInDate,
+                checkOut: i.hotelDetails.checkOutDate,
+                stayId: i.hotelStayId,
+                lineType: i.hotelDetails.lineType ?? 'REGULAR',
+              } : undefined,
+              groomingDetails: i.groomingDetails ? {
+                petId: i.groomingDetails.petId,
+                performerId: i.groomingDetails.performerId,
+                startTime: i.groomingDetails.startTime,
+                notes: i.groomingDetails.notes,
+                serviceItems: i.groomingDetails.serviceItems,
+              } : undefined,
             })),
             discountTotal: data.discount || 0,
             shippingFee: data.shippingFee || 0,
@@ -156,7 +171,9 @@ function PosPageContent() {
       const payload: CreateOrderPayload = {
         customerName: activeTab.customerName,
         customerId: activeTab.customerId === 'GUEST' ? undefined : activeTab.customerId,
+        branchId: activeTab.branchId,
         items: activeTab.cart.map((ci) => ({
+          id: ci.orderItemId,
           productId: ci.productId,
           productVariantId: ci.productVariantId,
           serviceId: ci.serviceId,
@@ -178,33 +195,65 @@ function PosPageContent() {
             petId: ci.hotelDetails.petId,
             checkInDate: ci.hotelDetails.checkIn,
             checkOutDate: ci.hotelDetails.checkOut,
+            branchId: activeTab.branchId,
+            lineType: ci.hotelDetails.lineType,
           } : undefined,
         })),
-        payments: paymentMethod !== 'UNPAID' ? [{ method: paymentMethod, amount: cartTotal }] : undefined,
+        payments: !activeTab.existingOrderId && paymentMethod !== 'UNPAID' ? [{ method: paymentMethod, amount: cartTotal }] : undefined,
         discount: activeTab.discountTotal,
         shippingFee: activeTab.shippingFee,
         notes: overrideNote || activeTab.notes,
       };
 
+      const hasServiceItems = activeTab.cart.some((item) =>
+        item.type === 'service' || item.type === 'hotel' || item.type === 'grooming' || item.groomingDetails || item.hotelDetails,
+      );
+
+      let orderResult: any;
+
       if (activeTab.existingOrderId) {
         // Đơn đã tồn tại -> Chỉ cho phép thanh toán thêm
-        if (paymentMethod !== 'UNPAID' && cartTotal > 0) {
-           await orderApi.pay(activeTab.existingOrderId, {
-             payments: [{ method: paymentMethod, amount: cartTotal }]
-           });
+        orderResult = await orderApi.update(activeTab.existingOrderId, payload);
+        const outstanding = Math.max(0, (orderResult?.total ?? cartTotal) - (orderResult?.paidAmount ?? orderResult?.amountPaid ?? 0));
+
+        if (paymentMethod !== 'UNPAID') {
+          if (hasServiceItems) {
+            if (outstanding > 0) {
+              orderResult = await orderApi.pay(activeTab.existingOrderId, {
+                payments: [{ method: paymentMethod, amount: outstanding }],
+              });
+            }
+          } else {
+            const overpaid = Math.max(0, (orderResult?.paidAmount ?? orderResult?.amountPaid ?? 0) - (orderResult?.total ?? cartTotal));
+            if (overpaid > 0) {
+              const shouldRefund = window.confirm(
+                `Đơn đang dư ${money(overpaid)} đ. Nhấn OK để hoàn tiền ngay, hoặc Cancel để giữ lại công nợ âm cho khách.`,
+              );
+              orderResult = await orderApi.complete(activeTab.existingOrderId, shouldRefund
+                ? { overpaymentAction: 'REFUND', refundMethod: paymentMethod }
+                : { overpaymentAction: 'KEEP_CREDIT' });
+            } else {
+              orderResult = await orderApi.complete(activeTab.existingOrderId, outstanding > 0 ? {
+                payments: [{ method: paymentMethod, amount: outstanding }],
+              } : {});
+            }
+          }
         }
       } else {
         // Đơn tạo mới
-        await createOrder.mutateAsync(payload);
+        orderResult = await createOrder.mutateAsync(payload);
       }
       
-      setReceiptData({
+      store.setReceiptData({
         ...payload,
-        code: `ORD-${Math.floor(Math.random() * 10000)}`,
+        id: orderResult?.id,
+        code: orderResult?.orderNumber || `ORD-${Math.floor(Math.random() * 10000)}`,
+        total: orderResult?.total ?? cartTotal,
+        paidAmount: orderResult?.paidAmount ?? orderResult?.amountPaid ?? payload.payments?.reduce((sum: number, payment: any) => sum + payment.amount, 0) ?? 0,
       });
       setCustomerMoneyInput('');
     },
-    [activeTab, cartTotal, createOrder],
+    [activeTab, cartTotal, createOrder, store],
   );
 
   if (!activeTab) return null;
@@ -321,7 +370,7 @@ function PosPageContent() {
               }}>
               <Maximize size={18} />
             </button>
-            <Link href="/" className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Về trang quản lý">
+            <Link href="/" target="_blank" className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Về trang quản lý">
               <Home size={18} />
             </Link>
             <div className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Cài đặt">
@@ -451,12 +500,16 @@ function PosPageContent() {
                         {/* Stock Popover */}
                         <div className="group/stock relative shrink-0 z-[60] flex">
                           <Info size={16} className="text-gray-300 opacity-0 group-hover:opacity-100 group-hover/stock:text-[#0089A1] cursor-help transition-all" />
-                          <div className="absolute top-full left-1/2 -translate-x-[40%] mt-2 w-[340px] opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible transition-all duration-200 p-0 pointer-events-none before:absolute before:-top-4 before:left-0 before:w-full before:h-4 z-[100]">
+                          <div className="absolute top-full left-1/2 -translate-x-[40%] mt-2 w-[340px] opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible group-hover/stock:pointer-events-auto transition-all duration-200 p-0 pointer-events-none before:absolute before:-top-4 before:left-0 before:w-full before:h-4 z-[100]">
                             <div className="bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden w-full h-full">
                               <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
-                              <div className="font-bold text-[13px] text-gray-800 leading-tight">
+                              <Link 
+                                href={item.productId ? `/products/${item.productId}` : '#'} 
+                                target="_blank" 
+                                className="font-bold text-[13px] text-gray-800 hover:text-[#0089A1] hover:underline leading-tight block cursor-pointer transition-colors"
+                              >
                                 {currentTrueVariant ? currentTrueVariant.name : item.description}
-                              </div>
+                              </Link>
                               <div className="text-[10px] text-gray-500 mt-0.5 font-medium tracking-wide uppercase">{currentTrueVariant ? (currentTrueVariant.sku || item.sku || 'N/A') : (item.sku || 'N/A')}</div>
                             </div>
                             
@@ -918,10 +971,10 @@ function PosPageContent() {
       />
 
       <ReceiptModal 
-        isOpen={!!receiptData}
-        orderData={receiptData}
+        isOpen={!!store.receiptData}
+        orderData={store.receiptData}
         onClose={() => {
-          setReceiptData(null);
+          store.setReceiptData(null);
           store.resetActiveTab();
         }}
       />
@@ -929,11 +982,11 @@ function PosPageContent() {
       <PosPaymentModal 
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
-        cartTotal={cartTotal - activeTab.discountTotal}
+        cartTotal={cartTotal}
         initialMethod={activeTab?.payments?.[0]?.method || 'CASH'}
         initialCustomerMoney={customerMoneyInput}
         onConfirm={(method, moneyObj) => {
-          store.setSinglePayment(method as any, cartTotal - activeTab.discountTotal);
+          store.setSinglePayment(method as any, cartTotal);
           if (moneyObj) {
             setCustomerMoneyInput(new Intl.NumberFormat('vi-VN').format(moneyObj));
           }
@@ -944,7 +997,7 @@ function PosPageContent() {
       <PosOrderBookingModal 
         isOpen={showBookingModal}
         onClose={() => setShowBookingModal(false)}
-        cartTotal={cartTotal - activeTab.discountTotal}
+        cartTotal={cartTotal}
         cartCount={cartCount}
         onConfirm={(date, note) => {
           const finalNote = `[HẸN ĐẾN: ${date.replace('T', ' ')}] ${note}`.trim();

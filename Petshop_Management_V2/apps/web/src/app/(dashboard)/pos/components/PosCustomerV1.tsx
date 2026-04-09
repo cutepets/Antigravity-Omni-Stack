@@ -35,7 +35,7 @@ export function PosCustomerV1() {
   });
 
   const handleQuickAddClick = () => {
-    const isPhone = /^[0-9\-\+\s]+$/.test(customerQuery);
+    const isPhone = /^[0-9\-+\s]+$/.test(customerQuery);
     setCustomerModalData({
       fullName: isPhone ? '' : customerQuery,
       phone: isPhone ? customerQuery.replace(/[^0-9]/g, '') : '',
@@ -145,7 +145,9 @@ export function PosCustomerV1() {
                <div className="flex flex-col gap-1">
                  <div className="flex items-center gap-2">
                    <span className="text-[17px] font-bold text-[#2a3042]">{activeTab.customerName}</span>
-                   <button onClick={handleEditCustomerClick} className="text-gray-400 hover:text-primary-600" title="Chỉnh sửa"><Pencil size={14} /></button>
+                   {activeTab.customerName?.toLowerCase() !== 'khách lẻ' && (
+                     <button onClick={handleEditCustomerClick} className="text-gray-400 hover:text-primary-600" title="Chỉnh sửa"><Pencil size={14} /></button>
+                   )}
                  </div>
                  {customerDetail && (
                    <>
@@ -248,7 +250,7 @@ export function PosCustomerV1() {
                   className="text-[15px] font-semibold text-primary-600 hover:text-primary-700 flex items-center gap-1.5 bg-primary-50 px-3 py-1.5 rounded-lg w-full justify-center transition-colors hover:bg-primary-100 border border-primary-100"
                   onClick={handleQuickAddClick}
                 >
-                  <Plus size={18} /> Thêm nhanh "{customerQuery}"
+                  <Plus size={18} /> Thêm nhanh &quot;{customerQuery}&quot;
                 </button>
               </div>
             )}

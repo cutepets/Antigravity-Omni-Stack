@@ -102,7 +102,7 @@ export function StockTransactionHistory({ productId }: { productId: string }) {
                       {t.referenceId ? (
                         t.type === 'IN' ? (
                           <Link href={`/inventory/receipts/${t.referenceId}`} className="text-primary-500 hover:underline">
-                            #{t.referenceId.substring(0,8)}
+                            {t.referenceId}
                           </Link>
                         ) : (
                           t.referenceId

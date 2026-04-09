@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray } from 'class-validator'
+import { KNOWN_PERMISSION_CODES } from '@petshop/auth'
+import { IsString, IsNotEmpty, IsOptional, IsArray, ArrayUnique, IsIn } from 'class-validator'
 import { ApiProperty } from '@nestjs/swagger'
 
 export class CreateRoleDto {
@@ -20,6 +21,8 @@ export class CreateRoleDto {
   @ApiProperty({ description: 'Mảng các quyền', example: ['VIEW_DASHBOARD', 'MANAGE_USERS'] })
   @IsArray()
   @IsString({ each: true })
+  @ArrayUnique()
+  @IsIn(KNOWN_PERMISSION_CODES, { each: true, message: 'permissions chứa mã quyền không hợp lệ' })
   @IsOptional()
   permissions?: string[]
 }

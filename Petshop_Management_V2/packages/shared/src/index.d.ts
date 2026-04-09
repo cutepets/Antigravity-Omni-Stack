@@ -6,6 +6,7 @@ export * from './types/product.types.js';
 export * from './types/domain.types.js';
 export type { CartItem, OrderTab, } from './types/pos.types.js';
 export * from './utils/search.utils.js';
+export * from './utils/branch-code.utils.js';
 export * from './utils/id.utils.js';
 export * from './utils/currency.utils.js';
 export * from './utils/date.utils.js';

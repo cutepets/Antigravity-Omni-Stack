@@ -3,22 +3,40 @@
 import { usePathname, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu } from 'lucide-react'
+import { Menu, Settings } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { settingsApi } from '@/lib/api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { useAuthStore } from '@/stores/auth.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { UserSettingsDrawer } from './user-settings-drawer'
+import dynamic from 'next/dynamic'
+import { useAuthorization } from '@/hooks/useAuthorization'
+
+const CustomerSettingsDrawer = dynamic(
+  () => import('@/app/(dashboard)/customers/_components/customer-settings-drawer').then(mod => mod.CustomerSettingsDrawer),
+  { ssr: false }
+)
+
+const InventorySettingsDrawer = dynamic(
+  () => import('@/app/(dashboard)/products/_components/inventory-settings-drawer').then(mod => mod.InventorySettingsDrawer),
+  { ssr: false }
+)
+
+const PetSettingsModal = dynamic(
+  () => import('@/app/(dashboard)/pets/_components/pet-settings-modal').then(mod => mod.PetSettingsModal),
+  { ssr: false }
+)
 
 function resolveHeaderTitle(pathname: string) {
   if (pathname.startsWith('/finance')) return 'So quy'
-  if (pathname.startsWith('/products')) return 'San pham & Kho'
+  if (pathname.startsWith('/products')) return 'Sản phẩm & Kho'
   if (pathname.startsWith('/orders')) return 'Quản lý Đơn hàng'
-  if (pathname.startsWith('/customers')) return 'Khach hang'
-  if (pathname.startsWith('/inventory/stock')) return 'Kho hang'
-  if (pathname.startsWith('/inventory/suppliers')) return 'Nha cung cap'
-  if (pathname.startsWith('/inventory/receipts')) return 'Phieu nhap'
+  if (pathname.startsWith('/customers')) return 'Khách hàng'
+  if (pathname.startsWith('/pets')) return 'Thú cưng'
+  if (pathname.startsWith('/inventory/stock')) return 'Tồn kho'
+  if (pathname.startsWith('/inventory/suppliers')) return 'Nhà cung cấp'
+  if (pathname.startsWith('/inventory/receipts')) return 'Phiếu nhập'
   if (pathname.startsWith('/pos')) return 'Tao don hang'
   if (pathname.startsWith('/dashboard')) return 'Tong quan'
   return ''
@@ -27,12 +45,24 @@ function resolveHeaderTitle(pathname: string) {
 export function Header() {
   const { user, allowedBranches, activeBranchId, switchBranch } = useAuthStore()
   const { toggleSidebar } = useThemeStore()
+  const { hasPermission } = useAuthorization()
   const router = useRouter()
   const pathname = usePathname()
   const [showBranchDropdown, setShowBranchDropdown] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
+  const [showCustomerSettingsDrawer, setShowCustomerSettingsDrawer] = useState(false)
+  const [showInventorySettingsDrawer, setShowInventorySettingsDrawer] = useState(false)
+  const [showPetSettings, setShowPetSettings] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const pageTitle = resolveHeaderTitle(pathname)
+  const canManageCustomerSettings = hasPermission('customer.update')
+  const canManagePetSettings = hasPermission('pet.update')
+  const canOpenInventorySettings =
+    hasPermission('product.read') ||
+    hasPermission('product.create') ||
+    hasPermission('product.update') ||
+    hasPermission('product.delete') ||
+    hasPermission('settings.pricing_policy.manage')
 
   const { data: branches } = useQuery({
     queryKey: ['settings', 'branches'],
@@ -81,8 +111,35 @@ export function Header() {
           <Menu size={20} />
         </button>
         {pageTitle ? (
-          <div className="min-w-0">
+          <div className="min-w-0 flex items-center gap-2">
             <h1 className="truncate text-xl font-semibold tracking-tight text-foreground-base">{pageTitle}</h1>
+            {pathname === '/customers' && canManageCustomerSettings && (
+              <button 
+                onClick={() => setShowCustomerSettingsDrawer(true)} 
+                className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
+                title="Cài đặt khách hàng"
+              >
+                <Settings size={18} />
+              </button>
+            )}
+            {pathname.startsWith('/pets') && canManagePetSettings && (
+              <button 
+                onClick={() => setShowPetSettings(true)} 
+                className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
+                title="Cài đặt Pet"
+              >
+                <Settings size={18} />
+              </button>
+            )}
+            {pathname === '/products' && canOpenInventorySettings && (
+              <button 
+                onClick={() => setShowInventorySettingsDrawer(true)} 
+                className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
+                title="Cấu hình kho"
+              >
+                <Settings size={18} />
+              </button>
+            )}
           </div>
         ) : null}
       </div>
@@ -198,6 +255,9 @@ export function Header() {
       </div>
 
       <UserSettingsDrawer isOpen={showDrawer} onClose={() => setShowDrawer(false)} />
+      <CustomerSettingsDrawer isOpen={showCustomerSettingsDrawer} onClose={() => setShowCustomerSettingsDrawer(false)} />
+      <InventorySettingsDrawer isOpen={showInventorySettingsDrawer} onClose={() => setShowInventorySettingsDrawer(false)} />
+      <PetSettingsModal open={showPetSettings} onClose={() => setShowPetSettings(false)} />
     </motion.header>
   )
 }

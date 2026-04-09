@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { DatabaseService } from '../../database/database.service.js'
 import { randomUUID } from 'crypto'
+import { isValidBranchCode, normalizeBranchCode, suggestBranchCodeFromName } from '@petshop/shared'
 
 export interface CreateBranchDto {
+  code?: string
   name: string
   address?: string
   phone?: string
@@ -31,6 +33,50 @@ export interface UpdateConfigDto {
 @Injectable()
 export class SettingsService {
   constructor(private readonly db: DatabaseService) {}
+
+  private async ensureUniqueBranchCode(code: string, excludeId?: string): Promise<string> {
+    const normalized = normalizeBranchCode(code)
+    if (!isValidBranchCode(normalized)) {
+      throw new BadRequestException('ID chi nhánh phải gồm 2-4 ký tự A-Z hoặc số')
+    }
+
+    const existing = await this.db.branch.findFirst({
+      where: {
+        code: normalized,
+        ...(excludeId ? { NOT: { id: excludeId } } : {}),
+      } as any,
+    })
+
+    if (existing) {
+      throw new ConflictException(`ID chi nhánh "${normalized}" đã tồn tại`)
+    }
+
+    return normalized
+  }
+
+  private async suggestUniqueBranchCode(name: string, excludeId?: string): Promise<string> {
+    const suggested = suggestBranchCodeFromName(name)
+    const baseCode = suggested.length >= 2 ? suggested : 'CN'
+
+    for (let suffix = 0; suffix <= 99; suffix += 1) {
+      const candidate = suffix === 0
+        ? baseCode
+        : normalizeBranchCode(`${baseCode.slice(0, Math.max(0, 4 - String(suffix).length))}${suffix}`)
+
+      if (!isValidBranchCode(candidate)) continue
+
+      const existing = await this.db.branch.findFirst({
+        where: {
+          code: candidate,
+          ...(excludeId ? { NOT: { id: excludeId } } : {}),
+        } as any,
+      })
+
+      if (!existing) return candidate
+    }
+
+    throw new ConflictException('Không thể tự sinh ID chi nhánh duy nhất, vui lòng nhập thủ công')
+  }
 
   // ─── System Configs ───────────────────────────────────────────────────────
 
@@ -91,14 +137,29 @@ export class SettingsService {
   }
 
   async createBranch(dto: CreateBranchDto) {
-    const branch = await this.db.branch.create({ data: dto as any })
+    const code = dto.code
+      ? await this.ensureUniqueBranchCode(dto.code)
+      : await this.suggestUniqueBranchCode(dto.name)
+
+    const branch = await this.db.branch.create({
+      data: {
+        ...dto,
+        code,
+      } as any,
+    })
     return { success: true, data: branch }
   }
 
   async updateBranch(id: string, dto: UpdateBranchDto) {
     const branch = await this.db.branch.findUnique({ where: { id } })
     if (!branch) throw new NotFoundException('Không tìm thấy chi nhánh')
-    const updated = await this.db.branch.update({ where: { id }, data: dto as any })
+    const updated = await this.db.branch.update({
+      where: { id },
+      data: {
+        ...dto,
+        ...(dto.code ? { code: await this.ensureUniqueBranchCode(dto.code, id) } : {}),
+      } as any,
+    })
     return { success: true, data: updated }
   }
 

@@ -1,10 +1,40 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, AlertCircle, PackageCheck, Download } from 'lucide-react'
+import { Search, AlertCircle, PackageCheck, Download, Pin, PinOff } from 'lucide-react'
 import { inventoryApi } from '@/lib/api/inventory.api'
 import { useRouter } from 'next/navigation'
+import {
+  DataListShell,
+  DataListToolbar,
+  DataListFilterPanel,
+  DataListColumnPanel,
+  DataListTable,
+  DataListPagination,
+  DataListBulkBar,
+  TableCheckbox,
+  toolbarSelectClass,
+  filterSelectClass,
+  useDataListCore,
+  useDataListSelection,
+} from '@/components/data-list'
+
+type DisplayColumnId = 'code' | 'name' | 'minStock' | 'stock' | 'status' | 'actions'
+type PinFilterId = 'type'
+
+const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
+  { id: 'code', label: 'Mã SP', sortable: true, width: 'w-24' },
+  { id: 'name', label: 'Sản phẩm', sortable: true, minWidth: 'min-w-[180px]' },
+  { id: 'minStock', label: 'Định mức tối thiểu', sortable: true, width: 'w-32' },
+  { id: 'stock', label: 'Tồn kho hiện tại', sortable: true, width: 'w-32' },
+  { id: 'status', label: 'Trạng thái', width: 'w-32' },
+  { id: 'actions', label: 'Thao tác', width: 'w-28' },
+]
+
+const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
+  COLUMN_OPTIONS.filter((c) => c.sortable).map((c) => c.id)
+)
 
 export function StockList() {
   const router = useRouter()
@@ -12,85 +42,187 @@ export function StockList() {
   const [filterType, setFilterType] = useState('ALL') // ALL, LOW_STOCK
   const [page, setPage] = useState(1)
 
+  const [pageSize, setPageSize] = useState(20)
+
+  const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
+    initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
+    initialVisibleColumns: ['code', 'name', 'minStock', 'stock', 'status', 'actions'],
+    initialTopFilterVisibility: { type: true }
+  })
+  const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
+
   const { data, isLoading } = useQuery({
-    queryKey: ['products-stock', search, filterType, page],
+    queryKey: ['products-stock', search, filterType, page, pageSize, columnSort.columnId, columnSort.direction],
     queryFn: () => inventoryApi.getProducts({
       search,
       page,
-      limit: 20,
+      limit: pageSize,
+      sortBy: columnSort.columnId || undefined,
+      sortOrder: (columnSort.direction as 'asc' | 'desc') || undefined,
     }),
   })
 
-  // In real app, there might be a specific endpoint for LOW_STOCK or we filter client side
   const rawProducts = Array.isArray((data as any)?.data) ? (data as any).data : []
   const products = filterType === 'LOW_STOCK' ? rawProducts.filter((p: any) => p.stock <= p.minStock) : rawProducts
 
-  const total = products.length
+  const totalPages = (data as any)?.totalPages ?? 1
+  const total = (data as any)?.total ?? products.length
+
+  const visibleRowIds = useMemo(
+    () => products.map((p: any) => `p:${p.id}`),
+    [products]
+  )
+
+  const {
+    selectedRowIds,
+    toggleRowSelection,
+    toggleSelectAllVisible,
+    clearSelection,
+    allVisibleSelected,
+  } = useDataListSelection(visibleRowIds)
+
+  const activeColumns = useMemo(() => {
+    return orderedVisibleColumns.map((id) => {
+      const col = COLUMN_OPTIONS.find((c) => c.id === id)!
+      return { ...col, id: id as DisplayColumnId }
+    })
+  }, [orderedVisibleColumns])
+
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const rangeEnd   = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rawProducts.length)
+
+  const clearFilters = () => {
+    setFilterType('ALL')
+    setSearch('')
+    setPage(1)
+  }
+
+  const toggleColumnSort = (columnId: DisplayColumnId) => {
+    if (!SORTABLE_COLUMNS.has(columnId)) return
+    dataListState.toggleColumnSort(columnId)
+  }
 
   return (
-    <div className="card overflow-hidden p-0">
-      <div className="flex items-center justify-between gap-3 p-4 border-b border-border flex-wrap">
-        <div className="flex items-center gap-2.5 flex-1 min-w-0 flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" />
-            <input
-              placeholder="Tìm tên sản phẩm, SKU..."
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1) }}
-              className="form-input pl-9"
-            />
+    <DataListShell>
+      <DataListToolbar
+        searchValue={search}
+        onSearchChange={(v) => { setSearch(v); setPage(1) }}
+        searchPlaceholder="Tìm tên sản phẩm, SKU..."
+        showColumnToggle={true}
+        showFilterToggle={true}
+        filterSlot={
+          <>
+            {topFilterVisibility.type && (
+              <select
+                value={filterType}
+                onChange={e => { setFilterType(e.target.value); setPage(1) }}
+                className={toolbarSelectClass}
+              >
+                <option value="ALL">Tất cả sản phẩm</option>
+                <option value="LOW_STOCK">Sắp hết hàng</option>
+              </select>
+            )}
+          </>
+        }
+        columnPanelContent={
+          <DataListColumnPanel
+            columns={COLUMN_OPTIONS}
+            columnOrder={columnOrder}
+            visibleColumns={visibleColumns}
+            sortInfo={columnSort}
+            sortableColumns={SORTABLE_COLUMNS}
+            draggingColumnId={draggingColumnId}
+            onToggle={(id) => dataListState.toggleColumn(id as DisplayColumnId)}
+            onReorder={(sourceId, targetId) => dataListState.reorderColumn(sourceId as DisplayColumnId, targetId as DisplayColumnId)}
+            onToggleSort={(id) => toggleColumnSort(id as DisplayColumnId)}
+            onDragStart={(id) => dataListState.setDraggingColumnId(id as DisplayColumnId)}
+            onDragEnd={() => dataListState.setDraggingColumnId(null)}
+          />
+        }
+        extraActions={
+          <div className="flex items-center gap-2">
+            <button className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 text-sm font-medium text-foreground transition-colors hover:border-primary-500/60">
+              <Download size={15} /> Xuất kho
+            </button>
           </div>
+        }
+      />
+
+      <DataListFilterPanel onClearAll={clearFilters}>
+        <label className="space-y-2">
+          <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
+            <span className="inline-flex items-center gap-2">
+              <PackageCheck size={14} className="text-primary-500" /> Loại tồn kho
+            </span>
+            <button
+              type="button"
+              onClick={() => dataListState.toggleTopFilterVisibility('type')}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
+                topFilterVisibility.type ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+              }`}
+            >
+              {topFilterVisibility.type ? <Pin size={12} /> : <PinOff size={12} />}
+            </button>
+          </span>
           <select
             value={filterType}
             onChange={e => { setFilterType(e.target.value); setPage(1) }}
-            className="form-input w-auto min-w-[160px]"
+            className={filterSelectClass}
           >
             <option value="ALL">Tất cả sản phẩm</option>
             <option value="LOW_STOCK">Sắp hết hàng</option>
           </select>
-        </div>
+        </label>
+      </DataListFilterPanel>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button className="btn-outline h-9 px-4 rounded-xl text-sm">
-            <Download size={15} /> Xuất kho
-          </button>
-        </div>
-      </div>
+      <DataListTable
+        columns={activeColumns}
+        isLoading={isLoading}
+        isEmpty={!isLoading && products.length === 0}
+        emptyText="Không có dữ liệu tồn kho."
+        allSelected={allVisibleSelected}
+        onSelectAll={toggleSelectAllVisible}
+        bulkBar={
+          selectedRowIds.size > 0 ? (
+            <DataListBulkBar
+              selectedCount={selectedRowIds.size}
+              onClear={clearSelection}
+            >
+              <button
+                type="button"
+                className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
+              >
+                <Download size={13} /> Khác
+              </button>
+            </DataListBulkBar>
+          ) : undefined
+        }
+      >
+        {products.map((p: any) => {
+          const isLowStock = p.stock <= p.minStock
+          const rowId = `p:${p.id}`
+          const isSelected = selectedRowIds.has(rowId)
 
-      <div className="w-full overflow-x-auto">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Mã SP</th>
-              <th>Sản phẩm</th>
-              <th className="text-right">Định mức tối thiểu</th>
-              <th className="text-right">Tồn kho hiện tại</th>
-              <th>Trạng thái</th>
-              <th>Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={6} className="py-16 text-center text-foreground-muted text-sm">
-                  Đang tải dữ liệu...
-                </td>
-              </tr>
-            ) : products.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-16 text-center text-foreground-muted">
-                  Không có dữ liệu tồn kho.
-                </td>
-              </tr>
-            ) : (
-              products.map((p: any) => {
-                const isLowStock = p.stock <= p.minStock
-                return (
-                  <tr key={p.id}>
-                    <td>
+          return (
+            <tr 
+              key={p.id} 
+              className={`border-b border-border/50 transition-colors hover:bg-background-secondary/40 ${isSelected ? 'bg-primary-500/5' : ''}`}
+            >
+              <td className="w-10 px-3 py-3">
+                <TableCheckbox 
+                  checked={isSelected}
+                  onCheckedChange={(checked, shiftKey) => toggleRowSelection(rowId, shiftKey)}
+                />
+              </td>
+              {orderedVisibleColumns.map(columnId => {
+                switch(columnId) {
+                  case 'code': return (
+                    <td key={columnId} className="px-3 py-3 w-24">
                       {p.sku && <span className="font-mono text-xs font-semibold text-primary-500 bg-primary-500/10 px-2 py-0.5 rounded-md w-fit">{p.sku}</span>}
                     </td>
-                    <td>
+                  );
+                  case 'name': return (
+                    <td key={columnId} className="px-3 py-3 min-w-[180px]">
                       <div className="flex items-center gap-3">
                         {p.image ? (
                           <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-background-secondary border border-border">
@@ -106,18 +238,26 @@ export function StockList() {
                         </div>
                       </div>
                     </td>
-                    <td className="text-right text-sm text-foreground-muted">{p.minStock ?? 0}</td>
-                    <td className={`text-right font-bold text-lg ${isLowStock ? 'text-error' : 'text-emerald-500'}`}>
+                  );
+                  case 'minStock': return (
+                    <td key={columnId} className="px-3 py-3 text-right text-sm text-foreground-muted w-32">{p.minStock ?? 0}</td>
+                  );
+                  case 'stock': return (
+                    <td key={columnId} className={`px-3 py-3 text-right font-bold text-lg w-32 ${isLowStock ? 'text-error' : 'text-emerald-500'}`}>
                       {p.stock ?? 0}
                     </td>
-                    <td>
+                  );
+                  case 'status': return (
+                    <td key={columnId} className="px-3 py-3 w-32">
                       {isLowStock ? (
                          <span className="badge badge-error"><AlertCircle size={11} /> Sắp hết</span>
                       ) : (
                          <span className="badge badge-success">Bình thường</span>
                       )}
                     </td>
-                    <td>
+                  );
+                  case 'actions': return (
+                    <td key={columnId} className="px-3 py-3 w-28">
                       <div className="flex gap-2">
                         <button
                           onClick={() => router.push(`/inventory/stock/${p.id}`)}
@@ -133,13 +273,34 @@ export function StockList() {
                         </button>
                       </div>
                     </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
+                  );
+                }
+              })}
+            </tr>
+          )
+        })}
+      </DataListTable>
+
+      <div className="-mt-1">
+        <div className="rounded-b-2xl border border-t-0 border-border bg-card/95">
+          <DataListPagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            total={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[20, 50, 100]}
+            totalItemText={
+              <span className="text-xs">
+                Tổng <strong className="text-foreground">{total}</strong> sản phẩm
+              </span>
+            }
+          />
+        </div>
       </div>
-    </div>
+    </DataListShell>
   )
 }

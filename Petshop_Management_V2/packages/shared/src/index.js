@@ -23,6 +23,7 @@ __exportStar(require("./types/product.types.js"), exports);
 __exportStar(require("./types/domain.types.js"), exports);
 // Utils
 __exportStar(require("./utils/search.utils.js"), exports);
+__exportStar(require("./utils/branch-code.utils.js"), exports);
 __exportStar(require("./utils/id.utils.js"), exports);
 __exportStar(require("./utils/currency.utils.js"), exports);
 __exportStar(require("./utils/date.utils.js"), exports);

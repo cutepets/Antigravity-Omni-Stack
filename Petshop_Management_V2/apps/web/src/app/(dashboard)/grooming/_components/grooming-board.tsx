@@ -1,6 +1,7 @@
 'use client'
 
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, LayoutGrid, List, Pencil, Plus, RefreshCw, Tag, Trash2, UserRound, XCircle } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
@@ -17,6 +18,7 @@ import {
   toolbarSelectClass,
   useDataListSelection,
 } from '@/components/data-list'
+import { useAuthorization } from '@/hooks/useAuthorization'
 import { groomingApi, type GroomingSession, type GroomingStatus } from '@/lib/api/grooming.api'
 import { staffApi } from '@/lib/api/staff.api'
 import { cn } from '@/lib/utils'
@@ -74,25 +76,31 @@ function getSearchText(session: GroomingSession) {
 function KanbanCard({
   session,
   onOpen,
+  canDrag,
 }: {
   session: GroomingSession
   onOpen: (session: GroomingSession) => void
+  canDrag?: boolean
 }) {
+  const { hasAnyPermission } = useAuthorization()
   const isCancelled = session.status === 'CANCELLED'
+  const canInteract = (canDrag ?? hasAnyPermission(['grooming.update', 'grooming.start', 'grooming.complete', 'grooming.cancel'])) && !isCancelled
 
   return (
     <button
       type="button"
-      draggable={!isCancelled}
+      draggable={canInteract}
       onDragStart={(event) => {
-        if (!isCancelled) event.dataTransfer.setData('sessionId', session.id)
+        if (canInteract) event.dataTransfer.setData('sessionId', session.id)
       }}
       onClick={() => onOpen(session)}
       className={cn(
         'w-full rounded-[24px] border bg-background-base p-4 text-left transition-all',
-        isCancelled
+        canInteract
+          ? 'cursor-grab border-border hover:-translate-y-0.5 hover:border-primary-500/35 hover:shadow-lg active:cursor-grabbing'
+          : isCancelled
           ? 'cursor-default border-rose-500/20 opacity-70'
-          : 'cursor-grab border-border hover:-translate-y-0.5 hover:border-primary-500/35 hover:shadow-lg active:cursor-grabbing',
+          : 'cursor-pointer border-border hover:-translate-y-0.5 hover:border-primary-500/35 hover:shadow-lg',
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -133,7 +141,9 @@ function KanbanCard({
 }
 
 export function GroomingBoard() {
+  const router = useRouter()
   const queryClient = useQueryClient()
+  const { hasPermission, hasAnyPermission, isLoading: isAuthLoading } = useAuthorization()
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
@@ -145,15 +155,27 @@ export function GroomingBoard() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [selectedSession, setSelectedSession] = useState<GroomingSession | null>(null)
   const [cancelSessionData, setCancelSessionData] = useState<{ id: string; session: GroomingSession } | null>(null)
+  const canReadGrooming = hasPermission('grooming.read')
+  const canCreateGrooming = hasPermission('grooming.create')
+  const canManageSessions = hasAnyPermission(['grooming.update', 'grooming.start', 'grooming.complete', 'grooming.cancel'])
+
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (!canReadGrooming) {
+      router.replace('/dashboard')
+    }
+  }, [canReadGrooming, isAuthLoading, router])
 
   const sessionsQuery = useQuery({
     queryKey: ['grooming-sessions'],
     queryFn: () => groomingApi.getSessions(),
+    enabled: !isAuthLoading && canReadGrooming,
   })
 
   const staffQuery = useQuery({
     queryKey: ['staff', 'grooming-board'],
     queryFn: staffApi.getAll,
+    enabled: !isAuthLoading && canReadGrooming,
   })
 
   const sessions = sessionsQuery.data ?? []
@@ -211,6 +233,7 @@ export function GroomingBoard() {
 
   const handleDrop = (event: React.DragEvent, status: GroomingStatus) => {
     event.preventDefault()
+    if (!canManageSessions) return
     const id = event.dataTransfer.getData('sessionId')
     if (!id) return
     const session = sessions.find((item) => item.id === id)
@@ -238,6 +261,14 @@ export function GroomingBoard() {
   const rangeStart = filteredSessions.length === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd = filteredSessions.length === 0 ? 0 : Math.min(filteredSessions.length, page * pageSize)
   const activeFilterCount = [statusFilter, staffFilter, dateFilter].filter(Boolean).length
+
+  if (isAuthLoading) {
+    return <div className="flex h-64 items-center justify-center text-gray-400">Dang kiem tra quyen truy cap...</div>
+  }
+
+  if (!canReadGrooming) {
+    return <div className="flex h-64 items-center justify-center text-gray-400">Dang chuyen huong...</div>
+  }
 
   return (
     <DataListShell className="min-h-0">
@@ -307,7 +338,10 @@ export function GroomingBoard() {
               isEmpty={!sessionsQuery.isLoading && paginatedSessions.length === 0}
               emptyText="Không có phiên grooming phù hợp."
               allSelected={allVisibleSelected}
-              onSelectAll={toggleSelectAllVisible}
+              onSelectAll={() => {
+                if (!canManageSessions) return
+                toggleSelectAllVisible()
+              }}
               bulkBar={selectedSessionIds.length > 0 ? <DataListBulkBar selectedCount={selectedSessionIds.length} onClear={clearSelection}><button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'IN_PROGRESS' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 text-sm font-semibold text-sky-500 transition-opacity hover:opacity-90 disabled:opacity-50">Đang làm</button><button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'CANCELLED' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-error/20 bg-error/10 px-4 text-sm font-semibold text-error transition-opacity hover:opacity-90 disabled:opacity-50"><Trash2 size={14} />Hủy phiên</button></DataListBulkBar> : undefined}
             >
               {paginatedSessions.map((session) => {
@@ -315,7 +349,7 @@ export function GroomingBoard() {
                 const isSelected = selectedRowIds.has(rowId)
                 return (
                   <tr key={session.id} className={cn('border-b border-border/50 transition-colors hover:bg-background-secondary/40', isSelected ? 'bg-primary-500/5' : '')}>
-                    <td className="w-12 px-3 py-3"><TableCheckbox checked={isSelected} onCheckedChange={(_, shiftKey) => toggleRowSelection(rowId, shiftKey)} /></td>
+                    <td className="w-12 px-3 py-3"><TableCheckbox checked={isSelected} onCheckedChange={(_, shiftKey) => { if (!canManageSessions) return; toggleRowSelection(rowId, shiftKey) }} /></td>
                     <td className="px-3 py-3"><button type="button" onClick={() => setSelectedSession(session)} className="inline-flex items-center gap-1 rounded-lg bg-primary-500/10 px-2 py-1 font-mono text-xs font-semibold text-primary-500 transition-colors hover:bg-primary-500/15">{session.id.slice(-6).toUpperCase()}<Pencil size={12} /></button></td>
                     <td className="px-3 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-sm font-black uppercase text-primary-500">{session.petName?.charAt(0) || 'P'}</div><div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{session.petName}</p><p className="truncate text-xs text-foreground-muted">{session.pet?.breed || session.pet?.species || 'Không rõ giống'}</p></div></div></td>
                     <td className="px-3 py-3"><p className="text-sm font-medium text-foreground">{session.pet?.customer?.fullName || 'Khách lẻ'}</p><p className="mt-1 text-xs text-foreground-muted">{session.pet?.customer?.phone || '—'}</p></td>
@@ -333,7 +367,7 @@ export function GroomingBoard() {
           </>
         )}
 
-        <GroomingModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} initialData={null} />
+        {canCreateGrooming ? <GroomingModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} initialData={null} /> : null}
         <GroomingDetailDrawer isOpen={Boolean(selectedSession)} session={selectedSession} staffOptions={staffOptions} onClose={() => setSelectedSession(null)} />
         {cancelSessionData && (
           <CancelNotesModal

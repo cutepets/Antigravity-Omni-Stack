@@ -1,16 +1,36 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { LayoutGrid, List, Table } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DataListShell } from '@/components/data-list'
+import { useAuthorization } from '@/hooks/useAuthorization'
 import StayList from './StayList'
 import CageGrid from './CageGrid'
 
 type ViewMode = 'kanban' | 'list' | 'pricing'
 
 export default function HotelWorkspace() {
+  const router = useRouter()
+  const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
+  const canReadHotel = hasPermission('hotel.read')
+
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (!canReadHotel) {
+      router.replace('/dashboard')
+    }
+  }, [canReadHotel, isAuthLoading, router])
+
+  if (isAuthLoading) {
+    return <div className="flex h-64 items-center justify-center text-gray-400">Dang kiem tra quyen truy cap...</div>
+  }
+
+  if (!canReadHotel) {
+    return <div className="flex h-64 items-center justify-center text-gray-400">Dang chuyen huong...</div>
+  }
 
   return (
     <DataListShell className="min-h-0">

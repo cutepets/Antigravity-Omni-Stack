@@ -10,6 +10,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
+    "utf8:check": "node scripts/check-utf8.mjs",
     "clean": "turbo run clean && rimraf node_modules",
     "db:generate": "turbo run db:generate --filter=@petshop/database",
     "db:migrate": "turbo run db:migrate --filter=@petshop/database",

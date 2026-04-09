@@ -86,13 +86,27 @@ export interface StockReceipt {
     createdAt: Date;
     updatedAt: Date;
 }
+export interface SupplierDocument {
+    name: string;
+    type?: string | null;
+    url: string;
+    uploadedAt?: string | null;
+    expiresAt?: string | null;
+    notes?: string | null;
+    remindBeforeDays?: number | null;
+}
 export interface Supplier {
     id: string;
     name: string;
     phone?: string | null;
     email?: string | null;
     address?: string | null;
+    avatar?: string | null;
     notes?: string | null;
+    documents?: SupplierDocument[] | null;
+    monthTarget?: number | null;
+    yearTarget?: number | null;
+    isActive?: boolean;
     createdAt: Date;
 }
 export interface Branch {

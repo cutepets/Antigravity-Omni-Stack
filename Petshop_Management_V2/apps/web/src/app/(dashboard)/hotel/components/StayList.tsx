@@ -13,6 +13,7 @@ import {
   TableCheckbox,
   useDataListSelection,
 } from '@/components/data-list'
+import { useAuthorization } from '@/hooks/useAuthorization'
 import { cn } from '@/lib/utils'
 
 const TABLE_COLUMNS = [
@@ -25,9 +26,11 @@ const TABLE_COLUMNS = [
 ]
 
 export default function StayList() {
+  const { hasPermission } = useAuthorization()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [search, setSearch] = useState('')
+  const canCheckout = hasPermission('hotel.checkout')
 
   const { data: stays, isLoading } = useQuery({
     queryKey: ['stays'],
@@ -157,7 +160,7 @@ export default function StayList() {
                   <button className="text-sm font-medium text-primary-500 hover:text-primary-600 transition-colors mr-3">
                     Chi tiết
                   </button>
-                  {stay.status === 'CHECKED_IN' && (
+                  {stay.status === 'CHECKED_IN' && canCheckout && (
                     <button className="text-sm font-medium text-emerald-500 hover:text-emerald-600 transition-colors">
                       Ra chuồng
                     </button>
@@ -178,6 +181,12 @@ export default function StayList() {
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           pageSizeOptions={[10, 20, 50]}
+          totalItemText={
+            <p className="shrink-0 text-xs text-foreground-muted">
+              Tổng <strong className="text-foreground">{visibleStays.length}</strong> lượt lưu trú
+              {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
+            </p>
+          }
         />
       </div>
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -11,6 +11,7 @@ import {
 import { customerApi } from '@/lib/api/customer.api'
 import { CustomerFormModal } from '../_components/customer-form-modal'
 import { PetFormModal } from '../../pets/_components/pet-form-modal'
+import { useAuthorization } from '@/hooks/useAuthorization'
 
 // ── Tier config ────────────────────────────────────────────────────────────────
 const TIER_CONFIG: Record<string, { label: string; badgeClass: string; icon: string; barColor: string }> = {
@@ -66,15 +67,52 @@ function InfoRow({ icon: Icon, label, value, isZalo = false }: {
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const { hasAnyPermission, hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const canReadCustomers = hasAnyPermission(['customer.read.all', 'customer.read.assigned'])
+  const canUpdateCustomer = hasPermission('customer.update')
+  const canDeleteCustomer = hasPermission('customer.delete')
+  const canCreatePet = hasPermission('pet.create')
+  const canReadOrders = hasAnyPermission(['order.read.all', 'order.read.assigned'])
   const [activeTab, setActiveTab] = useState('pets')
   const [editOpen, setEditOpen] = useState(false)
   const [petFormOpen, setPetFormOpen] = useState(false)
+
+  const visibleTabs = useMemo(
+    () => TABS.filter((tab) => (tab.id === 'orders' ? canReadOrders : true)),
+    [canReadOrders],
+  )
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['customer', id],
     queryFn: () => customerApi.getCustomer(id),
     enabled: !!id,
   })
+
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (!canReadCustomers) {
+      router.replace('/dashboard')
+    }
+  }, [canReadCustomers, isAuthLoading, router])
+
+  useEffect(() => {
+    if (!visibleTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(visibleTabs[0]?.id ?? 'pets')
+    }
+  }, [activeTab, visibleTabs])
+
+  if (isAuthLoading) return (
+    <div className="flex items-center justify-center h-[60vh] text-foreground-muted text-sm gap-3">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary-500" />
+      Dang kiem tra quyen truy cap...
+    </div>
+  )
+
+  if (!canReadCustomers) return (
+    <div className="flex items-center justify-center h-[60vh] text-foreground-muted text-sm gap-3">
+      Dang chuyen huong...
+    </div>
+  )
 
   if (isLoading) return (
     <div className="flex items-center justify-center h-[60vh] text-foreground-muted text-sm gap-3">
@@ -142,15 +180,19 @@ export default function CustomerDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setEditOpen(true)}
-              className="btn-outline px-4 py-2 rounded-xl text-sm"
-            >
-              <Edit2 size={14} /> Chỉnh sửa
-            </button>
-            <button className="flex items-center justify-center p-2.5 rounded-xl border border-error/30 bg-error/10 hover:bg-error/20 text-error transition-colors">
-              <Trash2 size={16} />
-            </button>
+            {canUpdateCustomer ? (
+              <button
+                onClick={() => setEditOpen(true)}
+                className="btn-outline px-4 py-2 rounded-xl text-sm"
+              >
+                <Edit2 size={14} /> Chỉnh sửa
+              </button>
+            ) : null}
+            {canDeleteCustomer ? (
+              <button className="flex items-center justify-center p-2.5 rounded-xl border border-error/30 bg-error/10 hover:bg-error/20 text-error transition-colors">
+                <Trash2 size={16} />
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -196,7 +238,7 @@ export default function CustomerDetailPage() {
       <div className="card p-0 overflow-hidden min-h-[400px]">
         {/* Tab bar */}
         <div className="flex overflow-x-auto border-b border-border no-scrollbar">
-          {TABS.map(({ id: tid, label, icon: Icon }) => {
+          {visibleTabs.map(({ id: tid, label, icon: Icon }) => {
             const isActive = activeTab === tid
             return (
               <button
@@ -224,24 +266,28 @@ export default function CustomerDetailPage() {
                   <PawPrint size={18} className="text-primary-500" />
                   Thú cưng ({customer.pets?.length || 0})
                 </h3>
-                <button
-                  onClick={() => setPetFormOpen(true)}
-                  className="btn-primary liquid-button px-4 py-2 rounded-xl text-sm"
-                >
-                  + Thêm Pet
-                </button>
+                {canCreatePet ? (
+                  <button
+                    onClick={() => setPetFormOpen(true)}
+                    className="btn-primary liquid-button px-4 py-2 rounded-xl text-sm"
+                  >
+                    + Thêm Pet
+                  </button>
+                ) : null}
               </div>
 
               {!customer.pets?.length ? (
                 <div className="flex flex-col items-center justify-center py-20 text-foreground-muted gap-3">
                   <PawPrint size={36} className="opacity-30" />
                   <p>Chưa có thú cưng nào</p>
-                  <button
-                    onClick={() => setPetFormOpen(true)}
-                    className="btn-primary liquid-button px-5 py-2.5 rounded-xl text-sm mt-2"
-                  >
-                    + Thêm Pet đầu tiên
-                  </button>
+                  {canCreatePet ? (
+                    <button
+                      onClick={() => setPetFormOpen(true)}
+                      className="btn-primary liquid-button px-5 py-2.5 rounded-xl text-sm mt-2"
+                    >
+                      + Thêm Pet đầu tiên
+                    </button>
+                  ) : null}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Staff, CreateStaffDto, UpdateStaffDto } from '@/lib/api/staff.api'
 import { AvatarCropperModal } from './AvatarCropperModal'
-import { Camera, User, Phone, Mail, Calendar, Settings, DollarSign, Clock, Shield, Briefcase, Plus, X, Upload, Edit2 } from 'lucide-react'
+import { Camera, User, Phone, Shield, Briefcase, Plus, X, Upload, Edit2, Check, MapPin } from 'lucide-react'
 import { settingsApi } from '@/lib/api'
 
 // Common Dark Input Style
@@ -23,7 +23,6 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
 
   const [formData, setFormData] = useState({
     username: '',
-    password: '',
     fullName: '',
     phone: '',
     email: '',
@@ -38,6 +37,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
     emergencyContactPhone: '',
     
     branchId: '',
+    authorizedBranchIds: [] as string[],
     joinDate: '',
     baseSalary: '',
     shiftStart: '08:00',
@@ -96,7 +96,6 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
     if (initialData && isOpen) {
       setFormData({
         username: initialData.username,
-        password: '',
         fullName: initialData.fullName,
         phone: initialData.phone || '',
         email: initialData.email || '',
@@ -111,6 +110,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         emergencyContactPhone: initialData.emergencyContactPhone || '',
         
         branchId: (initialData as any).branchId || '',
+        authorizedBranchIds: initialData.authorizedBranches?.map(b => b.id) || [],
         joinDate: initialData.joinDate ? initialData.joinDate.substring(0, 10) : '',
         baseSalary: initialData.baseSalary ? String(initialData.baseSalary) : '',
         shiftStart: initialData.shiftStart || '08:00',
@@ -122,7 +122,6 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
     } else if (isOpen) {
       setFormData({
         username: '',
-        password: '',
         fullName: '',
         phone: '',
         email: '',
@@ -137,6 +136,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         emergencyContactPhone: '',
         
         branchId: '',
+        authorizedBranchIds: [],
         joinDate: new Date().toISOString().substring(0, 10),
         baseSalary: '',
         shiftStart: '08:00',
@@ -156,6 +156,16 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
       reader.addEventListener('load', () => setCropImageObj(reader.result?.toString() || null))
       reader.readAsDataURL(e.target.files[0])
     }
+  }
+
+  const toggleBranch = (branchId: string) => {
+    setFormData(prev => {
+      const current = prev.authorizedBranchIds
+      const next = current.includes(branchId)
+        ? current.filter(id => id !== branchId)
+        : [...current, branchId]
+      return { ...prev, authorizedBranchIds: next }
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -178,6 +188,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         emergencyContactPhone: formData.emergencyContactPhone || undefined,
         
         branchId: formData.branchId || undefined,
+        authorizedBranchIds: formData.authorizedBranchIds,
         joinDate: formData.joinDate || undefined,
         baseSalary: formData.baseSalary ? Number(formData.baseSalary) : undefined,
         shiftStart: formData.shiftStart || undefined,
@@ -190,7 +201,6 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         payload.status = formData.status
       } else {
         payload.username = formData.username
-        if (formData.password) payload.password = formData.password
       }
 
       await onSave(payload)
@@ -278,12 +288,23 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                     <label className={labelStyle}>Họ và tên *</label>
                     <input required type="text" value={formData.fullName} onChange={handleFullNameChange} className={inputStyle} placeholder="Nguyễn Văn A" />
                   </div>
-                  {!isEditing && (
-                    <div>
-                      <label className={labelStyle}>Tên đăng nhập *</label>
-                      <input required type="text" value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} className={inputStyle} placeholder="nva2025" />
-                    </div>
-                  )}
+
+                  {/* Username: always show, disabled when editing */}
+                  <div>
+                    <label className={labelStyle}>Tên đăng nhập {isEditing ? '' : '*'}</label>
+                    <input
+                      required={!isEditing}
+                      type="text"
+                      value={formData.username}
+                      disabled={isEditing}
+                      onChange={e => setFormData({ ...formData, username: e.target.value })}
+                      className={`${inputStyle} ${isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      placeholder="nva2025"
+                    />
+                    {!isEditing && (
+                      <p className="mt-1.5 text-[11px] text-gray-500">Mật khẩu mặc định: <span className="text-gray-400 font-medium">Petshop@123</span></p>
+                    )}
+                  </div>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -377,22 +398,13 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                 </div>
               </div>
 
-              {/* Box 2: Contract Info */}
+              {/* Box 2: Contract Info — no longer contains branch */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 rounded-2xl border border-white/5 bg-[#212431] p-5 shadow-sm">
                 <div className="col-span-1 md:col-span-3 mb-2 flex items-center gap-2">
                   <Briefcase size={16} className="text-purple-400" />
                   <span className="text-sm font-bold text-white uppercase tracking-wider">Hợp đồng & Ca làm việc</span>
                 </div>
                 
-                <div className="md:col-span-1">
-                  <label className={labelStyle}>Chi nhánh</label>
-                  <select value={formData.branchId} onChange={e => setFormData({ ...formData, branchId: e.target.value })} className={`${inputStyle} appearance-none`}>
-                    <option value="">-- Chọn chi nhánh --</option>
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
-                </div>
                 <div className="md:col-span-1">
                   <label className={labelStyle}>Ngày vào làm</label>
                   <input type="date" value={formData.joinDate} onChange={e => setFormData({ ...formData, joinDate: e.target.value })} className={inputStyle} />
@@ -405,6 +417,13 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                   </div>
                 </div>
                 <div className="md:col-span-1">
+                  <label className={labelStyle}>% Thưởng Spa</label>
+                  <div className="relative">
+                    <input type="number" value={formData.spaCommissionRate} onChange={e => setFormData({ ...formData, spaCommissionRate: e.target.value })} className={inputStyle} placeholder="Vd: 10" />
+                    <span className="absolute right-4 top-3 text-gray-500 text-sm">%</span>
+                  </div>
+                </div>
+                <div className="md:col-span-1">
                   <label className={labelStyle}>Giờ vào</label>
                   <input type="time" value={formData.shiftStart} onChange={e => setFormData({ ...formData, shiftStart: e.target.value })} className={inputStyle} />
                 </div>
@@ -412,47 +431,92 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                   <label className={labelStyle}>Giờ ra</label>
                   <input type="time" value={formData.shiftEnd} onChange={e => setFormData({ ...formData, shiftEnd: e.target.value })} className={inputStyle} />
                 </div>
-                <div className="md:col-span-1">
-                  <label className={labelStyle}>% Thưởng Spa</label>
-                  <div className="relative">
-                    <input type="number" value={formData.spaCommissionRate} onChange={e => setFormData({ ...formData, spaCommissionRate: e.target.value })} className={inputStyle} placeholder="Vd: 10" />
-                    <span className="absolute right-4 top-3 text-gray-500 text-sm">%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Box 3: Roles & Security */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-[#212431] p-5 shadow-sm">
-                <div className="col-span-1 md:col-span-2 mb-2 flex items-center gap-2">
-                  <Shield size={16} className="text-orange-400" />
-                  <span className="text-sm font-bold text-white uppercase tracking-wider">Phân quyền</span>
-                </div>
-                
-                <div>
-                  <label className={labelStyle}>Vai trò chính</label>
-                  <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className={inputStyle}>
-                    {roles.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {isEditing ? (
-                  <div>
+                {isEditing && (
+                  <div className="md:col-span-1">
                     <label className={labelStyle}>Trạng thái làm việc</label>
-                    <select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })} className={inputStyle}>
+                    <select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })} className={`${inputStyle} appearance-none`}>
                       <option value="WORKING">Đang làm việc</option>
                       <option value="PROBATION">Thử việc</option>
                       <option value="LEAVE">Nghỉ phép</option>
                       <option value="RESIGNED">Đã nghỉ việc</option>
                     </select>
                   </div>
-                ) : (
-                  <div>
-                    <label className={labelStyle}>Mật khẩu khởi tạo</label>
-                    <input type="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className={inputStyle} placeholder="Mặc định: Petshop@123" />
-                  </div>
                 )}
+              </div>
+
+              {/* Box 3: Roles & Branch Assignment */}
+              <div className="rounded-2xl border border-white/5 bg-[#212431] p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-2">
+                  <Shield size={16} className="text-orange-400" />
+                  <span className="text-sm font-bold text-white uppercase tracking-wider">Phân quyền & Chi nhánh thao tác</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-5">
+                  <div>
+                    <label className={labelStyle}>Vai trò chính</label>
+                    <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className={`${inputStyle} appearance-none`}>
+                      {roles.map(r => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Multi-branch selector */}
+                <div>
+                  <label className={labelStyle}>
+                    <div className="flex items-center gap-2">
+                      <MapPin size={12} className="text-[#00E5B5]" />
+                      <span>Chi nhánh thao tác</span>
+                    </div>
+                  </label>
+                  <p className="mb-3 text-xs text-gray-500">
+                    Chọn các chi nhánh mà nhân viên được phép thao tác. Khi bán hàng có thể chuyển đổi giữa các chi nhánh đã chọn.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {branches.map(branch => {
+                      const isSelected = formData.authorizedBranchIds.includes(branch.id)
+                      return (
+                        <button
+                          key={branch.id}
+                          type="button"
+                          onClick={() => toggleBranch(branch.id)}
+                          className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
+                            isSelected
+                              ? 'border-[#00E5B5]/50 bg-[#00E5B5]/10 ring-1 ring-[#00E5B5]/30'
+                              : 'border-white/10 bg-[#2A2D3C] hover:border-white/20'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p className={`text-sm font-semibold truncate ${isSelected ? 'text-[#00E5B5]' : 'text-white'}`}>
+                              {branch.name}
+                            </p>
+                            {branch.address && (
+                              <p className="mt-0.5 truncate text-xs text-gray-500">{branch.address}</p>
+                            )}
+                          </div>
+                          <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition-all ${
+                            isSelected
+                              ? 'bg-[#00E5B5] text-black'
+                              : 'border border-white/20'
+                          }`}>
+                            {isSelected && <Check size={12} strokeWidth={3} />}
+                          </div>
+                        </button>
+                      )
+                    })}
+                    {branches.length === 0 && (
+                      <p className="col-span-2 py-4 text-center text-xs text-gray-500">Chưa có chi nhánh nào. Vui lòng tạo chi nhánh trước.</p>
+                    )}
+                  </div>
+                  
+                  {formData.authorizedBranchIds.length > 0 && (
+                    <p className="mt-2 text-xs text-[#00E5B5]">
+                      Đã chọn {formData.authorizedBranchIds.length} chi nhánh
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </form>

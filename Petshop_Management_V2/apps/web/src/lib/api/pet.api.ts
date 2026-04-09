@@ -48,4 +48,24 @@ export const petApi = {
     const res = await api.delete<ApiResponse<{ success: boolean }>>(`/pets/${id}`)
     return res.data.data
   },
+
+  uploadAvatar: async (id: string, file: File) => {
+    const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const res = await fetch(`${API_URL}/api/pets/${id}/avatar`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    })
+    
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message || 'Upload thất bại')
+    return data.data
+  },
 }

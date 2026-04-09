@@ -22,7 +22,7 @@ export function PosPaymentModal({ isOpen, onClose, cartTotal, onConfirm, initial
 
   const paymentMethods = [
     { id: 'CASH', label: 'Tiền mặt', icon: Banknote },
-    { id: 'TRANSFER', label: 'Chuyển khoản', icon: Landmark },
+    { id: 'BANK', label: 'Chuyển khoản', icon: Landmark },
     { id: 'MOMO', label: 'MoMo', icon: Smartphone },
     { id: 'VNPAY', label: 'VNPay', icon: CreditCard },
     { id: 'CARD', label: 'Thẻ', icon: CreditCard },

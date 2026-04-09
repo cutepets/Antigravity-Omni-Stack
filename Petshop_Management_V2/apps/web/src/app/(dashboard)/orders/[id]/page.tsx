@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -8,15 +8,17 @@ import {
   Package, Scissors, CheckCircle2, Clock, AlertCircle, Printer,
   Receipt, Tag, Hash, Store, ChevronRight, Percent
 } from 'lucide-react'
-import { orderApi } from '@/lib/api/order.api'
-import { formatDateTime, formatCurrency, cn } from '@/lib/utils'
+import { orderApi, type CompleteOrderPayload } from '@/lib/api/order.api'
+import { formatDateTime, formatCurrency } from '@/lib/utils'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { PosPaymentModal } from '../../pos/components/PosPaymentModal'
+import { OrderSettlementModal } from '../_components/order-settlement-modal'
+import { useAuthorization } from '@/hooks/useAuthorization'
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: 'Tiền mặt',
   CARD: 'Thẻ bán hàng',
-  TRANSFER: 'Chuyển khoản',
+  BANK: 'Chuyển khoản',
   MOMO: 'MoMo',
   VNPAY: 'VNPay',
   ZALOPAY: 'ZaloPay',
@@ -25,14 +27,14 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 }
 
 const PAYMENT_STATUS_BADGE: Record<string, string> = {
-  PENDING: 'badge badge-warning',
+  UNPAID: 'badge badge-warning',
   PARTIAL: 'badge badge-accent',
   PAID:    'badge badge-success',
   COMPLETED: 'badge badge-info',
 }
 
 const PAYMENT_STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Đang xử lý',
+  UNPAID: 'Chưa thanh toán',
   PARTIAL: 'TT 1 phần',
   PAID:    'Đã thanh toán',
   COMPLETED: 'Hoàn thành',
@@ -49,8 +51,22 @@ export default function OrderDetailPage() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { hasAnyPermission, hasPermission, isLoading: isAuthLoading } = useAuthorization()
+
+  const canReadOrders = hasAnyPermission(['order.read.all', 'order.read.assigned'])
+  const canPayOrder = hasPermission('order.pay')
+  const canFinalizeOrder = hasAnyPermission(['order.approve', 'order.ship'])
+  const canReadCustomers = hasAnyPermission(['customer.read.all', 'customer.read.assigned'])
   
   const [showPayModal, setShowPayModal] = useState(false)
+  const [showSettlementModal, setShowSettlementModal] = useState(false)
+
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (!canReadOrders) {
+      router.replace('/dashboard')
+    }
+  }, [canReadOrders, isAuthLoading, router])
 
   const { data: order, isLoading, isError } = useQuery({
     queryKey: ['order', id],
@@ -68,6 +84,35 @@ export default function OrderDetailPage() {
     },
     onError: () => toast.error('Lỗi khi thao tác thanh toán'),
   })
+
+  const { mutate: completeOrder, isPending: completing } = useMutation({
+    mutationFn: (data: CompleteOrderPayload) => orderApi.complete(id as string, data),
+    onSuccess: () => {
+      toast.success('Quyết toán đơn hàng thành công')
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      setShowSettlementModal(false)
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Không thể quyết toán đơn hàng')
+    },
+  })
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center animate-fade-in">
+        <p className="text-sm text-foreground-muted font-medium">Dang kiem tra quyen truy cap...</p>
+      </div>
+    )
+  }
+
+  if (!canReadOrders) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center animate-fade-in">
+        <p className="text-sm text-foreground-muted font-medium">Dang chuyen huong...</p>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -97,9 +142,13 @@ export default function OrderDetailPage() {
   const isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'COMPLETED'
   const discount = order.discount || 0
   const subtotal = order.subtotal ?? items.reduce((s: number, i: any) => s + (i.unitPrice ?? i.price ?? 0) * (i.quantity ?? 1), 0)
-  const amountPaid = order.amountPaid ?? 0
+  const amountPaid = order.paidAmount ?? order.amountPaid ?? 0
   const total = order.total ?? 0
   const remainingDebt = Math.max(0, total - amountPaid)
+  const overpaidAmount = Math.max(0, amountPaid - total)
+  const transactions: any[] = order.transactions || []
+  const canFinalize = order.status !== 'COMPLETED' && order.status !== 'CANCELLED'
+  const canKeepCredit = Boolean(order.customer?.id || order.customerId)
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in pb-16">
@@ -266,6 +315,13 @@ export default function OrderDetailPage() {
                 <span className="text-[15px] font-bold text-success">{formatCurrency(amountPaid)}</span>
               </div>
 
+              {overpaidAmount > 0 && (
+                <div className="flex items-center justify-between p-1 border-t border-dashed border-border pt-3 mt-1">
+                  <span className="text-sm font-semibold text-primary-500">Đang dư</span>
+                  <span className="text-lg font-bold text-primary-500">{formatCurrency(overpaidAmount)}</span>
+                </div>
+              )}
+
               {remainingDebt > 0 && (
                 <div className="flex items-center justify-between p-1 border-t border-dashed border-border pt-3 mt-1">
                   <span className="text-sm font-semibold text-warning flex items-center gap-1.5"><AlertCircle size={14}/> Còn nợ</span>
@@ -275,12 +331,23 @@ export default function OrderDetailPage() {
             </div>
 
             {/* Pay button if not completely paid */}
-            {remainingDebt > 0 && !isPaid && (
+            {canPayOrder && remainingDebt > 0 && !isPaid && canFinalize && (
               <button
                 onClick={() => setShowPayModal(true)}
+                disabled={paying || completing}
                 className="mt-5 w-full py-3 bg-primary-500 hover:bg-primary-600 text-white text-[15px] font-bold rounded-xl transition-all shadow-[0_4px_14px_0_rgba(var(--primary-500),0.39)] flex items-center justify-center gap-2 hover:translate-y-[-1px]"
               >
                 <CheckCircle2 size={18} /> Thu tiền ngay
+              </button>
+            )}
+
+            {canFinalizeOrder && canFinalize && (
+              <button
+                onClick={() => setShowSettlementModal(true)}
+                disabled={completing}
+                className="mt-3 w-full py-3 bg-background-secondary hover:bg-background-tertiary text-[15px] font-bold rounded-xl transition-colors border border-border text-foreground flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Receipt size={18} /> Quyết toán cuối
               </button>
             )}
           </div>
@@ -292,8 +359,13 @@ export default function OrderDetailPage() {
             </h2>
             {order.customer ? (
               <button
-                onClick={() => router.push(`/customers/${order.customer.customerCode || order.customer.id}`)}
+                onClick={() => {
+                  if (canReadCustomers) {
+                    router.push(`/customers/${order.customer.customerCode || order.customer.id}`)
+                  }
+                }}
                 className="w-full flex items-center gap-3 text-left bg-background-secondary hover:bg-background-tertiary p-3 rounded-xl border border-border transition-colors group"
+                disabled={!canReadCustomers}
               >
                 <div className="w-10 h-10 rounded-full bg-primary-500/10 flex items-center justify-center shrink-0 border border-primary-500/20">
                   <User size={18} className="text-primary-500" />
@@ -375,6 +447,33 @@ export default function OrderDetailPage() {
               </div>
             </div>
           )}
+
+          {transactions.length > 0 && (
+            <div className="bg-background border border-border rounded-2xl p-5 shadow-sm">
+              <h2 className="font-bold text-base text-foreground mb-4 flex items-center gap-2">
+                <Receipt size={18} className="text-primary-500" /> Phiếu liên quan
+              </h2>
+              <div className="space-y-3">
+                {transactions.map((transaction: any) => (
+                  <button
+                    key={transaction.id}
+                    onClick={() => router.push(`/finance/${encodeURIComponent(transaction.voucherNumber || transaction.refNumber || transaction.id)}`)}
+                    className="w-full rounded-xl border border-border bg-background-secondary px-4 py-3 text-left transition-colors hover:bg-background-tertiary"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{transaction.voucherNumber || transaction.id}</p>
+                        <p className="mt-1 text-xs text-foreground-muted">
+                          {transaction.type === 'EXPENSE' ? 'Phiếu chi' : 'Phiếu thu'} · {(transaction.amount ?? 0).toLocaleString('vi-VN')}đ
+                        </p>
+                      </div>
+                      <span className="text-xs font-medium text-primary-500">Mở sổ quỹ</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -386,6 +485,17 @@ export default function OrderDetailPage() {
          onConfirm={(method, amount) => {
             payOrder({ payments: [{ method, amount }] });
          }}
+      />
+
+      <OrderSettlementModal
+        isOpen={showSettlementModal}
+        onClose={() => setShowSettlementModal(false)}
+        onConfirm={(payload) => completeOrder(payload)}
+        orderNumber={order.orderNumber}
+        total={total}
+        amountPaid={amountPaid}
+        canKeepCredit={canKeepCredit}
+        isPending={completing}
       />
     </div>
   )

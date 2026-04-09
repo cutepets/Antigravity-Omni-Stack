@@ -10,6 +10,7 @@ export interface Staff {
   phone: string | null
   email: string | null
   branch: { id: string; name: string } | null
+  authorizedBranches?: { id: string; name: string }[]
   avatar: string | null
   createdAt: string
   joinDate?: string | null
@@ -34,6 +35,7 @@ export interface CreateStaffDto {
   phone?: string
   email?: string
   branchId?: string
+  authorizedBranchIds?: string[]
 
   gender?: string
   dob?: string
@@ -55,6 +57,7 @@ export interface UpdateStaffDto {
   phone?: string
   email?: string
   branchId?: string
+  authorizedBranchIds?: string[]
 
   gender?: string
   dob?: string

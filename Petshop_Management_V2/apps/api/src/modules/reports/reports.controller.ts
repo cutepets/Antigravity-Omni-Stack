@@ -1,9 +1,37 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, UseGuards, UnauthorizedException } from '@nestjs/common'
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger'
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+} from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
+import { diskStorage } from 'multer'
+import { randomUUID } from 'crypto'
+import * as fs from 'fs'
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import type { Request } from 'express'
 import type { JwtPayload } from '@petshop/shared'
-import { ReportsService, FindTransactionsDto, CreateTransactionDto, UpdateTransactionDto } from './reports.service.js'
+import { Permissions } from '../../common/decorators/permissions.decorator.js'
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
+import {
+  CreateTransactionDto,
+  FindTransactionsDto,
+  ReportsService,
+  UpdateTransactionDto,
+} from './reports.service.js'
 
 interface AuthenticatedRequest extends Request {
   user?: JwtPayload
@@ -11,7 +39,7 @@ interface AuthenticatedRequest extends Request {
 
 @ApiTags('Reports')
 @Controller('reports')
-@UseGuards(JwtGuard)
+@UseGuards(JwtGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
@@ -25,60 +53,103 @@ export class ReportsController {
   }
 
   @Get('dashboard')
-  @ApiOperation({ summary: 'KPI Dashboard tổng quan' })
-  getDashboard() {
-    return this.reportsService.getDashboard()
+  @Permissions('dashboard.read')
+  @ApiOperation({ summary: 'KPI dashboard tổng quan' })
+  getDashboard(@Req() req: AuthenticatedRequest) {
+    return this.reportsService.getDashboard(req.user, getRequestedBranchId(req))
   }
 
   @Get('revenue-chart')
+  @Permissions('report.sales')
   @ApiOperation({ summary: 'Biểu đồ doanh thu theo ngày' })
-  getRevenueChart(@Query('days') days: string) {
-    return this.reportsService.getRevenueChart(Number(days) || 7)
+  getRevenueChart(@Query('days') days: string, @Req() req: AuthenticatedRequest) {
+    return this.reportsService.getRevenueChart(Number(days) || 7, req.user, getRequestedBranchId(req))
   }
 
   @Get('top-customers')
-  @ApiOperation({ summary: 'Top khách hàng chi tiêu nhiều nhất' })
-  getTopCustomers(@Query('limit') limit: string) {
-    return this.reportsService.getTopCustomers(Number(limit) || 10)
+  @Permissions('report.customer')
+  @ApiOperation({ summary: 'Top khách hàng chi tiêu cao' })
+  getTopCustomers(@Query('limit') limit: string, @Req() req: AuthenticatedRequest) {
+    return this.reportsService.getTopCustomers(Number(limit) || 10, req.user, getRequestedBranchId(req))
   }
 
   @Get('top-products')
-  @ApiOperation({ summary: 'Top sản phẩm bán chạy nhất' })
-  getTopProducts(@Query('limit') limit: string) {
-    return this.reportsService.getTopProducts(Number(limit) || 10)
+  @Permissions('report.sales')
+  @ApiOperation({ summary: 'Top sản phẩm bán chạy' })
+  getTopProducts(@Query('limit') limit: string, @Req() req: AuthenticatedRequest) {
+    return this.reportsService.getTopProducts(Number(limit) || 10, req.user, getRequestedBranchId(req))
   }
 
   @Get('transactions')
-  @ApiOperation({ summary: 'Danh sách thu/chi (Sổ quỹ)' })
-  findTransactions(@Query() query: FindTransactionsDto) {
-    return this.reportsService.findTransactions(query)
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Danh sách thu chi sổ quỹ' })
+  findTransactions(@Query() query: FindTransactionsDto, @Req() req: AuthenticatedRequest) {
+    return this.reportsService.findTransactions(query, req.user, getRequestedBranchId(req))
   }
 
   @Post('transactions')
-  @ApiOperation({ summary: 'Tạo phiếu thu/chi thủ công' })
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Tạo phiếu thu chi thủ công' })
   createTransaction(@Body() dto: CreateTransactionDto, @Req() req: AuthenticatedRequest) {
-    return this.reportsService.createTransaction(dto, this.getStaffId(req))
+    return this.reportsService.createTransaction(dto, this.getStaffId(req), req.user, getRequestedBranchId(req))
+  }
+
+  @Post('transactions/upload')
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Tải lên ảnh đính kèm phiếu thu chi' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const uploadPath = './uploads/finance'
+          if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true })
+          }
+          cb(null, uploadPath)
+        },
+        filename: (req, file, cb) => {
+          const uniqueSuffix = randomUUID()
+          const ext = file.originalname.split('.').pop()
+          cb(null, `${uniqueSuffix}.${ext}`)
+        },
+      }),
+    }),
+  )
+  uploadTransactionAttachment(
+    @Req() req: AuthenticatedRequest,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 })], // 10MB limit for receipts
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    const attachmentUrl = `/uploads/finance/${file.filename}`
+    return { success: true, data: { attachmentUrl } }
   }
 
   @Patch('transactions/:id')
-  @ApiOperation({ summary: 'Cập nhật phiếu thu/chi thủ công' })
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Cập nhật phiếu thu chi thủ công' })
   updateTransaction(
     @Param('id') id: string,
     @Body() dto: UpdateTransactionDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.reportsService.updateTransaction(id, dto, this.getStaffId(req))
+    return this.reportsService.updateTransaction(id, dto, this.getStaffId(req), req.user, getRequestedBranchId(req))
   }
 
   @Delete('transactions/:id')
-  @ApiOperation({ summary: 'Xóa phiếu thu/chi thủ công' })
-  removeTransaction(@Param('id') id: string) {
-    return this.reportsService.removeTransaction(id)
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Xóa phiếu thu chi thủ công' })
+  removeTransaction(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.reportsService.removeTransaction(id, req.user)
   }
 
   @Get('transactions/:voucherNumber')
-  @ApiOperation({ summary: 'Tìm phiếu thu/chi theo số chứng từ' })
-  findTransactionByVoucher(@Param('voucherNumber') voucherNumber: string) {
-    return this.reportsService.findTransactionByVoucher(voucherNumber)
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Tìm phiếu thu chi theo số chứng từ' })
+  findTransactionByVoucher(@Param('voucherNumber') voucherNumber: string, @Req() req: AuthenticatedRequest) {
+    return this.reportsService.findTransactionByVoucher(voucherNumber, req.user)
   }
 }

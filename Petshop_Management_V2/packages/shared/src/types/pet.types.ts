@@ -13,6 +13,7 @@ export interface Pet {
   microchipId?: string | null
   avatar?: string | null
   notes?: string | null
+  branchId?: string | null
   customerId: string
   createdAt: Date
   updatedAt: Date

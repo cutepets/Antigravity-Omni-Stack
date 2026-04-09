@@ -235,11 +235,6 @@ export function OrderList() {
         </label>
       </DataListFilterPanel>
 
-      <p className="shrink-0 text-xs text-foreground-muted px-1">
-        Hiển thị <strong className="text-foreground">{total}</strong> đơn hàng
-        {search && <span> · tìm kiếm "{search}"</span>}
-      </p>
-
       {/* Table */}
       <DataListTable
         columns={renderActiveColumns()}
@@ -365,6 +360,12 @@ export function OrderList() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         pageSizeOptions={[20, 50, 100]}
+        totalItemText={
+          <p className="shrink-0 text-xs text-foreground-muted">
+            Tổng <strong className="text-foreground">{total}</strong> đơn hàng
+            {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
+          </p>
+        }
       />
     </DataListShell>
   )

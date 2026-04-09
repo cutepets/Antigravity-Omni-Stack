@@ -36,6 +36,8 @@ export interface JwtPayload {
   userId: string
   role: StaffRole | string
   permissions?: string[]
+  branchId?: string | null
+  authorizedBranchIds?: string[]
   iat: number
   exp: number
 }
@@ -106,6 +108,7 @@ export type TransactionSource =
   | 'ORDER_PAYMENT'
   | 'ORDER_ADJUSTMENT'
   | 'STOCK_RECEIPT'
+  | 'SUPPLIER_RETURN'
   | 'HOTEL'
   | 'GROOMING'
   | 'OTHER'
@@ -114,6 +117,7 @@ export type TransactionReferenceType =
   | 'MANUAL'
   | 'ORDER'
   | 'STOCK_RECEIPT'
+  | 'SUPPLIER_RETURN'
   | 'HOTEL_STAY'
   | 'GROOMING_SESSION'
   | 'OTHER'

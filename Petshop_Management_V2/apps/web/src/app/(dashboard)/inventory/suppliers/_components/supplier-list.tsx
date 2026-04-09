@@ -1,123 +1,504 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Plus, MapPin, Phone, Building2 } from 'lucide-react'
+import {
+  Activity,
+  Building2,
+  CalendarClock,
+  Download,
+  MapPin,
+  Phone,
+  Plus,
+  ShieldCheck,
+  UserCircle2,
+  Wallet,
+} from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { stockApi } from '@/lib/api/stock.api'
+import { useAuthorization } from '@/hooks/useAuthorization'
+import {
+  DataListShell,
+  DataListToolbar,
+  DataListColumnPanel,
+  DataListTable,
+  DataListPagination,
+  DataListBulkBar,
+  TableCheckbox,
+  useDataListCore,
+  useDataListSelection,
+} from '@/components/data-list'
 import { SupplierFormModal } from './supplier-form-modal'
+import { SupplierDetailDrawer } from './supplier-detail-drawer'
 
-export function SupplierList() {
+type DisplayColumnId = 'name' | 'contact' | 'activity' | 'score' | 'debt'
+type PinFilterId = never
+
+type SupplierSummary = {
+  totalSuppliers: number
+  activeSuppliers: number
+  suppliersWithDebt: number
+  totalDebt: number
+  spendLast30Days: number
+  avgEvaluationScore: number
+}
+
+interface SupplierListProps {
+  initialSupplierCode?: string
+}
+
+const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
+  { id: 'name', label: 'Nhà cung cấp', sortable: true, minWidth: 'min-w-[220px]' },
+  { id: 'contact', label: 'Liên hệ', width: 'w-56' },
+  { id: 'activity', label: 'Hoạt động nhập', sortable: true, minWidth: 'min-w-[220px]' },
+  { id: 'score', label: 'Đánh giá', sortable: true, width: 'w-44' },
+  { id: 'debt', label: 'Công nợ', sortable: true, width: 'w-44' },
+]
+
+const SORTABLE_COLUMNS = new Set<DisplayColumnId>(COLUMN_OPTIONS.filter((column) => column.sortable).map((column) => column.id))
+
+function formatCurrency(value: number | null | undefined) {
+  const amount = Number(value ?? 0)
+  return Math.round(amount).toLocaleString('vi-VN')
+}
+
+function formatDate(value: string | Date | null | undefined) {
+  if (!value) return 'Chưa có'
+  return new Date(value).toLocaleDateString('vi-VN')
+}
+
+function getSuppliers(response: any) {
+  const data = response?.data?.data
+  return Array.isArray(data) ? data : []
+}
+
+function buildFallbackSummary(suppliers: any[]): SupplierSummary {
+  return {
+    totalSuppliers: suppliers.length,
+    activeSuppliers: suppliers.filter((supplier) => supplier.isActive !== false).length,
+    suppliersWithDebt: suppliers.filter((supplier) => Number(supplier.stats?.totalDebt ?? supplier.debt ?? 0) > 0).length,
+    totalDebt: suppliers.reduce((sum, supplier) => sum + Number(supplier.stats?.totalDebt ?? supplier.debt ?? 0), 0),
+    spendLast30Days: suppliers.reduce((sum, supplier) => sum + Number(supplier.stats?.spendLast30Days ?? 0), 0),
+    avgEvaluationScore:
+      suppliers.length > 0
+        ? Math.round(suppliers.reduce((sum, supplier) => sum + Number(supplier.evaluation?.score ?? 0), 0) / suppliers.length)
+        : 0,
+  }
+}
+
+function getScoreTone(score: number) {
+  if (score >= 85) return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+  if (score >= 70) return 'border-sky-500/20 bg-sky-500/10 text-sky-400'
+  if (score >= 55) return 'border-amber-500/20 bg-amber-500/10 text-amber-400'
+  return 'border-red-500/20 bg-red-500/10 text-red-400'
+}
+
+export function SupplierList({ initialSupplierCode }: SupplierListProps) {
+  const router = useRouter()
+  const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const canReadSuppliers = hasPermission('supplier.read')
+  const canCreateSupplier = hasPermission('supplier.create')
+  const canUpdateSupplier = hasPermission('supplier.update')
+
   const [search, setSearch] = useState('')
+  const [pageSize, setPageSize] = useState(20)
+  const [page, setPage] = useState(1)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null)
+  const [drawerSupplierId, setDrawerSupplierId] = useState<string | null>(null)
+  const [initialSupplierResolved, setInitialSupplierResolved] = useState(false)
 
-  const { data: suppliers, isLoading } = useQuery({
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (!canReadSuppliers) {
+      router.replace('/dashboard')
+    }
+  }, [canReadSuppliers, isAuthLoading, router])
+
+  const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
+    initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
+    initialVisibleColumns: ['name', 'contact', 'activity', 'score', 'debt'],
+    initialTopFilterVisibility: {},
+  })
+
+  const { columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
+
+  const { data: suppliersResponse, isLoading } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => stockApi.getSuppliers(),
   })
 
-  // The API returns { success: true, data: [...] }
-  const suppliersData = Array.isArray((suppliers as any)?.data?.data) ? (suppliers as any).data.data : []
-
-  const filteredSuppliers = suppliersData.filter((s: any) =>
-    s.name?.toLowerCase().includes(search.toLowerCase()) ||
-    s.phone?.includes(search)
+  const suppliers = useMemo(() => getSuppliers(suppliersResponse), [suppliersResponse])
+  const summary = useMemo(
+    () => (suppliersResponse as any)?.data?.summary ?? buildFallbackSummary(suppliers),
+    [suppliersResponse, suppliers],
   )
+
+  const filteredSuppliers = useMemo(() => {
+    const keyword = search.trim().toLowerCase()
+    if (!keyword) return suppliers
+
+    return suppliers.filter((supplier: any) => {
+      return [
+        supplier.code,
+        supplier.name,
+        supplier.phone,
+        supplier.email,
+        supplier.address,
+        supplier.evaluation?.label,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(keyword))
+    })
+  }, [suppliers, search])
+
+  const sortedSuppliers = useMemo(() => {
+    return [...filteredSuppliers].sort((left: any, right: any) => {
+      const leftStats = left.stats ?? {}
+      const rightStats = right.stats ?? {}
+
+      let comparison = 0
+      if (columnSort.columnId === 'name') {
+        comparison = String(left.name ?? '').localeCompare(String(right.name ?? ''))
+      } else if (columnSort.columnId === 'activity') {
+        comparison = Number(leftStats.totalOrders ?? 0) - Number(rightStats.totalOrders ?? 0)
+      } else if (columnSort.columnId === 'score') {
+        comparison = Number(left.evaluation?.score ?? 0) - Number(right.evaluation?.score ?? 0)
+      } else if (columnSort.columnId === 'debt') {
+        comparison = Number(leftStats.totalDebt ?? left.debt ?? 0) - Number(rightStats.totalDebt ?? right.debt ?? 0)
+      }
+
+      return columnSort.direction === 'asc' ? comparison : -comparison
+    })
+  }, [filteredSuppliers, columnSort])
+
+  const paginatedSuppliers = useMemo(
+    () => sortedSuppliers.slice((page - 1) * pageSize, page * pageSize),
+    [page, pageSize, sortedSuppliers],
+  )
+
+  const total = sortedSuppliers.length
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const visibleRowIds = useMemo(() => paginatedSuppliers.map((supplier: any) => `supplier:${supplier.id}`), [paginatedSuppliers])
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const rangeEnd = total === 0 ? 0 : Math.min(total, page * pageSize)
+
+  const {
+    selectedRowIds,
+    toggleRowSelection,
+    toggleSelectAllVisible,
+    clearSelection,
+    allVisibleSelected,
+  } = useDataListSelection(visibleRowIds)
+
+  const activeColumns = useMemo(() => {
+    return orderedVisibleColumns.map((id) => {
+      const column = COLUMN_OPTIONS.find((item) => item.id === id)!
+      return { ...column, id }
+    })
+  }, [orderedVisibleColumns])
+
+  const drawerSupplier = useMemo(
+    () => suppliers.find((supplier: any) => supplier.id === drawerSupplierId) ?? null,
+    [drawerSupplierId, suppliers],
+  )
+
+  useEffect(() => {
+    if (!initialSupplierCode || initialSupplierResolved || suppliers.length === 0) return
+
+    const matchedSupplier =
+      suppliers.find((supplier: any) => supplier.code === initialSupplierCode) ??
+      suppliers.find((supplier: any) => supplier.id === initialSupplierCode)
+
+    if (matchedSupplier) {
+      setDrawerSupplierId(matchedSupplier.id)
+      if (matchedSupplier.code && matchedSupplier.code !== initialSupplierCode) {
+        router.replace(`/inventory/suppliers/${matchedSupplier.code}`)
+      }
+    }
+
+    setInitialSupplierResolved(true)
+  }, [initialSupplierCode, initialSupplierResolved, router, suppliers])
 
   const handleCreate = () => {
     setSelectedSupplier(null)
     setIsModalOpen(true)
   }
 
+  const handleOpenDetail = (supplier: any) => {
+    setDrawerSupplierId(supplier.id)
+  }
+
   const handleEdit = (supplier: any) => {
+    if (!canUpdateSupplier) return
+    setDrawerSupplierId(null)
     setSelectedSupplier(supplier)
-    setIsModalOpen(true)
+    requestAnimationFrame(() => setIsModalOpen(true))
+  }
+
+  const toggleColumnSort = (columnId: DisplayColumnId) => {
+    if (!SORTABLE_COLUMNS.has(columnId)) return
+    dataListState.toggleColumnSort(columnId)
+  }
+
+  if (isAuthLoading) {
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>
+  }
+
+  if (!canReadSuppliers) {
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
   }
 
   return (
-    <div className="card overflow-hidden p-0">
-      <div className="flex items-center justify-between gap-3 p-4 border-b border-border flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" />
-          <input
-            placeholder="Tìm tên nhà cung cấp, số điện thoại..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="form-input pl-9 w-full"
-          />
+    <>
+      <DataListShell>
+        <div className="grid gap-3 px-4 pt-1 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              label: 'Tổng nhà cung cấp',
+              value: String(summary.totalSuppliers ?? 0),
+              icon: Building2,
+            },
+            {
+              label: 'Điểm đánh giá TB',
+              value: `${summary.avgEvaluationScore ?? 0}/100`,
+              icon: ShieldCheck,
+            },
+            {
+              label: 'Có công nợ',
+              value: String(summary.suppliersWithDebt ?? 0),
+              icon: Wallet,
+            },
+            {
+              label: 'Nhập 30 ngày',
+              value: formatCurrency(summary.spendLast30Days),
+              icon: Activity,
+            },
+          ].map(({ label, value, icon: Icon }) => (
+            <div key={label} className="rounded-3xl border border-border bg-background-secondary px-5 py-4 shadow-sm">
+              <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                <Icon size={14} />
+                {label}
+              </div>
+              <p className="text-2xl font-bold text-foreground">{value}</p>
+            </div>
+          ))}
         </div>
 
-        <button onClick={handleCreate} className="btn-primary liquid-button h-9 px-4 rounded-xl text-sm">
-          <Plus size={15} /> Thêm nhà cung cấp
-        </button>
-      </div>
+        <DataListToolbar
+          searchValue={search}
+          onSearchChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
+          searchPlaceholder="Tìm ID NCC, tên, SĐT, email hoặc trạng thái..."
+          showColumnToggle={true}
+          columnPanelContent={
+            <DataListColumnPanel
+              columns={COLUMN_OPTIONS}
+              columnOrder={columnOrder}
+              visibleColumns={visibleColumns}
+              sortInfo={columnSort}
+              sortableColumns={SORTABLE_COLUMNS}
+              draggingColumnId={draggingColumnId}
+              onToggle={(id) => dataListState.toggleColumn(id as DisplayColumnId)}
+              onReorder={(sourceId, targetId) => dataListState.reorderColumn(sourceId as DisplayColumnId, targetId as DisplayColumnId)}
+              onToggleSort={(id) => toggleColumnSort(id as DisplayColumnId)}
+              onDragStart={(id) => dataListState.setDraggingColumnId(id as DisplayColumnId)}
+              onDragEnd={() => dataListState.setDraggingColumnId(null)}
+            />
+          }
+          extraActions={
+            canCreateSupplier ? (
+              <button type="button" onClick={handleCreate} className="btn-primary liquid-button h-11 rounded-xl px-4 text-sm">
+                <Plus size={15} /> Thêm nhà cung cấp
+              </button>
+            ) : null
+          }
+        />
 
-      <div className="w-full overflow-x-auto">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Nhà cung cấp</th>
-              <th>Liên hệ</th>
-              <th>Địa chỉ</th>
-              <th>Công nợ hiện tại</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={4} className="py-16 text-center text-foreground-muted text-sm">
-                  Đang tải dữ liệu...
-                </td>
-              </tr>
-            ) : filteredSuppliers.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="py-16 text-center text-foreground-muted">
-                  Không tìm thấy nhà cung cấp nào.
-                </td>
-              </tr>
-            ) : (
-              filteredSuppliers.map((s: any) => (
-                <tr key={s.id} onClick={() => handleEdit(s)} className="cursor-pointer hover:bg-background-secondary/50">
-                  <td>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary-500/10 text-primary-500 flex items-center justify-center flex-shrink-0">
-                        <Building2 size={18} />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-foreground">{s.name}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="flex flex-col gap-1 text-sm">
-                      {s.phone && <div className="flex items-center gap-1.5 text-foreground-muted"><Phone size={13} /> {s.phone}</div>}
-                    </div>
-                  </td>
-                  <td>
-                    {s.address && (
-                      <div className="flex items-start gap-1.5 text-sm text-foreground-muted">
-                        <MapPin size={13} className="mt-0.5 flex-shrink-0" />
-                        <span className="truncate max-w-[200px]">{s.address}</span>
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <div className={`font-bold ${s.debt > 0 ? 'text-error' : 'text-foreground'}`}>
-                      {s.debt > 0 ? `${s.debt.toLocaleString('vi-VN')}₫` : '0₫'}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+        <DataListTable
+          columns={activeColumns}
+          isLoading={isLoading}
+          isEmpty={!isLoading && paginatedSuppliers.length === 0}
+          emptyText="Không tìm thấy nhà cung cấp nào."
+          allSelected={allVisibleSelected}
+          onSelectAll={toggleSelectAllVisible}
+          bulkBar={
+            selectedRowIds.size > 0 ? (
+              <DataListBulkBar selectedCount={selectedRowIds.size} onClear={clearSelection}>
+                <button
+                  type="button"
+                  className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
+                >
+                  <Download size={13} /> Xuất sau
+                </button>
+              </DataListBulkBar>
+            ) : undefined
+          }
+        >
+          {paginatedSuppliers.map((supplier: any) => {
+            const rowId = `supplier:${supplier.id}`
+            const isSelected = selectedRowIds.has(rowId)
+            const stats = supplier.stats ?? {}
+            const score = Number(supplier.evaluation?.score ?? 0)
 
-      <SupplierFormModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+            return (
+              <tr
+                key={supplier.id}
+                onClick={() => handleOpenDetail(supplier)}
+                className={`border-b border-border/50 transition-colors hover:bg-background-secondary/50 ${isSelected ? 'bg-primary-500/5' : 'cursor-pointer'}`}
+              >
+                <td className="w-10 px-3 py-3" onClick={(event) => event.stopPropagation()}>
+                  <TableCheckbox checked={isSelected} onCheckedChange={(_checked, shiftKey) => toggleRowSelection(rowId, shiftKey)} />
+                </td>
+                {orderedVisibleColumns.map((columnId) => {
+                  switch (columnId) {
+                    case 'name':
+                      return (
+                        <td key={columnId} className="min-w-[220px] px-3 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-border bg-primary-500/10 text-primary-500">
+                              {supplier.avatar ? (
+                                <img src={supplier.avatar} alt={supplier.name} className="h-full w-full object-cover" />
+                              ) : (
+                                <UserCircle2 size={22} />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="truncate font-semibold text-foreground">{supplier.name}</div>
+                                <span
+                                  className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                                    supplier.isActive !== false
+                                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                                      : 'border-border bg-background text-foreground-muted'
+                                  }`}
+                                >
+                                  {supplier.isActive !== false ? 'Active' : 'Paused'}
+                                </span>
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
+                                {supplier.code ? <span>{supplier.code}</span> : null}
+                                {supplier.code ? <span>•</span> : null}
+                                <span>{supplier.evaluation?.label ?? 'Chưa xếp hạng'}</span>
+                                {supplier.address ? (
+                                  <>
+                                    <span>•</span>
+                                    <span className="truncate">{supplier.address}</span>
+                                  </>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      )
+                    case 'contact':
+                      return (
+                        <td key={columnId} className="w-56 px-3 py-3">
+                          <div className="space-y-1.5 text-sm">
+                            {supplier.phone ? (
+                              <div className="flex items-center gap-1.5 text-foreground-muted">
+                                <Phone size={13} />
+                                {supplier.phone}
+                              </div>
+                            ) : (
+                              <div className="text-foreground-muted">Chưa có SĐT</div>
+                            )}
+                            {supplier.address ? (
+                              <div className="flex items-start gap-1.5 text-foreground-muted">
+                                <MapPin size={13} className="mt-0.5 shrink-0" />
+                                <span className="line-clamp-2">{supplier.address}</span>
+                              </div>
+                            ) : null}
+                          </div>
+                        </td>
+                      )
+                    case 'activity':
+                      return (
+                        <td key={columnId} className="min-w-[220px] px-3 py-3">
+                          <div className="space-y-1 text-sm">
+                            <div className="font-semibold text-foreground">
+                              {Number(stats.totalOrders ?? 0).toLocaleString('vi-VN')} phiếu • {formatCurrency(stats.totalSpent)}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-foreground-muted">
+                              <CalendarClock size={13} />
+                              Gần nhất {formatDate(stats.lastOrderAt)}
+                            </div>
+                            <div className="text-xs text-foreground-muted">
+                              30 ngày: {Number(stats.ordersLast30Days ?? 0)} phiếu • {formatCurrency(stats.spendLast30Days)}
+                            </div>
+                          </div>
+                        </td>
+                      )
+                    case 'score':
+                      return (
+                        <td key={columnId} className="w-44 px-3 py-3">
+                          <div className="space-y-1.5">
+                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getScoreTone(score)}`}>
+                              {score}/100
+                            </span>
+                            <div className="text-sm font-medium text-foreground">{supplier.evaluation?.label ?? 'Chưa đánh giá'}</div>
+                            <div className="text-xs text-foreground-muted">
+                              Công nợ/tổng nhập: {Math.round(Number(supplier.evaluation?.debtRatio ?? 0) * 100)}%
+                            </div>
+                          </div>
+                        </td>
+                      )
+                    case 'debt':
+                      return (
+                        <td key={columnId} className="w-44 px-3 py-3">
+                          <div className={`text-base font-bold ${Number(stats.totalDebt ?? supplier.debt ?? 0) > 0 ? 'text-error' : 'text-foreground'}`}>
+                            {formatCurrency(stats.totalDebt ?? supplier.debt)}
+                          </div>
+                          <div className="mt-1 text-xs text-foreground-muted">
+                            TB/phiếu {formatCurrency(stats.avgOrderValue)}
+                          </div>
+                        </td>
+                      )
+                  }
+                })}
+              </tr>
+            )
+          })}
+        </DataListTable>
+
+        <div className="-mt-1">
+          <div className="rounded-b-2xl border border-t-0 border-border bg-card/95">
+            <DataListPagination
+              page={page}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              total={total}
+              rangeStart={rangeStart}
+              rangeEnd={rangeEnd}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[20, 50, 100]}
+              totalItemText={
+                <span className="text-xs">
+                  Tổng <strong className="text-foreground">{total}</strong> nhà cung cấp
+                </span>
+              }
+            />
+          </div>
+        </div>
+      </DataListShell>
+
+      <SupplierDetailDrawer
+        isOpen={Boolean(drawerSupplierId)}
+        supplierId={drawerSupplierId}
+        supplierPreview={drawerSupplier}
+        canUpdateSupplier={canUpdateSupplier}
+        onClose={() => setDrawerSupplierId(null)}
+        onEdit={(supplier) => handleEdit(supplier)}
+      />
+
+      <SupplierFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         initialData={selectedSupplier}
       />
-    </div>
+    </>
   )
 }

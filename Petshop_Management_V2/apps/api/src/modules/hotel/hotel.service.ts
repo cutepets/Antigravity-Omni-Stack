@@ -1,5 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { PaymentStatus, Prisma } from '@petshop/database';
+import { generateHotelStayCode as formatHotelStayCode } from '@petshop/shared';
+import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js';
+import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto } from './dto/create-hotel.dto.js';
 import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateHotelRateTableDto, UpdateHotelStayDto, UpdateCageDto } from './dto/update-hotel.dto.js';
@@ -32,6 +35,7 @@ export class HotelService {
     branch: {
       select: {
         id: true,
+        code: true,
         name: true,
       },
     },
@@ -42,6 +46,7 @@ export class HotelService {
         id: true,
         orderNumber: true,
         status: true,
+        branchId: true,
         paymentStatus: true,
         total: true,
         paidAmount: true,
@@ -91,33 +96,63 @@ export class HotelService {
     };
   }
 
-  private buildStayCode(date = new Date()) {
-    const yymmdd = date.toISOString().slice(2, 10).replace(/-/g, '');
-    return `HOTEL-${yymmdd}`;
-  }
-
-  private async generateStayCode(checkIn: Date) {
-    const prefix = this.buildStayCode(checkIn);
-    const start = new Date(checkIn);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(checkIn);
-    end.setHours(23, 59, 59, 999);
+  private async generateStayCode(date: Date, branchCode: string) {
+    const start = new Date(date.getFullYear(), date.getMonth(), 1);
+    const end = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+    const codePrefix = formatHotelStayCode(date, branchCode, 0).slice(0, -3);
 
     const count = await this.prisma.hotelStay.count({
       where: {
         createdAt: {
           gte: start,
-          lte: end,
+          lt: end,
+        },
+        stayCode: {
+          startsWith: codePrefix,
         },
       },
     });
 
-    return `${prefix}-${String(count + 1).padStart(3, '0')}`;
+    return formatHotelStayCode(date, branchCode, count + 1);
   }
 
   private async getPetOrThrow(petId: string) {
     const pet = await this.prisma.pet.findUnique({
       where: { id: petId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    if (!pet) throw new NotFoundException('Không tìm thấy thú cưng');
+    return pet;
+  }
+
+  private async findAccessiblePet(petId: string, user?: BranchScopedUser) {
+    const scopedBranchIds = getScopedBranchIds(user);
+    if (!scopedBranchIds) {
+      return this.getPetOrThrow(petId);
+    }
+
+    const pet = await this.prisma.pet.findFirst({
+      where: {
+        id: petId,
+        OR: [
+          { branchId: { in: scopedBranchIds } },
+          {
+            AND: [
+              { branchId: null },
+              { customer: { is: { branchId: { in: scopedBranchIds } } } },
+            ],
+          },
+        ],
+      },
       include: {
         customer: {
           select: {
@@ -343,10 +378,19 @@ export class HotelService {
   }
 
   // ================= STAY =================
-  async createStay(data: CreateHotelStayDto) {
-    const pet = await this.getPetOrThrow(data.petId);
+  async createStay(data: CreateHotelStayDto, user?: BranchScopedUser, requestedBranchId?: string) {
+    const pet = await this.findAccessiblePet(data.petId, user);
     const checkIn = new Date(data.checkIn);
     const estimatedCheckOut = data.estimatedCheckOut ? new Date(data.estimatedCheckOut) : null;
+    const writableBranchId = resolveWritableBranchId(user, data.branchId ?? requestedBranchId);
+    const branch = await resolveBranchIdentity(this.prisma, writableBranchId);
+    const linkedOrder = data.orderId
+      ? await this.prisma.order.findUnique({
+          where: { id: data.orderId },
+          select: { createdAt: true },
+        })
+      : null;
+    const codeDate = linkedOrder?.createdAt ?? new Date();
 
     await this.ensureStayCanOccupyWindow({
       petId: data.petId,
@@ -365,7 +409,7 @@ export class HotelService {
         ...(data.promotion !== undefined ? { promotion: data.promotion } : {}),
       });
 
-    const stayCode = await this.generateStayCode(checkIn);
+    const stayCode = await this.generateStayCode(codeDate, branch.code);
 
     const created = await this.prisma.hotelStay.create({
       data: {
@@ -373,7 +417,7 @@ export class HotelService {
         petId: pet.id,
         petName: data.petName?.trim() || pet.name,
         customerId: data.customerId ?? pet.customerId,
-        branchId: data.branchId ?? null,
+        branchId: branch.id,
         cageId: data.cageId ?? null,
         checkIn,
         ...(data.checkOut ? { checkOut: new Date(data.checkOut) } : {}),
@@ -397,22 +441,24 @@ export class HotelService {
     return this.mapStay(created);
   }
 
-  async findStayById(id: string) {
+  async findStayById(id: string, user?: BranchScopedUser) {
     const stay = await this.prisma.hotelStay.findUnique({
       where: { id },
       include: this.stayInclude,
     });
     if (!stay) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
+    assertBranchAccess(stay.branchId, user);
     return this.mapStay(stay);
   }
 
-  async updateStay(id: string, data: UpdateHotelStayDto) {
+  async updateStay(id: string, data: UpdateHotelStayDto, user?: BranchScopedUser, requestedBranchId?: string) {
     const stay = await this.prisma.hotelStay.findUnique({
       where: { id },
       include: this.stayInclude,
     });
     if (!stay) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
 
+    assertBranchAccess(stay.branchId, user);
     const updateData: Prisma.HotelStayUpdateInput = {};
     const nextPetId = data.petId ?? stay.petId;
     const nextCheckIn = data.checkIn ? new Date(data.checkIn) : stay.checkIn;
@@ -423,7 +469,7 @@ export class HotelService {
         : stay.estimatedCheckOut;
 
     if (data.petId && data.petId !== stay.petId) {
-      const pet = await this.getPetOrThrow(data.petId);
+      const pet = await this.findAccessiblePet(data.petId, user);
       updateData.pet = { connect: { id: pet.id } };
       updateData.petName = data.petName?.trim() || pet.name;
       updateData.customer = { connect: { id: data.customerId ?? pet.customerId } };
@@ -447,8 +493,9 @@ export class HotelService {
     if (data.customerId !== undefined) {
       updateData.customer = data.customerId ? { connect: { id: data.customerId } } : { disconnect: true };
     }
-    if (data.branchId !== undefined) {
-      updateData.branch = data.branchId ? { connect: { id: data.branchId } } : { disconnect: true };
+    if (data.branchId !== undefined || requestedBranchId) {
+      const writableBranchId = resolveWritableBranchId(user, data.branchId ?? requestedBranchId);
+      updateData.branch = writableBranchId ? { connect: { id: writableBranchId } } : { disconnect: true };
     }
     if (data.cageId !== undefined) {
       updateData.cage = data.cageId ? { connect: { id: data.cageId } } : { disconnect: true };
@@ -518,10 +565,11 @@ export class HotelService {
     return this.mapStay(updated);
   }
 
-  async findAllStays(query?: Record<string, any>) {
+  async findAllStays(query?: Record<string, any>, user?: BranchScopedUser, requestedBranchId?: string) {
     const page = Math.max(1, Number(query?.page) || 1);
     const limit = Math.max(1, Math.min(200, Number(query?.limit) || 50));
     const where: Prisma.HotelStayWhereInput = {};
+    const scopedBranchIds = getScopedBranchIds(user, query?.branchId ?? requestedBranchId);
 
     if (query?.status) {
       const statuses = String(query.status)
@@ -541,7 +589,9 @@ export class HotelService {
     }
 
     if (query?.cageId) where.cageId = query.cageId;
-    if (query?.branchId) where.branchId = query.branchId;
+    if (scopedBranchIds) {
+      where.branchId = scopedBranchIds.length === 1 ? scopedBranchIds[0]! : { in: scopedBranchIds };
+    }
     if (query?.customerId) where.customerId = query.customerId;
 
     if (query?.search) {
@@ -626,7 +676,14 @@ export class HotelService {
     return mappedItems;
   }
 
-  async updateStayPayment(id: string, paymentStatus: PaymentStatus) {
+  async updateStayPayment(id: string, paymentStatus: PaymentStatus, user?: BranchScopedUser) {
+    const existing = await this.prisma.hotelStay.findUnique({
+      where: { id },
+      select: { branchId: true },
+    });
+    if (!existing) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
+    assertBranchAccess(existing.branchId, user);
+
     const stay = await this.prisma.hotelStay.update({
       where: { id },
       data: { paymentStatus },
@@ -636,7 +693,7 @@ export class HotelService {
     return this.mapStay(stay);
   }
 
-  async checkoutStay(id: string, data: CheckoutHotelStayDto) {
+  async checkoutStay(id: string, data: CheckoutHotelStayDto, user?: BranchScopedUser) {
     const stay = await this.prisma.hotelStay.findUnique({
       where: { id },
       include: this.stayInclude,
@@ -645,6 +702,7 @@ export class HotelService {
     if (stay.status === 'CHECKED_OUT') throw new BadRequestException('Lượt lưu trú đã checkout');
     if (stay.status === 'CANCELLED') throw new BadRequestException('Lượt lưu trú đã bị hủy');
 
+    assertBranchAccess(stay.branchId, user);
     const checkOutActual = data.checkOutActual ? new Date(data.checkOutActual) : new Date();
     const dailyRate = data.dailyRate ?? stay.dailyRate ?? stay.price ?? 0;
     const surcharge = data.surcharge ?? stay.surcharge;
@@ -742,16 +800,18 @@ export class HotelService {
     };
   }
 
-  async deleteStay(id: string) {
+  async deleteStay(id: string, user?: BranchScopedUser) {
     const stay = await this.prisma.hotelStay.findUnique({
       where: { id },
       select: {
         id: true,
         orderId: true,
         status: true,
+        branchId: true,
       },
     });
     if (!stay) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
+    assertBranchAccess(stay.branchId, user);
     if (stay.orderId && stay.status !== 'CANCELLED') {
       throw new BadRequestException('Không thể xóa kỳ lưu trú đang gắn với đơn hàng, hãy hủy trước');
     }
@@ -761,3 +821,6 @@ export class HotelService {
     });
   }
 }
+
+
+

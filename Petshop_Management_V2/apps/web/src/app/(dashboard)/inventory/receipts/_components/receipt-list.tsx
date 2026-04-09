@@ -1,114 +1,247 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Clock, CheckCircle2, XCircle, Search } from 'lucide-react'
-import { stockApi } from '@/lib/api/stock.api'
-import { useRouter } from 'next/navigation'
+import { CheckCircle2, Clock, Download, Plus, XCircle } from 'lucide-react'
 import dayjs from 'dayjs'
+import { useRouter } from 'next/navigation'
+import { stockApi } from '@/lib/api/stock.api'
+import { useAuthorization } from '@/hooks/useAuthorization'
+import {
+  DataListBulkBar,
+  DataListColumnPanel,
+  DataListPagination,
+  DataListShell,
+  DataListTable,
+  DataListToolbar,
+  TableCheckbox,
+  useDataListCore,
+  useDataListSelection,
+} from '@/components/data-list'
+
+type DisplayColumnId = 'code' | 'date' | 'supplier' | 'total' | 'status'
+type PinFilterId = never
+
+const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
+  { id: 'code', label: 'Mã phiếu', sortable: true, width: 'w-44' },
+  { id: 'date', label: 'Ngày', sortable: true, width: 'w-44' },
+  { id: 'supplier', label: 'Nhà cung cấp', sortable: true, minWidth: 'min-w-[220px]' },
+  { id: 'total', label: 'Giá trị', sortable: true, width: 'w-40' },
+  { id: 'status', label: 'Trạng thái', width: 'w-44' },
+]
+
+const SORTABLE_COLUMNS = new Set<DisplayColumnId>(COLUMN_OPTIONS.filter((column) => column.sortable).map((column) => column.id))
+
+function getReceiptStatusBadge(status?: string | null) {
+  switch (status) {
+    case 'FULL_RECEIVED':
+      return <span className="badge badge-success"><CheckCircle2 size={11} /> Đã nhập đủ</span>
+    case 'PARTIAL_RECEIVED':
+      return <span className="badge badge-info"><Clock size={11} /> Nhập dở</span>
+    case 'SHORT_CLOSED':
+      return <span className="badge badge-warning"><Clock size={11} /> Chốt thiếu</span>
+    case 'CANCELLED':
+      return <span className="badge badge-error"><XCircle size={11} /> Đã hủy</span>
+    default:
+      return <span className="badge badge-warning"><Clock size={11} /> Nháp</span>
+  }
+}
 
 export function ReceiptList() {
   const router = useRouter()
+  const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const canReadReceipts = hasPermission('stock_receipt.read')
+  const canCreateReceipt = hasPermission('stock_receipt.create')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(15)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['receipts', search, page],
-    queryFn: () => stockApi.getReceipts({
-      search,
-      page,
-      limit: 15,
-    }),
+  const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
+    initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
+    initialVisibleColumns: ['code', 'date', 'supplier', 'total', 'status'],
+    initialTopFilterVisibility: {},
   })
 
-  const receipts = (data as any)?.data?.data ?? []
+  const { columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'DRAFT': return <span className="badge badge-warning"><Clock size={11} /> Bản nháp</span>
-      case 'RECEIVED': return <span className="badge badge-success"><CheckCircle2 size={11} /> Hoàn thành</span>
-      case 'CANCELLED': return <span className="badge badge-error"><XCircle size={11} /> Đã hủy</span>
-      default: return <span className="badge">{status}</span>
-    }
+  const { data, isLoading } = useQuery({
+    queryKey: ['receipts', search, page, pageSize, columnSort.columnId, columnSort.direction],
+    queryFn: () =>
+      stockApi.getReceipts({
+        search,
+        page,
+        limit: pageSize,
+        sortBy: columnSort.columnId || undefined,
+        sortOrder: (columnSort.direction as 'asc' | 'desc') || undefined,
+      }),
+    enabled: canReadReceipts,
+  })
+
+  const receipts = useMemo(() => {
+    const rows = (data as any)?.data?.data
+    return Array.isArray(rows) ? rows : []
+  }, [data])
+  const totalPages = (data as any)?.data?.totalPages ?? 1
+  const total = (data as any)?.data?.total ?? receipts.length
+  const visibleRowIds = useMemo(() => receipts.map((receipt: any) => `receipt:${receipt.id}`), [receipts])
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const rangeEnd = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + receipts.length)
+
+  const { selectedRowIds, toggleRowSelection, toggleSelectAllVisible, clearSelection, allVisibleSelected } =
+    useDataListSelection(visibleRowIds)
+
+  const activeColumns = useMemo(
+    () => orderedVisibleColumns.map((id) => ({ ...COLUMN_OPTIONS.find((column) => column.id === id)!, id })),
+    [orderedVisibleColumns],
+  )
+
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (!canReadReceipts) router.replace('/dashboard')
+  }, [canReadReceipts, isAuthLoading, router])
+
+  if (isAuthLoading) {
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>
+  }
+
+  if (!canReadReceipts) {
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
   }
 
   return (
-    <div className="card overflow-hidden p-0">
-      <div className="flex items-center justify-between gap-3 p-4 border-b border-border flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" />
-          <input
-            placeholder="Tìm theo mã phiếu nhập..."
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="form-input pl-9 w-full"
+    <DataListShell>
+      <DataListToolbar
+        searchValue={search}
+        onSearchChange={(value) => {
+          setSearch(value)
+          setPage(1)
+        }}
+        searchPlaceholder="Tìm theo mã phiếu hoặc NCC..."
+        showColumnToggle={true}
+        columnPanelContent={
+          <DataListColumnPanel
+            columns={COLUMN_OPTIONS}
+            columnOrder={columnOrder}
+            visibleColumns={visibleColumns}
+            sortInfo={columnSort}
+            sortableColumns={SORTABLE_COLUMNS}
+            draggingColumnId={draggingColumnId}
+            onToggle={(id) => dataListState.toggleColumn(id as DisplayColumnId)}
+            onReorder={(sourceId, targetId) => dataListState.reorderColumn(sourceId as DisplayColumnId, targetId as DisplayColumnId)}
+            onToggleSort={(id) => dataListState.toggleColumnSort(id as DisplayColumnId)}
+            onDragStart={(id) => dataListState.setDraggingColumnId(id as DisplayColumnId)}
+            onDragEnd={() => dataListState.setDraggingColumnId(null)}
+          />
+        }
+        extraActions={
+          canCreateReceipt ? (
+            <button onClick={() => router.push('/inventory/receipts/new')} className="btn-primary liquid-button h-11 rounded-xl px-4 text-sm">
+              <Plus size={15} /> Tạo phiếu nhập
+            </button>
+          ) : null
+        }
+      />
+
+      <DataListTable
+        columns={activeColumns}
+        isLoading={isLoading}
+        isEmpty={!isLoading && receipts.length === 0}
+        emptyText="Không có phiếu nhập nào."
+        allSelected={allVisibleSelected}
+        onSelectAll={toggleSelectAllVisible}
+        bulkBar={
+          selectedRowIds.size > 0 ? (
+            <DataListBulkBar selectedCount={selectedRowIds.size} onClear={clearSelection}>
+              <button
+                type="button"
+                className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
+              >
+                <Download size={13} /> Khác
+              </button>
+            </DataListBulkBar>
+          ) : undefined
+        }
+      >
+        {receipts.map((receipt: any) => {
+          const rowId = `receipt:${receipt.id}`
+          const isSelected = selectedRowIds.has(rowId)
+          return (
+            <tr
+              key={receipt.id}
+              className={`group cursor-pointer border-b border-border/50 transition-colors hover:bg-background-secondary/50 ${isSelected ? 'bg-primary-500/5' : ''}`}
+              onClick={() => router.push(`/inventory/receipts/${receipt.receiptNumber || receipt.id}`)}
+            >
+              <td className="w-10 px-3 py-3" onClick={(event) => event.stopPropagation()}>
+                <TableCheckbox checked={isSelected} onCheckedChange={(_checked, shiftKey) => toggleRowSelection(rowId, shiftKey)} />
+              </td>
+              {orderedVisibleColumns.map((columnId) => {
+                switch (columnId) {
+                  case 'code':
+                    return (
+                      <td key={columnId} className="w-44 px-3 py-3">
+                        <div className="font-mono font-medium text-primary-500 group-hover:underline">
+                          {receipt.receiptNumber || receipt.id.substring(0, 8).toUpperCase()}
+                        </div>
+                      </td>
+                    )
+                  case 'date':
+                    return (
+                      <td key={columnId} className="w-44 px-3 py-3 text-sm text-foreground">
+                        {dayjs(receipt.receivedAt || receipt.createdAt).format('DD/MM/YYYY HH:mm')}
+                      </td>
+                    )
+                  case 'supplier':
+                    return (
+                      <td key={columnId} className="min-w-[220px] px-3 py-3">
+                        <div className="font-medium text-foreground">{receipt.supplier?.name || 'Chưa chọn NCC'}</div>
+                        <div className="mt-1 text-xs text-foreground-muted">{receipt.branch?.name || 'Tổng công ty'}</div>
+                      </td>
+                    )
+                  case 'total':
+                    return (
+                      <td key={columnId} className="w-40 px-3 py-3 text-right">
+                        <div className="font-bold text-foreground">
+                          {Number(receipt.totalReceivedAmount || receipt.totalAmount || 0).toLocaleString('vi-VN')}₫
+                        </div>
+                        <div className="mt-1 text-xs text-foreground-muted">Nợ {Number(receipt.debtAmount || 0).toLocaleString('vi-VN')}₫</div>
+                      </td>
+                    )
+                  case 'status':
+                    return (
+                      <td key={columnId} className="w-44 px-3 py-3">
+                        <div className="space-y-1">
+                          {getReceiptStatusBadge(receipt.receiptStatus || receipt.status)}
+                          <div className="text-[11px] text-foreground-muted">{receipt.paymentStatus || 'UNPAID'}</div>
+                        </div>
+                      </td>
+                    )
+                }
+              })}
+            </tr>
+          )
+        })}
+      </DataListTable>
+
+      <div className="-mt-1">
+        <div className="rounded-b-2xl border border-t-0 border-border bg-card/95">
+          <DataListPagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            total={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[15, 30, 50, 100]}
+            totalItemText={
+              <span className="text-xs">
+                Tổng <strong className="text-foreground">{total}</strong> phiếu
+              </span>
+            }
           />
         </div>
-
-        <button 
-          onClick={() => router.push('/inventory/receipts/new')}
-          className="btn-primary liquid-button h-9 px-4 rounded-xl text-sm"
-        >
-          <Plus size={15} /> Tạo phiếu nhập
-        </button>
       </div>
-
-      <div className="w-full overflow-x-auto">
-        <table className="data-table relative">
-          <thead>
-            <tr>
-              <th>Mã hóa đơn</th>
-              <th>Ngày nhập</th>
-              <th>Nhà cung cấp</th>
-              <th className="text-right">Tổng tiền</th>
-              <th>Trạng thái</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={5} className="py-16 text-center text-foreground-muted text-sm">
-                  Đang tải dữ liệu...
-                </td>
-              </tr>
-            ) : receipts.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="py-16 text-center text-foreground-muted">
-                  Không có phiếu nhập nào.
-                </td>
-              </tr>
-            ) : (
-              receipts.map((r: any) => (
-                <tr 
-                  key={r.id} 
-                  className="cursor-pointer hover:bg-background-secondary/50 group"
-                  onClick={() => router.push(`/inventory/receipts/${r.id}`)}
-                >
-                  <td>
-                    <span className="font-mono font-medium text-primary-500 group-hover:underline">
-                      {r.invoiceCode || r.id.substring(0,8).toUpperCase()}
-                    </span>
-                  </td>
-                  <td>
-                    {dayjs(r.receiveDate || r.createdAt).format('DD/MM/YYYY HH:mm')}
-                  </td>
-                  <td>
-                    <div className="font-medium text-foreground">{r.supplier?.name || "Khách lẻ / Không rõ"}</div>
-                  </td>
-                  <td className="text-right">
-                    <span className="font-bold text-foreground">
-                      {(r.totalAmount || 0).toLocaleString('vi-VN')}₫
-                    </span>
-                  </td>
-                  <td>
-                    {getStatusBadge(r.status)}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    </DataListShell>
   )
 }

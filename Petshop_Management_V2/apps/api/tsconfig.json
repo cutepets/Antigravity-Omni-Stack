@@ -21,6 +21,7 @@
   },
   "include": [
     "src/**/*",
+    "../../packages/auth/src/**/*",
     "../../packages/database/src/**/*",
     "../../packages/shared/src/**/*"
   ],

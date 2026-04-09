@@ -1,0 +1,5 @@
+ALTER TABLE "suppliers"
+ADD COLUMN "avatar" TEXT,
+ADD COLUMN "documents" JSONB,
+ADD COLUMN "monthTarget" DOUBLE PRECISION,
+ADD COLUMN "yearTarget" DOUBLE PRECISION;

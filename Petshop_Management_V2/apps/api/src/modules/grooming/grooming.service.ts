@@ -1,4 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { generateGroomingSessionCode as formatGroomingSessionCode } from '@petshop/shared'
+import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js'
+import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js'
 import { DatabaseService } from '../../database/database.service.js'
 import { CreateGroomingDto, UpdateGroomingDto } from './dto/grooming.dto.js'
 
@@ -6,37 +9,100 @@ import { CreateGroomingDto, UpdateGroomingDto } from './dto/grooming.dto.js'
 export class GroomingService {
   constructor(private readonly db: DatabaseService) {}
 
-  async create(dto: CreateGroomingDto) {
-    const pet = await this.db.pet.findUnique({
-      where: { id: dto.petId },
-      include: { customer: true }
+  private async generateSessionCode(date: Date, branchCode: string): Promise<string> {
+    const start = new Date(date.getFullYear(), date.getMonth(), 1)
+    const end = new Date(date.getFullYear(), date.getMonth() + 1, 1)
+    const codePrefix = formatGroomingSessionCode(date, branchCode, 0).slice(0, -3)
+
+    const count = await this.db.groomingSession.count({
+      where: {
+        createdAt: {
+          gte: start,
+          lt: end,
+        },
+        sessionCode: {
+          startsWith: codePrefix,
+        },
+      },
     })
 
-    if (!pet) throw new BadRequestException('Không tìm thấy thú cưng')
+    return formatGroomingSessionCode(date, branchCode, count + 1)
+  }
+
+  private mergeBranchScope(where: Record<string, any>, user?: BranchScopedUser, requestedBranchId?: string | null) {
+    const scopedBranchIds = getScopedBranchIds(user, requestedBranchId)
+    if (!scopedBranchIds) return where
+    return { ...where, branchId: { in: scopedBranchIds } }
+  }
+
+  private async findAccessiblePet(petId: string, user?: BranchScopedUser) {
+    const scopedBranchIds = getScopedBranchIds(user)
+    const pet = await this.db.pet.findFirst({
+      where: scopedBranchIds
+        ? {
+            id: petId,
+            OR: [
+              { branchId: { in: scopedBranchIds } },
+              {
+                AND: [
+                  { branchId: null },
+                  { customer: { is: { branchId: { in: scopedBranchIds } } } },
+                ],
+              },
+            ],
+          }
+        : { id: petId },
+      include: { customer: true },
+    })
+
+    if (!pet) {
+      throw new BadRequestException('Khong tim thay thu cung')
+    }
+
+    return pet
+  }
+
+  async create(dto: CreateGroomingDto, user?: BranchScopedUser, requestedBranchId?: string) {
+    const pet = await this.findAccessiblePet(dto.petId, user)
+    const writableBranchId = resolveWritableBranchId(user, dto.branchId ?? requestedBranchId)
+    const branch = await resolveBranchIdentity(this.db, writableBranchId)
+    const sessionDate = dto.startTime ? new Date(dto.startTime) : new Date()
 
     const session = await this.db.groomingSession.create({
       data: {
+        sessionCode: await this.generateSessionCode(sessionDate, branch.code),
         petId: dto.petId,
         petName: pet.name,
         customerId: pet.customerId,
+        branchId: branch.id,
         staffId: dto.staffId ?? null,
         serviceId: dto.serviceId ?? null,
         startTime: dto.startTime ? new Date(dto.startTime) : null,
         notes: dto.notes ?? null,
-        status: 'PENDING'
+        status: 'PENDING',
       },
       include: {
-        pet: true,
-        staff: { select: { id: true, fullName: true, avatar: true } }
-      }
+        pet: {
+          select: {
+            id: true,
+            petCode: true,
+            name: true,
+            species: true,
+            breed: true,
+            customer: { select: { id: true, fullName: true, phone: true } },
+          },
+        },
+        staff: { select: { id: true, fullName: true, avatar: true } },
+        order: { select: { id: true, orderNumber: true } },
+      },
     })
 
     return { success: true, data: session }
   }
 
-  async findAll(query?: any) {
-    const where: any = {}
-    
+  async findAll(query?: any, user?: BranchScopedUser, requestedBranchId?: string) {
+    const where = this.mergeBranchScope({}, user, requestedBranchId)
+
     if (query?.status) where.status = query.status
     if (query?.staffId) where.staffId = query.staffId
     if (query?.startDate || query?.endDate) {
@@ -50,39 +116,66 @@ export class GroomingService {
       orderBy: { createdAt: 'desc' },
       include: {
         pet: {
-          include: { customer: { select: { fullName: true, phone: true } } }
+          select: {
+            id: true,
+            petCode: true,
+            name: true,
+            species: true,
+            breed: true,
+            customer: { select: { id: true, fullName: true, phone: true } },
+          },
         },
-        staff: { select: { id: true, fullName: true, avatar: true } }
-      }
+        staff: { select: { id: true, fullName: true, avatar: true } },
+        order: { select: { id: true, orderNumber: true } },
+      },
     })
 
     return { success: true, data: sessions }
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: BranchScopedUser) {
     const session = await this.db.groomingSession.findUnique({
       where: { id },
       include: {
-        pet: true,
-        staff: { select: { id: true, fullName: true, avatar: true } }
-      }
+        pet: {
+          select: {
+            id: true,
+            petCode: true,
+            name: true,
+            species: true,
+            breed: true,
+            customer: { select: { id: true, fullName: true, phone: true } },
+          },
+        },
+        staff: { select: { id: true, fullName: true, avatar: true } },
+        order: { select: { id: true, orderNumber: true } },
+      },
     })
-    
-    if (!session) throw new NotFoundException('Không tìm thấy phiên Grooming')
+
+    if (!session) throw new NotFoundException('Khong tim thay phien grooming')
+    assertBranchAccess(session.branchId, user)
     return { success: true, data: session }
   }
 
-  async update(id: string, dto: UpdateGroomingDto) {
+  async update(id: string, dto: UpdateGroomingDto, user?: BranchScopedUser, requestedBranchId?: string) {
     const session = await this.db.groomingSession.findUnique({ where: { id } })
-    if (!session) throw new NotFoundException('Không tìm thấy phiên Grooming')
+    if (!session) throw new NotFoundException('Khong tim thay phien grooming')
+    assertBranchAccess(session.branchId, user)
 
     const dataToUpdate: any = { ...dto }
+    delete dataToUpdate.branchId
+
     if (dto.startTime) dataToUpdate.startTime = new Date(dto.startTime)
     if (dto.endTime) dataToUpdate.endTime = new Date(dto.endTime)
 
-    // Automatically set endTime if status changes to COMPLETED and endTime is not provided
+    if (dto.branchId !== undefined || requestedBranchId) {
+      const writableBranchId = resolveWritableBranchId(user, dto.branchId ?? requestedBranchId)
+      const branch = await resolveBranchIdentity(this.db, writableBranchId)
+      dataToUpdate.branchId = branch.id
+    }
+
     if (dto.status === 'COMPLETED' && !dto.endTime && !session.endTime) {
-        dataToUpdate.endTime = new Date()
+      dataToUpdate.endTime = new Date()
     }
 
     const updated = await this.db.groomingSession.update({
@@ -90,18 +183,27 @@ export class GroomingService {
       data: dataToUpdate,
       include: {
         pet: {
-          include: { customer: { select: { fullName: true, phone: true } } }
+          select: {
+            id: true,
+            petCode: true,
+            name: true,
+            species: true,
+            breed: true,
+            customer: { select: { id: true, fullName: true, phone: true } },
+          },
         },
-        staff: { select: { id: true, fullName: true, avatar: true } }
-      }
+        staff: { select: { id: true, fullName: true, avatar: true } },
+        order: { select: { id: true, orderNumber: true } },
+      },
     })
 
     return { success: true, data: updated }
   }
 
-  async remove(id: string) {
+  async remove(id: string, user?: BranchScopedUser) {
     const session = await this.db.groomingSession.findUnique({ where: { id } })
-    if (!session) throw new NotFoundException('Không tìm thấy phiên Grooming')
+    if (!session) throw new NotFoundException('Khong tim thay phien grooming')
+    assertBranchAccess(session.branchId, user)
 
     await this.db.groomingSession.delete({ where: { id } })
     return { success: true }

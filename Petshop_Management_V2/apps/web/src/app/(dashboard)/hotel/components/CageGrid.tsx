@@ -3,12 +3,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { hotelApi, Cage } from '@/lib/api/hotel.api'
 import { useState } from 'react'
+import { useAuthorization } from '@/hooks/useAuthorization'
 
 import CheckInDialog from './CheckInDialog'
 import StayDetailsDialog from './StayDetailsDialog'
 import ManageCagesDialog from './ManageCagesDialog'
 
 export default function CageGrid() {
+  const { hasAnyPermission } = useAuthorization()
   const { data: cages, isLoading } = useQuery({
     queryKey: ['cages'],
     queryFn: hotelApi.getCages,
@@ -19,10 +21,13 @@ export default function CageGrid() {
   const [isCheckInOpen, setIsCheckInOpen] = useState(false)
   const [isStayDetailsOpen, setIsStayDetailsOpen] = useState(false)
   const [isManageCagesOpen, setIsManageCagesOpen] = useState(false)
+  const canCheckIn = hasAnyPermission(['hotel.create', 'hotel.checkin'])
+  const canManageCages = hasAnyPermission(['hotel.create', 'hotel.update', 'hotel.cancel'])
 
   const handleCageClick = (cage: Cage) => {
     setSelectedCage(cage)
     if (cage.status === 'AVAILABLE') {
+      if (!canCheckIn) return
       setIsCheckInOpen(true)
     } else if (cage.status === 'OCCUPIED') {
       setIsStayDetailsOpen(true)
@@ -40,8 +45,12 @@ export default function CageGrid() {
         <h3 className="text-lg font-medium text-gray-900 mb-1">Chưa có chuồng nào</h3>
         <p className="text-gray-500 mb-4">Bắt đầu bằng cách thêm chuồng nuôi mới cho khách sạn.</p>
         <button 
-          onClick={() => setIsManageCagesOpen(true)}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+          onClick={() => {
+            if (!canManageCages) return
+            setIsManageCagesOpen(true)
+          }}
+          disabled={!canManageCages}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-md transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Thêm chuồng ngay
         </button>
@@ -85,8 +94,12 @@ export default function CageGrid() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-lg font-semibold text-gray-900">Sơ đồ Chuồng ({cages.length})</h2>
         <button 
-          onClick={() => setIsManageCagesOpen(true)}
-          className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition text-sm font-medium"
+          onClick={() => {
+            if (!canManageCages) return
+            setIsManageCagesOpen(true)
+          }}
+          disabled={!canManageCages}
+          className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-md transition text-sm font-medium hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           + Thêm chuồng mới
         </button>
@@ -96,7 +109,7 @@ export default function CageGrid() {
         {cages.map((cage) => (
           <div
             key={cage.id}
-            className={`border rounded-xl p-4 cursor-pointer transition-all ${getStatusColor(cage.status)}`}
+            className={`border rounded-xl p-4 transition-all ${getStatusColor(cage.status)} ${cage.status === 'AVAILABLE' && !canCheckIn ? 'cursor-not-allowed' : 'cursor-pointer'}`}
             onClick={() => handleCageClick(cage)}
           >
             <div className="flex justify-between items-start mb-3">
@@ -127,14 +140,16 @@ export default function CageGrid() {
       </div>
 
       {/* Modals */}
-      <CheckInDialog 
-        cage={selectedCage} 
-        isOpen={isCheckInOpen} 
-        onClose={() => {
-          setIsCheckInOpen(false)
-          setSelectedCage(null)
-        }} 
-      />
+      {canCheckIn ? (
+        <CheckInDialog 
+          cage={selectedCage} 
+          isOpen={isCheckInOpen} 
+          onClose={() => {
+            setIsCheckInOpen(false)
+            setSelectedCage(null)
+          }} 
+        />
+      ) : null}
       <StayDetailsDialog 
         cage={selectedCage} 
         isOpen={isStayDetailsOpen} 
@@ -143,10 +158,12 @@ export default function CageGrid() {
           setSelectedCage(null)
         }} 
       />
-      <ManageCagesDialog 
-        isOpen={isManageCagesOpen} 
-        onClose={() => setIsManageCagesOpen(false)} 
-      />
+      {canManageCages ? (
+        <ManageCagesDialog 
+          isOpen={isManageCagesOpen} 
+          onClose={() => setIsManageCagesOpen(false)} 
+        />
+      ) : null}
     </div>
   )
 }

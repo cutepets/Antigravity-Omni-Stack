@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpRight,
@@ -18,6 +19,7 @@ import {
   type GroomingSession,
   type GroomingStatus,
 } from "@/lib/api/grooming.api";
+import { useAuthorization } from "@/hooks/useAuthorization";
 import type { Staff } from "@/lib/api/staff.api";
 import {
   formatGroomingDateTime,
@@ -63,6 +65,7 @@ export function GroomingDetailDrawer({
   onClose,
 }: GroomingDetailDrawerProps) {
   const queryClient = useQueryClient();
+  const { hasPermission, hasAnyPermission } = useAuthorization();
   const [form, setForm] = useState<DrawerFormState>(() =>
     buildFormState(session),
   );
@@ -119,11 +122,21 @@ export function GroomingDetailDrawer({
 
   if (!isOpen || !session) return null;
 
+  const canUpdateSession = hasAnyPermission([
+    "grooming.update",
+    "grooming.start",
+    "grooming.complete",
+    "grooming.cancel",
+  ]);
+  const canDeleteSession = hasPermission("grooming.cancel") && !session.orderId;
+  const canReadOrders = hasAnyPermission(["order.read.all", "order.read.assigned"]);
+
   const customerName = session.pet?.customer?.fullName || "Khách lẻ";
   const customerPhone = session.pet?.customer?.phone || "—";
-  const petLabel =
-    session.pet?.breed || session.pet?.species || "Không rõ giống";
-  const canDelete = !session.orderId;
+  const petLabel = session.pet?.breed || session.pet?.species || "Không rõ giống";
+  const sessionLabel = session.sessionCode || session.id.slice(-8).toUpperCase();
+  const petCodeLabel = session.pet?.petCode || session.petId;
+  const orderCodeLabel = session.order?.orderNumber || session.orderId || "—";
 
   return (
     <div
@@ -139,7 +152,7 @@ export function GroomingDetailDrawer({
             <div className="flex items-center gap-2">
               <GroomingStatusBadge status={session.status} />
               <span className="rounded-full border border-border bg-background-secondary px-2 py-1 font-mono text-[11px] text-foreground-muted">
-                {session.id.slice(-8).toUpperCase()}
+                {sessionLabel}
               </span>
             </div>
             <div>
@@ -195,7 +208,7 @@ export function GroomingDetailDrawer({
               <div>
                 <p className="text-xs text-foreground-muted">Mã thú cưng</p>
                 <p className="mt-1 text-sm font-medium text-foreground">
-                  {session.petId}
+                  {petCodeLabel}
                 </p>
               </div>
               <div>
@@ -208,9 +221,17 @@ export function GroomingDetailDrawer({
                 <p className="text-xs text-foreground-muted">Mã đơn hàng</p>
                 <div className="mt-1 flex items-center gap-2">
                   <span className="text-sm font-medium text-foreground">
-                    {session.orderId || "—"}
+                    {orderCodeLabel}
                   </span>
-                  {session.orderId ? (
+                  {session.orderId && canReadOrders ? (
+                    <Link
+                      href={`/orders/${session.orderId}`}
+                      className="text-xs font-medium text-primary-400 transition-colors hover:text-primary-300"
+                    >
+                      Mở đơn
+                    </Link>
+                  ) : null}
+                  {session.orderId && canReadOrders ? (
                     <ArrowUpRight size={14} className="text-foreground-muted" />
                   ) : null}
                 </div>
@@ -231,7 +252,7 @@ export function GroomingDetailDrawer({
                   Cập nhật phiên
                 </p>
                 <p className="text-xs text-foreground-muted">
-                  Map theo workflow hiện có của V2.
+                  Theo workflow hiện có của V2.
                 </p>
               </div>
               <GroomingStatusBadge status={form.status} />
@@ -252,17 +273,19 @@ export function GroomingDetailDrawer({
                         key={status}
                         type="button"
                         onClick={() => {
+                          if (!canUpdateSession) return;
                           if (status === "CANCELLED") {
                             setShowCancelModal(true);
                           } else {
                             setForm((current) => ({ ...current, status }));
                           }
                         }}
+                        disabled={!canUpdateSession}
                         className={`inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
                           form.status === status
                             ? `${meta.chipClassName} shadow-sm`
                             : "border-border bg-background-secondary text-foreground-muted hover:text-foreground"
-                        }`}
+                        } disabled:cursor-not-allowed disabled:opacity-50`}
                       >
                         <Icon size={14} />
                         {meta.label}
@@ -278,6 +301,7 @@ export function GroomingDetailDrawer({
                 </span>
                 <select
                   value={form.staffId}
+                  disabled={!canUpdateSession}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
@@ -303,6 +327,7 @@ export function GroomingDetailDrawer({
                   <input
                     type="datetime-local"
                     value={form.startTime}
+                    disabled={!canUpdateSession}
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
@@ -320,6 +345,7 @@ export function GroomingDetailDrawer({
                   <input
                     type="datetime-local"
                     value={form.endTime}
+                    disabled={!canUpdateSession}
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
@@ -341,6 +367,7 @@ export function GroomingDetailDrawer({
                   min="0"
                   step="1000"
                   value={form.price}
+                  disabled={!canUpdateSession}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
@@ -359,6 +386,7 @@ export function GroomingDetailDrawer({
                 <textarea
                   rows={4}
                   value={form.notes}
+                  disabled={!canUpdateSession}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
@@ -372,7 +400,7 @@ export function GroomingDetailDrawer({
             </div>
           </section>
 
-          {!canDelete ? (
+          {!canDeleteSession ? (
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-600">
               Phiên này đang gắn với đơn hàng. Mình giữ an toàn bằng cách chỉ
               cho phép cập nhật trạng thái, không xóa cứng.
@@ -383,8 +411,11 @@ export function GroomingDetailDrawer({
         <div className="space-y-3 border-t border-border px-6 py-4">
           <button
             type="button"
-            onClick={() => updateMutation.mutate()}
-            disabled={updateMutation.isPending}
+            onClick={() => {
+              if (!canUpdateSession) return;
+              updateMutation.mutate();
+            }}
+            disabled={!canUpdateSession || updateMutation.isPending}
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Save size={16} />
@@ -402,11 +433,9 @@ export function GroomingDetailDrawer({
 
             <button
               type="button"
-              disabled={!canDelete || deleteMutation.isPending}
+              disabled={!canDeleteSession || deleteMutation.isPending}
               onClick={() => {
-                if (
-                  window.confirm(`Xóa phiên grooming của ${session.petName}?`)
-                ) {
+                if (window.confirm(`Xóa phiên grooming của ${session.petName}?`)) {
                   deleteMutation.mutate();
                 }
               }}
@@ -420,16 +449,22 @@ export function GroomingDetailDrawer({
       </aside>
 
       {showCancelModal && (
-        <CancelNotesModal 
-           session={{ petName: session.petName }}
-           onConfirm={(note) => {
-             const existingNotes = form.notes || "";
-             const cancelNote = note.trim();
-             const combinedNotes = cancelNote ? cancelNote + (existingNotes ? '\n' + existingNotes : '') : existingNotes;
-             setForm(f => ({ ...f, status: 'CANCELLED', notes: combinedNotes }));
-             setShowCancelModal(false);
-           }}
-           onCancel={() => setShowCancelModal(false)}
+        <CancelNotesModal
+          session={{ petName: session.petName }}
+          onConfirm={(note) => {
+            const existingNotes = form.notes || "";
+            const cancelNote = note.trim();
+            const combinedNotes = cancelNote
+              ? cancelNote + (existingNotes ? "\n" + existingNotes : "")
+              : existingNotes;
+            setForm((current) => ({
+              ...current,
+              status: "CANCELLED",
+              notes: combinedNotes,
+            }));
+            setShowCancelModal(false);
+          }}
+          onCancel={() => setShowCancelModal(false)}
         />
       )}
     </div>

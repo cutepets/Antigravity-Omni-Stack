@@ -2,6 +2,7 @@
 
 import { CheckCircle, Printer, X, FileText } from 'lucide-react';
 import { useEffect } from 'react';
+import { usePosStore } from '@/stores/pos.store';
 
 export interface ReceiptModalProps {
   isOpen: boolean;
@@ -10,6 +11,8 @@ export interface ReceiptModalProps {
 }
 
 export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) {
+  const { autoPrint } = usePosStore();
+
   useEffect(() => {
     if (isOpen) {
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -19,6 +22,29 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
   }, [isOpen, onClose]);
+
+  // Handle auto print
+  useEffect(() => {
+    if (isOpen && autoPrint && orderData) {
+      let printTimer: any;
+      
+      const afterPrint = () => {
+        onClose();
+      };
+      
+      window.addEventListener('afterprint', afterPrint);
+      
+      // Short delay to ensure DOM is ready for printing
+      printTimer = setTimeout(() => {
+        window.print();
+      }, 150);
+      
+      return () => {
+         clearTimeout(printTimer);
+         window.removeEventListener('afterprint', afterPrint);
+      };
+    }
+  }, [isOpen, autoPrint, orderData, onClose]);
 
   if (!isOpen || !orderData) return null;
 

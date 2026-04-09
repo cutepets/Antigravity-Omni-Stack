@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Settings, X, SlidersHorizontal, Printer, Keyboard } from 'lucide-react';
+import { usePosStore } from '@/stores/pos.store';
 
 type Tab = 'POS' | 'PRINT' | 'SHORTCUTS';
 
@@ -9,18 +10,18 @@ export function PosSettingsPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('POS');
 
-  // ── POS Settings ──
-  const [autoFocusSearch, setAutoFocusSearch] = useState(true);
-  const [barcodeMode, setBarcodeMode] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [zoomLevel, setZoomLevel] = useState(100); // 75 to 125
-  const [defaultPayment, setDefaultPayment] = useState('CASH');
-
-  // ── Print Settings ──
-  const [printerName, setPrinterName] = useState('');
-  const [paperSize, setPaperSize] = useState('K80');
-  const [autoPrint, setAutoPrint] = useState(true);
-  const [autoPrintQR, setAutoPrintQR] = useState(true);
+  // Load state and setters from store
+  const {
+    autoFocusSearch, setAutoFocusSearch,
+    barcodeMode, setBarcodeMode,
+    soundEnabled, setSoundEnabled,
+    zoomLevel, setZoomLevel,
+    defaultPayment, setDefaultPayment,
+    printerIp, setPrinterIp,
+    paperSize, setPaperSize,
+    autoPrint, setAutoPrint,
+    autoPrintQR, setAutoPrintQR
+  } = usePosStore();
 
   // Apply zoom effect globally for POS
   useEffect(() => {
@@ -134,13 +135,13 @@ export function PosSettingsPanel() {
       <div className="flex flex-col gap-2 bg-gray-50 p-3 rounded-lg border border-gray-100 mt-2">
         <div className="text-[15px] font-medium">Phương thức thanh toán mặc định</div>
         <div className="grid grid-cols-3 gap-2 mt-1">
-          {['CASH', 'TRANSFER', 'QR'].map(method => (
+          {['CASH', 'BANK', 'QR'].map(method => (
             <button 
               key={method}
               className={`py-2 text-xs font-semibold rounded ${defaultPayment === method ? 'bg-primary-500 text-white shadow' : 'bg-white border border-gray-200 text-gray-700 hover:border-primary-300'}`}
               onClick={() => setDefaultPayment(method)}
             >
-              {method === 'CASH' ? 'Tiền mặt' : method === 'TRANSFER' ? 'Chuyển khoản' : 'QR Code'}
+              {method === 'CASH' ? 'Tiền mặt' : method === 'BANK' ? 'Chuyển khoản' : 'QR Code'}
             </button>
           ))}
         </div>
@@ -153,12 +154,13 @@ export function PosSettingsPanel() {
       <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Cài đặt máy in</h3>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[15px] font-medium">Tên máy in</label>
+        <label className="text-[15px] font-medium">IP máy in (LAN / Wifi)</label>
+        <div className="text-xs text-gray-500 mb-1">Điền IP của máy in để in khi cần kết nối mạng LAN/Mobile</div>
         <input 
           type="text" 
-          value={printerName}
-          onChange={e => setPrinterName(e.target.value)}
-          placeholder="VD: POS-Printer-K80"
+          value={printerIp}
+          onChange={e => setPrinterIp(e.target.value)}
+          placeholder="VD: 192.168.1.100"
           className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-primary-500 focus:bg-white transition-colors"
         />
       </div>

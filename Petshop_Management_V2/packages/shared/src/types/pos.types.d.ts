@@ -1,6 +1,7 @@
 import type { PaymentEntry } from './order.types.js';
 export interface CartItem {
     id: string;
+    orderItemId?: string;
     productId?: string;
     productVariantId?: string;
     serviceId?: string;

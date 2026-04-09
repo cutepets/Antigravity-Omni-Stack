@@ -3,6 +3,7 @@ import type { PaymentMethod, PaymentEntry } from './order.types.js'
 // POS-specific types (frontend only, not stored in DB directly)
 export interface CartItem {
   id: string
+  orderItemId?: string
   productId?: string
   productVariantId?: string
   serviceId?: string

@@ -1,100 +1,144 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
-import { HotelService } from './hotel.service.js';
-import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto } from './dto/create-hotel.dto.js';
-import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateHotelRateTableDto, UpdateHotelStayDto, UpdateCageDto } from './dto/update-hotel.dto.js';
-import { JwtGuard } from '../auth/guards/jwt.guard.js';
-import type { PaymentStatus } from '@petshop/database';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common'
+import type { PaymentStatus } from '@petshop/database'
+import type { JwtPayload } from '@petshop/shared'
+import type { Request } from 'express'
+import { Permissions } from '../../common/decorators/permissions.decorator.js'
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
+import { JwtGuard } from '../auth/guards/jwt.guard.js'
+import {
+  CreateCageDto,
+  CreateHotelRateTableDto,
+  CreateHotelStayDto,
+} from './dto/create-hotel.dto.js'
+import {
+  CalculateHotelPriceDto,
+  CheckoutHotelStayDto,
+  UpdateCageDto,
+  UpdateHotelRateTableDto,
+  UpdateHotelStayDto,
+} from './dto/update-hotel.dto.js'
+import { HotelService } from './hotel.service.js'
+
+interface AuthenticatedRequest extends Request {
+  user?: JwtPayload
+}
 
 @Controller('hotel')
-@UseGuards(JwtGuard)
+@UseGuards(JwtGuard, PermissionsGuard)
 export class HotelController {
   constructor(private readonly hotelService: HotelService) {}
 
-  // CAGES
   @Post('cages')
+  @Permissions('hotel.create')
   createCage(@Body() createCageDto: CreateCageDto) {
-    return this.hotelService.createCage(createCageDto);
+    return this.hotelService.createCage(createCageDto)
   }
 
   @Get('cages')
+  @Permissions('hotel.read')
   findAllCages() {
-    return this.hotelService.findAllCages();
+    return this.hotelService.findAllCages()
   }
 
   @Patch('cages/:id')
+  @Permissions('hotel.update')
   updateCage(@Param('id') id: string, @Body() updateCageDto: UpdateCageDto) {
-    return this.hotelService.updateCage(id, updateCageDto);
+    return this.hotelService.updateCage(id, updateCageDto)
   }
 
   @Delete('cages/:id')
+  @Permissions('hotel.cancel')
   deleteCage(@Param('id') id: string) {
-    return this.hotelService.deleteCage(id);
+    return this.hotelService.deleteCage(id)
   }
 
-  // RATE TABLES
   @Post('rate-tables')
+  @Permissions('hotel.create')
   createRateTable(@Body() createHotelRateTableDto: CreateHotelRateTableDto) {
-    return this.hotelService.createRateTable(createHotelRateTableDto);
+    return this.hotelService.createRateTable(createHotelRateTableDto)
   }
 
   @Get('rate-tables')
+  @Permissions('hotel.read')
   findAllRateTables(@Query() query: any) {
-    return this.hotelService.findAllRateTables(query);
+    return this.hotelService.findAllRateTables(query)
   }
 
   @Get('rate-tables/:id')
+  @Permissions('hotel.read')
   findRateTableById(@Param('id') id: string) {
-    return this.hotelService.findRateTableById(id);
+    return this.hotelService.findRateTableById(id)
   }
 
   @Patch('rate-tables/:id')
+  @Permissions('hotel.update')
   updateRateTable(@Param('id') id: string, @Body() updateHotelRateTableDto: UpdateHotelRateTableDto) {
-    return this.hotelService.updateRateTable(id, updateHotelRateTableDto);
+    return this.hotelService.updateRateTable(id, updateHotelRateTableDto)
   }
 
   @Delete('rate-tables/:id')
+  @Permissions('hotel.cancel')
   deleteRateTable(@Param('id') id: string) {
-    return this.hotelService.deleteRateTable(id);
+    return this.hotelService.deleteRateTable(id)
   }
 
-  // STAYS
   @Post('stays')
-  createStay(@Body() createStayDto: CreateHotelStayDto) {
-    return this.hotelService.createStay(createStayDto);
+  @Permissions('hotel.create', 'hotel.checkin')
+  createStay(@Body() createStayDto: CreateHotelStayDto, @Req() req: AuthenticatedRequest) {
+    return this.hotelService.createStay(createStayDto, req.user, getRequestedBranchId(req))
   }
 
   @Get('stays')
-  findAllStays(@Query() query: any) {
-    return this.hotelService.findAllStays(query);
+  @Permissions('hotel.read')
+  findAllStays(@Query() query: any, @Req() req: AuthenticatedRequest) {
+    return this.hotelService.findAllStays(query, req.user, getRequestedBranchId(req))
   }
 
   @Get('stays/:id')
-  findStayById(@Param('id') id: string) {
-    return this.hotelService.findStayById(id);
+  @Permissions('hotel.read')
+  findStayById(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.hotelService.findStayById(id, req.user)
   }
 
   @Patch('stays/:id')
-  updateStay(@Param('id') id: string, @Body() updateStayDto: UpdateHotelStayDto) {
-    return this.hotelService.updateStay(id, updateStayDto);
+  @Permissions('hotel.update')
+  updateStay(@Param('id') id: string, @Body() updateStayDto: UpdateHotelStayDto, @Req() req: AuthenticatedRequest) {
+    return this.hotelService.updateStay(id, updateStayDto, req.user, getRequestedBranchId(req))
   }
 
   @Patch('stays/:id/payment')
-  updateStayPayment(@Param('id') id: string, @Body('paymentStatus') paymentStatus: PaymentStatus) {
-    return this.hotelService.updateStayPayment(id, paymentStatus);
+  @Permissions('hotel.update')
+  updateStayPayment(@Param('id') id: string, @Body('paymentStatus') paymentStatus: PaymentStatus, @Req() req: AuthenticatedRequest) {
+    return this.hotelService.updateStayPayment(id, paymentStatus, req.user)
   }
 
   @Post('stays/:id/checkout')
-  checkoutStay(@Param('id') id: string, @Body() checkoutStayDto: CheckoutHotelStayDto) {
-    return this.hotelService.checkoutStay(id, checkoutStayDto);
+  @Permissions('hotel.checkout')
+  checkoutStay(@Param('id') id: string, @Body() checkoutStayDto: CheckoutHotelStayDto, @Req() req: AuthenticatedRequest) {
+    return this.hotelService.checkoutStay(id, checkoutStayDto, req.user)
   }
 
   @Delete('stays/:id')
-  deleteStay(@Param('id') id: string) {
-    return this.hotelService.deleteStay(id);
+  @Permissions('hotel.cancel')
+  deleteStay(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.hotelService.deleteStay(id, req.user)
   }
 
   @Post('calculate')
+  @Permissions('hotel.read', 'hotel.create')
   calculatePrice(@Body() calculateHotelPriceDto: CalculateHotelPriceDto) {
-    return this.hotelService.calculatePrice(calculateHotelPriceDto);
+    return this.hotelService.calculatePrice(calculateHotelPriceDto)
   }
 }

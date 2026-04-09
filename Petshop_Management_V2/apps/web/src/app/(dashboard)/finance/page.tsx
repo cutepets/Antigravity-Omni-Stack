@@ -7,10 +7,14 @@ export const metadata: Metadata = {
   description: 'Theo dõi thu chi và dòng tiền tại quầy',
 }
 
+import { Suspense } from 'react'
+
 export default function FinancePage() {
   return (
     <PageContainer maxWidth="full" className="!h-full !min-h-0 !gap-0 !overflow-hidden !py-4">
-      <FinanceWorkspace />
+      <Suspense fallback={<div>Loading finance workspace...</div>}>
+        <FinanceWorkspace />
+      </Suspense>
     </PageContainer>
   )
 }

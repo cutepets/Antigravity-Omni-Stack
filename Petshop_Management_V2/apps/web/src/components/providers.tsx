@@ -7,6 +7,7 @@ import { Toaster } from 'sonner'
 import { ThemeProvider } from 'next-themes'
 import { ThemeInjector } from './theme-injector'
 import { MSWProvider } from './providers/MSWProvider'
+import { AnimationProvider } from './providers/AnimationProvider'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -26,6 +27,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <MSWProvider>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <ThemeInjector />
+      <AnimationProvider />
       <QueryClientProvider client={queryClient}>
         {children}
         <Toaster

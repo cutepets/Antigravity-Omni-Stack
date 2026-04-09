@@ -1,4 +1,11 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common'
+import {
+  ALL_PERMISSION_CODES,
+  KNOWN_PERMISSION_CODES,
+  LEGACY_PERMISSION_ALIASES,
+  PERMISSION_GROUPS,
+  getRolePermissions,
+} from '@petshop/auth'
 import { DatabaseService } from '../../database/database.service.js'
 import { CreateRoleDto } from './dto/create-role.dto.js'
 import { UpdateRoleDto } from './dto/update-role.dto.js'
@@ -16,6 +23,22 @@ export class RolesService {
          }
       }
     })
+  }
+
+  getPermissionCatalog() {
+    return {
+      groups: PERMISSION_GROUPS,
+      allPermissionCodes: ALL_PERMISSION_CODES,
+      knownPermissionCodes: KNOWN_PERMISSION_CODES,
+      legacyAliases: LEGACY_PERMISSION_ALIASES,
+      defaultRoleTemplates: {
+        SUPER_ADMIN: getRolePermissions('SUPER_ADMIN'),
+        ADMIN: getRolePermissions('ADMIN'),
+        MANAGER: getRolePermissions('MANAGER'),
+        STAFF: getRolePermissions('STAFF'),
+        VIEWER: getRolePermissions('VIEWER'),
+      },
+    }
   }
 
   async findById(id: string) {

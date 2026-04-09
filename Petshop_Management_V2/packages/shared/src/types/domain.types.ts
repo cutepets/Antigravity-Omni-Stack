@@ -115,12 +115,29 @@ export interface StockReceipt {
   supplierId?: string | null
   branchId?: string | null
   status: string
+  receiptStatus?: string
+  paymentStatus?: string
   totalAmount: number
+  totalReceivedAmount?: number
+  totalReturnedAmount?: number
   paidAmount: number
   notes?: string | null
   receivedAt?: Date | null
+  completedAt?: Date | null
+  cancelledAt?: Date | null
+  shortClosedAt?: Date | null
   createdAt: Date
   updatedAt: Date
+}
+
+export interface SupplierDocument {
+  name: string
+  type?: string | null
+  url: string
+  uploadedAt?: string | null
+  expiresAt?: string | null
+  notes?: string | null
+  remindBeforeDays?: number | null
 }
 
 export interface Supplier {
@@ -129,7 +146,14 @@ export interface Supplier {
   phone?: string | null
   email?: string | null
   address?: string | null
+  avatar?: string | null
   notes?: string | null
+  documents?: SupplierDocument[] | null
+  monthTarget?: number | null
+  yearTarget?: number | null
+  isActive?: boolean
+  debt?: number
+  creditBalance?: number
   createdAt: Date
 }
 

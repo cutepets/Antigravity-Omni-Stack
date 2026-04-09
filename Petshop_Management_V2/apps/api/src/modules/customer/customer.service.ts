@@ -1,10 +1,15 @@
 import {
   Injectable,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common'
+import { resolvePermissions } from '@petshop/auth'
+import type { JwtPayload } from '@petshop/shared'
 import { DatabaseService } from '../../database/database.service.js'
+import { getNextSequentialCode } from '../../common/utils/sequential-code.util.js'
+import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js'
 
 // ─── Accent-insensitive search (ported from Petshop_Service_Management) ───────
 const removeAccents = (str: string): string => {
@@ -39,6 +44,7 @@ export interface CreateCustomerDto {
   address?: string
   tier?: any
   points?: number
+  debt?: number
   groupId?: string
   notes?: string
   // Extended fields
@@ -65,14 +71,119 @@ export interface ImportCustomerRow {
   taxCode?: string
 }
 
+type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 @Injectable()
 export class CustomerService {
   constructor(private readonly db: DatabaseService) {}
 
+  private resolveUserPermissions(user?: AccessUser): Set<string> {
+    return new Set(resolvePermissions(user?.permissions ?? []))
+  }
+
+  private getAuthorizedBranchIds(user?: AccessUser): string[] {
+    return [...new Set([...(user?.authorizedBranchIds ?? []), ...(user?.branchId ? [user.branchId] : [])])]
+  }
+
+  private buildLegacyBranchCustomerScope(authorizedBranchIds: string[]) {
+    return {
+      OR: [
+        {
+          orders: {
+            some: {
+              branchId: { in: authorizedBranchIds },
+            },
+          },
+        },
+        {
+          hotelStays: {
+            some: {
+              branchId: { in: authorizedBranchIds },
+            },
+          },
+        },
+        {
+          pets: {
+            some: {
+              branchId: { in: authorizedBranchIds },
+            },
+          },
+        },
+      ],
+    }
+  }
+
+  private shouldRestrictToCustomerBranches(user?: AccessUser): boolean {
+    if (!user) return false
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return false
+
+    const permissions = this.resolveUserPermissions(user)
+    return !permissions.has('branch.access.all')
+  }
+
+  private buildBranchCustomerScope(user?: AccessUser) {
+    if (!this.shouldRestrictToCustomerBranches(user)) return null
+
+    const authorizedBranchIds = this.getAuthorizedBranchIds(user)
+    const legacyScope = this.buildLegacyBranchCustomerScope(authorizedBranchIds)
+
+    return {
+      OR: [
+        {
+          branchId: { in: authorizedBranchIds },
+        },
+        {
+          AND: [
+            { branchId: null },
+            legacyScope,
+          ],
+        },
+      ],
+    }
+  }
+
+  private async resolveWriteBranchId(user?: AccessUser, requestedBranchId?: string | null): Promise<string> {
+    const branchId = requestedBranchId?.trim() || null
+
+    if (this.shouldRestrictToCustomerBranches(user)) {
+      const authorizedBranchIds = this.getAuthorizedBranchIds(user)
+      const targetBranchId = branchId ?? user?.branchId ?? authorizedBranchIds[0] ?? null
+
+      if (!targetBranchId || !authorizedBranchIds.includes(targetBranchId)) {
+        throw new ForbiddenException('Bạn chỉ được thao tác dữ liệu thuộc chi nhánh được phân quyền')
+      }
+
+      return targetBranchId
+    }
+
+    const branch = await resolveBranchIdentity(this.db, branchId ?? user?.branchId ?? null)
+    return branch.id
+  }
+
+  private mergeCustomerScope(where: Record<string, any>, user?: AccessUser) {
+    const scope = this.buildBranchCustomerScope(user)
+    if (!scope) return where
+    if (Object.keys(where).length === 0) return scope
+    return { AND: [where, scope] }
+  }
+
+  private async assertCustomerScope(id: string, user?: AccessUser) {
+    if (!this.shouldRestrictToCustomerBranches(user)) return
+
+    const accessible = await this.db.customer.findFirst({
+      where: this.mergeCustomerScope({ id }, user),
+      select: { id: true },
+    })
+
+    if (!accessible) {
+      throw new ForbiddenException('Bạn chỉ được truy cập dữ liệu thuộc chi nhánh được phân quyền')
+    }
+  }
+
   // ── List (paginated + accent-insensitive search) ───────────────────────────
-  async findAll(query: FindCustomersDto) {
+  async findAll(query: FindCustomersDto, user?: AccessUser) {
     const {
       search,
       page = 1,
@@ -88,15 +199,16 @@ export class CustomerService {
 
     const skip = (Number(page) - 1) * Number(limit)
 
-    const where: any = {}
-    if (tier) where.tier = tier
-    if (groupId) where.groupId = groupId
-    if (isActive !== undefined) where.isActive = isActive === true || isActive === ('true' as any)
+    const baseWhere: any = {}
+    if (tier) baseWhere.tier = tier
+    if (groupId) baseWhere.groupId = groupId
+    if (isActive !== undefined) baseWhere.isActive = isActive === true || isActive === ('true' as any)
     if (minSpent !== undefined || maxSpent !== undefined) {
-      where.totalSpent = {}
-      if (minSpent !== undefined) where.totalSpent.gte = Number(minSpent)
-      if (maxSpent !== undefined) where.totalSpent.lte = Number(maxSpent)
+      baseWhere.totalSpent = {}
+      if (minSpent !== undefined) baseWhere.totalSpent.gte = Number(minSpent)
+      if (maxSpent !== undefined) baseWhere.totalSpent.lte = Number(maxSpent)
     }
+    const where = this.mergeCustomerScope(baseWhere, user)
 
     const orderBy: any = { [sortBy]: sortOrder }
 
@@ -110,8 +222,14 @@ export class CustomerService {
           orderBy,
           include: {
             group: { select: { id: true, name: true, color: true, discount: true, pricePolicy: true } },
-            pets: { select: { id: true } },
-            _count: { select: { orders: true } },
+            pets: { 
+              select: { 
+                id: true, 
+                name: true,
+                _count: { select: { groomingSessions: true, hotelStays: true } }
+              } 
+            },
+            _count: { select: { orders: true, hotelStays: true } },
           },
         }),
         this.db.customer.count({ where }),
@@ -137,8 +255,14 @@ export class CustomerService {
       take: 500,
       include: {
         group: { select: { id: true, name: true, color: true, discount: true, pricePolicy: true } },
-        pets: { select: { id: true } },
-        _count: { select: { orders: true } },
+        pets: { 
+          select: { 
+            id: true, 
+            name: true,
+            _count: { select: { groomingSessions: true, hotelStays: true } }
+          } 
+        },
+        _count: { select: { orders: true, hotelStays: true } },
       },
     })
 
@@ -167,16 +291,17 @@ export class CustomerService {
   }
 
   // ── Find by ID (with periodSpent) ──────────────────────────────────────────
-  async findById(id: string, tierRetentionMonths = 6) {
-    // Support lookup by customerCode (e.g. KH-000001)
+  async findById(id: string, tierRetentionMonths = 6, user?: AccessUser) {
+    // Support lookup by customerCode (e.g. KH000001)
     const isCode = id.startsWith('KH')
+    const customerWhere = this.mergeCustomerScope(isCode ? { customerCode: id } : { id }, user)
     const customer = isCode
       ? await this.db.customer.findFirst({
-          where: { customerCode: id },
+          where: customerWhere,
           include: this._fullInclude(),
         })
-      : await this.db.customer.findUnique({
-          where: { id },
+      : await this.db.customer.findFirst({
+          where: customerWhere,
           include: this._fullInclude(),
         })
 
@@ -193,7 +318,7 @@ export class CustomerService {
   }
 
   // ── Create ─────────────────────────────────────────────────────────────────
-  async create(dto: CreateCustomerDto) {
+  async create(dto: CreateCustomerDto, user?: AccessUser, requestedBranchId?: string) {
     if (dto.phone) {
       const exists = await this.db.customer.findUnique({ where: { phone: dto.phone } })
       if (exists) throw new ConflictException(`Số điện thoại "${dto.phone}" đã được sử dụng`)
@@ -205,9 +330,11 @@ export class CustomerService {
     }
 
     const customerCode = await this._nextCustomerCode()
+    const branchId = await this.resolveWriteBranchId(user, requestedBranchId)
 
     const customer = await this.db.customer.create({
       data: {
+        branchId,
         customerCode,
         fullName: dto.fullName,
         phone: dto.phone,
@@ -216,6 +343,7 @@ export class CustomerService {
         tier: dto.tier ?? 'BRONZE',
         points: dto.points ?? 0,
         pointsUsed: 0,
+        debt: dto.debt ?? 0,
         groupId: dto.groupId || null,
         notes: dto.notes || null,
         taxCode: dto.taxCode || null,
@@ -226,14 +354,15 @@ export class CustomerService {
         companyName: dto.companyName || null,
         bankAccount: dto.bankAccount || null,
         bankName: dto.bankName || null,
-      },
+      } as any,
     })
 
     return { success: true, data: customer }
   }
 
   // ── Update ─────────────────────────────────────────────────────────────────
-  async update(id: string, dto: UpdateCustomerDto) {
+  async update(id: string, dto: UpdateCustomerDto, user?: AccessUser) {
+    await this.assertCustomerScope(id, user)
     const customer = await this.db.customer.findUnique({ where: { id } })
     if (!customer) throw new NotFoundException('Không tìm thấy khách hàng')
 
@@ -244,14 +373,15 @@ export class CustomerService {
 
     const updated = await this.db.customer.update({
       where: { id },
-      data: dto,
+      data: dto as any,
     })
 
     return { success: true, data: updated }
   }
 
   // ── Delete (safe — check relations first) ──────────────────────────────────
-  async remove(id: string) {
+  async remove(id: string, user?: AccessUser) {
+    await this.assertCustomerScope(id, user)
     const customer = await this.db.customer.findUnique({ where: { id } })
     if (!customer) throw new NotFoundException('Không tìm thấy khách hàng')
 
@@ -277,10 +407,11 @@ export class CustomerService {
   }
 
   // ── Export all (no pagination) ─────────────────────────────────────────────
-  async exportAll(params?: { tier?: string; isActive?: boolean }) {
-    const where: any = {}
-    if (params?.tier) where.tier = params.tier
-    if (params?.isActive !== undefined) where.isActive = params.isActive
+  async exportAll(params?: { tier?: string; isActive?: boolean }, user?: AccessUser) {
+    const baseWhere: any = {}
+    if (params?.tier) baseWhere.tier = params.tier
+    if (params?.isActive !== undefined) baseWhere.isActive = params.isActive
+    const where = this.mergeCustomerScope(baseWhere, user)
 
     const customers = await this.db.customer.findMany({
       where,
@@ -295,10 +426,11 @@ export class CustomerService {
   }
 
   // ── Batch import ───────────────────────────────────────────────────────────
-  async importBatch(rows: ImportCustomerRow[]) {
+  async importBatch(rows: ImportCustomerRow[], user?: AccessUser, requestedBranchId?: string) {
     let created = 0
     let updated = 0
     const errors: string[] = []
+    const branchId = await this.resolveWriteBranchId(user, requestedBranchId)
 
     for (const row of rows) {
       try {
@@ -310,9 +442,20 @@ export class CustomerService {
         if (row.phone) {
           const existing = await this.db.customer.findUnique({ where: { phone: row.phone } })
           if (existing) {
+            const accessibleExisting = await this.db.customer.findFirst({
+              where: this.mergeCustomerScope({ id: existing.id }, user),
+              select: { id: true, branchId: true },
+            })
+
+            if (!accessibleExisting) {
+              errors.push(`Số điện thoại "${row.phone}" đã thuộc chi nhánh khác hoặc bạn không có quyền cập nhật`)
+              continue
+            }
+
             await this.db.customer.update({
               where: { phone: row.phone },
               data: {
+                ...(accessibleExisting.branchId ? {} : { branchId }),
                 fullName: row.fullName,
                 email: row.email || existing.email,
                 address: row.address || existing.address,
@@ -328,6 +471,7 @@ export class CustomerService {
         const customerCode = await this._nextCustomerCode()
         await this.db.customer.create({
           data: {
+            branchId,
             customerCode,
             fullName: row.fullName,
             phone: row.phone || `NOPHONE-${Date.now()}`,
@@ -351,13 +495,11 @@ export class CustomerService {
   // ─── Private helpers ───────────────────────────────────────────────────────
 
   private async _nextCustomerCode(): Promise<string> {
-    const last = await this.db.customer.findFirst({
-      where: { customerCode: { startsWith: 'KH-' } },
-      orderBy: { customerCode: 'desc' },
-      select: { customerCode: true },
+    return getNextSequentialCode(this.db, {
+      table: 'customers',
+      column: 'customerCode',
+      prefix: 'KH',
     })
-    const lastNum = last?.customerCode ? parseInt(last.customerCode.slice(3)) : 0
-    return `KH-${String(lastNum + 1).padStart(6, '0')}`
   }
 
   private _fullInclude() {

@@ -21,10 +21,65 @@ type MockFinanceTransaction = {
   tags: string | null
   source: string
   isManual: boolean
+  editScope?: 'FULL' | 'NOTES_ONLY'
+  canDelete?: boolean
+  lockReason?: string | null
   date: string
   createdAt: string
   updatedAt: string
   createdBy: { id: string; name: string } | null
+}
+
+const MANUAL_FULL_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000
+
+function getTransactionCapability(transaction: MockFinanceTransaction) {
+  const createdAtMs = new Date(transaction.createdAt).getTime()
+  const isManual = transaction.isManual || transaction.source === 'MANUAL'
+
+  if (!isManual) {
+    return {
+      editScope: 'NOTES_ONLY' as const,
+      canDelete: false,
+      lockReason: 'Phiếu đồng bộ chỉ được cập nhật ghi chú.',
+    }
+  }
+
+  if (Date.now() - createdAtMs <= MANUAL_FULL_EDIT_WINDOW_MS) {
+    return {
+      editScope: 'FULL' as const,
+      canDelete: true,
+      lockReason: null,
+    }
+  }
+
+  return {
+    editScope: 'NOTES_ONLY' as const,
+    canDelete: false,
+    lockReason: 'Phiếu tự tạo chỉ được sửa hoặc xóa toàn bộ trong 24 giờ đầu. Sau đó chỉ còn sửa ghi chú.',
+  }
+}
+
+function withCapability(transaction: MockFinanceTransaction): MockFinanceTransaction {
+  return {
+    ...transaction,
+    ...getTransactionCapability(transaction),
+  }
+}
+
+function buildVoucherBase(type: MockFinanceTransaction['type'], isoDate: string) {
+  const date = new Date(isoDate)
+  const yy = String(date.getUTCFullYear()).slice(-2)
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(date.getUTCDate()).padStart(2, '0')
+  return `${type === 'EXPENSE' ? 'PC' : 'PT'}${yy}${mm}${dd}`
+}
+
+function buildMockVoucherNumber(type: MockFinanceTransaction['type'], isoDate: string) {
+  const voucherBase = buildVoucherBase(type, isoDate)
+  const nextSequence =
+    mockFinanceTransactions.filter((transaction) => transaction.voucherNumber.startsWith(voucherBase)).length + 1
+  const width = type === 'EXPENSE' ? 4 : 3
+  return `${voucherBase}${String(nextSequence).padStart(width, '0')}`
 }
 
 const mockBranches = [
@@ -32,10 +87,62 @@ const mockBranches = [
   { id: 'br-2', name: 'Chi nhanh Binh Thanh' },
 ]
 
+const mockOrders = [
+  { id: 'ord-1', orderNumber: 'DH001' },
+  { id: 'ord-2', orderNumber: 'DH260408001' },
+]
+
+const mockStockReceipts = [
+  { id: 'rcpt-2', receiptNumber: 'RCPT-002' },
+  { id: 'rcpt-3', receiptNumber: 'PN2604003' },
+]
+
+function resolveMockManualReference(body: Partial<MockFinanceTransaction>) {
+  const refType = body.refType ?? 'MANUAL'
+  const refId = body.refId ?? null
+  const refNumber = body.refNumber ?? null
+
+  if (refType === 'MANUAL') {
+    return {
+      refType: 'MANUAL',
+      refId: null,
+      refNumber: null,
+    }
+  }
+
+  if (refType === 'ORDER') {
+    const order = mockOrders.find((item) => item.id === refId || item.orderNumber === refNumber)
+    if (!order) {
+      return null
+    }
+
+    return {
+      refType: 'ORDER',
+      refId: order.id,
+      refNumber: order.orderNumber,
+    }
+  }
+
+  if (refType === 'STOCK_RECEIPT') {
+    const receipt = mockStockReceipts.find((item) => item.id === refId || item.receiptNumber === refNumber)
+    if (!receipt) {
+      return null
+    }
+
+    return {
+      refType: 'STOCK_RECEIPT',
+      refId: receipt.id,
+      refNumber: receipt.receiptNumber,
+    }
+  }
+
+  return null
+}
+
 const mockFinanceTransactions: MockFinanceTransaction[] = [
   {
     id: 'tx-1',
-    voucherNumber: 'PT-20260403-0001',
+    voucherNumber: 'PT260403001',
     type: 'INCOME',
     amount: 450000,
     description: 'Thu tien don hang DH001',
@@ -59,7 +166,7 @@ const mockFinanceTransactions: MockFinanceTransaction[] = [
   },
   {
     id: 'tx-2',
-    voucherNumber: 'PC-20260403-0001',
+    voucherNumber: 'PC2604030001',
     type: 'EXPENSE',
     amount: 150000,
     description: 'Chi van chuyen noi bo',
@@ -83,7 +190,7 @@ const mockFinanceTransactions: MockFinanceTransaction[] = [
   },
   {
     id: 'tx-3',
-    voucherNumber: 'PC-20260404-0002',
+    voucherNumber: 'PC2604040002',
     type: 'EXPENSE',
     amount: 850000,
     description: 'Thanh toan phieu nhap RCPT-002',
@@ -107,7 +214,7 @@ const mockFinanceTransactions: MockFinanceTransaction[] = [
   },
   {
     id: 'tx-4',
-    voucherNumber: 'PT-20260404-0003',
+    voucherNumber: 'PT260404003',
     type: 'INCOME',
     amount: 300000,
     description: 'Thu khach le tai quay',
@@ -139,7 +246,7 @@ const mockFinanceTransactions: MockFinanceTransaction[] = [
     if (sequence % 5 === 0) {
       return {
         id: `tx-${sequence}`,
-        voucherNumber: `PT-202604${String(20 - index).padStart(2, '0')}-${String(sequence).padStart(4, '0')}`,
+        voucherNumber: `PT2604${String(20 - index).padStart(2, '0')}${String(sequence).padStart(3, '0')}`,
         type: 'INCOME',
         amount: 320000 + index * 45000,
         description: `Thu dich vu grooming POS demo ${sequence}`,
@@ -166,7 +273,7 @@ const mockFinanceTransactions: MockFinanceTransaction[] = [
     if (sequence % 4 === 0) {
       return {
         id: `tx-${sequence}`,
-        voucherNumber: `PT-202604${String(20 - index).padStart(2, '0')}-${String(sequence).padStart(4, '0')}`,
+        voucherNumber: `PT2604${String(20 - index).padStart(2, '0')}${String(sequence).padStart(3, '0')}`,
         type: 'INCOME',
         amount: 450000 + index * 65000,
         description: `Thu dich vu hotel POS demo ${sequence}`,
@@ -179,8 +286,8 @@ const mockFinanceTransactions: MockFinanceTransaction[] = [
         refType: 'ORDER',
         refId: null,
         refNumber: `POS-HOTEL-${String(sequence).padStart(3, '0')}`,
-        notes: `POS trace: HOTEL_STAY:demo-hotel-${sequence} | HOTEL_CODE:HOTEL-DEMO-${String(sequence).padStart(3, '0')}`,
-        tags: `FINANCE_DEMO,POS_ORDER,HOTEL_STAY:demo-hotel-${sequence},HOTEL_CODE:HOTEL-DEMO-${String(sequence).padStart(3, '0')}`,
+        notes: `POS trace: HOTEL_STAY:demo-hotel-${sequence} | HOTEL_CODE:HOTELDEMO${String(sequence).padStart(3, '0')}`,
+        tags: `FINANCE_DEMO,POS_ORDER,HOTEL_STAY:demo-hotel-${sequence},HOTEL_CODE:HOTELDEMO${String(sequence).padStart(3, '0')}`,
         source: 'ORDER_PAYMENT',
         isManual: false,
         date: date.toISOString(),
@@ -193,7 +300,7 @@ const mockFinanceTransactions: MockFinanceTransaction[] = [
     if (isExpense) {
       return {
         id: `tx-${sequence}`,
-        voucherNumber: `PC-202604${String(20 - index).padStart(2, '0')}-${String(sequence).padStart(4, '0')}`,
+        voucherNumber: `PC2604${String(20 - index).padStart(2, '0')}${String(sequence).padStart(4, '0')}`,
         type: 'EXPENSE',
         amount: 280000 + index * 72000,
         description: `Chi nhap hang demo ${sequence}`,
@@ -219,7 +326,7 @@ const mockFinanceTransactions: MockFinanceTransaction[] = [
 
     return {
       id: `tx-${sequence}`,
-      voucherNumber: `PT-202604${String(20 - index).padStart(2, '0')}-${String(sequence).padStart(4, '0')}`,
+      voucherNumber: `PT2604${String(20 - index).padStart(2, '0')}${String(sequence).padStart(3, '0')}`,
       type: 'INCOME',
       amount: 210000 + index * 38000,
       description: `Thu bo sung demo ${sequence}`,
@@ -322,7 +429,7 @@ export const financeHandlers = [
 
     const total = inRange.length
     const offset = (page - 1) * limit
-    const transactions = inRange.slice(offset, offset + limit)
+    const transactions = inRange.slice(offset, offset + limit).map(withCapability)
 
     return HttpResponse.json({
       success: true,
@@ -345,13 +452,14 @@ export const financeHandlers = [
     await delay(300)
 
     const body = (await request.json()) as Partial<MockFinanceTransaction>
+    const resolvedReference = resolveMockManualReference(body)
+    if (!resolvedReference) {
+      return HttpResponse.json({ success: false, message: 'Linked reference not found' }, { status: 404 })
+    }
     const now = new Date().toISOString()
-    const prefix = body.type === 'EXPENSE' ? 'PC' : 'PT'
-    const voucherDate = now.slice(0, 10).replace(/-/g, '')
-
     const transaction: MockFinanceTransaction = {
       id: `tx-${Date.now()}`,
-      voucherNumber: `${prefix}-${voucherDate}-${Math.floor(Math.random() * 9000) + 1000}`,
+      voucherNumber: buildMockVoucherNumber(body.type === 'EXPENSE' ? 'EXPENSE' : 'INCOME', body.date ?? now),
       type: body.type === 'EXPENSE' ? 'EXPENSE' : 'INCOME',
       amount: Number(body.amount ?? 0),
       description: body.description ?? '',
@@ -361,9 +469,9 @@ export const financeHandlers = [
       branchName: mockBranches.find((branch) => branch.id === body.branchId)?.name ?? null,
       payerId: body.payerId ?? null,
       payerName: body.payerName ?? null,
-      refType: body.refType ?? 'MANUAL',
-      refId: body.refId ?? null,
-      refNumber: body.refNumber ?? null,
+      refType: resolvedReference.refType,
+      refId: resolvedReference.refId,
+      refNumber: resolvedReference.refNumber,
       notes: body.notes ?? null,
       tags: body.tags ?? null,
       source: 'MANUAL',
@@ -375,7 +483,7 @@ export const financeHandlers = [
     }
 
     mockFinanceTransactions.unshift(transaction)
-    return HttpResponse.json({ success: true, data: transaction }, { status: 201 })
+    return HttpResponse.json({ success: true, data: withCapability(transaction) }, { status: 201 })
   }),
 
   http.get(`${BASE}/reports/transactions/:voucherNumber`, async ({ params }) => {
@@ -386,7 +494,7 @@ export const financeHandlers = [
       return HttpResponse.json({ success: false, message: 'Transaction not found' }, { status: 404 })
     }
 
-    return HttpResponse.json({ success: true, data: transaction })
+    return HttpResponse.json({ success: true, data: withCapability(transaction) })
   }),
 
   http.patch(`${BASE}/reports/transactions/:id`, async ({ params, request }) => {
@@ -396,21 +504,44 @@ export const financeHandlers = [
     if (index === -1) {
       return HttpResponse.json({ success: false, message: 'Transaction not found' }, { status: 404 })
     }
-    if (!mockFinanceTransactions[index].isManual) {
-      return HttpResponse.json({ success: false, message: 'Only manual transactions can be updated' }, { status: 400 })
-    }
+    const current = mockFinanceTransactions[index]
+    const capability = getTransactionCapability(current)
 
     const body = (await request.json()) as Partial<MockFinanceTransaction>
-    mockFinanceTransactions[index] = {
-      ...mockFinanceTransactions[index],
-      ...body,
-      updatedAt: new Date().toISOString(),
-      branchName: body.branchId
-        ? mockBranches.find((branch) => branch.id === body.branchId)?.name ?? mockFinanceTransactions[index].branchName
-        : mockFinanceTransactions[index].branchName,
+    const shouldUpdateReference = body.refType !== undefined || body.refId !== undefined || body.refNumber !== undefined
+    const changedKeys = Object.entries(body)
+      .filter(([, value]) => value !== undefined)
+      .map(([key]) => key)
+    const hasRestrictedChange =
+      capability.editScope !== 'FULL' && changedKeys.some((key) => key !== 'notes')
+
+    if (hasRestrictedChange) {
+      return HttpResponse.json({ success: false, message: capability.lockReason }, { status: 403 })
     }
 
-    return HttpResponse.json({ success: true, data: mockFinanceTransactions[index] })
+    const resolvedReference = shouldUpdateReference
+      ? resolveMockManualReference({
+          refType: body.refType ?? current.refType ?? 'MANUAL',
+          refId: body.refId ?? current.refId,
+          refNumber: body.refNumber,
+        })
+      : null
+
+    if (shouldUpdateReference && !resolvedReference) {
+      return HttpResponse.json({ success: false, message: 'Linked reference not found' }, { status: 404 })
+    }
+
+    mockFinanceTransactions[index] = {
+      ...current,
+      ...(capability.editScope === 'FULL' ? body : { notes: body.notes ?? current.notes }),
+      ...(resolvedReference ?? {}),
+      updatedAt: new Date().toISOString(),
+      branchName: body.branchId
+        ? mockBranches.find((branch) => branch.id === body.branchId)?.name ?? current.branchName
+        : current.branchName,
+    }
+
+    return HttpResponse.json({ success: true, data: withCapability(mockFinanceTransactions[index]) })
   }),
 
   http.delete(`${BASE}/reports/transactions/:id`, async ({ params }) => {
@@ -420,8 +551,9 @@ export const financeHandlers = [
     if (index === -1) {
       return HttpResponse.json({ success: false, message: 'Transaction not found' }, { status: 404 })
     }
-    if (!mockFinanceTransactions[index].isManual) {
-      return HttpResponse.json({ success: false, message: 'Only manual transactions can be deleted' }, { status: 400 })
+    const capability = getTransactionCapability(mockFinanceTransactions[index]!)
+    if (!capability.canDelete) {
+      return HttpResponse.json({ success: false, message: capability.lockReason }, { status: 403 })
     }
 
     mockFinanceTransactions.splice(index, 1)

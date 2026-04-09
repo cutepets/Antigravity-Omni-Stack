@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
@@ -15,8 +15,10 @@ import {
   PinOff,
   MapPin,
   CalendarDays,
+  Users,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useAuthorization } from '@/hooks/useAuthorization'
 import { customerApi, type ImportCustomerRow } from '@/lib/api/customer.api'
 import { CustomerFormModal } from './customer-form-modal'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
@@ -37,7 +39,7 @@ import {
 } from '@/components/data-list'
 
 // ── Types & Constants ────────────────────────────────────────────────────────
-type DisplayColumnId = 'code' | 'name' | 'contact' | 'address' | 'tier' | 'points' | 'spent' | 'orders' | 'created' | 'status' | 'actions'
+type DisplayColumnId = 'code' | 'name' | 'contact' | 'address' | 'petCount' | 'petNames' | 'debt' | 'spaCount' | 'hotelCount' | 'tier' | 'points' | 'spent' | 'orders' | 'created' | 'status'
 type PinFilterId = 'tier' | 'status'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
@@ -45,13 +47,18 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'name',    label: 'Khách hàng',  sortable: true, minWidth: 'min-w-[180px]' },
   { id: 'contact', label: 'Liên hệ',                   minWidth: 'min-w-[140px]' },
   { id: 'address', label: 'Địa chỉ',                   minWidth: 'min-w-[160px]' },
+  { id: 'petCount',    label: 'Số TC',       sortable: false, width: 'w-20' },
+  { id: 'petNames',    label: 'Tên TC',      sortable: false, minWidth: 'min-w-[120px]' },
+  { id: 'debt',        label: 'Công nợ',     sortable: true, width: 'w-28' },
+  { id: 'spaCount',    label: 'Lượt Spa',   sortable: false, width: 'w-24' },
+  { id: 'hotelCount',  label: 'Lượt Hotel', sortable: false, width: 'w-24' },
   { id: 'tier',    label: 'Hạng',        sortable: true, width: 'w-28' },
   { id: 'points',  label: 'Điểm',        sortable: true, width: 'w-28' },
   { id: 'spent',   label: 'Chi tiêu',    sortable: true, width: 'w-32' },
   { id: 'orders',  label: 'Đơn hàng',    sortable: true, width: 'w-24' },
   { id: 'created', label: 'Ngày tạo',    sortable: true, width: 'w-28' },
   { id: 'status',  label: 'Trạng thái',  sortable: true, width: 'w-32' },
-  { id: 'actions', label: 'Thao tác',                  width: 'w-20' },
+// remove actions
 ]
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
@@ -104,6 +111,12 @@ export function CustomerList() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { hasAnyPermission, hasPermission, isLoading: isAuthLoading } = useAuthorization()
+
+  const canReadCustomers = hasAnyPermission(['customer.read.all', 'customer.read.assigned'])
+  const canCreateCustomer = hasPermission('customer.create')
+  const canUpdateCustomer = hasPermission('customer.update')
+  const canDeleteCustomer = hasPermission('customer.delete')
 
   const [search, setSearch] = useState('')
   const [tier, setTier] = useState('')
@@ -119,11 +132,19 @@ export function CustomerList() {
   // System hook for data-list standard
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialVisibleColumns: ['code', 'name', 'contact', 'tier', 'points', 'spent', 'status', 'actions'],
-    initialTopFilterVisibility: { tier: true, status: false }
+    initialVisibleColumns: ['code', 'name', 'contact', 'petCount', 'debt', 'tier', 'spent', 'status'],
+    initialTopFilterVisibility: { tier: true, status: false },
+    storageKey: 'customer-list-columns-v2',
   })
   
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
+
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (!canReadCustomers) {
+      router.replace('/dashboard')
+    }
+  }, [canReadCustomers, isAuthLoading, router])
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data, isLoading } = useQuery({
@@ -197,7 +218,7 @@ export function CustomerList() {
       const text = await file.text()
       const lines = text.replace(/\r/g, '').split('\n').filter(Boolean)
       const rows: ImportCustomerRow[] = lines.slice(1).map(line => {
-        const cols = line.match(/(\".*?\"|[^,]+)/g)?.map(c => c.replace(/^\"|\"$/g, '').trim()) ?? []
+        const cols = line.match(/(".*?"|[^,]+)/g)?.map(c => c.replace(/^"|"$/g, '').trim()) ?? []
         return { customerCode: cols[0] || '', fullName: cols[1] || '', phone: cols[2] || '', email: cols[3] || '', address: cols[4] || '', tier: cols[5] || 'BRONZE' }
       }).filter(r => r.fullName)
 
@@ -244,6 +265,14 @@ export function CustomerList() {
 
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd   = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rawCustomers.length)
+
+  if (isAuthLoading) {
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>
+  }
+
+  if (!canReadCustomers) {
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -311,17 +340,21 @@ export function CustomerList() {
             >
               <Download size={15} /> Export
             </button>
-            <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 text-sm font-medium text-foreground transition-colors hover:border-primary-500/60">
-              <Upload size={15} /> Import
-              <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImportFile} disabled={isImporting} />
-            </label>
-            <button
-              type="button"
-              onClick={() => { setEditingCustomer(null); setIsModalOpen(true) }}
-              className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              <Plus size={15} /> Thêm khách hàng
-            </button>
+            {canCreateCustomer ? (
+              <>
+                <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 text-sm font-medium text-foreground transition-colors hover:border-primary-500/60">
+                  <Upload size={15} /> Import
+                  <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImportFile} disabled={isImporting} />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setEditingCustomer(null); setIsModalOpen(true) }}
+                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                >
+                  <Plus size={15} /> Thêm khách hàng
+                </button>
+              </>
+            ) : null}
           </div>
         }
       />
@@ -385,10 +418,6 @@ export function CustomerList() {
         </label>
       </DataListFilterPanel>
 
-      <p className="shrink-0 text-xs text-foreground-muted px-1">
-        Tổng <strong className="text-foreground">{total}</strong> khách hàng
-        {search && <span> · tìm kiếm "<em>{search}</em>"</span>}
-      </p>
 
       {/* Table */}
       <DataListTable
@@ -404,17 +433,30 @@ export function CustomerList() {
               selectedCount={selectedRowIds.size}
               onClear={clearSelection}
             >
-              <button
-                type="button"
-                className="flex h-8 items-center gap-1.5 rounded-lg border border-error/20 bg-error/10 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/20"
-                onClick={() => {
-                   if (window.confirm(`Xoá ${selectedRowIds.size} khách hàng đã chọn?`)) {
-                      toast.success('Giao diện cho phép chọn để thực hiện xoá hàng loạt.')
-                   }
-                }}
-              >
-                <Trash2 size={13} /> Khách hàng
-              </button>
+              {canUpdateCustomer && (
+                <button
+                  type="button"
+                  className="flex h-8 items-center gap-1.5 rounded-lg border border-primary-500/20 bg-primary-500/10 px-3 text-xs font-semibold text-primary-500 transition-colors hover:bg-primary-500/20"
+                  onClick={() => {
+                     toast.success('Chức năng sửa nhóm khách đang được nâng cấp.')
+                  }}
+                >
+                  <Users size={13} /> Nhóm khách
+                </button>
+              )}
+              {canDeleteCustomer && (
+                <button
+                  type="button"
+                  className="flex h-8 items-center gap-1.5 rounded-lg border border-error/20 bg-error/10 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/20"
+                  onClick={() => {
+                     if (window.confirm(`Xoá ${selectedRowIds.size} khách hàng đã chọn?`)) {
+                        toast.success('Giao diện cho phép chọn để thực hiện xoá hàng loạt.')
+                     }
+                  }}
+                >
+                  <Trash2 size={13} /> Khách hàng
+                </button>
+              )}
             </DataListBulkBar>
           ) : undefined
         }
@@ -428,7 +470,7 @@ export function CustomerList() {
               key={c.id} 
               className={`border-b border-border/50 transition-colors hover:bg-background-secondary/40 ${isSelected ? 'bg-primary-500/5' : ''}`}
             >
-              <td className="w-12 px-3 py-3 w-10">
+              <td className="w-10 px-3 py-3">
                 <TableCheckbox 
                   checked={isSelected}
                   onCheckedChange={(checked, shiftKey) => toggleRowSelection(rowId, shiftKey)}
@@ -450,7 +492,6 @@ export function CustomerList() {
                       className="flex items-center gap-1.5 font-semibold text-foreground cursor-pointer hover:text-primary-500 transition-colors"
                     >
                       {c.fullName}
-                      <ExternalLink size={11} className="text-foreground-muted" />
                     </div>
                     {c.notes && <div className="text-xs text-foreground-muted mt-0.5 truncate max-w-[180px]">{c.notes}</div>}
                   </td>
@@ -467,6 +508,35 @@ export function CustomerList() {
                       <MapPin size={12} className="text-foreground-muted mt-0.5 shrink-0" />
                       <span className="text-xs text-foreground-muted line-clamp-2">{c.address || '--'}</span>
                     </div>
+                  </td>
+                );
+                case 'petCount': return (
+                  <td key={columnId} className="px-3 py-3 w-20">
+                    <div className="text-sm font-medium">{c.pets?.length || 0}</div>
+                  </td>
+                );
+                case 'petNames': return (
+                  <td key={columnId} className="px-3 py-3 min-w-[120px]">
+                    <div className="text-sm text-foreground-muted line-clamp-2" title={c.pets?.map((p: any) => p.name).join(', ')}>
+                      {c.pets?.map((p: any) => p.name).join(', ') || '--'}
+                    </div>
+                  </td>
+                );
+                case 'debt': return (
+                  <td key={columnId} className="px-3 py-3 w-28">
+                    <div className={`text-sm font-semibold ${(c.debt ?? 0) > 0 ? 'text-error' : 'text-foreground'}`}>
+                      {(c.debt ?? 0).toLocaleString('vi-VN')}₫
+                    </div>
+                  </td>
+                );
+                case 'spaCount': return (
+                  <td key={columnId} className="px-3 py-3 w-24">
+                    <div className="text-sm text-foreground-muted">{c.pets?.reduce((sum: number, p: any) => sum + (p._count?.groomingSessions || 0), 0) || 0}</div>
+                  </td>
+                );
+                case 'hotelCount': return (
+                  <td key={columnId} className="px-3 py-3 w-24">
+                    <div className="text-sm text-foreground-muted">{c._count?.hotelStays || 0}</div>
                   </td>
                 );
                 case 'tier': return (
@@ -510,18 +580,6 @@ export function CustomerList() {
                     )}
                   </td>
                 );
-                case 'actions': return (
-                  <td key={columnId} className="px-3 py-3 w-20">
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={() => { setEditingCustomer(c); setIsModalOpen(true) }} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-background-secondary hover:bg-background-tertiary text-primary-500 transition-colors">
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => handleDelete(c)} disabled={deleteMutation.isPending} className="w-8 h-8 flex items-center justify-center rounded-lg border border-error/30 bg-error/10 hover:bg-error/20 text-error transition-colors">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
-                );
               }
             })}
           </tr>
@@ -539,7 +597,13 @@ export function CustomerList() {
         rangeEnd={rangeEnd}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
-        pageSizeOptions={[15, 30, 50]}
+        pageSizeOptions={[20, 50, 100]}
+        totalItemText={
+          <p className="shrink-0 text-xs text-foreground-muted">
+            Tổng <strong className="text-foreground">{total}</strong> khách hàng
+            {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
+          </p>
+        }
       />
 
       <CustomerFormModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} initialData={editingCustomer} />

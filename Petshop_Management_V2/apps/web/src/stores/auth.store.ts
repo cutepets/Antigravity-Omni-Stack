@@ -10,6 +10,7 @@ interface AuthState {
   allowedBranches: BaseBranch[]
   isAuthenticated: boolean
   isLoading: boolean
+  hasHydrated: boolean
   error: string | null
 
   login: (username: string, password: string) => Promise<void>
@@ -18,6 +19,7 @@ interface AuthState {
   clearError: () => void
   setUser: (user: AuthUser) => void
   switchBranch: (branchId: string) => void
+  setHasHydrated: (state: boolean) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -28,7 +30,10 @@ export const useAuthStore = create<AuthState>()(
       allowedBranches: [],
       isAuthenticated: false,
       isLoading: false,
+      hasHydrated: false,
       error: null,
+
+      setHasHydrated: (state) => set({ hasHydrated: state }),
 
       login: async (username, password) => {
         set({ isLoading: true, error: null })
@@ -108,6 +113,9 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'petshop-auth',
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true)
+      },
       partialize: (state) => ({ 
         user: state.user, 
         isAuthenticated: state.isAuthenticated,

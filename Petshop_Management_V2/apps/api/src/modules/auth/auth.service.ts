@@ -25,6 +25,17 @@ export class AuthService {
     return secret
   }
 
+  private mapAuthorizedBranches(user: {
+    branch?: { id: string; name: string; address: string | null; isActive: boolean } | null
+    authorizedBranches?: Array<{ id: string; name: string; address: string | null; isActive: boolean }>
+  }) {
+    return Array.from(
+      new Map(
+        [...(user.branch ? [user.branch] : []), ...(user.authorizedBranches || [])].map((branch) => [branch.id, branch]),
+      ).values(),
+    ).filter((branch) => branch.isActive)
+  }
+
   async login(dto: LoginDto): Promise<LoginResponse> {
     const user = await this.db.user.findFirst({
       where: { username: dto.username },
@@ -59,10 +70,19 @@ export class AuthService {
     const combinedRole = (user as any).role?.code ?? (user as any).legacyRole
     const combinedPermissions = (user as any).role?.permissions ?? []
 
+    let mappedAuthorizedBranches = this.mapAuthorizedBranches(user as any)
+
+    if (combinedPermissions.includes('FULL_BRANCH_ACCESS') || combinedRole === 'SUPER_ADMIN' || combinedRole === 'ADMIN') {
+       const allBranches = await this.db.branch.findMany({ where: { isActive: true }, select: { id: true, name: true, address: true, isActive: true } })
+       mappedAuthorizedBranches = allBranches as any[]
+    }
+
     const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
       userId: user.id,
       role: combinedRole as JwtPayload['role'],
-      permissions: combinedPermissions
+      permissions: combinedPermissions,
+      branchId: user.branchId ?? null,
+      authorizedBranchIds: mappedAuthorizedBranches.map((branch) => branch.id),
     }
 
     const accessToken = this.jwt.sign(payload as Record<string, any>)
@@ -81,17 +101,6 @@ export class AuthService {
         expiresAt,
       },
     })
-
-    let mappedAuthorizedBranches = Array.from(
-      new Map(
-        [...((user as any).branch ? [(user as any).branch] : []), ...((user as any).authorizedBranches || [])].map(b => [b.id, b])
-      ).values()
-    ).filter(b => b.isActive)
-
-    if (combinedPermissions.includes('FULL_BRANCH_ACCESS') || combinedRole === 'SUPER_ADMIN' || combinedRole === 'ADMIN') {
-       const allBranches = await this.db.branch.findMany({ where: { isActive: true }, select: { id: true, name: true, address: true, isActive: true } })
-       mappedAuthorizedBranches = allBranches as any[]
-    }
 
     const authUser: AuthUser = {
       id: user.id,
@@ -141,11 +150,22 @@ export class AuthService {
     const u = stored.user
     const combinedRole = (u as any).role?.code ?? (u as any).legacyRole
     const combinedPermissions = (u as any).role?.permissions ?? []
+    let mappedAuthorizedBranches = this.mapAuthorizedBranches(u as any)
+
+    if (combinedPermissions.includes('FULL_BRANCH_ACCESS') || combinedRole === 'SUPER_ADMIN' || combinedRole === 'ADMIN') {
+      const allBranches = await this.db.branch.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, address: true, isActive: true },
+      })
+      mappedAuthorizedBranches = allBranches as any[]
+    }
 
     const newPayload: Omit<JwtPayload, 'iat' | 'exp'> = {
       userId: payload.userId,
       role: combinedRole,
       permissions: combinedPermissions,
+      branchId: u.branchId ?? null,
+      authorizedBranchIds: mappedAuthorizedBranches.map((branch) => branch.id),
     }
     const newAccess = this.jwt.sign(newPayload as Record<string, any>)
     const newRefresh = this.jwt.sign(newPayload as Record<string, any>, {
@@ -168,11 +188,7 @@ export class AuthService {
       staffCode: u.staffCode,
       branchId: u.branchId ?? null,
       avatar: u.avatar ?? null,
-      authorizedBranches: Array.from(
-        new Map(
-          [...((u as any).branch ? [(u as any).branch] : []), ...((u as any).authorizedBranches || [])].map(b => [b.id, b])
-        ).values()
-      ).filter(b => b.isActive)
+      authorizedBranches: mappedAuthorizedBranches,
     }
 
     return { accessToken: newAccess, refreshToken: newRefresh, user: authUser }

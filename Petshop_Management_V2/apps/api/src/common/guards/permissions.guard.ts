@@ -1,5 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
+import { hasAnyPermission } from '@petshop/auth'
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator.js'
 import type { JwtPayload } from '@petshop/shared'
 
@@ -26,6 +27,6 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const userPermissions = user.permissions || []
-    return requiredPermissions.some(perm => userPermissions.includes(perm))
+    return hasAnyPermission(userPermissions, requiredPermissions)
   }
 }

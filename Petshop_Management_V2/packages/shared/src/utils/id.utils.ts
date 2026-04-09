@@ -1,12 +1,43 @@
-/**
- * Generate pet code: P1B2C3 (P + 6 hex chars)
- */
-export const generatePetCode = (): string => {
-  const chars = '0123456789ABCDEF'
-  let res = 'P'
-  for (let i = 0; i < 6; i++) res += chars[Math.floor(Math.random() * 16)]
-  return res
+export const formatSequentialCode = (
+  prefix: string,
+  sequence: number,
+  padLength = 6,
+): string => `${prefix}${String(sequence).padStart(padLength, '0')}`
+
+const formatCompactDate = (date: Date, mode: 'yyMMdd' | 'yyyyMMdd'): string => {
+  const year = mode === 'yyyyMMdd'
+    ? String(date.getFullYear())
+    : String(date.getFullYear()).slice(-2)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}${month}${day}`
 }
+
+export const formatDatedSequenceCode = (
+  prefix: string,
+  date: Date,
+  sequence: number,
+  options?: {
+    dateMode?: 'yyMMdd' | 'yyyyMMdd'
+    sequencePadLength?: number
+  },
+): string => {
+  const dateMode = options?.dateMode ?? 'yyMMdd'
+  const sequencePadLength = options?.sequencePadLength ?? 3
+  return `${prefix}${formatCompactDate(date, dateMode)}${String(sequence).padStart(sequencePadLength, '0')}`
+}
+
+/**
+ * Generate customer code: KH000001
+ */
+export const generateCustomerCode = (sequence: number): string =>
+  formatSequentialCode('KH', sequence)
+
+/**
+ * Generate pet code: PET000001
+ */
+export const generatePetCode = (sequence: number): string =>
+  formatSequentialCode('PET', sequence)
 
 /**
  * Generate staff code: NV00001
@@ -15,14 +46,39 @@ export const generateStaffCode = (sequence: number): string =>
   `NV${String(sequence).padStart(5, '0')}`
 
 /**
- * Generate order number: DH260303S0001 (DHYYMMDDSXXXX, reset per day)
+ * Generate order number: DH202604060001
  */
 export const generateOrderNumber = (date: Date, sequence: number): string => {
+  return formatDatedSequenceCode('DH', date, sequence, {
+    dateMode: 'yyyyMMdd',
+    sequencePadLength: 4,
+  })
+}
+
+/**
+ * Generate hotel stay code: H2604TH001
+ */
+export const generateHotelStayCode = (
+  date: Date,
+  branchCode: string,
+  sequence: number,
+): string => {
   const yy = String(date.getFullYear()).slice(-2)
   const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
-  const seq = String(sequence).padStart(4, '0')
-  return `DH${yy}${mm}${dd}S${seq}`
+  return `H${yy}${mm}${branchCode}${String(sequence).padStart(3, '0')}`
+}
+
+/**
+ * Generate grooming session code: S2604TH001
+ */
+export const generateGroomingSessionCode = (
+  date: Date,
+  branchCode: string,
+  sequence: number,
+): string => {
+  const yy = String(date.getFullYear()).slice(-2)
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  return `S${yy}${mm}${branchCode}${String(sequence).padStart(3, '0')}`
 }
 
 /**

@@ -146,7 +146,51 @@ export const uploadApi = {
             throw new Error(data.message || `Upload thất bại (HTTP ${res.status})`)
         }
         return data.url as string
-    }
+    },
+    uploadFile: async (file: File): Promise<{ url: string; name: string }> => {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const res = await fetch(`${API_URL}/api/upload/file`, {
+            method: 'POST',
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: formData,
+        })
+
+        const data = await res.json()
+        if (!res.ok || !data.success || !data.url) {
+            throw new Error(data.message || `Upload thất bại (HTTP ${res.status})`)
+        }
+
+        return {
+            url: data.url as string,
+            name: (data.name as string) || file.name,
+        }
+    },
+    deleteFile: async (url: string): Promise<void> => {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+
+        const res = await fetch(`${API_URL}/api/upload/file`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ url }),
+        })
+
+        if (res.status === 404) {
+            return
+        }
+
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || data.success === false) {
+            throw new Error(data.message || `Xoa file that bai (HTTP ${res.status})`)
+        }
+    },
 }
 
 // Lịch sử thao tác
@@ -161,6 +205,7 @@ export const activityLogApi = {
 
 export const rolesApi = {
     list: () => api.get('/roles').then(r => r.data),
+    catalog: () => api.get('/roles/permission-catalog').then(r => r.data),
     create: (data: any) => api.post('/roles', data).then(r => r.data),
     update: (id: string, data: any) => api.put(`/roles/${id}`, data).then(r => r.data),
     delete: (id: string) => api.delete(`/roles/${id}`).then(r => r.data),

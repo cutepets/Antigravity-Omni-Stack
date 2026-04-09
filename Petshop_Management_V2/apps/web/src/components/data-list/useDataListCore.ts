@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 
 export type SortDirection = 'asc' | 'desc'
 export type ColumnSortState<TColumnId extends string> = {
@@ -10,26 +10,56 @@ export interface UseDataListCoreOptions<TColumnId extends string, TFilterId exte
   initialColumnOrder: TColumnId[]
   initialVisibleColumns?: TColumnId[]
   initialTopFilterVisibility?: Record<TFilterId, boolean>
+  storageKey?: string
 }
 
 export function useDataListCore<TColumnId extends string, TFilterId extends string = string>({
   initialColumnOrder,
   initialVisibleColumns = initialColumnOrder,
   initialTopFilterVisibility = {} as Record<TFilterId, boolean>,
+  storageKey,
 }: UseDataListCoreOptions<TColumnId, TFilterId>) {
+  const getStoredState = () => {
+    if (typeof window === 'undefined' || !storageKey) return null
+    try {
+      const stored = localStorage.getItem(storageKey)
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  }
+
+  const stored = getStoredState()
+
   // Columns
-  const [columnOrder, setColumnOrder] = useState<TColumnId[]>(initialColumnOrder)
-  const [visibleColumns, setVisibleColumns] = useState<Set<TColumnId>>(new Set(initialVisibleColumns))
+  const [columnOrder, setColumnOrder] = useState<TColumnId[]>(stored?.columnOrder ?? initialColumnOrder)
+  const [visibleColumns, setVisibleColumns] = useState<Set<TColumnId>>(
+    new Set(stored?.visibleColumns ?? initialVisibleColumns)
+  )
   const [draggingColumnId, setDraggingColumnId] = useState<TColumnId | null>(null)
 
   // Sort
-  const [columnSort, setColumnSort] = useState<ColumnSortState<TColumnId>>({
-    columnId: null,
-    direction: null,
-  })
+  const [columnSort, setColumnSort] = useState<ColumnSortState<TColumnId>>(
+    stored?.columnSort ?? { columnId: null, direction: null }
+  )
 
   // Filters
-  const [topFilterVisibility, setTopFilterVisibility] = useState<Record<TFilterId, boolean>>(initialTopFilterVisibility)
+  const [topFilterVisibility, setTopFilterVisibility] = useState<Record<TFilterId, boolean>>(
+    stored?.topFilterVisibility ?? initialTopFilterVisibility
+  )
+
+  useEffect(() => {
+    if (!storageKey) return
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        columnOrder,
+        visibleColumns: Array.from(visibleColumns),
+        columnSort,
+        topFilterVisibility,
+      })
+    )
+  }, [storageKey, columnOrder, visibleColumns, columnSort, topFilterVisibility])
 
   const toggleColumn = useCallback((id: TColumnId) => {
     setVisibleColumns((current) => {

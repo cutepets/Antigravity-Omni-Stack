@@ -19,6 +19,9 @@ interface DataListToolbarProps {
   onSearchChange: (value: string) => void
   searchPlaceholder?: string
 
+  // Total count slot (shown below search bar)
+  totalSlot?: ReactNode
+
   // Inline filter pills (pinnable selects)
   filterSlot?: ReactNode
 
@@ -37,6 +40,7 @@ export function DataListToolbar({
   searchValue,
   onSearchChange,
   searchPlaceholder = 'Tìm kiếm...',
+  totalSlot,
   filterSlot,
   columnPanelContent,
   extraActions,
@@ -111,6 +115,7 @@ export function DataListToolbar({
           {extraActions}
         </div>
       </div>
+      {totalSlot}
     </div>
   )
 }

@@ -29,10 +29,14 @@ export interface FinanceTransaction {
   tags?: string | null
   source: FinanceTransactionSource | string
   isManual: boolean
+  editScope: 'FULL' | 'NOTES_ONLY'
+  canDelete: boolean
+  lockReason?: string | null
   date: string
   createdAt: string
   updatedAt: string
   createdBy?: { id: string; name: string } | null
+  attachmentUrl?: string | null
 }
 
 export interface FinanceListParams {
@@ -80,12 +84,13 @@ export interface CreateFinanceTransactionInput {
   branchName?: string
   payerName?: string
   payerId?: string
-  refType?: 'MANUAL'
+  refType?: 'MANUAL' | 'ORDER' | 'STOCK_RECEIPT'
   refId?: string
   refNumber?: string
   notes?: string
   tags?: string
   date?: string
+  attachmentUrl?: string | null
 }
 
 export const financeApi = {
@@ -94,6 +99,16 @@ export const financeApi = {
 
   create: (data: CreateFinanceTransactionInput) =>
     api.post('/reports/transactions', data).then((r) => r.data.data as FinanceTransaction),
+
+  uploadAttachment: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api
+      .post('/reports/transactions/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data.data.attachmentUrl as string)
+  },
 
   update: (id: string, data: Partial<CreateFinanceTransactionInput>) =>
     api.patch(`/reports/transactions/${id}`, data).then((r) => r.data.data as FinanceTransaction),

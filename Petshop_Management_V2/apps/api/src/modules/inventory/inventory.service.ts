@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common'
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common'
+import { Prisma } from '@petshop/database'
 import { DatabaseService } from '../../database/database.service.js'
 
 function normalizeSearchValue(value?: string | null) {
@@ -39,7 +40,6 @@ function buildProductSearchHaystack(product: Record<string, any>) {
     [
       product.name,
       product.sku,
-      product.productCode,
       product.barcode,
       product.category,
       product.brand,
@@ -62,12 +62,12 @@ export interface FindProductsDto {
   supplierId?: string
   tags?: string
   lowStock?: string
+  status?: string
   page?: number
   limit?: number
 }
 
 export interface CreateProductDto {
-  productCode?: string
   name: string
   sku: string
   barcode?: string
@@ -133,7 +133,7 @@ export class InventoryService {
   // ─── Products ─────────────────────────────────────────────────────────────
 
   async findAllProducts(query: FindProductsDto) {
-    const { search, category, brand, supplierId, tags, lowStock, page = 1, limit = 20 } = query
+    const { search, category, brand, supplierId, tags, lowStock, status, page = 1, limit = 20 } = query
     const skip = (Number(page) - 1) * Number(limit)
     const where: any = {}
     const searchTokens = tokenizeSearch(search)
@@ -145,6 +145,11 @@ export class InventoryService {
     if (lowStock === 'true') {
       // Products where current stock <= product minStock threshold.
       where.stock = { lte: this.db.product.fields.minStock }
+    }
+    if (status === 'DELETED') {
+      where.deletedAt = { not: null }
+    } else {
+      where.deletedAt = null
     }
 
     let data: any[] = []
@@ -215,9 +220,92 @@ export class InventoryService {
   }
 
   async removeProduct(id: string) {
-    await this.findProductById(id)
-    await this.db.product.delete({ where: { id } })
-    return { success: true, message: 'Xóa sản phẩm thành công' }
+    const product = await this.db.product.findUnique({
+      where: { id },
+      include: {
+        orderItems: { take: 1 },
+        receiptItems: { take: 1 },
+        stockTransactions: { take: 1 }
+      }
+    })
+    if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
+
+    const hasTransactions = product.orderItems.length > 0 || product.receiptItems.length > 0 || product.stockTransactions.length > 0
+
+    if (hasTransactions) {
+      const suffix = `_deleted_${Date.now()}`
+      await this.db.product.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          sku: product.sku ? `${product.sku}${suffix}` : null,
+          barcode: product.barcode ? `${product.barcode}${suffix}` : null
+        }
+      })
+      // Cập nhật các variants nếu có
+      const variants = await this.db.productVariant.findMany({ where: { productId: id } })
+      for (const variant of variants) {
+        await this.db.productVariant.update({
+          where: { id: variant.id },
+          data: {
+            deletedAt: new Date(),
+            sku: variant.sku ? `${variant.sku}${suffix}` : null,
+            barcode: variant.barcode ? `${variant.barcode}${suffix}` : null
+          }
+        })
+      }
+      return { success: true, message: 'Đã ẩn sản phẩm vào danh sách đã xoá (vì đã phát sinh giao dịch)' }
+    } else {
+      await this.db.product.delete({ where: { id } })
+      return { success: true, message: 'Xóa vĩnh viễn sản phẩm thành công' }
+    }
+  }
+
+  async restoreProduct(id: string) {
+    const product = await this.db.product.findUnique({ where: { id } })
+    if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
+    if (!product.deletedAt) return { success: true, message: 'Sản phẩm đang ở trạng thái hoạt động' }
+
+    let restoredSku = product.sku
+    if (restoredSku && restoredSku.includes('_deleted_')) {
+      restoredSku = restoredSku.split('_deleted_')[0] ?? null
+      const existing = await this.db.product.findFirst({ where: { sku: restoredSku, deletedAt: null } })
+      if (existing) restoredSku = product.sku || null
+    }
+    
+    let restoredBarcode = product.barcode
+    if (restoredBarcode && restoredBarcode.includes('_deleted_')) {
+      restoredBarcode = restoredBarcode.split('_deleted_')[0] ?? null
+      const existing = await this.db.product.findFirst({ where: { barcode: restoredBarcode, deletedAt: null } })
+      if (existing) restoredBarcode = product.barcode || null
+    }
+
+    await this.db.product.update({
+      where: { id },
+      data: { deletedAt: null, sku: restoredSku || null, barcode: restoredBarcode || null }
+    })
+
+    const variants = await this.db.productVariant.findMany({ where: { productId: id } })
+    for (const variant of variants) {
+      if (!variant.deletedAt) continue
+      let vRestoredSku = variant.sku
+      if (vRestoredSku && vRestoredSku.includes('_deleted_')) {
+        vRestoredSku = vRestoredSku.split('_deleted_')[0] ?? null
+        const existing = await this.db.productVariant.findFirst({ where: { sku: vRestoredSku, deletedAt: null } })
+        if (existing) vRestoredSku = variant.sku || null
+      }
+      let vRestoredBarcode = variant.barcode
+      if (vRestoredBarcode && vRestoredBarcode.includes('_deleted_')) {
+        vRestoredBarcode = vRestoredBarcode.split('_deleted_')[0] ?? null
+        const existing = await this.db.productVariant.findFirst({ where: { barcode: vRestoredBarcode, deletedAt: null } })
+        if (existing) vRestoredBarcode = variant.barcode || null
+      }
+      await this.db.productVariant.update({
+        where: { id: variant.id },
+        data: { deletedAt: null, sku: vRestoredSku || null, barcode: vRestoredBarcode || null }
+      })
+    }
+    return { success: true, message: 'Khôi phục sản phẩm thành công' }
   }
 
   async batchCreateVariants(productId: string, variants: CreateVariantDto[]) {
@@ -240,7 +328,14 @@ export class InventoryService {
   async removeVariant(vid: string) {
     const variant = await this.db.productVariant.findUnique({ where: { id: vid } })
     if (!variant) throw new NotFoundException('Không tìm thấy phiên bản sản phẩm')
-    await this.db.productVariant.delete({ where: { id: vid } })
+    try {
+      await this.db.productVariant.delete({ where: { id: vid } })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new BadRequestException('Không thể xoá phiên bản đã phát sinh giao dịch')
+      }
+      throw error
+    }
     return { success: true, message: 'Xóa phiên bản thành công' }
   }
 

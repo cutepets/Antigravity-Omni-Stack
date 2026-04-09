@@ -1,21 +1,9 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { matchSearch } from '@petshop/shared';
 import { orderApi } from '@/lib/api/order.api';
 import { api } from '@/lib/api';
-
-const removeAccents = (str: string) => {
-  if (!str) return '';
-  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
-};
-
-const matchSearch = (query: string, target: string) => {
-  if (!query) return true;
-  if (!target) return false;
-  const qTerms = removeAccents(query).split(/\s+/).filter(Boolean);
-  const tStr = removeAccents(target);
-  return qTerms.every(term => tStr.includes(term));
-};
 
 // ─── POS Catalog ──────────────────────────────────────────────────────────────
 export function usePosProducts(search?: string) {

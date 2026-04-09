@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { orderApi, type CreateOrderPayload, type PayOrderPayload, type CompleteOrderPayload, type CancelOrderPayload } from '@/lib/api/order.api';
+import { orderApi, type CreateOrderPayload, type UpdateOrderPayload, type PayOrderPayload, type CompleteOrderPayload, type CancelOrderPayload } from '@/lib/api/order.api';
 import { api } from '@/lib/api';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
 
@@ -18,6 +18,21 @@ export function useCreateOrder() {
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Lỗi khi tạo đơn hàng');
+    },
+  });
+}
+
+export function useUpdateOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateOrderPayload }) => orderApi.update(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['orders'] });
+      qc.invalidateQueries({ queryKey: ['order'] });
+      toast.success('Cập nhật đơn hàng thành công');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Lỗi khi cập nhật đơn hàng');
     },
   });
 }

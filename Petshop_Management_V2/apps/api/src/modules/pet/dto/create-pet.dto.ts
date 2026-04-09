@@ -53,4 +53,8 @@ export class CreatePetDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean
+
+  @IsString()
+  @IsOptional()
+  avatar?: string
 }

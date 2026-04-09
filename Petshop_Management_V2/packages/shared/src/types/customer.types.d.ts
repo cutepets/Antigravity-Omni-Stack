@@ -10,6 +10,7 @@ export interface Customer {
     points: number;
     groupId?: string | null;
     notes?: string | null;
+    debt?: number;
     createdAt: Date;
     updatedAt: Date;
 }

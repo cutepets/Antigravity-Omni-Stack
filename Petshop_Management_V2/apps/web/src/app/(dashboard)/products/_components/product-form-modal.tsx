@@ -1,10 +1,12 @@
-'use client'
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { X, Save, ImagePlus, Plus, Trash2, ChevronDown, ChevronUp, Tag } from 'lucide-react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { X, Save, ImagePlus, Plus, Trash2, ChevronDown, ChevronUp, Tag, Loader2 } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryApi } from '@/lib/api/inventory.api'
 import { toast } from 'sonner'
+import { NumericFormat } from 'react-number-format'
+import { VariantTable } from './variant-table'
 
 interface ProductFormModalProps {
   isOpen: boolean
@@ -13,15 +15,44 @@ interface ProductFormModalProps {
   onSuccess: () => void
 }
 
+type PriceBookValueMap = Record<string, number>
+
+interface VariantOverride {
+  sku?: string
+  barcode?: string
+  priceBookPrices?: PriceBookValueMap
+  costPrice?: number
+}
+
+interface ParsedConversion {
+  rate?: number
+  unit?: string
+}
+
+interface ConversionDraft {
+  applyTo: string
+  mainQty: number
+  mainUnit: string
+  convQty: number
+  convUnit: string
+}
+
 const removeAccents = (str: string) => {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
 }
 
+const sanitizeSku = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, (char) => (char === 'đ' ? 'd' : 'D'))
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+
 const generateSKU = (name: string) => {
   if (!name) return '';
   return name.split(/\s+/).map(word => {
-    const cleanWord = removeAccents(word);
-    return cleanWord.charAt(0).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return sanitizeSku(word.charAt(0));
   }).join('');
 }
 
@@ -30,7 +61,27 @@ const cartesian = (arrays: string[][]) => {
   return arrays.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat() as string[])), [[]] as string[][]);
 }
 
-const getVariantImageKey = (variant: { sku?: string | null; name: string }) => variant.sku?.trim() || variant.name
+const parseJson = <T,>(value: string | null | undefined, fallback: T): T => {
+  if (!value) return fallback
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return fallback
+  }
+}
+
+const createVariantKey = ({
+  attrs,
+  isConversion,
+  conversionUnit,
+}: {
+  attrs: string[]
+  isConversion: boolean
+  conversionUnit?: string
+}) => {
+  const attrsKey = attrs.length > 0 ? attrs.map((attr) => sanitizeSku(attr)).join('_') : 'BASE'
+  return `${isConversion ? 'CONV' : 'BASE'}__${attrsKey}__${sanitizeSku(conversionUnit || 'ROOT') || 'ROOT'}`
+}
 
 const fileToDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -42,18 +93,26 @@ const fileToDataUrl = (file: File) =>
 
 export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: ProductFormModalProps) {
   const isEditing = !!initialData
+  const queryClient = useQueryClient()
   
   const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: () => inventoryApi.getCategories() })
   const { data: brands } = useQuery({ queryKey: ['brands'], queryFn: () => inventoryApi.getBrands() })
+  const { data: unitsRes } = useQuery({ queryKey: ['units'], queryFn: () => inventoryApi.getUnits() })
+  const { data: priceBooksRes } = useQuery({ queryKey: ['priceBooks'], queryFn: () => inventoryApi.getPriceBooks() })
+
+  const units = unitsRes?.data || []
+  const priceBooks = priceBooksRes?.data || []
+  const retailPriceBook = priceBooks.find((pb: any) => pb.name.toLowerCase().includes('lẻ') || pb.name.toLowerCase() === 'retail price')
 
   const [formData, setFormData] = useState({
-    name: '', sku: '', productCode: '', barcode: '',
-    category: '', brand: '', unit: 'cái', importName: '',
-    price: 0, vat: 0, weight: 0, minStock: 5, tags: '',
-    isActive: true
+    name: '', sku: '', barcode: '',
+    category: '', brand: '', unit: '', importName: '', targetSpecies: '',
+    price: 0, costPrice: 0, vat: 0, weight: 0, minStock: 5, tags: '',
+    isActive: true, priceBookPrices: {} as Record<string, number>
   })
   const [productImage, setProductImage] = useState<string | null>(null)
-  const [variantImages, setVariantImages] = useState<Record<string, string>>({})
+  const [variantImages, setVariantImages] = useState<Record<string, string | null>>({})
+  const [variantOverrides, setVariantOverrides] = useState<Record<string, VariantOverride>>({})
 
   // === Attributes ===
   const [hasAttributes, setHasAttributes] = useState(false)
@@ -63,65 +122,83 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
   // === Conversions ===
   const [hasConversions, setHasConversions] = useState(false)
-  const [conversions, setConversions] = useState<{applyTo: string, mainQty: number, mainUnit: string, convQty: number, convUnit: string}[]>([
-    { applyTo: 'all', mainQty: 12, mainUnit: 'cái', convQty: 1, convUnit: 'Thùng' }
+  const [conversions, setConversions] = useState<ConversionDraft[]>([
+    { applyTo: 'all', mainQty: 12, mainUnit: '', convQty: 1, convUnit: '' }
   ])
 
   // Initial load
   useEffect(() => {
     if (initialData && isOpen) {
+      let initialPriceBookPrices = parseJson<PriceBookValueMap>(initialData.priceBookPrices, {})
+      if (Array.isArray(initialData.variants) && initialData.variants.length > 0 && Object.keys(initialPriceBookPrices).length === 0) {
+        const baseVariant = initialData.variants.find((v: any) => {
+          const conversion = parseJson<{ unit?: string }>(v.conversions, {})
+          return !conversion?.unit
+        }) || initialData.variants[0];
+        initialPriceBookPrices = parseJson<PriceBookValueMap>(baseVariant.priceBookPrices, {})
+      }
+      const parsedAttributes = parseJson<{ name: string; values: string[] }[]>(initialData.attributes, [])
+      const parsedConversions: ParsedConversion[] = Array.isArray(initialData.variants)
+        ? initialData.variants
+            .map((variant: any) => parseJson<ParsedConversion | null>(variant.conversions, null))
+            .filter((conversion: ParsedConversion | null): conversion is ParsedConversion => Boolean(conversion?.unit))
+        : []
+      const uniqueConversions: ConversionDraft[] = Array.from(
+        new Map(
+          parsedConversions.map((conversion: ParsedConversion) => {
+            const mainQty = Number(conversion.rate) || 1
+            const convUnit = `${conversion.unit || ''}`.trim()
+            return [
+              `${mainQty}__${convUnit}`,
+              { applyTo: 'all', mainQty, mainUnit: initialData.unit || '', convQty: 1, convUnit },
+            ] as const
+          }),
+        ).values(),
+      )
+
       setFormData({
         name: initialData.name || '',
         sku: initialData.sku || '',
-        productCode: initialData.productCode || '',
         barcode: initialData.barcode || '',
         category: initialData.category || '',
+        targetSpecies: initialData.targetSpecies || '',
         brand: initialData.brand || '',
-        unit: initialData.unit || 'cái',
+        unit: initialData.unit || '',
         importName: initialData.importName || '',
         price: initialData.price || 0,
+        costPrice: initialData.costPrice || 0,
         vat: initialData.vat || 0,
         weight: initialData.weight || 0,
         minStock: initialData.minStock || 5,
         tags: initialData.tags || '',
-        isActive: initialData.isActive ?? true
+        isActive: initialData.isActive ?? true,
+        priceBookPrices: initialPriceBookPrices
       })
       setProductImage(initialData.image || null)
-      setVariantImages(
-        Object.fromEntries(
-          (initialData.variants || [])
-            .map((variant: any) => {
-              const imageKey = getVariantImageKey(variant)
-              return variant.image && imageKey ? [imageKey, variant.image] : null
-            })
-            .filter(Boolean) as Array<[string, string]>
-        )
+      setVariantImages({})
+      setVariantOverrides({})
+      setHasAttributes(parsedAttributes.length > 0)
+      setAttributes(parsedAttributes.length > 0 ? parsedAttributes : [{ name: 'Loại', values: [] }])
+      setHasConversions(uniqueConversions.length > 0)
+      setConversions(
+        uniqueConversions.length > 0
+          ? uniqueConversions
+          : [{ applyTo: 'all', mainQty: 12, mainUnit: initialData.unit || '', convQty: 1, convUnit: '' }],
       )
-      
-      try {
-        if (initialData.attributes) {
-          const parsedAttr = JSON.parse(initialData.attributes)
-          if (parsedAttr && parsedAttr.length > 0) {
-            setHasAttributes(true)
-            setAttributes(parsedAttr)
-          }
-        }
-      } catch {
-        // Ignore malformed legacy attributes and keep the default editor state.
-      }
     } else if (isOpen) {
       setFormData({
-        name: '', sku: '', productCode: '', barcode: '',
-        category: '', brand: '', unit: 'cái', importName: '',
-        price: 0, vat: 0, weight: 0, minStock: 5, tags: '',
-        isActive: true
+        name: '', sku: '', barcode: '',
+        category: '', brand: '', unit: '', importName: '', targetSpecies: '',
+        price: 0, costPrice: 0, vat: 0, weight: 0, minStock: 5, tags: '',
+        isActive: true, priceBookPrices: {}
       })
       setProductImage(null)
       setVariantImages({})
+      setVariantOverrides({})
       setHasAttributes(false)
       setAttributes([{ name: 'Loại', values: [] }])
       setHasConversions(false)
-      setConversions([{ applyTo: 'all', mainQty: 12, mainUnit: 'cái', convQty: 1, convUnit: 'Thùng' }])
+      setConversions([{ applyTo: 'all', mainQty: 12, mainUnit: '', convQty: 1, convUnit: '' }])
     }
   }, [initialData, isOpen])
 
@@ -131,7 +208,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
   }, [formData.unit])
 
   // Auto Generate Variants
-  const generatedVariants = useMemo(() => {
+  const variantDefinitions = useMemo(() => {
     let baseCombo = [{ name: formData.name || 'Sản phẩm mới', attrs: [] as string[] }]
 
     // 1. Multiply by Attributes
@@ -151,62 +228,138 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     const result: any[] = []
     
     baseCombo.forEach((bc, idx) => {
-       const baseSku = formData.sku ? `${formData.sku}${idx > 0 ? idx : ''}` : `SKU${idx}`
-       const baseImageKey = getVariantImageKey({ sku: baseSku, name: bc.name })
+       const baseKey = createVariantKey({ attrs: bc.attrs, isConversion: false })
+       const baseSku = formData.sku ? `${sanitizeSku(formData.sku)}${idx > 0 ? idx : ''}` : `SKU${idx}`
        
        // Add Base
        result.push({
+         key: baseKey,
          isConversion: false,
-         parentId: null,
+         parentKey: null,
          name: bc.name,
-         imageKey: baseImageKey,
-         image: variantImages[baseImageKey] || null,
+         imageKey: baseKey,
          sku: baseSku,
+         barcode: '',
          unit: formData.unit,
          attrs: bc.attrs,
          weight: formData.weight,
-         price: formData.price
+         image: null,
+         priceBookPrices: {}
        })
 
        // Add Conversions
        if (hasConversions) {
-         conversions.filter(c => c.applyTo === 'all' || (hasAttributes && bc.attrs.includes(c.applyTo))).forEach((conv) => {
+         conversions
+           .filter(c => `${c.convUnit || ''}`.trim())
+           .filter(c => c.applyTo === 'all' || (hasAttributes && bc.attrs.includes(c.applyTo)))
+           .forEach((conv) => {
            const conversionName = `${bc.name} - ${conv.convUnit}`
-           const conversionSku = `${baseSku}-${conv.convUnit.substring(0, 2).toUpperCase()}`
-           const conversionImageKey = getVariantImageKey({ sku: conversionSku, name: conversionName })
+           const conversionKey = createVariantKey({ attrs: bc.attrs, isConversion: true, conversionUnit: conv.convUnit })
+           const conversionSku = `${baseSku}${sanitizeSku(conv.convUnit).slice(0, 4) || 'QD'}`
            result.push({
+             key: conversionKey,
              isConversion: true,
-             parentId: baseSku, // use sku as ref
+             parentKey: baseKey,
              name: conversionName,
-             imageKey: conversionImageKey,
-             image: variantImages[conversionImageKey] || null,
+             imageKey: conversionKey,
              sku: conversionSku,
+             barcode: '',
              unit: conv.convUnit,
              attrs: bc.attrs,
              conversionRate: conv.mainQty,
+             conversionUnit: conv.convUnit,
              weight: formData.weight * conv.mainQty,
-             price: formData.price * conv.mainQty
+             image: null,
+             priceBookPrices: {}
            })
          })
        }
     })
 
     return result
-  }, [formData, hasAttributes, attributes, hasConversions, conversions, variantImages])
+  }, [formData, hasAttributes, attributes, hasConversions, conversions])
+
+  const basePrice = retailPriceBook ? Number(formData.priceBookPrices[retailPriceBook.id] || 0) : Number(formData.price)
+
+  const initialVariantMap = useMemo(() => {
+    if (!isEditing || !Array.isArray(initialData?.variants)) return {} as Record<string, any>
+
+    const remainingVariants = [...initialData.variants]
+    return variantDefinitions.reduce((acc, variantDefinition) => {
+      const exactSkuIndex = variantDefinition.sku
+        ? remainingVariants.findIndex((variant: any) => variant.sku === variantDefinition.sku)
+        : -1
+      const nameMatchIndex = exactSkuIndex >= 0 ? -1 : remainingVariants.findIndex((variant: any) => variant.name === variantDefinition.name)
+      const typeMatchIndex =
+        exactSkuIndex >= 0 || nameMatchIndex >= 0
+          ? -1
+          : remainingVariants.findIndex((variant: any) => {
+              const conversion = parseJson<{ unit?: string } | null>(variant.conversions, null)
+              return Boolean(conversion?.unit) === variantDefinition.isConversion
+            })
+      const matchedIndex = [exactSkuIndex, nameMatchIndex, typeMatchIndex].find((index) => index >= 0) ?? -1
+
+      if (matchedIndex < 0) return acc
+
+      const [matchedVariant] = remainingVariants.splice(matchedIndex, 1)
+      acc[variantDefinition.key] = {
+        sku: matchedVariant.sku || variantDefinition.sku,
+        barcode: matchedVariant.barcode || '',
+        priceBookPrices: parseJson<PriceBookValueMap>(matchedVariant.priceBookPrices, {}),
+        image: matchedVariant.image || null,
+        costPrice: Number(matchedVariant.costPrice) || 0,
+      }
+      return acc
+    }, {} as Record<string, any>)
+  }, [initialData, isEditing, variantDefinitions])
+
+  const generatedVariants = useMemo(() => {
+    return variantDefinitions.map((variantDefinition) => {
+      const initialVariant = initialVariantMap[variantDefinition.key]
+      const override = variantOverrides[variantDefinition.key]
+      const mergedPriceBookPrices = {
+        ...formData.priceBookPrices,
+        ...(initialVariant?.priceBookPrices ?? {}),
+        ...(override?.priceBookPrices ?? {}),
+      }
+      const explicitImage = variantImages[variantDefinition.imageKey]
+
+      return {
+        ...variantDefinition,
+        sku: override?.sku ?? initialVariant?.sku ?? variantDefinition.sku,
+        barcode: override?.barcode ?? initialVariant?.barcode ?? '',
+        image: explicitImage !== undefined ? explicitImage : (initialVariant?.image ?? null),
+        priceBookPrices: mergedPriceBookPrices,
+        costPrice: override?.costPrice ?? initialVariant?.costPrice ?? formData.costPrice ?? 0,
+      }
+    })
+  }, [formData.costPrice, formData.priceBookPrices, initialVariantMap, variantDefinitions, variantImages, variantOverrides])
+
+  const buildVariantPayload = (variant: any) => ({
+    name: variant.name,
+    sku: variant.sku || undefined,
+    barcode: variant.barcode || undefined,
+    price: retailPriceBook ? Number(variant.priceBookPrices?.[retailPriceBook.id] || 0) : basePrice,
+    image: variant.image || undefined,
+    conversions: variant.isConversion ? JSON.stringify({ rate: variant.conversionRate, unit: variant.conversionUnit }) : undefined,
+    priceBookPrices: Object.keys(variant.priceBookPrices || {}).length > 0 ? JSON.stringify(variant.priceBookPrices) : undefined,
+    costPrice: Number(variant.costPrice) || undefined,
+  })
 
   const mutation = useMutation({
-    mutationFn: async (_: any) => {
+    mutationFn: async () => {
       // Tách variants ra khỏi payload — Prisma nested write cần xử lý riêng
       const basePayload = {
         name: formData.name,
         sku: formData.sku || undefined,
-        productCode: formData.productCode || undefined,
         barcode: formData.barcode || undefined,
         category: formData.category || undefined,
+        targetSpecies: formData.targetSpecies || undefined,
         brand: formData.brand || undefined,
         unit: formData.unit,
         importName: formData.importName || undefined,
-        price: Number(formData.price),
+        price: basePrice,
+        costPrice: Number(formData.costPrice) || undefined,
         vat: Number(formData.vat),
         weight: Number(formData.weight) || undefined,
         minStock: Number(formData.minStock),
@@ -216,41 +369,52 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
         attributes: hasAttributes ? JSON.stringify(attributes) : undefined,
       }
 
+      const variantPayload = generatedVariants.map(buildVariantPayload)
+
       if (isEditing) {
         // 1. Update thông tin cơ bản
         await inventoryApi.updateProduct(initialData.id, basePayload)
 
-        // 2. Nếu có variants, xóa cũ và tạo mới
-        if (generatedVariants.length > 0) {
-          // Xóa variants cũ
-          if (initialData.variants?.length > 0) {
-            await Promise.all(
-              initialData.variants.map((v: any) => inventoryApi.deleteVariant(v.id))
-            )
+        const unmatchedExisting = Array.isArray(initialData.variants) ? [...initialData.variants] : []
+        const matchedVariants = variantPayload.map((payload) => {
+          const skuMatchIndex = payload.sku ? unmatchedExisting.findIndex((variant: any) => variant.sku === payload.sku) : -1
+          const nameMatchIndex = skuMatchIndex >= 0 ? -1 : unmatchedExisting.findIndex((variant: any) => variant.name === payload.name)
+          const matchedIndex = skuMatchIndex >= 0 ? skuMatchIndex : nameMatchIndex
+
+          if (matchedIndex >= 0) {
+            const [matchedVariant] = unmatchedExisting.splice(matchedIndex, 1)
+            return { existingVariant: matchedVariant, payload }
           }
-          // Tạo variants mới — bọc trong { variants: [...] } for backend
-          const variantPayload = generatedVariants.map(v => ({
-            name: v.name,
-            sku: v.sku || undefined,
-            price: Number(v.price) || Number(formData.price),
-            image: v.image || undefined,
-            conversions: v.isConversion ? JSON.stringify({ rate: v.conversionRate }) : undefined,
-          }))
-          await inventoryApi.batchCreateVariants(initialData.id, { variants: variantPayload })
+
+          return { existingVariant: undefined, payload }
+        })
+
+        const variantsToUpdate = matchedVariants.filter((item) => item.existingVariant)
+        const variantsToCreate = matchedVariants.filter((item) => !item.existingVariant).map((item) => item.payload)
+
+        if (variantsToUpdate.length > 0) {
+          await Promise.all(
+            variantsToUpdate.map((item) => inventoryApi.updateVariant(item.existingVariant.id, item.payload))
+          )
         }
+
+        if (variantsToCreate.length > 0) {
+          await inventoryApi.batchCreateVariants(initialData.id, { variants: variantsToCreate })
+        }
+
+        if (unmatchedExisting.length > 0) {
+          await Promise.all(
+            unmatchedExisting.map((variant: any) => inventoryApi.deleteVariant(variant.id))
+          )
+        }
+
         return { success: true }
       } else {
         // Tạo mới: gửi dạng nested create
         const payload: any = { ...basePayload }
-        if (generatedVariants.length > 0) {
+        if (variantPayload.length > 0) {
           payload.variants = {
-            create: generatedVariants.map(v => ({
-              name: v.name,
-              sku: v.sku || undefined,
-              price: Number(v.price) || Number(formData.price),
-              image: v.image || undefined,
-              conversions: v.isConversion ? JSON.stringify({ rate: v.conversionRate }) : undefined,
-            }))
+            create: variantPayload
           }
         }
         return inventoryApi.createProduct(payload)
@@ -270,7 +434,22 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
   // --- Handlers ---
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    mutation.mutate({})
+
+    if (!formData.name) return toast.error('Vui lòng nhập Tên sản phẩm')
+    if (!formData.sku) return toast.error('Vui lòng nhập mã SKU')
+    if (!formData.unit) return toast.error('Vui lòng nhập Đơn vị bán')
+    
+    // Check required Giá lẻ
+    const giaLeBook = priceBooks.find((pb: any) => pb.name.toLowerCase().includes('lẻ') || pb.name.toLowerCase() === 'retail price')
+    if (giaLeBook && !formData.priceBookPrices[giaLeBook.id]) {
+       return toast.error('Vui lòng nhập Giá lẻ ở Bảng giá')
+    }
+
+    if (generatedVariants.some((variant) => !variant.sku)) {
+      return toast.error('Mỗi phiên bản cần có SKU hợp lệ')
+    }
+
+    mutation.mutate()
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -279,8 +458,14 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
       setFormData(f => ({ ...f, [name]: (e.target as HTMLInputElement).checked }))
     } else {
       setFormData(f => {
-        const newData = { ...f, [name]: value }
-        if (name === 'name' && !isEditing) newData.sku = generateSKU(value)
+        let finalValue = value;
+        if (name === 'sku') {
+          finalValue = sanitizeSku(finalValue)
+        }
+        const newData = { ...f, [name]: type === 'number' ? Number(finalValue) : finalValue }
+        if (name === 'name' && !isEditing && !newData.sku) {
+           newData.sku = generateSKU(value)
+        }
         return newData;
       })
     }
@@ -302,12 +487,37 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     }
   }
 
+  const updateVariantOverride = (variantKey: string, updater: (current: VariantOverride) => VariantOverride) => {
+    setVariantOverrides((current) => ({
+      ...current,
+      [variantKey]: updater(current[variantKey] ?? {}),
+    }))
+  }
+
+  const handleVariantSkuChange = (variantKey: string, value: string) => {
+    updateVariantOverride(variantKey, (current) => ({ ...current, sku: sanitizeSku(value) }))
+  }
+
+  const handleVariantBarcodeChange = (variantKey: string, value: string) => {
+    updateVariantOverride(variantKey, (current) => ({ ...current, barcode: value.replace(/\s+/g, '') }))
+  }
+
+  const handleVariantCostPriceChange = (variantKey: string, value: number) => {
+    updateVariantOverride(variantKey, (current) => ({ ...current, costPrice: value }))
+  }
+
+  const handleVariantPriceBookChange = (variantKey: string, priceBookId: string, value: number) => {
+    updateVariantOverride(variantKey, (current) => ({
+      ...current,
+      priceBookPrices: {
+        ...(current.priceBookPrices ?? initialVariantMap[variantKey]?.priceBookPrices ?? {}),
+        [priceBookId]: value,
+      },
+    }))
+  }
+
   const clearVariantImage = (imageKey: string) => {
-    setVariantImages(current => {
-      const next = { ...current }
-      delete next[imageKey]
-      return next
-    })
+    setVariantImages((current) => ({ ...current, [imageKey]: null }))
   }
 
   // --- Render Options ---
@@ -316,10 +526,10 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pb-20 pt-10">
       <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="card p-0 relative w-full flex flex-col max-w-[900px] h-full max-h-[92vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+      <div className="card p-0 relative w-full flex flex-col max-w-[98vw] h-full max-h-[96vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
       
         {/* Header */}
-        <div className="px-6 py-5 border-b border-border bg-background flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 border-b border-border bg-background flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
              <div className="w-8 h-8 rounded-lg bg-primary-500/10 flex items-center justify-center text-primary-500">
                 <BoxIcon size={18} />
@@ -328,17 +538,20 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                {isEditing ? "Cập nhật sản phẩm" : "Thêm sản phẩm"}
              </h2>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-background-secondary transition-colors">
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={onClose} className="btn-outline h-9 px-4 rounded-lg font-medium text-sm">Hủy</button>
+            <button type="submit" form="productForm" disabled={mutation.isPending} className="btn-primary liquid-button h-9 px-4 rounded-lg font-medium text-sm shadow-primary-500/20 shadow-lg">
+              {mutation.isPending ? 'Đang lưu...' : (isEditing ? 'Cập nhật' : 'Thêm mới')}
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto bg-background-secondary/30 relative">
-           <form id="productForm" onSubmit={handleSubmit} className="p-6 flex flex-col gap-6 max-w-[850px] mx-auto">
+           <form id="productForm" onSubmit={handleSubmit} className="p-6 flex flex-col gap-6 w-full max-w-[1600px] mx-auto">
               
               {/* SECTION: THÔNG TIN CHUNG */}
-              <div className="border border-border bg-background rounded-2xl overflow-hidden shadow-sm">
+              <div className="border border-border bg-background rounded-2xl shadow-sm relative z-20">
                  <div className="px-5 py-3 border-b border-border bg-background-tertiary/50 text-[11px] font-bold uppercase tracking-wider text-foreground-muted">Thông tin chung</div>
                  <div className="p-5 flex gap-6">
                     {/* Left: Avatar */}
@@ -375,22 +588,72 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
                     {/* Right: Info */}
                     <div className="flex-1 flex flex-col gap-4">
-                       <div className="grid grid-cols-2 gap-4">
-                          <div>
+                       {/* Hàng 1: Tên sản phẩm + Dùng cho + Danh mục */}
+                       <div className="flex gap-4">
+                          <div className="flex-1 min-w-0">
                              <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Tên sản phẩm <span className="text-error">*</span></label>
                              <input required name="name" value={formData.name} onChange={handleChange} className="form-input w-full font-semibold" placeholder="thức ăn cho mèo Canin 1kg" />
                           </div>
-                          <div>
-                             <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Nhãn hiệu</label>
-                             <select name="brand" value={formData.brand} onChange={handleChange} className="form-input w-full">
-                                <option value="">Chọn hoặc gõ tìm...</option>
-                                {brands?.data?.map((b: any) => <option key={b.id} value={b.name}>{b.name}</option>)}
+                          <div className="w-28 shrink-0">
+                             <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Dùng cho</label>
+                             <select
+                               name="targetSpecies"
+                               value={formData.targetSpecies}
+                               onChange={handleChange}
+                               className="form-input w-full px-3 text-foreground-base bg-background-secondary border-border"
+                             >
+                                <option value="" disabled hidden>-- Chọn --</option>
+                                <option value="DOG">Chó</option>
+                                <option value="CAT">Mèo</option>
+                                <option value="BOTH">Chó & Mèo</option>
+                                <option value="OTHER">Khác</option>
                              </select>
                           </div>
+                          <div className="w-56 shrink-0">
+                             <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Danh mục</label>
+                             <SearchableCreatableSelect
+                               options={(categories?.data || [])
+                                 .filter((c: any) => {
+                                   if (!formData.targetSpecies) return true;
+                                   const cTarget = c.targetSpecies || 'OTHER';
+                                   if (formData.targetSpecies === cTarget) return true;
+                                   if (formData.targetSpecies === 'DOG' || formData.targetSpecies === 'CAT') return cTarget === 'BOTH';
+                                   if (formData.targetSpecies === 'BOTH') return cTarget === 'DOG' || cTarget === 'CAT';
+                                   return false;
+                                 })
+                                 .filter((c: any, index: number, self: any[]) => 
+                                   index === self.findIndex((t) => t.name.trim().toLowerCase() === c.name.trim().toLowerCase())
+                                 )
+                               }
+                               value={formData.category}
+                               onChange={v => setFormData(f => ({...f, category: v}))}
+                               placeholder="Tìm hoặc thêm..."
+                               onAdd={async (search) => {
+                                 await inventoryApi.createCategory({ name: search, targetSpecies: formData.targetSpecies || 'OTHER' })
+                                 queryClient.invalidateQueries({ queryKey: ['categories'] })
+                               }}
+                             />
+                          </div>
                        </div>
-                       <div>
-                          <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Tên nhập hàng <span className="italic font-normal">(không bắt buộc)</span></label>
-                          <input name="importName" value={formData.importName} onChange={handleChange} className="form-input w-full" placeholder="Phục vụ đối soát với hoá đơn nhập kho..." />
+                       {/* Hàng 2: Tên nhập hàng + Nhãn hiệu */}
+                       <div className="grid grid-cols-3 gap-4">
+                          <div className="col-span-2">
+                             <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Tên nhập hàng <span className="italic font-normal">(không bắt buộc)</span></label>
+                             <input name="importName" value={formData.importName} onChange={handleChange} className="form-input w-full" placeholder="Phục vụ đối soát với hoá đơn nhập kho..." />
+                          </div>
+                          <div>
+                             <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Nhãn hiệu</label>
+                             <SearchableCreatableSelect
+                               options={brands?.data || []}
+                               value={formData.brand}
+                               onChange={v => setFormData(f => ({...f, brand: v}))}
+                               placeholder="Tìm hoặc thêm..."
+                               onAdd={async (search) => {
+                                 await inventoryApi.createBrand({ name: search })
+                                 queryClient.invalidateQueries({ queryKey: ['brands'] })
+                               }}
+                             />
+                          </div>
                        </div>
 
                        <div className="grid grid-cols-6 gap-3 pt-2">
@@ -403,12 +666,30 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                              <input name="barcode" value={formData.barcode} onChange={handleChange} className="form-input w-full text-xs" />
                           </div>
                           <div className="col-span-1">
-                             <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Đơn vị bán</label>
-                             <input name="unit" required value={formData.unit} onChange={handleChange} className="form-input w-full text-xs" placeholder="Cái" />
+                             <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Đơn vị bán <span className="text-error">*</span></label>
+                             <SearchableCreatableSelect
+                               options={units}
+                               value={formData.unit}
+                               onChange={v => setFormData(f => ({...f, unit: v}))}
+                               placeholder="Vd: Cái"
+                               onAdd={async (search) => {
+                                 await inventoryApi.createUnit({ name: search })
+                                 queryClient.invalidateQueries({ queryKey: ['units'] })
+                               }}
+                             />
                           </div>
                           <div className="col-span-1">
                              <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Trọng lượng (g)</label>
-                             <input type="number" name="weight" value={formData.weight} onChange={handleChange} className="form-input w-full text-xs" />
+                             <NumericFormat
+                                value={formData.weight}
+                                onValueChange={(values) => {
+                                  setFormData((prev: any) => ({ ...prev, weight: values.floatValue ?? '' }))
+                                }}
+                                thousandSeparator="."
+                                decimalSeparator=","
+                                allowNegative={false}
+                                className="form-input w-full text-xs"
+                              />
                           </div>
                           <div className="col-span-1">
                              <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Tồn min</label>
@@ -421,26 +702,37 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
               {/* SECTION: BẢNG GIÁ */}
               <div className="border border-border bg-background rounded-2xl overflow-hidden shadow-sm">
-                 <div className="px-5 py-3 border-b border-border bg-background-tertiary/50 text-[11px] font-bold uppercase tracking-wider text-foreground-muted flex justify-between items-center">
-                    <span>Bảng Giá</span>
-                    <span className="font-normal text-xs normal-case text-foreground-muted">Giá nền — áp dụng cho tất cả phiên bản</span>
-                 </div>
-                 <div className="p-5 flex gap-4 items-center">
+                 <div className="px-5 py-3 border-b border-border bg-background-tertiary/50 text-[11px] font-bold uppercase tracking-wider text-foreground-muted">Bảng Giá</div>
+                 <div className="p-5 flex gap-4 items-center flex-wrap">
                     <div className="w-48">
-                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Giá bán chung</label>
-                       <div className="relative">
-                          <input type="number" name="price" required value={formData.price} onChange={handleChange} className="form-input w-full text-right pr-9 font-semibold text-primary-500" />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-foreground-muted">đ</span>
-                       </div>
+                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Giá nhập</label>
+                       <PriceInput value={formData.costPrice} onChange={(val: number) => setFormData(f => ({...f, costPrice: val}))} />
                     </div>
-                    <div className="text-xs text-foreground-muted italic mt-2">
-                       Bạn có thể điều chỉnh giá trị riêng cho từng phiên bản ở bảng bên dưới.
-                    </div>
+                    {priceBooks.map((pb: any) => {
+                       const isGiaLe = pb.name.toLowerCase().includes('lẻ')
+                       return (
+                         <div className="w-48" key={pb.id}>
+                            <label className="block text-xs font-medium mb-1.5 text-foreground-muted">
+                              {pb.name} {isGiaLe && <span className="text-error">*</span>}
+                            </label>
+                            <PriceInput 
+                              required={isGiaLe}
+                              value={formData.priceBookPrices[pb.id] || 0} 
+                              onChange={(val: number) => setFormData(f => ({
+                                  ...f, 
+                                  priceBookPrices: { ...f.priceBookPrices, [pb.id]: val }
+                              }))} 
+                            />
+                         </div>
+                       )
+                    })}
+
                  </div>
               </div>
 
               {/* SECTION: THUỘC TÍNH PHIÊN BẢN */}
-              <div className={`border ${hasAttributes ? 'border-primary-500/50 shadow-md ring-1 ring-primary-500/20' : 'border-border'} bg-background rounded-2xl overflow-hidden transition-all duration-300`}>
+              <div className="grid grid-cols-2 gap-6 w-full items-start">
+                 <div className={`border ${hasAttributes ? 'border-primary-500/50 shadow-md ring-1 ring-primary-500/20' : 'border-border'} bg-background rounded-2xl overflow-hidden transition-all duration-300`}>
                  <div className="px-5 py-3 bg-background flex justify-between items-center cursor-pointer" onClick={() => setHasAttributes(!hasAttributes)}>
                     <div className="flex items-center gap-3">
                        <Tag size={16} className={hasAttributes ? 'text-primary-500' : 'text-foreground-muted'} />
@@ -489,11 +781,11 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                        </button>
                     </div>
                  )}
-              </div>
+                 </div>
 
               {/* SECTION: ĐƠN VỊ QUY ĐỔI */}
-              <div className={`border ${hasConversions ? 'border-success/50 shadow-md ring-1 ring-success/20' : 'border-border'} bg-background rounded-2xl overflow-hidden transition-all duration-300`}>
-                 <div className="px-5 py-3 bg-background flex justify-between items-center cursor-pointer" onClick={() => setHasConversions(!hasConversions)}>
+              <div className={`border ${hasConversions ? 'border-success/50 shadow-md ring-1 ring-success/20' : 'border-border'} bg-background rounded-2xl relative z-10 transition-all duration-300`}>
+                 <div className={`px-5 py-3 bg-background flex justify-between items-center cursor-pointer ${hasConversions ? 'rounded-t-2xl' : 'rounded-2xl'}`} onClick={() => setHasConversions(!hasConversions)}>
                     <div className="flex items-center gap-3">
                        <RefreshIcon size={16} className={hasConversions ? 'text-success' : 'text-foreground-muted'} />
                        <span className={`text-[12px] font-bold uppercase tracking-wider ${hasConversions ? 'text-success' : 'text-foreground-muted'}`}>Đơn vị quy đổi</span>
@@ -503,7 +795,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                  </div>
 
                  {hasConversions && (
-                    <div className="p-5 border-t border-border flex flex-col gap-4 bg-background-secondary/10 relative">
+                    <div className="p-5 border-t border-border flex flex-col gap-4 bg-background-secondary/10 relative rounded-b-2xl">
                        {conversions.map((conv, index) => (
                           <div key={index} className="flex items-end gap-3 pb-4 border-b border-border/50 last:border-b-0 last:pb-0 relative">
                              <button type="button" onClick={() => setConversions(c => c.filter((_, i) => i !== index))} className="absolute right-0 top-8 text-foreground-muted hover:text-error">
@@ -538,113 +830,46 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                                    <label className="block text-xs font-medium mb-1.5 text-foreground-muted">SL quy đổi</label>
                                    <input type="number" className="form-input w-full text-center" value={conv.convQty} readOnly />
                                 </div>
-                                <div className="w-32">
-                                   <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Đơn vị quy đổi</label>
-                                   <input className="form-input w-full font-semibold" value={conv.convUnit} placeholder="Thùng" onChange={e => { const n = [...conversions]; n[index].convUnit = e.target.value; setConversions(n) }} />
+                                <div className="w-40">
+                                   <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Đơn vị quy đổi <span className="text-error">*</span></label>
+                                   <SearchableCreatableSelect
+                                     options={units}
+                                     value={conv.convUnit}
+                                     onChange={v => { const n = [...conversions]; n[index].convUnit = v; setConversions(n) }}
+                                     placeholder="Vd: Thùng"
+                                     onAdd={async (search) => {
+                                       await inventoryApi.createUnit({ name: search })
+                                       queryClient.invalidateQueries({ queryKey: ['units'] })
+                                     }}
+                                   />
                                 </div>
                              </div>
                           </div>
                        ))}
-                       <button type="button" onClick={() => setConversions(c => [...c, { applyTo: 'all', mainQty: 12, mainUnit: formData.unit, convQty: 1, convUnit: 'Thùng' }])} className="text-sm text-success font-semibold flex items-center gap-1 hover:text-success/80 w-max mt-2">
+                       <button type="button" onClick={() => setConversions(c => [...c, { applyTo: 'all', mainQty: 12, mainUnit: formData.unit, convQty: 1, convUnit: '' }])} className="text-sm text-success font-semibold flex items-center gap-1 hover:text-success/80 w-max mt-2">
                           <Plus size={16} /> Thêm đơn vị khác
                        </button>
                     </div>
                  )}
+                 </div>
               </div>
 
-              {/* SECTION: BẢNG PHIÊN BẢN */}
-              <div className="border border-border bg-background rounded-2xl overflow-hidden shadow-sm pt-4">
-                 <div className="px-5 mb-3 flex items-center gap-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted">Bảng phiên bản</span>
-                    <span className="badge badge-primary px-2">{generatedVariants.length} phiên bản</span>
-                 </div>
-                 
-                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-background-tertiary/50">
-                       <tr>
-                          <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-winder w-14 text-center">Ảnh</th>
-                          <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-winder">Tên phiên bản / đơn vị</th>
-                          <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-winder w-32 border-l border-border/50">SKU</th>
-                          <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-winder w-28 text-right border-l border-border/50">Lượng (g)</th>
-                       </tr>
-                    </thead>
-                    <tbody className="text-sm divide-y divide-border/50">
-                       {generatedVariants.map((v, i) => (
-                          <tr key={i} className={`group hover:bg-background-secondary/30 ${v.isConversion ? 'bg-background-tertiary/20' : ''}`}>
-                             <td className="py-3 px-4 text-center relative">
-                                {v.isConversion && <div className="absolute top-0 bottom-1/2 left-4 w-px border-l-2 border-border/50"></div>}
-                                {v.isConversion && <div className="absolute top-1/2 left-4 w-2 h-px border-t-2 border-border/50"></div>}
-                                <div className="relative z-10 mx-auto w-8">
-                                   <label className={`flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded border border-dashed border-border transition-colors ${
-                                     v.image || productImage
-                                       ? 'bg-background'
-                                       : v.isConversion
-                                         ? 'bg-background-tertiary hover:border-primary-500'
-                                         : 'bg-background hover:border-primary-500'
-                                   }`}>
-                                      {v.image || productImage ? (
-                                        <img src={v.image || productImage || ''} alt={v.name} className="h-full w-full object-cover" />
-                                      ) : (
-                                        <ImagePlus size={14} className="text-foreground-muted" />
-                                      )}
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={(e) =>
-                                          handleImageChange(e, (image) =>
-                                            setVariantImages(current => ({ ...current, [v.imageKey]: image }))
-                                          )
-                                        }
-                                      />
-                                   </label>
-                                   {v.image && (
-                                      <button
-                                        type="button"
-                                        onClick={() => clearVariantImage(v.imageKey)}
-                                        className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-background-base text-[10px] text-white shadow"
-                                      >
-                                        ×
-                                      </button>
-                                   )}
-                                </div>
-                             </td>
-                             <td className="py-3 px-4">
-                                <div className="font-semibold text-foreground bg-background-tertiary/50 px-3 py-1.5 rounded-lg border border-border inline-flex w-full">
-                                   {v.name}
-                                </div>
-                                {v.isConversion && (
-                                   <div className="text-[10px] text-foreground-muted mt-1.5 ml-1">
-                                      {v.conversionRate} {formData.unit} = 1 {v.unit}
-                                   </div>
-                                )}
-                             </td>
-                             <td className="py-3 px-4 border-l border-border/50">
-                                <div className="bg-background-tertiary px-2 py-1.5 rounded text-xs border border-border inline-flex font-mono">{v.sku}</div>
-                             </td>
-                             <td className="py-3 px-4 border-l border-border/50">
-                                <input className="form-input w-full text-right text-xs h-7 py-0 bg-transparent shadow-none focus:bg-background focus:ring-1" value={v.weight} readOnly />
-                             </td>
-                          </tr>
-                       ))}
-                       {generatedVariants.length === 0 && (
-                          <tr>
-                             <td colSpan={4} className="py-8 text-center text-foreground-muted text-sm">Chưa có phiên bản nào được tạo</td>
-                          </tr>
-                       )}
-                    </tbody>
-                 </table>
-              </div>
+              <VariantTable
+                generatedVariants={generatedVariants}
+                priceBooks={priceBooks}
+                formData={formData}
+                productImage={productImage}
+                handleImageChange={handleImageChange}
+                setVariantImages={setVariantImages}
+                clearVariantImage={clearVariantImage}
+                handleVariantSkuChange={handleVariantSkuChange}
+                handleVariantBarcodeChange={handleVariantBarcodeChange}
+                handleVariantCostPriceChange={handleVariantCostPriceChange}
+                handleVariantPriceBookChange={handleVariantPriceBookChange}
+              />
            </form>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 bg-background border-t border-border shrink-0">
-          <button type="button" onClick={onClose} className="btn-outline h-10 px-6 rounded-xl font-medium">Hủy</button>
-          <button type="submit" form="productForm" disabled={mutation.isPending} className="btn-primary liquid-button h-10 px-6 rounded-xl font-medium shadow-primary-500/20 shadow-lg">
-            {mutation.isPending ? 'Đang lưu...' : (isEditing ? 'Cập nhật sản phẩm' : 'Thêm sản phẩm')}
-          </button>
-        </div>
       </div>
     </div>
   )
@@ -724,6 +949,128 @@ function TagInput({ values, onChange, placeholder }: { values: string[], onChang
         onBlur={commitTag}
         placeholder={values.length === 0 ? placeholder : ""} 
       />
+    </div>
+  )
+}
+
+export function PriceInput({ value, onChange, placeholder, className, required = false }: any) {
+  const [displayValue, setDisplayValue] = useState(value ? Number(value).toLocaleString('vi-VN') : '')
+
+  useEffect(() => {
+    setDisplayValue(value ? Number(value).toLocaleString('vi-VN') : (value === 0 ? '0' : ''))
+  }, [value])
+
+  const handleBlur = () => {
+    const parsed = Number(displayValue.replace(/[^0-9]/g, ''))
+    setDisplayValue(parsed ? parsed.toLocaleString('vi-VN') : (displayValue === '0' ? '0' : ''))
+    onChange(parsed || 0)
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    const rawValue = val.replace(/[^0-9]/g, '')
+    setDisplayValue(rawValue ? Number(rawValue).toLocaleString('vi-VN') : "")
+    onChange(Number(rawValue) || 0)
+  }
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        className={`form-input w-full text-right pr-9 font-semibold text-primary-500 ${className || ''}`}
+        placeholder={placeholder}
+        required={required}
+        value={displayValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+      />
+      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-foreground-muted">đ</span>
+    </div>
+  )
+}
+
+function SearchableCreatableSelect({ 
+  options, value, onChange, placeholder, onAdd 
+}: { 
+  options: {id: string, name: string}[], value: string, onChange: (v: string) => void, placeholder?: string, onAdd: (v: string) => Promise<void> 
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [isAdding, setIsAdding] = useState(false)
+  
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+  
+  const filtered = options.filter(o => o.name.toLowerCase().includes(search.toLowerCase()))
+  const exactMatch = options.find(o => o.name.toLowerCase() === search.toLowerCase())
+  
+  const handleAdd = async () => {
+    if (!search || exactMatch) return
+    setIsAdding(true)
+    try {
+      await onAdd(search)
+      onChange(search)
+      setSearch('')
+      setIsOpen(false)
+    } finally {
+      setIsAdding(false)
+    }
+  }
+  
+  return (
+    <div className="relative" ref={ref}>
+      <div 
+        className="form-input flex items-center justify-between cursor-pointer min-h-[38px] text-sm"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className={value ? "text-foreground font-semibold" : "text-foreground-muted"}>{value || placeholder || "Chọn..."}</span>
+        <ChevronDown size={14} className="text-foreground-muted" />
+      </div>
+      
+      {isOpen && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border border-border shadow-lg rounded-xl overflow-hidden flex flex-col">
+          <div className="p-2 border-b border-border">
+            <input 
+              autoFocus
+              className="form-input w-full bg-background-secondary border-none h-8 text-sm"
+              placeholder="Tìm hoặc thêm..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.map(opt => (
+              <div 
+                key={opt.id}
+                className="px-3 py-2 cursor-pointer hover:bg-background-secondary text-sm"
+                onClick={() => { onChange(opt.name); setIsOpen(false); setSearch('') }}
+              >
+                {opt.name}
+              </div>
+            ))}
+            {search && !exactMatch && (
+              <div 
+                className="px-3 py-2 cursor-pointer text-primary-500 font-medium hover:bg-primary-500/10 flex items-center gap-2 text-sm"
+                onClick={handleAdd}
+              >
+                {isAdding ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />} Thêm &quot;{search}&quot;
+              </div>
+            )}
+            {filtered.length === 0 && !search && (
+              <div className="px-3 py-3 text-center text-xs text-foreground-muted">Không có dữ liệu</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

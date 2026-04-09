@@ -38,6 +38,7 @@ export interface CreateCustomerDto {
   address?: string
   notes?: string
   tier?: string
+  debt?: number
   taxCode?: string
   description?: string
   isActive?: boolean
@@ -69,7 +70,7 @@ export const customerApi = {
     return data
   },
 
-  /** Chi tiết theo ID hoặc mã KH-000001 */
+  /** Chi tiết theo ID hoặc mã KH000001 */
   getCustomer: async (id: string, months?: number): Promise<ApiSingleResult<Customer>> => {
     const { data } = await api.get<ApiSingleResult<Customer>>(`/customers/${id}`, {
       params: months ? { months } : undefined,

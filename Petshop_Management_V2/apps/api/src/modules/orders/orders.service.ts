@@ -1,9 +1,21 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { resolvePermissions } from '@petshop/auth';
+import type { JwtPayload } from '@petshop/shared';
 import { DatabaseService } from '../../database/database.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
+import { UpdateOrderDto, UpdateOrderItemDto } from './dto/update-order.dto.js';
 import { PayOrderDto } from './dto/pay-order.dto.js';
 import { CompleteOrderDto } from './dto/complete-order.dto.js';
 import { CancelOrderDto } from './dto/cancel-order.dto.js';
+import {
+  generateGroomingSessionCode as formatGroomingSessionCode,
+  generateHotelStayCode as formatHotelStayCode,
+  generateOrderNumber as formatOrderNumber,
+} from '@petshop/shared';
+import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js';
+import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
+
+type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>;
 
 // ─── Payment method labels ──────────────────────────────────────────────────
 const METHOD_LABELS: Record<string, string> = {
@@ -19,17 +31,41 @@ const METHOD_LABELS: Record<string, string> = {
 export class OrdersService {
   constructor(private prisma: DatabaseService) {}
 
+  private resolveUserPermissions(user?: AccessUser): Set<string> {
+    return new Set(resolvePermissions(user?.permissions ?? []));
+  }
+
+  private getAuthorizedBranchIds(user?: AccessUser): string[] {
+    return [...new Set([...(user?.authorizedBranchIds ?? []), ...(user?.branchId ? [user.branchId] : [])])];
+  }
+
+  private shouldRestrictToOrderBranches(user?: AccessUser): boolean {
+    if (!user) return false;
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return false;
+
+    const permissions = this.resolveUserPermissions(user);
+    return !permissions.has('branch.access.all');
+  }
+
+  private assertOrderScope(order: { branchId?: string | null }, user?: AccessUser) {
+    if (!this.shouldRestrictToOrderBranches(user)) return;
+
+    const authorizedBranchIds = this.getAuthorizedBranchIds(user);
+    if (!order.branchId || !authorizedBranchIds.includes(order.branchId)) {
+      throw new ForbiddenException('Bạn chỉ được truy cập dữ liệu thuộc chi nhánh được phân quyền');
+    }
+  }
+
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
-  /** Generate order number: PS-YYYYMMDD-XXXX */
+  /** Generate order number: DH202604060001 */
   private async generateOrderNumber(): Promise<string> {
     const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const count = await this.prisma.order.count({
       where: { createdAt: { gte: startOfDay } },
     });
-    return `PS-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+    return formatOrderNumber(today, count + 1);
   }
 
   /** Generate voucher number for transactions: VCH-YYYYMMDD-XXXX */
@@ -43,20 +79,50 @@ export class OrdersService {
     return `VCH-${dateStr}-${String(count + 1).padStart(4, '0')}`;
   }
 
-  /** Generate hotel stay code: HOTEL-YYMMDD-XXX */
-  private async generateHotelStayCode(checkIn: Date): Promise<string> {
-    const prefix = `HOTEL-${checkIn.toISOString().slice(2, 10).replace(/-/g, '')}`;
-    const startOfDay = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
-    const endOfDay = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate(), 23, 59, 59, 999);
-    const count = await this.prisma.hotelStay.count({
+  /** Generate hotel stay code: H2604TH001 */
+  private async generateHotelStayCode(
+    db: Pick<DatabaseService, 'hotelStay'>,
+    createdAt: Date,
+    branchCode: string,
+  ): Promise<string> {
+    const startOfMonth = new Date(createdAt.getFullYear(), createdAt.getMonth(), 1);
+    const endOfMonth = new Date(createdAt.getFullYear(), createdAt.getMonth() + 1, 1);
+    const codePrefix = formatHotelStayCode(createdAt, branchCode, 0).slice(0, -3);
+    const count = await db.hotelStay.count({
       where: {
         createdAt: {
-          gte: startOfDay,
-          lte: endOfDay,
+          gte: startOfMonth,
+          lt: endOfMonth,
         },
+        stayCode: {
+          startsWith: codePrefix,
+        } as any,
       },
     });
-    return `${prefix}-${String(count + 1).padStart(3, '0')}`;
+    return formatHotelStayCode(createdAt, branchCode, count + 1);
+  }
+
+  /** Generate grooming session code: S2604TH001 */
+  private async generateGroomingSessionCode(
+    db: Pick<DatabaseService, 'groomingSession'>,
+    createdAt: Date,
+    branchCode: string,
+  ): Promise<string> {
+    const startOfMonth = new Date(createdAt.getFullYear(), createdAt.getMonth(), 1);
+    const endOfMonth = new Date(createdAt.getFullYear(), createdAt.getMonth() + 1, 1);
+    const codePrefix = formatGroomingSessionCode(createdAt, branchCode, 0).slice(0, -3);
+    const count = await db.groomingSession.count({
+      where: {
+        createdAt: {
+          gte: startOfMonth,
+          lt: endOfMonth,
+        },
+        sessionCode: {
+          startsWith: codePrefix,
+        } as any,
+      },
+    });
+    return formatGroomingSessionCode(createdAt, branchCode, count + 1);
   }
 
   private buildServiceTraceTags(parts: string[]): string | null {
@@ -94,14 +160,431 @@ export class OrdersService {
     return [...new Set(traceParts)];
   }
 
+  private getPaymentLabel(method: string): string {
+    if (method === 'TRANSFER') return 'Chuyển khoản';
+    if (method === 'MIXED') return 'Nhiều hình thức';
+    return METHOD_LABELS[method] ?? method;
+  }
+
+  private calculatePaymentStatus(total: number, paidAmount: number): 'UNPAID' | 'PARTIAL' | 'PAID' {
+    if (paidAmount <= 0) return 'UNPAID';
+    if (paidAmount >= total) return 'PAID';
+    return 'PARTIAL';
+  }
+
+  private calculateRemainingAmount(total: number, paidAmount: number): number {
+    return Math.max(0, total - paidAmount);
+  }
+
+  private async generateVoucherNumberFor(
+    db: Pick<DatabaseService, 'transaction'>,
+    type: 'INCOME' | 'EXPENSE',
+  ): Promise<string> {
+    return generateFinanceVoucherNumber(db, type);
+  }
+
+  private async createOrderTransaction(
+    tx: DatabaseService,
+    params: {
+      order: {
+        id: string;
+        orderNumber: string;
+        branchId?: string | null;
+        customerId?: string | null;
+        customerName?: string | null;
+      };
+      type: 'INCOME' | 'EXPENSE';
+      amount: number;
+      paymentMethod?: string | null;
+      description: string;
+      note?: string | null;
+      source: 'ORDER_PAYMENT' | 'ORDER_ADJUSTMENT';
+      staffId: string;
+      traceParts?: string[];
+    },
+  ) {
+    if (params.amount <= 0) return null;
+
+    const tags = this.buildServiceTraceTags(params.traceParts ?? []);
+    const notes = this.mergeTransactionNotes(params.note, params.traceParts ?? []);
+
+    return tx.transaction.create({
+      data: {
+        voucherNumber: await this.generateVoucherNumberFor(tx, params.type),
+        type: params.type,
+        amount: params.amount,
+        description: params.description,
+        orderId: params.order.id,
+        paymentMethod: params.paymentMethod ?? null,
+        branchId: params.order.branchId ?? null,
+        refType: 'ORDER',
+        refId: params.order.id,
+        refNumber: params.order.orderNumber,
+        payerId: params.order.customerId ?? null,
+        payerName: params.order.customerName ?? null,
+        notes,
+        tags,
+        source: params.source,
+        isManual: false,
+        staffId: params.staffId,
+      } as any,
+    });
+  }
+
+  private async updateCustomerDebt(tx: DatabaseService, customerId: string | null | undefined, delta: number) {
+    if (!customerId || delta === 0) return;
+
+    await tx.customer.update({
+      where: { id: customerId },
+      data: {
+        debt: { increment: delta },
+      } as any,
+    });
+  }
+
+
+  private async incrementCustomerStats(tx: DatabaseService, customerId: string | null | undefined, total: number) {
+    if (!customerId) return;
+    const pointsEarned = Math.floor(total / 1000);
+    await tx.customer.update({
+      where: { id: customerId },
+      data: {
+        totalSpent: { increment: total },
+        totalOrders: { increment: 1 },
+        points: { increment: pointsEarned },
+      } as any,
+    });
+  }
+
+  private async restoreProductBranchStock(
+    tx: DatabaseService,
+    params: {
+      branchId?: string | null;
+      productId: string;
+      productVariantId?: string | null;
+      quantity: number;
+      orderId: string;
+      reason: string;
+    },
+  ) {
+    const branch = await resolveBranchIdentity(tx as any, params.branchId ?? null);
+    const branchStock =
+      (params.productVariantId
+        ? await tx.branchStock.findFirst({
+            where: {
+              branchId: branch.id,
+              productVariantId: params.productVariantId,
+            },
+          })
+        : null) ??
+      await tx.branchStock.findFirst({
+        where: {
+          branchId: branch.id,
+          productId: params.productId,
+          productVariantId: null,
+        },
+      });
+
+    if (branchStock) {
+      await tx.branchStock.update({
+        where: { id: branchStock.id },
+        data: {
+          stock: { increment: params.quantity },
+        },
+      });
+    }
+
+    await tx.stockTransaction.create({
+      data: {
+        productId: params.productId,
+        type: 'IN',
+        quantity: params.quantity,
+        reason: params.reason,
+        referenceId: params.orderId,
+      },
+    });
+  }
+
+  private async deductProductBranchStock(
+
+    tx: DatabaseService,
+    params: {
+      branchId?: string | null;
+      productId: string;
+      productVariantId?: string | null;
+      quantity: number;
+      orderId: string;
+      reason: string;
+    },
+  ) {
+    const branch = await resolveBranchIdentity(tx as any, params.branchId ?? null);
+    const branchStock =
+      (params.productVariantId
+        ? await tx.branchStock.findFirst({
+            where: {
+              branchId: branch.id,
+              productVariantId: params.productVariantId,
+            },
+          })
+        : null) ??
+      await tx.branchStock.findFirst({
+        where: {
+          branchId: branch.id,
+          productId: params.productId,
+          productVariantId: null,
+        },
+      });
+
+    if (!branchStock) {
+      throw new BadRequestException(`Sản phẩm ${params.productId} chưa có tồn kho tại chi nhánh ${branch.name}`);
+    }
+
+    if (branchStock.stock < params.quantity) {
+      throw new BadRequestException(
+        `Tồn kho không đủ cho sản phẩm ${params.productId} tại chi nhánh ${branch.name}. Còn ${branchStock.stock}, cần ${params.quantity}.`,
+      );
+    }
+
+    await tx.branchStock.update({
+      where: { id: branchStock.id },
+      data: {
+        stock: { decrement: params.quantity },
+      },
+    });
+
+    await tx.stockTransaction.create({
+      data: {
+        productId: params.productId,
+        type: 'OUT',
+        quantity: params.quantity,
+        reason: params.reason,
+        referenceId: params.orderId,
+      },
+    });
+  }
+
+  private calculateOrderSubtotal(items: Array<{ unitPrice: number; quantity: number; discountItem?: number }>) {
+    return items.reduce((sum, item) => sum + item.unitPrice * item.quantity - (item.discountItem ?? 0), 0);
+  }
+
+  private buildOrderItemData(item: CreateOrderDto['items'][number] | UpdateOrderItemDto) {
+    return {
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discountItem: item.discountItem ?? 0,
+      vatRate: item.vatRate ?? 0,
+      subtotal: item.unitPrice * item.quantity - (item.discountItem ?? 0),
+      type: item.type,
+      productId: item.productId ?? null,
+      productVariantId: item.productVariantId ?? null,
+      serviceId: item.serviceId ?? null,
+      serviceVariantId: item.serviceVariantId ?? null,
+      petId: item.petId ?? null,
+    };
+  }
+
+  private async syncGroomingSession(
+    tx: DatabaseService,
+    params: {
+      orderId: string;
+      orderItemId: string;
+      customerId?: string | null;
+      branchId?: string | null;
+      serviceId?: string | null;
+      orderCreatedAt?: Date;
+      item: CreateOrderDto['items'][number] | UpdateOrderItemDto;
+      existingSessionId?: string | null;
+    },
+  ) {
+    const details = params.item.groomingDetails;
+    if (!details) {
+      if (params.existingSessionId) {
+        const session = await tx.groomingSession.findUnique({ where: { id: params.existingSessionId } });
+        if (session && !['PENDING', 'IN_PROGRESS', 'CANCELLED'].includes(session.status)) {
+          throw new BadRequestException(`Phiên spa ${session.sessionCode ?? session.id} đã hoàn thành, không thể bỏ khỏi đơn đang giao dịch.`);
+        }
+        await tx.groomingSession.update({
+          where: { id: params.existingSessionId },
+          data: { status: 'CANCELLED' },
+        });
+        await tx.orderItem.update({
+          where: { id: params.orderItemId },
+          data: { groomingSessionId: null },
+        });
+      }
+      return null;
+    }
+
+    const pet = await tx.pet.findUnique({ where: { id: details.petId } });
+    const branch = await resolveBranchIdentity(tx as any, params.branchId);
+    const payload = {
+      petId: details.petId,
+      petName: pet?.name ?? '',
+      customerId: params.customerId ?? null,
+      branchId: branch.id,
+      staffId: details.performerId ?? null,
+      serviceId: params.serviceId ?? null,
+      orderId: params.orderId,
+      startTime: details.startTime ? new Date(details.startTime) : null,
+      notes: details.notes ?? null,
+      price: params.item.unitPrice * params.item.quantity - (params.item.discountItem ?? 0),
+    };
+
+    if (params.existingSessionId) {
+      const current = await tx.groomingSession.findUnique({ where: { id: params.existingSessionId } });
+      if (current && current.status === 'CANCELLED') {
+        throw new BadRequestException(`Phiên spa ${current.sessionCode ?? current.id} đã bị huỷ, không thể cập nhật lại từ POS.`);
+      }
+
+      await tx.groomingSession.update({
+        where: { id: params.existingSessionId },
+        data: payload,
+      });
+
+      return params.existingSessionId;
+    }
+
+    const codeDate = params.orderCreatedAt ?? new Date();
+    const sessionCode = await this.generateGroomingSessionCode(tx as any, codeDate, branch.code);
+    const created = await tx.groomingSession.create({
+      data: {
+        ...payload,
+        sessionCode,
+        status: 'PENDING',
+      },
+    });
+
+    await tx.orderItem.update({
+      where: { id: params.orderItemId },
+      data: { groomingSessionId: created.id },
+    });
+
+    return created.id;
+  }
+
+  private async syncHotelStay(
+    tx: DatabaseService,
+    params: {
+      orderId: string;
+      orderItemId: string;
+      customerId?: string | null;
+      branchId?: string | null;
+      orderCreatedAt?: Date;
+      item: CreateOrderDto['items'][number] | UpdateOrderItemDto;
+      existingStayId?: string | null;
+    },
+  ) {
+    const details = params.item.hotelDetails;
+    if (!details) {
+      if (params.existingStayId) {
+        const stay = await tx.hotelStay.findUnique({ where: { id: params.existingStayId } });
+        if (stay && !['BOOKED', 'CANCELLED'].includes(stay.status)) {
+          throw new BadRequestException(`Lượt lưu trú ${stay.stayCode ?? stay.id} đã bắt đầu, không thể bỏ khỏi đơn đang giao dịch.`);
+        }
+        await tx.hotelStay.update({
+          where: { id: params.existingStayId },
+          data: { status: 'CANCELLED' },
+        });
+        await tx.orderItem.update({
+          where: { id: params.orderItemId },
+          data: { hotelStayId: null },
+        });
+      }
+      return null;
+    }
+
+    const pet = await tx.pet.findUnique({ where: { id: details.petId } });
+    const checkInDate = new Date(details.checkInDate);
+    const checkOutDate = new Date(details.checkOutDate);
+    const branch = await resolveBranchIdentity(tx as any, details.branchId ?? params.branchId ?? null);
+    const totalPrice = params.item.unitPrice * params.item.quantity - (params.item.discountItem ?? 0);
+    const payload = {
+      petId: details.petId,
+      petName: pet?.name ?? '',
+      customerId: params.customerId ?? null,
+      branchId: branch.id,
+      cageId: details.cageId ?? null,
+      checkIn: checkInDate,
+      estimatedCheckOut: checkOutDate,
+      lineType: (details.lineType as any) ?? 'REGULAR',
+      price: totalPrice,
+      dailyRate: details.dailyRate ?? params.item.unitPrice,
+      depositAmount: details.depositAmount ?? 0,
+      promotion: details.promotion ?? 0,
+      surcharge: details.surcharge ?? 0,
+      totalPrice,
+      rateTableId: details.rateTableId ?? null,
+      notes: details.notes ?? null,
+      orderId: params.orderId,
+    };
+
+    if (params.existingStayId) {
+      const current = await tx.hotelStay.findUnique({ where: { id: params.existingStayId } });
+      if (current && !['BOOKED', 'CHECKED_IN'].includes(current.status)) {
+        throw new BadRequestException(`Lượt lưu trú ${current.id} đã checkout hoặc huỷ, không thể cập nhật lại từ POS.`);
+      }
+
+      await tx.hotelStay.update({
+        where: { id: params.existingStayId },
+        data: payload as any,
+      });
+
+      return params.existingStayId;
+    }
+
+    const codeDate = params.orderCreatedAt ?? new Date();
+    const stayCode = await this.generateHotelStayCode(tx as any, codeDate, branch.code);
+    const created = await tx.hotelStay.create({
+      data: {
+        stayCode,
+        ...payload,
+        status: 'BOOKED',
+        paymentStatus: 'UNPAID',
+      } as any,
+    });
+
+    await tx.orderItem.update({
+      where: { id: params.orderItemId },
+      data: { hotelStayId: created.id },
+    });
+
+    return created.id;
+  }
+
+  private async loadOrderOrThrow(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        customer: true,
+        payments: true,
+        transactions: {
+          orderBy: { createdAt: 'asc' },
+        },
+        items: {
+          include: {
+            product: true,
+            service: true,
+            productVariant: true,
+            serviceVariant: true,
+            hotelStay: true,
+          },
+        },
+      },
+    });
+
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    return order;
+  }
+
   // ─── Catalog (POS quick access) ────────────────────────────────────────────
 
   async getProducts() {
     return this.prisma.product.findMany({
-      where: { isActive: true },
+      where: { isActive: true, deletedAt: null },
       include: { 
         variants: { 
-          where: { isActive: true },
+          where: { isActive: true, deletedAt: null },
           include: {
             branchStocks: { include: { branch: { select: { name: true } } } }
           }
@@ -149,16 +632,7 @@ export class OrdersService {
     const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
 
     // ── Payment status ────────────────────────────────────────────────────
-    let paymentStatus: string;
-    if (orderType === 'QUICK') {
-      if (totalPaid >= total) paymentStatus = 'PAID';
-      else if (totalPaid > 0) paymentStatus = 'PARTIAL';
-      else paymentStatus = 'UNPAID';
-    } else {
-      // SERVICE: starts at UNPAID, collect payment later
-      if (totalPaid > 0) paymentStatus = 'PARTIAL';
-      else paymentStatus = 'UNPAID';
-    }
+    const paymentStatus = this.calculatePaymentStatus(total, totalPaid);
 
     const orderStatus = orderType === 'QUICK' && paymentStatus === 'PAID' ? 'COMPLETED' : 'PENDING';
 
@@ -181,7 +655,7 @@ export class OrdersService {
           shippingFee,
           total,
           paidAmount: totalPaid,
-          remainingAmount: total - totalPaid,
+          remainingAmount: this.calculateRemainingAmount(total, totalPaid),
           notes: data.notes ?? null,
           items: {
             create: items.map((item) => ({
@@ -225,30 +699,32 @@ export class OrdersService {
 
           if (orderType === 'QUICK') {
             // QUICK: deduct stock immediately
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stock: { decrement: item.quantity } } as any,
+            await this.deductProductBranchStock(tx as any, {
+              branchId: data.branchId ?? null,
+              productId: item.productId,
+              productVariantId: item.productVariantId ?? null,
+              quantity: item.quantity,
+              orderId: order.id,
+              reason: `Bán hàng đơn ${order.orderNumber}`,
             });
-            await tx.stockTransaction.create({
-              data: {
-                productId: item.productId,
-                type: 'OUT',
-                quantity: item.quantity,
-                reason: `Bán hàng đơn ${order.orderNumber}`,
-                referenceId: order.id,
-              },
-            });
-          }
+          } 
           // SERVICE stock reservation handled by BranchStock if needed
         }
 
         // ── Grooming session creation ──────────────────────────────────
         if (item.groomingDetails && orderItem) {
+          const branch = await resolveBranchIdentity(tx as any, data.branchId ?? null);
           const session = await tx.groomingSession.create({
             data: {
+              sessionCode: await this.generateGroomingSessionCode(
+                tx as any,
+                order.createdAt,
+                branch.code,
+              ),
               petId: item.groomingDetails.petId,
               petName: '', // Will be filled from pet lookup
               customerId: data.customerId ?? null,
+              branchId: branch.id,
               staffId: item.groomingDetails.performerId ?? null,
               serviceId: item.serviceId ?? null,
               orderId: order.id,
@@ -283,7 +759,11 @@ export class OrdersService {
         if (item.hotelDetails && orderItem) {
           const checkInDate = new Date(item.hotelDetails.checkInDate);
           const checkOutDate = new Date(item.hotelDetails.checkOutDate);
-          const stayCode = await this.generateHotelStayCode(checkInDate);
+          const branch = await resolveBranchIdentity(
+            tx as any,
+            item.hotelDetails.branchId ?? data.branchId ?? null,
+          );
+          const stayCode = await this.generateHotelStayCode(tx as any, order.createdAt, branch.code);
           const totalPrice = item.unitPrice * item.quantity;
 
           const stay = await tx.hotelStay.create({
@@ -292,7 +772,7 @@ export class OrdersService {
               petId: item.hotelDetails.petId,
               petName: '', // Will be filled from pet lookup
               customerId: data.customerId ?? null,
-              branchId: item.hotelDetails.branchId ?? data.branchId ?? null,
+              branchId: branch.id,
               cageId: item.hotelDetails.cageId ?? null,
               checkIn: checkInDate,
               estimatedCheckOut: checkOutDate,
@@ -334,31 +814,35 @@ export class OrdersService {
       // 3. Create income transaction records
       for (const pay of payments) {
         if (pay.amount <= 0) continue;
-        const label = METHOD_LABELS[pay.method] ?? pay.method;
-        const traceTags = this.buildServiceTraceTags(serviceTraceParts);
+        const traceParts = serviceTraceParts;
+        const label = this.getPaymentLabel(pay.method);
         await tx.transaction.create({
           data: {
-            voucherNumber: await this.generateVoucherNumber(),
+            voucherNumber: await this.generateVoucherNumberFor(tx as any, 'INCOME'),
             type: 'INCOME',
             amount: pay.amount,
             description: `Thu từ đơn hàng ${order.orderNumber} — ${label}`,
             orderId: order.id,
+            paymentMethod: pay.method,
+            branchId: data.branchId ?? null,
+            refType: 'ORDER',
+            refId: order.id,
+            refNumber: order.orderNumber,
+            payerId: data.customerId ?? null,
+            payerName: data.customerName,
+            notes: this.mergeTransactionNotes(pay.note ?? data.notes ?? null, traceParts),
+            tags: this.buildServiceTraceTags(traceParts),
+            source: 'ORDER_PAYMENT',
+            isManual: false,
             staffId,
-          },
+          } as any,
         });
       }
 
       // 4. Update customer stats (QUICK + PAID only)
+      // Note: SERVICE orders increment stats inside completeOrder
       if (data.customerId && orderType === 'QUICK' && paymentStatus === 'PAID') {
-        const pointsEarned = Math.floor(total / 1000);
-        await tx.customer.update({
-          where: { id: data.customerId },
-          data: {
-            totalSpent: { increment: total },
-            totalOrders: { increment: 1 },
-            points: { increment: pointsEarned },
-          },
-        });
+        await this.incrementCustomerStats(tx as any, data.customerId, total);
       }
 
       return order;
@@ -367,7 +851,157 @@ export class OrdersService {
 
   // ─── payOrder ───────────────────────────────────────────────────────────────
   // Collect additional payment for SERVICE orders (multi-payment support)
-  async payOrder(id: string, dto: PayOrderDto, staffId: string) {
+  async updateOrder(id: string, data: UpdateOrderDto, staffId: string, user?: AccessUser) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        items: true,
+        customer: true,
+      },
+    });
+    if (order) this.assertOrderScope(order, user);
+
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+      throw new BadRequestException('Không thể sửa đơn đã hoàn tất hoặc đã huỷ');
+    }
+    if (!data.items?.length) {
+      throw new BadRequestException('Đơn hàng phải có ít nhất 1 sản phẩm hoặc dịch vụ');
+    }
+
+    for (const item of data.items) {
+      if (item.groomingDetails && item.hotelDetails) {
+        throw new BadRequestException(`Item "${item.description}" không thể vừa là spa vừa là hotel`);
+      }
+    }
+
+    const discount = data.discount ?? 0;
+    const shippingFee = data.shippingFee ?? 0;
+    const subtotal = this.calculateOrderSubtotal(data.items);
+    const total = subtotal + shippingFee - discount;
+    const paymentStatus = this.calculatePaymentStatus(total, order.paidAmount);
+
+    await this.prisma.$transaction(async (tx) => {
+      const existingItems = await tx.orderItem.findMany({
+        where: { orderId: id },
+      });
+      const existingById = new Map(existingItems.map((item) => [item.id, item]));
+      const incomingIds = new Set(data.items.map((item) => item.id).filter(Boolean) as string[]);
+
+      for (const currentItem of existingItems) {
+        if (incomingIds.has(currentItem.id)) continue;
+
+        await this.syncGroomingSession(tx as any, {
+          orderId: id,
+          orderItemId: currentItem.id,
+          branchId: data.branchId ?? null,
+          orderCreatedAt: order.createdAt,
+          item: {
+            description: currentItem.description,
+            quantity: currentItem.quantity,
+            unitPrice: currentItem.unitPrice,
+            discountItem: currentItem.discountItem,
+            type: currentItem.type,
+          } as any,
+          existingSessionId: currentItem.groomingSessionId,
+        });
+        await this.syncHotelStay(tx as any, {
+          orderId: id,
+          orderItemId: currentItem.id,
+          branchId: data.branchId ?? null,
+          orderCreatedAt: order.createdAt,
+          item: {
+            description: currentItem.description,
+            quantity: currentItem.quantity,
+            unitPrice: currentItem.unitPrice,
+            discountItem: currentItem.discountItem,
+            type: currentItem.type,
+          } as any,
+          existingStayId: currentItem.hotelStayId,
+        });
+        await tx.orderItem.delete({ where: { id: currentItem.id } });
+      }
+
+      for (const item of data.items) {
+        const itemData = this.buildOrderItemData(item);
+        const existingItem = item.id ? existingById.get(item.id) : null;
+
+        if (existingItem) {
+          await tx.orderItem.update({
+            where: { id: existingItem.id },
+            data: itemData,
+          });
+
+          await this.syncGroomingSession(tx as any, {
+            orderId: id,
+            orderItemId: existingItem.id,
+            customerId: data.customerId ?? null,
+            branchId: data.branchId ?? null,
+            serviceId: item.serviceId ?? null,
+            orderCreatedAt: order.createdAt,
+            item,
+            existingSessionId: existingItem.groomingSessionId,
+          });
+          await this.syncHotelStay(tx as any, {
+            orderId: id,
+            orderItemId: existingItem.id,
+            customerId: data.customerId ?? null,
+            branchId: data.branchId ?? null,
+            orderCreatedAt: order.createdAt,
+            item,
+            existingStayId: existingItem.hotelStayId,
+          });
+          continue;
+        }
+
+        const createdItem = await tx.orderItem.create({
+          data: {
+            orderId: id,
+            ...itemData,
+          },
+        });
+
+        await this.syncGroomingSession(tx as any, {
+          orderId: id,
+          orderItemId: createdItem.id,
+          customerId: data.customerId ?? null,
+          branchId: data.branchId ?? null,
+          serviceId: item.serviceId ?? null,
+          orderCreatedAt: order.createdAt,
+          item,
+        });
+        await this.syncHotelStay(tx as any, {
+          orderId: id,
+          orderItemId: createdItem.id,
+          customerId: data.customerId ?? null,
+          branchId: data.branchId ?? null,
+          orderCreatedAt: order.createdAt,
+          item,
+        });
+      }
+
+      await tx.order.update({
+        where: { id },
+        data: {
+          customerName: data.customerName,
+          customerId: data.customerId ?? null,
+          staffId,
+          branchId: data.branchId ?? null,
+          subtotal,
+          discount,
+          shippingFee,
+          total,
+          paymentStatus: paymentStatus as any,
+          remainingAmount: this.calculateRemainingAmount(total, order.paidAmount),
+          notes: data.notes ?? null,
+        },
+      });
+    });
+
+    return this.findOne(id);
+  }
+
+  async payOrder(id: string, dto: PayOrderDto, staffId: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
@@ -386,6 +1020,7 @@ export class OrdersService {
         },
       },
     });
+    if (order) this.assertOrderScope(order, user);
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     if (order.paymentStatus === 'PAID' || order.paymentStatus === 'COMPLETED') {
       throw new BadRequestException('Đơn hàng đã thanh toán đầy đủ');
@@ -398,14 +1033,14 @@ export class OrdersService {
 
     const newPaidThisTime = paymentsArr.reduce((s, p) => s + p.amount, 0);
     const totalPaid = order.paidAmount + newPaidThisTime;
-    const remaining = order.total - totalPaid;
+    const remaining = this.calculateRemainingAmount(order.total, totalPaid);
 
     // Detect primary method
     const uniqueMethods = [...new Set(paymentsArr.map((p) => p.method))];
     const primaryMethod = uniqueMethods.length > 1 ? 'MIXED' : (uniqueMethods[0] ?? 'CASH');
 
     // Payment status
-    const status = totalPaid >= order.total ? 'PAID' : totalPaid > 0 ? 'PARTIAL' : 'UNPAID';
+    const status = this.calculatePaymentStatus(order.total, totalPaid);
 
     return this.prisma.$transaction(async (tx) => {
       // Create payment records
@@ -416,17 +1051,28 @@ export class OrdersService {
       }
 
       // Create transaction record
-      const label = METHOD_LABELS[primaryMethod] ?? primaryMethod;
+      const label = this.getPaymentLabel(primaryMethod);
       const serviceTraceParts = this.buildOrderServiceTraceParts(order);
       await tx.transaction.create({
         data: {
-          voucherNumber: await this.generateVoucherNumber(),
+          voucherNumber: await this.generateVoucherNumberFor(tx as any, 'INCOME'),
           type: 'INCOME',
           amount: newPaidThisTime,
           description: `Thu bổ sung đơn hàng ${order.orderNumber} — ${label}`,
           orderId: id,
+          paymentMethod: primaryMethod,
+          branchId: order.branchId ?? null,
+          refType: 'ORDER',
+          refId: order.id,
+          refNumber: order.orderNumber,
+          payerId: order.customerId ?? null,
+          payerName: order.customerName ?? null,
+          notes: this.mergeTransactionNotes(dto.payments.map((p) => p.note).filter(Boolean).join(' | ') || null, serviceTraceParts),
+          tags: this.buildServiceTraceTags(serviceTraceParts),
+          source: 'ORDER_PAYMENT',
+          isManual: false,
           staffId,
-        },
+        } as any,
       });
 
       // Update order
@@ -434,7 +1080,7 @@ export class OrdersService {
         where: { id },
         data: {
           paidAmount: totalPaid,
-          remainingAmount: remaining > 0 ? remaining : 0,
+          remainingAmount: remaining,
           paymentStatus: status as any,
         },
         include: { items: true, payments: true, customer: true },
@@ -446,7 +1092,7 @@ export class OrdersService {
 
   // ─── completeOrder ──────────────────────────────────────────────────────────
   // Finalize SERVICE order: validate sessions, deduct stock, update customer
-  async completeOrder(id: string, dto: CompleteOrderDto, staffId: string) {
+  async completeOrder(id: string, dto: CompleteOrderDto, staffId: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
@@ -459,6 +1105,7 @@ export class OrdersService {
         customer: true,
       },
     });
+    if (order) this.assertOrderScope(order, user);
 
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     if (order.status === 'COMPLETED') throw new BadRequestException('Đơn hàng đã hoàn thành');
@@ -472,7 +1119,7 @@ export class OrdersService {
           });
           if (session && !['COMPLETED', 'CANCELLED'].includes(session.status)) {
             throw new BadRequestException(
-              `Phiên spa ${session.id} chưa hoàn thành. Vui lòng hoàn thành trước khi kết đơn.`,
+              `Phiên spa ${session.sessionCode ?? session.id} chưa hoàn thành. Vui lòng hoàn thành trước khi kết đơn.`,
             );
           }
         }
@@ -490,42 +1137,106 @@ export class OrdersService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      const extraPayments = (dto.payments ?? []).filter((payment) => payment.amount > 0);
+      const extraPaidAmount = extraPayments.reduce((sum, payment) => sum + payment.amount, 0);
+      const traceParts = this.buildOrderServiceTraceParts(order);
+
       // Deduct stock for product items
       for (const item of order.items) {
         if (!item.productId) continue;
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } } as any,
-        });
-        await tx.stockTransaction.create({
-          data: {
-            productId: item.productId,
-            type: 'OUT',
-            quantity: item.quantity,
-            reason: `Hoàn thành đơn ${order.orderNumber}`,
-            referenceId: order.id,
-          },
+        await this.deductProductBranchStock(tx as any, {
+          branchId: order.branchId ?? null,
+          productId: item.productId,
+          productVariantId: item.productVariantId ?? null,
+          quantity: item.quantity,
+          orderId: order.id,
+          reason: `Hoàn thành đơn ${order.orderNumber}`,
         });
       }
 
-      // Mark grooming sessions as completed/paid
-      for (const item of order.items) {
-        if (item.groomingSessionId) {
-          const session = await tx.groomingSession.findUnique({
-            where: { id: item.groomingSessionId },
+      for (const payment of extraPayments) {
+        await tx.orderPayment.create({
+          data: {
+            orderId: id,
+            method: payment.method,
+            amount: payment.amount,
+          },
+        });
+
+        await this.createOrderTransaction(tx as any, {
+          order: {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            branchId: order.branchId ?? null,
+            customerId: order.customerId ?? null,
+            customerName: order.customerName,
+          },
+          type: 'INCOME',
+          amount: payment.amount,
+          paymentMethod: payment.method,
+          description: `Thu bổ sung đơn hàng ${order.orderNumber} — ${this.getPaymentLabel(payment.method)}`,
+          note: payment.note ?? dto.settlementNote ?? null,
+          source: 'ORDER_PAYMENT',
+          staffId,
+          traceParts,
+        });
+      }
+
+      const grossPaidAmount = order.paidAmount + extraPaidAmount;
+      const overpaidAmount = Math.max(0, grossPaidAmount - order.total);
+      const outstandingAmount = Math.max(0, order.total - grossPaidAmount);
+
+      if (outstandingAmount > 0) {
+        throw new BadRequestException(
+          `Đơn hàng còn thiếu ${outstandingAmount.toLocaleString('vi-VN')} đ. Vui lòng thu đủ trước khi hoàn tất.`,
+        );
+      }
+
+      let finalPaidAmount = grossPaidAmount;
+
+      if (overpaidAmount > 0) {
+        if (dto.overpaymentAction === 'REFUND') {
+          finalPaidAmount = order.total;
+          await this.createOrderTransaction(tx as any, {
+            order: {
+              id: order.id,
+              orderNumber: order.orderNumber,
+              branchId: order.branchId ?? null,
+              customerId: order.customerId ?? null,
+              customerName: order.customerName,
+            },
+            type: 'EXPENSE',
+            amount: overpaidAmount,
+            paymentMethod: dto.refundMethod ?? 'CASH',
+            description: `Hoàn tiền dư đơn hàng ${order.orderNumber}`,
+            note: dto.settlementNote ?? null,
+            source: 'ORDER_ADJUSTMENT',
+            staffId,
+            traceParts,
           });
-          if (session && session.status === 'COMPLETED') {
-            // Already completed by grooming flow, we just confirm
+        } else if (dto.overpaymentAction === 'KEEP_CREDIT') {
+          if (!order.customerId) {
+            throw new BadRequestException('Không thể giữ tiền dư vào công nợ khi đơn không có khách hàng');
           }
+
+          await this.updateCustomerDebt(tx as any, order.customerId, -overpaidAmount);
+        } else {
+          throw new BadRequestException(
+            `Đơn hàng đang dư ${overpaidAmount.toLocaleString('vi-VN')} đ. Hãy chọn hoàn tiền hoặc giữ lại công nợ âm.`,
+          );
         }
       }
+
+      const paymentStatus = this.calculatePaymentStatus(order.total, Math.min(finalPaidAmount, order.total));
 
       // Complete order
       const completed = await tx.order.update({
         where: { id },
         data: {
           status: 'COMPLETED' as any,
-          paymentStatus: order.paidAmount >= order.total ? ('PAID' as any) : order.paymentStatus,
+          paidAmount: finalPaidAmount,
+          remainingAmount: 0,
+          paymentStatus: paymentStatus as any,
         },
         include: {
           customer: true,
@@ -535,17 +1246,8 @@ export class OrdersService {
       });
 
       // Update customer spending
-      if (order.customerId) {
-        const pointsEarned = Math.floor(order.total / 1000);
-        await tx.customer.update({
-          where: { id: order.customerId },
-          data: {
-            totalSpent: { increment: order.total },
-            totalOrders: { increment: 1 },
-            points: { increment: pointsEarned },
-          },
-        });
-      }
+      // QUICK orders handle this at createOrder, but they cannot reach here since they are COMPLETED
+      await this.incrementCustomerStats(tx as any, order.customerId, order.total);
 
       return completed;
     });
@@ -553,11 +1255,12 @@ export class OrdersService {
 
   // ─── cancelOrder ────────────────────────────────────────────────────────────
   // Cancel order: release reserved stock, cancel sessions
-  async cancelOrder(id: string, dto: CancelOrderDto, staffId: string) {
+  async cancelOrder(id: string, dto: CancelOrderDto, staffId: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: { items: true },
     });
+    if (order) this.assertOrderScope(order, user);
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     if (order.status === 'COMPLETED') throw new BadRequestException('Đơn đã hoàn thành không thể huỷ');
 
@@ -581,6 +1284,27 @@ export class OrdersService {
         }
       }
 
+      // Determine if stock needs to be restored
+      const hasService = order.items.some(
+        (i) => i.groomingSessionId || i.hotelStayId || i.type === 'grooming' || i.type === 'hotel',
+      );
+      const orderType = hasService ? 'SERVICE' : 'QUICK';
+      
+      if (orderType === 'QUICK') {
+        // QUICK orders deducted stock immediately on creation, so we must restore it
+        for (const item of order.items) {
+          if (!item.productId) continue;
+          await this.restoreProductBranchStock(tx as any, {
+            branchId: order.branchId ?? null,
+            productId: item.productId,
+            productVariantId: item.productVariantId ?? null,
+            quantity: item.quantity,
+            orderId: order.id,
+            reason: `Hoàn trả do huỷ đơn ${order.orderNumber}`,
+          });
+        }
+      }
+
       // Update order
       const cancelled = await tx.order.update({
         where: { id },
@@ -597,11 +1321,12 @@ export class OrdersService {
 
   // ─── removeOrderItem ────────────────────────────────────────────────────────
   // Remove single item from pending/processing order, recalculate totals
-  async removeOrderItem(orderId: string, itemId: string) {
+  async removeOrderItem(orderId: string, itemId: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { items: true },
     });
+    if (order) this.assertOrderScope(order, user);
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     if (order.status === 'COMPLETED') throw new BadRequestException('Không thể sửa đơn đã hoàn thành');
 
@@ -633,13 +1358,16 @@ export class OrdersService {
       const remaining = order.items.filter((i) => i.id !== itemId);
       const newSubtotal = remaining.reduce((s, i) => s + i.subtotal, 0);
       const newTotal = newSubtotal + order.shippingFee - order.discount;
+      const newRemaining = this.calculateRemainingAmount(newTotal, order.paidAmount);
+      const newPaymentStatus = this.calculatePaymentStatus(newTotal, order.paidAmount);
 
       const updated = await tx.order.update({
         where: { id: orderId },
         data: {
           subtotal: newSubtotal,
           total: newTotal,
-          remainingAmount: newTotal - order.paidAmount,
+          remainingAmount: newRemaining,
+          paymentStatus: newPaymentStatus,
         },
         include: {
           items: { include: { product: true, service: true } },
@@ -662,11 +1390,15 @@ export class OrdersService {
     limit?: number | undefined;
     dateFrom?: string | undefined;
     dateTo?: string | undefined;
-  }) {
+  }, user?: AccessUser) {
     const page = params?.page || 1;
     const limit = params?.limit || 20;
     const skip = (page - 1) * limit;
     const where: any = {};
+
+    if (this.shouldRestrictToOrderBranches(user)) {
+      where.branchId = { in: this.getAuthorizedBranchIds(user) };
+    }
 
     if (params?.customerId) where.customerId = params.customerId;
 
@@ -717,7 +1449,7 @@ export class OrdersService {
   }
 
   // ─── findOne ────────────────────────────────────────────────────────────────
-  async findOne(id: string) {
+  async findOne(id: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
@@ -729,13 +1461,60 @@ export class OrdersService {
             productVariant: true,
             service: true,
             serviceVariant: true,
+            hotelStay: true,
           },
         },
         payments: true,
         transactions: true,
       },
     });
+    if (order) this.assertOrderScope(order, user);
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    return order;
+    const groomingSessionIds = order.items
+      .map((item) => item.groomingSessionId)
+      .filter((value): value is string => Boolean(value));
+
+    const groomingSessions = groomingSessionIds.length
+      ? await this.prisma.groomingSession.findMany({
+          where: { id: { in: groomingSessionIds } },
+        })
+      : [];
+
+    const groomingById = new Map(groomingSessions.map((session) => [session.id, session]));
+
+    return {
+      ...order,
+      items: order.items.map((item) => {
+        const groomingSession = item.groomingSessionId ? groomingById.get(item.groomingSessionId) : null;
+
+        return {
+          ...item,
+          groomingDetails: groomingSession
+            ? {
+                petId: groomingSession.petId,
+                performerId: groomingSession.staffId,
+                startTime: groomingSession.startTime,
+                notes: groomingSession.notes,
+              }
+            : undefined,
+          hotelDetails: item.hotelStay
+            ? {
+                petId: item.hotelStay.petId,
+                checkInDate: item.hotelStay.checkIn,
+                checkOutDate: item.hotelStay.estimatedCheckOut ?? item.hotelStay.checkOut,
+                branchId: item.hotelStay.branchId,
+                cageId: item.hotelStay.cageId,
+                lineType: item.hotelStay.lineType,
+                rateTableId: item.hotelStay.rateTableId,
+                dailyRate: item.hotelStay.dailyRate,
+                depositAmount: item.hotelStay.depositAmount,
+                promotion: item.hotelStay.promotion,
+                surcharge: item.hotelStay.surcharge,
+                notes: item.hotelStay.notes,
+              }
+            : undefined,
+        };
+      }),
+    };
   }
 }

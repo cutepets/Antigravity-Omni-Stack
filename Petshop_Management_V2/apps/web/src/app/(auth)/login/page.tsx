@@ -46,7 +46,6 @@ export default function LoginPage() {
             </div>
             <div>
               <p className="text-xl font-bold leading-tight">Petshop Pro</p>
-              <p className="text-white/80 text-sm">Liquid Glass Edition v2.0</p>
             </div>
           </div>
 

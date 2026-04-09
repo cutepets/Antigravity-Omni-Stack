@@ -3,6 +3,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuthorization } from '@/hooks/useAuthorization'
 import { hotelApi, Cage } from '@/lib/api/hotel.api'
 import { format } from 'date-fns'
 
@@ -14,12 +15,14 @@ interface CheckInDialogProps {
 
 export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogProps) {
   const queryClient = useQueryClient()
+  const { hasAnyPermission } = useAuthorization()
   
   const [petName, setPetName] = useState('')
   const [petId, setPetId] = useState('TEMP_ID') // Usually from a selector
   const [lineType, setLineType] = useState<Cage['type']>('REGULAR')
   const [notes, setNotes] = useState('')
   const [estCheckOut, setEstCheckOut] = useState('')
+  const canCheckIn = hasAnyPermission(['hotel.create', 'hotel.checkin'])
 
   const checkInMutation = useMutation({
     mutationFn: hotelApi.createStay,
@@ -33,7 +36,7 @@ export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogPr
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!cage) return
+    if (!cage || !canCheckIn) return
 
     checkInMutation.mutate({
       cageId: cage.id,
@@ -45,6 +48,8 @@ export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogPr
       notes,
     })
   }
+
+  if (!isOpen || !canCheckIn) return null
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -64,6 +69,7 @@ export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogPr
               <input
                 required
                 value={petName}
+                disabled={!canCheckIn}
                 onChange={(e) => setPetName(e.target.value)}
                 placeholder="Ví dụ: Milu"
                 className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -74,6 +80,7 @@ export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogPr
               <label className="text-sm font-medium leading-none">Loại gói lưu trú</label>
               <select
                 value={lineType}
+                disabled={!canCheckIn}
                 onChange={(e) => setLineType(e.target.value as Cage['type'])}
                 className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
@@ -87,6 +94,7 @@ export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogPr
               <input
                 type="date"
                 value={estCheckOut}
+                disabled={!canCheckIn}
                 onChange={(e) => setEstCheckOut(e.target.value)}
                 min={format(new Date(), 'yyyy-MM-dd')}
                 className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -97,6 +105,7 @@ export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogPr
               <label className="text-sm font-medium leading-none">Ghi chú thêm</label>
               <textarea
                 value={notes}
+                disabled={!canCheckIn}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Ví dụ: Ăn hạt nhỏ, sợ tiếng ồn..."
                 rows={3}
@@ -114,7 +123,7 @@ export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogPr
               </button>
               <button
                 type="submit"
-                disabled={checkInMutation.isPending}
+                disabled={!canCheckIn || checkInMutation.isPending}
                 className="px-4 py-2 bg-indigo-600 rounded-md text-sm font-medium text-white hover:bg-indigo-700 transition flex items-center justify-center min-w-[120px]"
               >
                 {checkInMutation.isPending ? 'Đang xử lý...' : 'Xác nhận Check-in'}

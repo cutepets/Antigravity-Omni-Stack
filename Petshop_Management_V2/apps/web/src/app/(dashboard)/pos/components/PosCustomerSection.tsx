@@ -77,7 +77,7 @@ export function PosCustomerSection() {
 
               {customerQuery.length >= 2 && customers.length === 0 && (
                 <div className="p-4 text-center text-sm text-foreground-muted">
-                  Không tìm thấy khách hàng "{customerQuery}"
+                  Không tìm thấy khách hàng &quot;{customerQuery}&quot;
                 </div>
               )}
             </div>

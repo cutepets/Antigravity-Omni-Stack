@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   BadgeCheck,
@@ -18,9 +18,11 @@ import {
   X,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { inventoryApi } from '@/lib/api/inventory.api'
 import { toast } from 'sonner'
 import { ProductFormModal } from './product-form-modal'
+import { useAuthorization } from '@/hooks/useAuthorization'
 import {
   DataListShell,
   DataListToolbar,
@@ -64,6 +66,7 @@ type VariantGroup = {
 
 type DisplayColumnId = 'image' | 'product' | 'sku' | 'barcode' | 'category' | 'stock' | 'price' | 'status'
 type SaleStatusFilter = 'all' | 'active' | 'inactive'
+type SystemStatusFilter = 'ACTIVE' | 'DELETED'
 type StockStatusFilter = 'all' | 'in_stock' | 'out_of_stock' | 'low_stock'
 type PinFilterId = 'category' | 'stock' | 'sale'
 type SortDirection = 'asc' | 'desc'
@@ -231,30 +234,51 @@ function NameCell({
 }
 
 export function ProductList() {
+  const router = useRouter()
   const queryClient = useQueryClient()
+  const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const canReadProducts = hasPermission('product.read')
+  const canCreateProduct = hasPermission('product.create')
+  const canUpdateProduct = hasPermission('product.update')
+  const canDeleteProduct = hasPermission('product.delete')
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [saleStatus, setSaleStatus] = useState<SaleStatusFilter>('all')
   const [brandQuery, setBrandQuery] = useState('')
   const [stockStatus, setStockStatus] = useState<StockStatusFilter>('all')
+  const [systemStatus, setSystemStatus] = useState<SystemStatusFilter>('ACTIVE')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set())
 
+  // Reset page when any filter changes
+  useEffect(() => {
+    setPage(1)
+  }, [search, category, saleStatus, brandQuery, stockStatus, systemStatus])
+
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialTopFilterVisibility: { category: true, stock: false, sale: true }
+    initialTopFilterVisibility: { category: true, stock: false, sale: true },
+    storageKey: 'product-list-columns-v1',
   })
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (!canReadProducts) {
+      router.replace('/dashboard')
+    }
+  }, [canReadProducts, isAuthLoading, router])
+
   const { data, isLoading } = useQuery({
-    queryKey: ['products', search, category, page, pageSize],
+    queryKey: ['products', search, category, systemStatus, page, pageSize],
     queryFn: () =>
       inventoryApi.getProducts({
         search: search || undefined,
         category: category || undefined,
+        status: systemStatus,
         page,
         limit: pageSize,
       }),
@@ -397,7 +421,12 @@ export function ProductList() {
       clearSelection()
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Không thể xóa một hoặc nhiều sản phẩm đã chọn')
+      const msg = error?.response?.data?.message || ''
+      if (msg.includes('P2003')) {
+        toast.error('Không thể xoá vì sản phẩm đã phát sinh dữ liệu (đơn hàng, nhập kho...)')
+      } else {
+        toast.error(msg || 'Không thể xóa một hoặc nhiều sản phẩm đã chọn')
+      }
     },
   })
 
@@ -420,6 +449,7 @@ export function ProductList() {
     setBrandQuery('')
     setStockStatus('all')
     setSaleStatus('all')
+    setSystemStatus('ACTIVE')
     setPage(1)
   }
 
@@ -431,6 +461,14 @@ export function ProductList() {
     const col = COLUMN_OPTIONS.find((item) => item.id === columnId)!
     return { ...col, id: columnId as DisplayColumnId }
   })
+
+  if (isAuthLoading) {
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>
+  }
+
+  if (!canReadProducts) {
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
+  }
 
   return (
     <DataListShell>
@@ -480,6 +518,15 @@ export function ProductList() {
                 <option value="low_stock">Sắp hết hàng</option>
               </select>
             )}
+
+            <select
+              value={systemStatus}
+              onChange={(event) => { setSystemStatus(event.target.value as SystemStatusFilter); setPage(1) }}
+              className={`${toolbarSelectClass} min-w-[140px]`}
+            >
+              <option value="ACTIVE">Đang kích hoạt</option>
+              <option value="DELETED">Đã xóa (Thùng rác)</option>
+            </select>
           </>
         }
         columnPanelContent={
@@ -498,14 +545,16 @@ export function ProductList() {
           />
         }
         extraActions={
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            <Plus size={16} />
-            Thêm sản phẩm
-          </button>
+          canCreateProduct ? (
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <Plus size={16} />
+              Thêm sản phẩm
+            </button>
+          ) : null
         }
       />
 
@@ -615,32 +664,36 @@ export function ProductList() {
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
         bulkBar={
-          selectedProductIds.length > 0 ? (
+          selectedProductIds.length > 0 && (canUpdateProduct || canDeleteProduct) ? (
             <DataListBulkBar
               selectedCount={selectedProductIds.length}
               onClear={clearSelection}
             >
-              <button
-                type="button"
-                onClick={() => setIsBulkEditOpen(true)}
-                className="inline-flex h-9 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-primary-500 transition-opacity hover:opacity-90"
-              >
-                <Pencil size={15} />
-                Chỉnh sửa
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm(`Xóa ${selectedProductIds.length} sản phẩm đã chọn?`)) {
-                    bulkDeleteMutation.mutate(selectedProductIds)
-                  }
-                }}
-                disabled={bulkDeleteMutation.isPending}
-                className="inline-flex h-9 items-center gap-2 rounded-xl bg-red-50 px-4 text-sm font-semibold text-red-500 transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                <Trash2 size={15} />
-                Xóa
-              </button>
+              {canUpdateProduct ? (
+                <button
+                  type="button"
+                  onClick={() => setIsBulkEditOpen(true)}
+                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-primary-500 transition-opacity hover:opacity-90"
+                >
+                  <Pencil size={15} />
+                  Chỉnh sửa
+                </button>
+              ) : null}
+              {canDeleteProduct ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`Xóa ${selectedProductIds.length} sản phẩm đã chọn?`)) {
+                      bulkDeleteMutation.mutate(selectedProductIds)
+                    }
+                  }}
+                  disabled={bulkDeleteMutation.isPending}
+                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-red-50 px-4 text-sm font-semibold text-red-500 transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  <Trash2 size={15} />
+                  Xóa
+                </button>
+              ) : null}
             </DataListBulkBar>
           ) : undefined
         }
@@ -661,16 +714,22 @@ export function ProductList() {
       {/* ── Pagination — rendered outside DataListTable so it sits below ── */}
       <div className="-mt-3">
         <div className="rounded-b-2xl border border-t-0 border-border bg-card/95">
-          <DataListPagination
-            page={page}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            total={total}
-            rangeStart={visibleRangeStart}
-            rangeEnd={visibleRangeEnd}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
-          />
+            <DataListPagination
+              page={page}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              total={total}
+              rangeStart={visibleRangeStart}
+              rangeEnd={visibleRangeEnd}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+              totalItemText={
+                <p className="shrink-0 text-xs text-foreground-muted">
+                  Tổng <strong className="text-foreground">{total}</strong> sản phẩm
+                  {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
+                </p>
+              }
+            />
         </div>
       </div>
 
@@ -1092,6 +1151,15 @@ function ProductRowBlock({
                 </td>
               )
             case 'status':
+              if (product.deletedAt) {
+                return (
+                  <td key={columnId} className="px-3 py-3">
+                    <span className="inline-flex rounded-full bg-red-500/15 px-2.5 py-1 text-xs font-semibold text-red-400">
+                      Đã xóa
+                    </span>
+                  </td>
+                )
+              }
               return (
                 <td key={columnId} className="px-3 py-3">
                   <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${

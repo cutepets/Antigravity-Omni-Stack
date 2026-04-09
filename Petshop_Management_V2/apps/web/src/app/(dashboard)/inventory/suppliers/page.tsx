@@ -11,12 +11,7 @@ export const metadata: Metadata = {
 export default function SuppliersPage() {
   return (
     <>
-      <div className="mb-4">
-        <p className="text-foreground-muted text-sm flex items-center gap-2">
-          <Building2 size={15} className="text-primary-500" /> 
-          Quản lý danh sách nhà cung cấp, thông tin liên hệ và công nợ.
-        </p>
-      </div>
+
       <SupplierList />
     </>
   )

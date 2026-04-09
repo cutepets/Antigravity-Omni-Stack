@@ -15,6 +15,7 @@ export interface GroomingCustomer {
 
 export interface GroomingPet {
   id: string;
+  petCode?: string | null;
   name?: string;
   species?: string | null;
   breed?: string | null;
@@ -29,9 +30,11 @@ export interface GroomingStaff {
 
 export interface GroomingSession {
   id: string;
+  sessionCode?: string | null;
   petId: string;
   petName: string;
   customerId: string | null;
+  branchId?: string | null;
   staffId: string | null;
   serviceId: string | null;
   orderId?: string | null;
@@ -44,6 +47,10 @@ export interface GroomingSession {
   updatedAt?: string;
   pet: GroomingPet;
   staff: GroomingStaff | null;
+  order?: {
+    id: string;
+    orderNumber: string;
+  } | null;
 }
 
 export interface GetGroomingSessionsParams {
@@ -55,6 +62,7 @@ export interface GetGroomingSessionsParams {
 
 export type CreateGroomingPayload = {
   petId: string;
+  branchId?: string;
   staffId?: string;
   serviceId?: string;
   startTime?: string;

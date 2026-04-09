@@ -13,6 +13,7 @@ export type {
 
 // Utils
 export * from './utils/search.utils.js'
+export * from './utils/branch-code.utils.js'
 export * from './utils/id.utils.js'
 export * from './utils/currency.utils.js'
 export * from './utils/date.utils.js'

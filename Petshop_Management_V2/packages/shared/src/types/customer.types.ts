@@ -5,12 +5,14 @@ export interface Customer {
   customerCode: string
   fullName: string
   phone: string
+  branchId?: string | null
   email?: string | null
   address?: string | null
   tier: CustomerTier
   points: number
   groupId?: string | null
   notes?: string | null
+  debt?: number
   createdAt: Date
   updatedAt: Date
 }
