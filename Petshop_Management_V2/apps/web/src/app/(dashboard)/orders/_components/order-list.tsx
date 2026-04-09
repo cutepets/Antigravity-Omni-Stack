@@ -34,20 +34,22 @@ import {
 } from '@/components/data-list'
 
 // ── Types & Constants ────────────────────────────────────────────────────────
-type DisplayColumnId = 'code' | 'customer' | 'items' | 'total' | 'payment' | 'status' | 'created' | 'actions'
+type DisplayColumnId = 'code' | 'customer' | 'items' | 'total' | 'customerPaid' | 'payment' | 'status' | 'branch' | 'creator' | 'created' | 'updated'
 type PinFilterId = 'paymentStatus'
 
-const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
-  { id: 'code',      label: 'Mã đơn',       sortable: false, width: 'w-28' },
-  { id: 'customer',  label: 'Khách hàng',   sortable: false, minWidth: 'min-w-[180px]' },
-  { id: 'items',     label: 'Số SP',        sortable: false, width: 'w-24' },
-  { id: 'total',     label: 'Tổng tiền',    sortable: false, width: 'w-32' },
-  { id: 'payment',   label: 'TT',           sortable: false, width: 'w-32' },
-  { id: 'status',    label: 'Trạng thái',   sortable: false, width: 'w-32' },
-  { id: 'created',   label: 'Ngày tạo',     sortable: false, width: 'w-36' },
-  { id: 'actions',   label: 'Thao tác',                      width: 'w-16' },
+const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
+  { id: 'code',         label: 'Mã đơn',         sortable: false, width: 'w-24' },
+  { id: 'customer',     label: 'Khách hàng',     sortable: false, minWidth: 'min-w-[150px]' },
+  { id: 'items',        label: 'Số SP',          sortable: false, width: 'w-20' },
+  { id: 'total',        label: 'Tổng tiền',      sortable: false, width: 'w-28', align: 'right' },
+  { id: 'customerPaid', label: 'Khách đã trả',   sortable: false, width: 'w-28', align: 'right' },
+  { id: 'payment',      label: 'TT',             sortable: false, width: 'w-32' },
+  { id: 'status',       label: 'Trạng thái',     sortable: false, width: 'w-32' },
+  { id: 'branch',       label: 'Chi nhánh',      sortable: false, width: 'w-28' },
+  { id: 'creator',      label: 'Người tạo',      sortable: false, width: 'w-28' },
+  { id: 'created',      label: 'Ngày tạo',       sortable: false, width: 'w-36' },
+  { id: 'updated',      label: 'Thời gian cập nhật',  sortable: false, width: 'w-36' },
 ]
-
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
   COLUMN_OPTIONS.filter((c) => c.sortable).map((c) => c.id)
 )
@@ -84,7 +86,7 @@ export function OrderList() {
   // System hook for data-list standard
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialVisibleColumns: ['code', 'customer', 'items', 'total', 'payment', 'status', 'created', 'actions'],
+    initialVisibleColumns: ['code', 'customer', 'items', 'total', 'customerPaid', 'payment', 'status', 'branch', 'creator', 'created', 'updated'],
     initialTopFilterVisibility: { paymentStatus: true }
   })
   
@@ -280,9 +282,9 @@ export function OrderList() {
               {orderedVisibleColumns.map(columnId => {
               switch(columnId) {
                 case 'code': return (
-                  <td key={columnId} className="px-3 py-3 w-28">
+                  <td key={columnId} className="px-3 py-3 w-24">
                     <span 
-                       onClick={() => router.push(`/pos?orderId=${o.id}`)}
+                       onClick={() => window.open(`/pos?orderId=${o.id}`, '_blank')}
                        className="font-mono text-xs font-bold text-primary-500 hover:underline cursor-pointer transition-colors"
                     >
                       {o.orderNumber || '--'}
@@ -290,7 +292,7 @@ export function OrderList() {
                   </td>
                 );
                 case 'customer': return (
-                  <td key={columnId} className="px-3 py-3 min-w-[180px]">
+                  <td key={columnId} className="px-3 py-3 min-w-[150px]">
                     <div className="font-semibold text-foreground text-sm">
                       {o.customer?.name || o.customer?.fullName || 'Khách lẻ'}
                     </div>
@@ -300,7 +302,7 @@ export function OrderList() {
                   </td>
                 );
                 case 'items': return (
-                  <td key={columnId} className="px-3 py-3 w-24">
+                  <td key={columnId} className="px-3 py-3 w-20">
                     <div className="inline-flex items-center gap-1.5 bg-background-tertiary px-2 py-0.5 rounded-md">
                       <ShoppingBag size={11} className="text-foreground-muted" />
                       <span className="text-xs font-medium text-foreground-secondary">{o.items?.length || 0} SP</span>
@@ -308,9 +310,16 @@ export function OrderList() {
                   </td>
                 );
                 case 'total': return (
-                  <td key={columnId} className="px-3 py-3 w-32">
+                  <td key={columnId} className="px-3 py-3 w-28 text-right">
                     <div className="text-sm font-bold text-foreground">
                       {formatCurrency(o.total)}
+                    </div>
+                  </td>
+                );
+                case 'customerPaid': return (
+                  <td key={columnId} className="px-3 py-3 w-28 text-right">
+                    <div className="text-sm font-medium text-foreground">
+                      {formatCurrency(o.paidAmount || 0)}
                     </div>
                   </td>
                 );
@@ -327,6 +336,20 @@ export function OrderList() {
                     <StatusBadge status={o.paymentStatus} />
                   </td>
                 );
+                case 'branch': return (
+                  <td key={columnId} className="px-3 py-3 w-28">
+                    <div className="text-xs text-foreground-secondary font-medium">
+                      {o.branch?.name || '--'}
+                    </div>
+                  </td>
+                );
+                case 'creator': return (
+                  <td key={columnId} className="px-3 py-3 w-28">
+                    <div className="text-xs text-foreground-secondary">
+                      {o.staff?.fullName || o.staff?.name || '--'}
+                    </div>
+                  </td>
+                );
                 case 'created': return (
                   <td key={columnId} className="px-3 py-3 w-36 text-xs text-foreground-muted">
                     <div className="flex items-center gap-1">
@@ -335,15 +358,15 @@ export function OrderList() {
                     </div>
                   </td>
                 );
-                case 'actions': return (
-                  <td key={columnId} className="px-3 py-3 w-16">
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={() => router.push(`/pos?orderId=${o.id}`)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-background-secondary hover:bg-background-tertiary text-foreground-secondary transition-colors">
-                        <ExternalLink size={13} />
-                      </button>
+                case 'updated': return (
+                  <td key={columnId} className="px-3 py-3 w-36 text-xs text-foreground-muted">
+                    <div className="flex items-center gap-1">
+                      <CalendarDays size={12}/>
+                      {o.updatedAt ? formatDateTime(o.updatedAt) : '--'}
                     </div>
                   </td>
                 );
+
               }
             })}
           </tr>

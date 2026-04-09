@@ -4,7 +4,7 @@ import { startTransition, useDeferredValue, useEffect, useMemo, useState } from 
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pin, PinOff, Paperclip } from 'lucide-react'
+import { Pin, PinOff, Paperclip, Settings } from 'lucide-react'
 import {
   DataListShell,
   DataListToolbar,
@@ -28,7 +28,7 @@ import { CreateTransactionModal } from './create-transaction-modal'
 import { FinanceReceiptReconciliationModal } from './finance-receipt-reconciliation-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
 
-type DisplayColumnId = 'voucher' | 'date' | 'type' | 'payer' | 'paymentMethod' | 'amount' | 'ref' | 'source'
+type DisplayColumnId = 'voucher' | 'tags' | 'date' | 'createdAt' | 'updatedAt' | 'type' | 'payer' | 'creator' | 'branch' | 'paymentMethod' | 'amount' | 'category' | 'description' | 'ref' | 'notes' | 'source'
 type PinFilterId = 'type' | 'branch' | 'paymentMethod'
 type TransactionWindowMode = 'create' | 'view' | 'edit'
 type TransactionWindowState = {
@@ -37,24 +37,35 @@ type TransactionWindowState = {
   initialType?: 'INCOME' | 'EXPENSE'
 }
 
-const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; width?: string; minWidth?: string }> = [
-  { id: 'voucher', label: 'Phiếu', minWidth: 'min-w-[160px]' },
-  { id: 'date', label: 'Ngày', width: 'w-36' },
-  { id: 'type', label: 'Loại', width: 'w-28' },
-  { id: 'payer', label: 'Người nộp/nhận', minWidth: 'min-w-[220px]' },
+const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
+  { id: 'voucher', label: 'Mã phiếu', minWidth: 'min-w-[110px]' },
+  { id: 'tags', label: 'Thông tin thêm', width: 'w-40' },
+  { id: 'date', label: 'Thời gian giao dịch', minWidth: 'min-w-[140px]' },
+  { id: 'createdAt', label: 'Thời gian tạo', minWidth: 'min-w-[140px]' },
+  { id: 'updatedAt', label: 'Cập nhật', width: 'w-36' },
+  { id: 'type', label: 'Loại', width: 'w-24' },
+  { id: 'payer', label: 'Người nộp/nhận', minWidth: 'min-w-[180px]' },
+  { id: 'creator', label: 'Người tạo', minWidth: 'min-w-[160px]' },
+  { id: 'branch', label: 'Chi nhánh', minWidth: 'min-w-[140px]' },
   { id: 'paymentMethod', label: 'Thanh toán', width: 'w-32' },
-  { id: 'amount', label: 'Số tiền', width: 'w-36' },
-  { id: 'ref', label: 'Tham chiếu', minWidth: 'min-w-[180px]' },
-  { id: 'source', label: 'Nguồn', width: 'w-32' },
+  { id: 'amount', label: 'Số tiền', width: 'w-36', align: 'right' },
+  { id: 'category', label: 'Danh mục', minWidth: 'min-w-[160px]' },
+  { id: 'description', label: 'Mô tả', minWidth: 'min-w-[200px]' },
+  { id: 'ref', label: 'Mã liên quan', minWidth: 'min-w-[140px]' },
+  { id: 'notes', label: 'Tham chiếu CK', minWidth: 'min-w-[160px]' },
+  { id: 'source', label: 'Nguồn', width: 'w-36' },
 ]
 
 function todayString() {
-  return new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
 function firstDayOfMonth() {
   const now = new Date()
-  return `${now.getFullYear()}-${`${now.getMonth() + 1}`.padStart(2, '0')}-01`
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
 }
 
 function formatCurrency(value: number) {
@@ -125,8 +136,9 @@ export function FinanceWorkspace() {
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialVisibleColumns: ['voucher', 'date', 'type', 'payer', 'paymentMethod', 'amount', 'ref', 'source'],
+    initialVisibleColumns: ['voucher', 'amount', 'createdAt', 'date', 'type', 'payer', 'creator', 'branch', 'paymentMethod', 'category', 'description', 'ref', 'notes'],
     initialTopFilterVisibility: { type: true, branch: true, paymentMethod: true },
+    storageKey: 'finance-workspace-list-v6',
   })
 
   const { orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId, columnSort, topFilterVisibility } = dataListState
@@ -428,9 +440,10 @@ export function FinanceWorkspace() {
             </label>
 
             <label className="space-y-2">
-              <span className="text-sm text-foreground-muted">Khoang ngay</span>
-              <div className="grid grid-cols-2 gap-2">
+              <span className="text-sm text-foreground-muted">Khoảng ngày</span>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1) }} className={filterInputClass} />
+                <span className="text-foreground-muted">-</span>
                 <input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1) }} className={filterInputClass} />
               </div>
             </label>
@@ -464,51 +477,55 @@ export function FinanceWorkspace() {
                   />
                 </td>
 
-                {orderedVisibleColumns.map((columnId) => (
-                  <td key={`${transaction.id}:${columnId}`} className="px-3 py-3 align-top text-sm text-foreground">
+                {orderedVisibleColumns.map((columnId) => {
+                  const colDef = COLUMN_OPTIONS.find((c) => c.id === columnId)
+                  return (
+                  <td key={`${transaction.id}:${columnId}`} className={`px-3 py-3 align-top text-sm text-foreground ${colDef?.align === 'right' ? 'text-right' : colDef?.align === 'center' ? 'text-center' : ''}`}>
                     {columnId === 'voucher' ? (
-                      <div className="space-y-1">
-                        <Link
-                          href={buildFinanceVoucherHref(transaction.voucherNumber)}
-                          onClick={(event) => event.stopPropagation()}
-                          className="inline-flex font-semibold text-foreground transition-colors hover:text-primary-300"
-                        >
-                          {transaction.voucherNumber}
-                        </Link>
-                          <div className="text-xs text-foreground-muted">
-                            {transaction.source === 'MANUAL' ? 'Manual' : 'Đồng bộ'}
-                            {transaction.editScope === 'NOTES_ONLY' ? ' · Chỉ sửa ghi chú' : ''}
-                          </div>
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            {transaction.attachmentUrl && (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-300">
-                                <Paperclip size={10} /> Đính kèm
+                      <Link
+                        href={buildFinanceVoucherHref(transaction.voucherNumber)}
+                        onClick={(event) => event.stopPropagation()}
+                        className="inline-flex font-semibold text-foreground transition-colors hover:text-primary-300"
+                      >
+                        {transaction.voucherNumber}
+                      </Link>
+                    ) : null}
+                    {columnId === 'tags' ? (
+                      <div className="flex flex-wrap gap-1">
+                        {transaction.attachmentUrl && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-300">
+                            <Paperclip size={10} /> Đính kèm
+                          </span>
+                        )}
+                        {extractTraceTags(transaction).length > 0 ? (
+                          <>
+                            {extractTraceTags(transaction).slice(0, 2).map((tag) => (
+                              <span key={tag} className="inline-flex rounded-full border border-primary-500/20 bg-primary-500/10 px-2 py-0.5 text-[11px] font-medium text-primary-300">
+                                {tag}
                               </span>
-                            )}
-                            {extractTraceTags(transaction).length > 0 ? (
-                              <>
-                                {extractTraceTags(transaction).slice(0, 2).map((tag) => (
-                                  <span key={tag} className="inline-flex rounded-full border border-primary-500/20 bg-primary-500/10 px-2 py-0.5 text-[11px] font-medium text-primary-300">
-                                    {tag}
-                                  </span>
-                                ))}
-                              </>
-                            ) : null}
-                          </div>
+                            ))}
+                          </>
+                        ) : null}
                       </div>
                     ) : null}
                     {columnId === 'date' ? (
-                      <div className="space-y-1">
-                        <div>{formatDate(transaction.date)}</div>
-                        <div className="text-xs text-foreground-muted">{new Date(transaction.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
-                      </div>
+                      <div>{new Date(transaction.date).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}</div>
+                    ) : null}
+                    {columnId === 'createdAt' ? (
+                      <div className="text-foreground-muted">{new Date(transaction.createdAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}</div>
+                    ) : null}
+                    {columnId === 'updatedAt' ? (
+                      <div className="text-foreground-muted">{new Date(transaction.updatedAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}</div>
                     ) : null}
                     {columnId === 'type' ? <TransactionBadge type={transaction.type} /> : null}
                     {columnId === 'payer' ? (
-                      <div className="space-y-1">
-                        <div className="font-medium">{transaction.payerName || 'Khach le / Noi bo'}</div>
-                        {transaction.createdBy ? <div className="text-xs text-foreground-muted">Tao boi {transaction.createdBy.name}</div> : null}
-                      </div>
+                      <span className="font-medium">{transaction.payerName || 'Khách lẻ / Nội bộ'}</span>
+                    ) : null}
+                    {columnId === 'creator' ? (
+                      <span className="text-foreground-muted">{transaction.createdBy?.name || '-'}</span>
+                    ) : null}
+                    {columnId === 'branch' ? (
+                      <span className="text-foreground-muted">{transaction.branchName || 'Toàn hệ thống'}</span>
                     ) : null}
                     {columnId === 'paymentMethod' ? <span>{transaction.paymentMethod || '-'}</span> : null}
                     {columnId === 'amount' ? (
@@ -516,6 +533,14 @@ export function FinanceWorkspace() {
                         {transaction.type === 'INCOME' ? '+' : '-'}
                         {formatCurrency(transaction.amount)}
                       </span>
+                    ) : null}
+                    {columnId === 'category' ? (
+                      <span className="text-foreground">{transaction.category || '-'}</span>
+                    ) : null}
+                    {columnId === 'description' ? (
+                      <div className="max-w-[250px] truncate text-foreground/80" title={transaction.description}>
+                        {transaction.description || '-'}
+                      </div>
                     ) : null}
                     {columnId === 'ref' ? (
                       transaction.refType === 'ORDER' && transaction.refId ? (
@@ -538,9 +563,15 @@ export function FinanceWorkspace() {
                         <span>{transaction.refNumber || transaction.refType || '-'}</span>
                       )
                     ) : null}
+                    {columnId === 'notes' ? (
+                      <div className="max-w-[200px] truncate text-foreground-muted" title={transaction.notes ?? ''}>
+                        {transaction.notes || '-'}
+                      </div>
+                    ) : null}
                     {columnId === 'source' ? <SourceBadge source={transaction.source} /> : null}
                   </td>
-                ))}
+                  )
+                })}
               </tr>
             ))}
           </DataListTable>

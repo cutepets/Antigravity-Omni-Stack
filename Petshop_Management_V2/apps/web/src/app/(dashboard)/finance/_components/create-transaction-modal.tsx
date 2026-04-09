@@ -7,6 +7,7 @@ import { Pencil, Printer, ReceiptText, Trash2, X, Paperclip } from 'lucide-react
 import type { Customer } from '@petshop/shared'
 import { customerApi } from '@/lib/api/customer.api'
 import { financeApi, type CreateFinanceTransactionInput, type FinanceTransaction } from '@/lib/api/finance.api'
+import { settingsApi, type CashbookCategory } from '@/lib/api/settings.api'
 import { buildFinanceVoucherHref } from '@/lib/finance-routes'
 import { useAuthStore } from '@/stores/auth.store'
 import { toast } from 'sonner'
@@ -135,9 +136,9 @@ function resolveLinkedEntity(transaction?: FinanceTransaction | null) {
   if (transaction.refType === 'ORDER' && (transaction.refNumber || transaction.refId)) {
     return {
       href: transaction.refId ? `/orders/${transaction.refId}` : null,
-      label: transaction.refId ? 'Mo don hang' : 'Da gan ma don',
+      label: transaction.refId ? 'Mở đơn hàng' : 'Đã gắn mã đơn',
       value: transaction.refNumber || transaction.refId,
-      description: isManualSource ? 'Liên kết thu cong voi don hang' : 'Đồng bộ tu don hang',
+      description: isManualSource ? 'Liên kết thủ công với đơn hàng' : 'Đồng bộ từ đơn hàng',
       canCompare: false,
     }
   }
@@ -145,9 +146,9 @@ function resolveLinkedEntity(transaction?: FinanceTransaction | null) {
   if (transaction.refType === 'STOCK_RECEIPT' && (transaction.refNumber || transaction.refId)) {
     return {
       href: transaction.refId ? `/inventory/receipts/${transaction.refId}` : null,
-      label: 'Mo phieu nhap',
+      label: 'Mở phiếu nhập',
       value: transaction.refNumber || transaction.refId || '-',
-      description: isManualSource ? 'Liên kết thu cong voi phieu nhap' : 'Đồng bộ tu phieu nhap',
+      description: isManualSource ? 'Liên kết thủ công với phiếu nhập' : 'Đồng bộ từ phiếu nhập',
       canCompare: Boolean(transaction.refId),
     }
   }
@@ -155,9 +156,9 @@ function resolveLinkedEntity(transaction?: FinanceTransaction | null) {
   if (manualReferenceKind === 'ORDER') {
     return {
       href: transaction.refId ? `/orders/${transaction.refId}` : null,
-      label: transaction.refId ? 'Mo don hang' : 'Da gan ma don',
+      label: transaction.refId ? 'Mở đơn hàng' : 'Đã gắn mã đơn',
       value: transaction.refNumber || transaction.refId || '-',
-      description: 'Liên kết thu cong voi don hang',
+      description: 'Liên kết thủ công với đơn hàng',
       canCompare: false,
     }
   }
@@ -165,9 +166,9 @@ function resolveLinkedEntity(transaction?: FinanceTransaction | null) {
   if (manualReferenceKind === 'STOCK_RECEIPT') {
     return {
       href: transaction.refId ? `/inventory/receipts/${transaction.refId}` : null,
-      label: transaction.refId ? 'Mo phieu nhap' : 'Da gan ma phieu nhap',
+      label: transaction.refId ? 'Mở phieu nhap' : 'Đã gắn mã phiếu nhập',
       value: transaction.refNumber || transaction.refId || '-',
-      description: 'Liên kết thu cong voi phieu nhap',
+      description: 'Liên kết thủ công với phiếu nhập',
       canCompare: false,
     }
   }
@@ -218,7 +219,32 @@ export function CreateTransactionModal({
   const [isUploading, setIsUploading] = useState(false)
   const deferredCustomerSearch = useDeferredValue(customerSearch)
   const customerPanelRef = useRef<HTMLDivElement | null>(null)
+  const categoryPanelRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [isCategoryFocused, setIsCategoryFocused] = useState(false)
+
+  const { data: rawCategories = [] } = useQuery({
+    queryKey: ['cashbook-categories', form.type],
+    queryFn: () => settingsApi.getCashbookCategories(form.type),
+  })
+
+  // Chỉ hiển thị các danh mục đang active hoặc danh mục đang được chọn
+  const categories = rawCategories.filter((c) => c.isActive || c.name === form.category)
+  const filteredCategories = categories.filter((c) => c.name.toLowerCase().includes((form.category ?? '').toLowerCase()))
+  const showQuickAdd = form.category && form.category.trim() !== '' && !categories.some((c) => c.name.toLowerCase() === form.category?.toLowerCase())
+
+  const createCategoryMutation = useMutation({
+    mutationFn: (name: string) => settingsApi.createCashbookCategory({ type: form.type, name }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['cashbook-categories'] })
+      setForm((prev) => ({ ...prev, category: data.name }))
+      setIsCategoryFocused(false)
+      toast.success('Đã thêm danh mục mới')
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Lỗi thêm danh mục mới')
+    },
+  })
 
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
@@ -261,6 +287,9 @@ export function CreateTransactionModal({
     function handleClickOutside(event: MouseEvent) {
       if (customerPanelRef.current && !customerPanelRef.current.contains(event.target as Node)) {
         setCustomerSearch('')
+      }
+      if (categoryPanelRef.current && !categoryPanelRef.current.contains(event.target as Node)) {
+        setIsCategoryFocused(false)
       }
     }
 
@@ -388,7 +417,7 @@ export function CreateTransactionModal({
       form.description.trim().length > 0 &&
       (form.manualReferenceKind === 'NONE' || Boolean(form.refNumber?.trim()))
 
-  const title = isCreate ? getTypeLabel(form.type) : isEdit ? `Sua ${getTypeLabel(form.type).toLowerCase()}` : getTypeLabel(form.type)
+  const title = isCreate ? getTypeLabel(form.type) : isEdit ? `Sửa ${getTypeLabel(form.type).toLowerCase()}` : getTypeLabel(form.type)
   const handlePrint = () => {
     if (typeof window !== 'undefined') {
       window.print()
@@ -429,7 +458,7 @@ export function CreateTransactionModal({
                 onClick={() => saveTransaction.mutate()}
                 className={`inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${theme.primaryButton}`}
               >
-                {saveTransaction.isPending ? 'Dang luu...' : isCreate ? 'Lưu phiếu' : 'Lưu cập nhật'}
+                {saveTransaction.isPending ? 'Đang lưu...' : isCreate ? 'Lưu phiếu' : 'Cập nhật'}
               </button>
             ) : null}
             <button
@@ -440,7 +469,7 @@ export function CreateTransactionModal({
             >
               <Printer size={16} />
             </button>
-            <div className={`hidden h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold sm:inline-flex ${theme.accentCard} text-foreground`}>
+            <div className={`hidden h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold sm:inline-flex ${theme.accentCard} text-foreground whitespace-nowrap`}>
               {currentBranch?.name ?? transaction?.branchName ?? 'Toàn hệ thống'}
             </div>
             {isView && transaction && transaction.editScope === 'FULL' && onEditRequest ? (
@@ -459,7 +488,7 @@ export function CreateTransactionModal({
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-500/30 px-4 text-sm font-medium text-rose-300 transition-colors hover:border-rose-500/60 hover:text-rose-200"
               >
                 <Trash2 size={14} />
-                Xoa
+                Xóa
               </button>
             ) : null}
             <button
@@ -529,17 +558,17 @@ export function CreateTransactionModal({
                 </label>
 
                 <label className="space-y-2">
-                  <span className="text-sm text-foreground-muted">Hinh thuc thanh toan</span>
+                  <span className="text-sm text-foreground-muted">Hình thức thanh toán</span>
                   <select
                     value={form.paymentMethod ?? ''}
                     disabled={!canEditCore}
                     onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
                     className={inputClass}
                   >
-                    <option value="CASH">Tien mat</option>
-                    <option value="BANK">Chuyen khoan</option>
+                    <option value="CASH">Tiền mặt</option>
+                    <option value="BANK">Chuyển khoản</option>
                     <option value="MOMO">MoMo</option>
-                    <option value="CARD">The</option>
+                    <option value="CARD">Thẻ</option>
                   </select>
                 </label>
               </div>
@@ -556,16 +585,59 @@ export function CreateTransactionModal({
                   />
                 </label>
 
-                <label className="space-y-2">
+                <div className="relative space-y-2" ref={categoryPanelRef}>
                   <span className="text-sm text-foreground-muted">Danh mục</span>
                   <input
                     value={form.category ?? ''}
                     disabled={!canEditCore}
-                    onChange={(event) => setForm((current) => ({ ...current, category: event.target.value || undefined }))}
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, category: event.target.value || undefined }))
+                      setIsCategoryFocused(true)
+                    }}
+                    onFocus={() => setIsCategoryFocused(true)}
                     className={inputClass}
-                    placeholder="Ban hang, nhap hang, van hanh..."
+                    placeholder="Bán hàng, nhập hàng, vận hành..."
                   />
-                </label>
+                  {isCategoryFocused && canEditCore && (
+                    <div className="absolute top-full z-10 w-full overflow-hidden rounded-2xl border border-border bg-background-secondary p-2 mt-1 shadow-lg max-h-60 overflow-y-auto">
+                      {filteredCategories.length > 0 ? (
+                        filteredCategories.map((cat: CashbookCategory) => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              setForm((current) => ({ ...current, category: cat.name }))
+                              setIsCategoryFocused(false)
+                            }}
+                            className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-background-tertiary"
+                          >
+                            <span>{cat.name}</span>
+                          </button>
+                        ))
+                      ) : (
+                        !showQuickAdd && <p className="px-3 py-2 text-sm text-foreground-muted">Không tìm thấy danh mục</p>
+                      )}
+                      
+                      {showQuickAdd && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (form.category) {
+                              createCategoryMutation.mutate(form.category)
+                            }
+                          }}
+                          disabled={createCategoryMutation.isPending}
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-sky-400 transition-colors hover:bg-background-tertiary disabled:opacity-50 mt-1 border-t border-border/50 pt-3"
+                        >
+                          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-sky-500/10 text-sky-400">
+                            +
+                          </div>
+                          {createCategoryMutation.isPending ? 'Đang thêm...' : `Thêm mới "${form.category}"`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -669,14 +741,14 @@ export function CreateTransactionModal({
                           className={inputClass}
                         >
                           <option value="NONE">Không gán</option>
-                          <option value="ORDER">Gan ma don hang</option>
-                          <option value="STOCK_RECEIPT">Gan ma phieu nhap</option>
+                          <option value="ORDER">Gắn mã đơn hàng</option>
+                          <option value="STOCK_RECEIPT">Gắn mã phiếu nhập</option>
                         </select>
                       </label>
                       <label className="space-y-2">
                         <span className="inline-flex items-center gap-2 text-foreground-muted">
                           <Pencil size={14} className={theme.accentText} />
-                          Mã tham chiếu
+                          Mã đơn
                         </span>
                         <input
                           value={form.refNumber ?? ''}
@@ -698,17 +770,33 @@ export function CreateTransactionModal({
                           }
                         />
                       </label>
+                      {/* Main remove bank ref field here — moved to sidebar */}
+                      {form.paymentMethod === 'BANK' && (
+                        <label className="space-y-2">
+                          <span className="inline-flex items-center gap-2 text-foreground-muted">
+                            <Pencil size={14} className={theme.accentText} />
+                            Mã tham chiếu CK
+                          </span>
+                          <input
+                            value={form.notes ?? ''}
+                            disabled={!canEditCore}
+                            onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value || undefined }))}
+                            className={inputClass}
+                            placeholder="VD: FT26040xxxxxx, chuyển khoản 9h30..."
+                          />
+                        </label>
+                      )}
                     </>
                   ) : (
                     <>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-foreground-muted shrink-0">Loai</span>
+                        <span className="text-foreground-muted shrink-0">Loại</span>
                         <span className={`font-medium ${theme.accentText} text-right truncate`}>
                           {linkedEntity?.description ?? getManualReferenceLabel(parseManualReferenceKind(transaction?.tags, transaction?.refType))}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-foreground-muted shrink-0">Mã tham chiếu</span>
+                        <span className="text-foreground-muted shrink-0">Mã đơn</span>
                         {linkedEntity?.href && (transaction?.refNumber || transaction?.refId) ? (
                           <Link href={linkedEntity.href} className={`font-medium transition-colors hover:${theme.accentStrong} ${theme.accentStrong} text-right truncate`}>
                             {transaction?.refNumber || transaction?.refId}
@@ -717,40 +805,34 @@ export function CreateTransactionModal({
                           <span className="font-medium text-foreground text-right truncate">{transaction?.refNumber || transaction?.refId || '-'}</span>
                         )}
                       </div>
-                      {linkedEntity?.value ? (
+                      {transaction?.notes && (
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-foreground-muted shrink-0">Thong tin</span>
-                          {linkedEntity.href ? (
-                            <Link href={linkedEntity.href} className={`truncate transition-colors hover:${theme.accentStrong} ${theme.accentText} text-right`}>
-                              {linkedEntity.value}
-                            </Link>
-                          ) : (
-                            <span className="truncate text-foreground text-right">{linkedEntity.value}</span>
-                          )}
+                          <span className="text-foreground-muted shrink-0">Tham chiếu CK</span>
+                          <span className="font-medium text-foreground text-right truncate">{transaction.notes}</span>
                         </div>
-                      ) : null}
+                      )}
                     </>
                   )}
                 </div>
               </div>
 
               <div className="rounded-2xl border border-border bg-card/80 p-4">
-                <p className="text-sm font-semibold text-foreground">Thong tin he thong</p>
+                <p className="text-sm font-semibold text-foreground">Thông tin hệ thống</p>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-foreground-muted shrink-0">Nguon</span>
+                    <span className="text-foreground-muted shrink-0">Nguồn</span>
                     <span className="font-medium text-foreground text-right truncate">{transaction?.source || 'MANUAL'}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-foreground-muted shrink-0">Nguoi tao</span>
-                    <span className="text-foreground text-right truncate">{transaction?.createdBy?.name || 'He thong'}</span>
+                    <span className="text-foreground-muted shrink-0">Người tạo</span>
+                    <span className="text-foreground text-right truncate">{transaction?.createdBy?.name || 'Hệ thống'}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-foreground-muted shrink-0">Ngay tao</span>
+                    <span className="text-foreground-muted shrink-0">Ngày tạo</span>
                     <span className="text-foreground text-right truncate">{formatDateTime(transaction?.createdAt)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-foreground-muted shrink-0">Cap nhat</span>
+                    <span className="text-foreground-muted shrink-0">Cập nhật</span>
                     <span className="text-foreground text-right truncate">{formatDateTime(transaction?.updatedAt)}</span>
                   </div>
                 </div>
