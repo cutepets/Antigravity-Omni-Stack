@@ -38,14 +38,14 @@ type TransactionWindowState = {
 }
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; width?: string; minWidth?: string }> = [
-  { id: 'voucher', label: 'Phieu', minWidth: 'min-w-[160px]' },
-  { id: 'date', label: 'Ngay', width: 'w-36' },
-  { id: 'type', label: 'Loai', width: 'w-28' },
+  { id: 'voucher', label: 'Phiếu', minWidth: 'min-w-[160px]' },
+  { id: 'date', label: 'Ngày', width: 'w-36' },
+  { id: 'type', label: 'Loại', width: 'w-28' },
   { id: 'payer', label: 'Người nộp/nhận', minWidth: 'min-w-[220px]' },
   { id: 'paymentMethod', label: 'Thanh toán', width: 'w-32' },
   { id: 'amount', label: 'Số tiền', width: 'w-36' },
   { id: 'ref', label: 'Tham chiếu', minWidth: 'min-w-[180px]' },
-  { id: 'source', label: 'Nguon', width: 'w-32' },
+  { id: 'source', label: 'Nguồn', width: 'w-32' },
 ]
 
 function todayString() {
