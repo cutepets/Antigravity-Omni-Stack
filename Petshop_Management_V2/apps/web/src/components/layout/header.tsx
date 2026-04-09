@@ -29,7 +29,7 @@ const PetSettingsModal = dynamic(
 )
 
 function resolveHeaderTitle(pathname: string) {
-  if (pathname.startsWith('/finance')) return 'So quy'
+  if (pathname.startsWith('/finance')) return 'Sổ quỹ'
   if (pathname.startsWith('/products')) return 'Sản phẩm & Kho'
   if (pathname.startsWith('/orders')) return 'Quản lý Đơn hàng'
   if (pathname.startsWith('/customers')) return 'Khách hàng'
@@ -37,8 +37,8 @@ function resolveHeaderTitle(pathname: string) {
   if (pathname.startsWith('/inventory/stock')) return 'Tồn kho'
   if (pathname.startsWith('/inventory/suppliers')) return 'Nhà cung cấp'
   if (pathname.startsWith('/inventory/receipts')) return 'Phiếu nhập'
-  if (pathname.startsWith('/pos')) return 'Tao don hang'
-  if (pathname.startsWith('/dashboard')) return 'Tong quan'
+  if (pathname.startsWith('/pos')) return 'Tạo đơn hàng'
+  if (pathname.startsWith('/dashboard')) return 'Tổng quan'
   return ''
 }
 
@@ -154,7 +154,7 @@ export function Header() {
               className="flex items-center gap-2 rounded-xl border border-border/40 bg-background-tertiary px-3 py-1.5 transition-colors hover:bg-background-tertiary/80"
             >
               <span className="max-w-[150px] whitespace-nowrap truncate text-sm font-semibold text-foreground-base">
-                {displayBranches?.find((branch: any) => branch.id === activeBranchId)?.name || 'Chi nhanh he thong'}
+                {displayBranches?.find((branch: any) => branch.id === activeBranchId)?.name || 'Chi nhánh hệ thống'}
               </span>
               <span className="ml-1 text-xs text-foreground-muted">▼</span>
             </button>
@@ -170,7 +170,7 @@ export function Header() {
                   style={{ zIndex: 100 }}
                 >
                   <div className="border-b border-border/50 bg-background-tertiary p-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">Chi nhanh thao tac</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">Chi nhánh thao tác</p>
                   </div>
                   <div className="max-h-[300px] overflow-y-auto p-1">
                     {displayBranches?.map((branch: any) => (
@@ -179,7 +179,7 @@ export function Header() {
                         onClick={() => {
                           switchBranch(branch.id)
                           setShowBranchDropdown(false)
-                          toast.success(`Da chuyen sang chi nhanh: ${branch.name}`)
+                          toast.success(`Đã chuyển sang chi nhánh: ${branch.name}`)
                           router.refresh()
                         }}
                         className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors ${

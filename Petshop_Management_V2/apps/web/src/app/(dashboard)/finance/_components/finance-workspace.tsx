@@ -311,21 +311,21 @@ export function FinanceWorkspace() {
               setSearch(value)
               setPage(1)
             }}
-            searchPlaceholder="Tim ma phieu, tham chieu, ten nguoi nop/nhan..."
+            searchPlaceholder="Tìm mã phiếu, tham chiếu, tên người nộp/nhận..."
             showFilterToggle={true}
             showColumnToggle={true}
             filterSlot={
               <>
                 {topFilterVisibility.type ? (
                   <select value={type} onChange={(event) => { setType(event.target.value as 'ALL' | 'INCOME' | 'EXPENSE'); setPage(1) }} className={toolbarSelectClass}>
-                    <option value="ALL">Tat ca</option>
+                    <option value="ALL">Tất cả</option>
                     <option value="INCOME">Phiếu thu</option>
                     <option value="EXPENSE">Phiếu chi</option>
                   </select>
                 ) : null}
                 {topFilterVisibility.branch ? (
                   <select value={branchId} onChange={(event) => { setBranchId(event.target.value); setPage(1) }} className={toolbarSelectClass}>
-                    <option value="">Tat ca chi nhanh</option>
+                    <option value="">Tất cả chi nhánh</option>
                     {(meta?.branches ?? []).map((branch) => (
                       <option key={branch.id} value={branch.id}>
                         {branch.name}
@@ -335,7 +335,7 @@ export function FinanceWorkspace() {
                 ) : null}
                 {topFilterVisibility.paymentMethod ? (
                   <select value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setPage(1) }} className={toolbarSelectClass}>
-                    <option value="">Moi hinh thuc</option>
+                    <option value="">Mọi hình thức</option>
                     {(meta?.paymentMethods ?? []).map((method) => (
                       <option key={method} value={method}>
                         {method}
@@ -381,13 +381,13 @@ export function FinanceWorkspace() {
           <DataListFilterPanel onClearAll={clearFilters}>
             <label className="space-y-2">
               <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
-                <span>Loai phieu</span>
+                <span>Loại phiếu</span>
                 <button type="button" onClick={() => dataListState.toggleTopFilterVisibility('type')} className="text-foreground-muted hover:text-foreground">
                   {topFilterVisibility.type ? <Pin size={14} /> : <PinOff size={14} />}
                 </button>
               </span>
               <select value={type} onChange={(event) => { setType(event.target.value as 'ALL' | 'INCOME' | 'EXPENSE'); setPage(1) }} className={filterSelectClass}>
-                <option value="ALL">Tat ca</option>
+                <option value="ALL">Tất cả</option>
                 <option value="INCOME">Phiếu thu</option>
                 <option value="EXPENSE">Phiếu chi</option>
               </select>
@@ -395,13 +395,13 @@ export function FinanceWorkspace() {
 
             <label className="space-y-2">
               <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
-                <span>Chi nhanh</span>
+                <span>Chi nhánh</span>
                 <button type="button" onClick={() => dataListState.toggleTopFilterVisibility('branch')} className="text-foreground-muted hover:text-foreground">
                   {topFilterVisibility.branch ? <Pin size={14} /> : <PinOff size={14} />}
                 </button>
               </span>
               <select value={branchId} onChange={(event) => { setBranchId(event.target.value); setPage(1) }} className={filterSelectClass}>
-                <option value="">Tat ca chi nhanh</option>
+                <option value="">Tất cả chi nhánh</option>
                 {(meta?.branches ?? []).map((branch) => (
                   <option key={branch.id} value={branch.id}>
                     {branch.name}
@@ -418,7 +418,7 @@ export function FinanceWorkspace() {
                 </button>
               </span>
               <select value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setPage(1) }} className={filterSelectClass}>
-                <option value="">Moi hinh thuc</option>
+                <option value="">Mọi hình thức</option>
                 {(meta?.paymentMethods ?? []).map((method) => (
                   <option key={method} value={method}>
                     {method}
