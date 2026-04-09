@@ -28,9 +28,12 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
   const loading = loadingProducts || loadingServices;
   
   const activeTab = useActiveTab();
-  const getCartQty = (id: string) => {
-    const item = activeTab.cart.find(c => c.id === id);
-    return item ? item.quantity : 0;
+  const getCartQty = (catalogItem: any) => {
+    return activeTab.cart.reduce((total, cartItem) => {
+      const sameProduct = catalogItem.duration === undefined && cartItem.productId === catalogItem.id;
+      const sameService = catalogItem.duration !== undefined && cartItem.serviceId === catalogItem.id;
+      return sameProduct || sameService ? total + cartItem.quantity : total;
+    }, 0);
   };
 
   useEffect(() => {
@@ -65,7 +68,7 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
   }, [isOpen]);
 
   const handleSelect = (item: any) => {
-    const qty = getCartQty(item.id);
+    const qty = getCartQty(item);
     const availableStock = item.availableStock !== undefined 
       ? item.availableStock 
       : Math.max(0, (item.stock || 0) - (item.trading || item.reserved || 0));
@@ -192,7 +195,7 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
               <ul className="w-full">
                 {results.map((item: any) => {
                   const isService = item.duration !== undefined;
-                  const qty = getCartQty(item.id);
+                  const qty = getCartQty(item);
                   const isSelected = qty > 0;
                   
                   const availableStock = item.availableStock !== undefined 

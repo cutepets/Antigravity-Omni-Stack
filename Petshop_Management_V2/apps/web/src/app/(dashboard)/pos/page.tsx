@@ -25,6 +25,12 @@ import { orderApi } from '@/lib/api/order.api';
 const money = (n: number) => new Intl.NumberFormat('vi-VN').format(n);
 const moneyRaw = (n: number) => new Intl.NumberFormat('vi-VN').format(n) + ' đ';
 
+function buildCartLineId(type: 'product' | 'service' | 'hotel' | 'grooming', ...parts: Array<string | number | null | undefined>) {
+  return [type, ...parts.filter((part) => part !== undefined && part !== null && String(part).trim() !== '')]
+    .map((part) => String(part).replace(/\s+/g, '-'))
+    .join(':');
+}
+
 function PosPageContent() {
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<any>(null);
   const [showHotelCheckout, setShowHotelCheckout] = useState(false);
@@ -141,7 +147,11 @@ function PosPageContent() {
       }
 
       store.addItem({
-        id: item.id,
+        id: buildCartLineId(
+          item.duration === undefined ? 'product' : 'service',
+          item.id,
+          item.variants?.length ? item.variants[0].id : 'base',
+        ),
         productId: item.duration === undefined ? item.id : undefined,
         productVariantId: item.variants?.length ? item.variants[0].id : undefined,
         serviceId: item.duration !== undefined ? item.id : undefined,
@@ -176,7 +186,7 @@ function PosPageContent() {
           id: ci.orderItemId,
           productId: ci.productId,
           productVariantId: ci.productVariantId,
-          serviceId: ci.serviceId,
+          serviceId: ci.serviceId && ci.serviceId !== 'EXTERNAL' ? ci.serviceId : undefined,
           serviceVariantId: ci.serviceVariantId,
           petId: ci.petId,
           description: ci.description,
@@ -942,7 +952,13 @@ function PosPageContent() {
         customerId={activeTab?.customerId}
         onConfirm={(details) => {
           const cartItem = {
-            id: selectedServiceForBooking.id, // For store tracking
+            id: buildCartLineId(
+              details.type === 'hotel' ? 'hotel' : 'grooming',
+              selectedServiceForBooking.id,
+              details.details?.petId,
+              details.type === 'hotel' ? details.details?.checkInDate : details.details?.startTime,
+              details.type === 'hotel' ? details.details?.checkOutDate : undefined,
+            ),
             serviceId: selectedServiceForBooking.id,
             description: selectedServiceForBooking.name,
             sku: selectedServiceForBooking.sku,

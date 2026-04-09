@@ -440,7 +440,7 @@ export function FinanceWorkspace() {
             columns={visibleColumnsForTable}
             isLoading={financeQuery.isLoading}
             isEmpty={!financeQuery.isLoading && transactions.length === 0}
-            emptyText="Chua co giao dich phu hop trong ky nay."
+            emptyText="Chưa có giao dịch phù hợp trong kỳ này."
             allSelected={selection.allVisibleSelected}
             onSelectAll={selection.toggleSelectAllVisible}
             bulkBar={

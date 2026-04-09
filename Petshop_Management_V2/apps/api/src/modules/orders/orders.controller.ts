@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpException,
   InternalServerErrorException,
   Param,
   Patch,
@@ -54,6 +55,9 @@ export class OrdersController {
     try {
       return await this.ordersService.createOrder(dto, this.getStaffId(req))
     } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error
+      }
       console.error('SERVER ERROR IN CREATE ORDER', error)
       throw new InternalServerErrorException(error.message || String(error))
     }
@@ -69,6 +73,9 @@ export class OrdersController {
     try {
       return await this.ordersService.updateOrder(id, dto, this.getStaffId(req), req.user)
     } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error
+      }
       console.error('SERVER ERROR IN UPDATE ORDER', error)
       throw new InternalServerErrorException(error.message || String(error))
     }

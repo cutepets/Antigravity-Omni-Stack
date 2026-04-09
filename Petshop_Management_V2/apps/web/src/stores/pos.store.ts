@@ -427,7 +427,7 @@ export const usePosStore = create<PosStore>()(
       };
     },
     {
-      name: 'pos-v2-storage',
+      name: 'pos-v3-storage',
       partialize: (state) => {
         const draftTabs = state.tabs.filter(t => !t.existingOrderId);
         const persistTabs = draftTabs.length > 0 ? draftTabs : [createNewTab(`tab-${Date.now()}`)];

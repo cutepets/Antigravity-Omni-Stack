@@ -367,6 +367,128 @@ export class OrdersService {
     return items.reduce((sum, item) => sum + item.unitPrice * item.quantity - (item.discountItem ?? 0), 0);
   }
 
+  private async validateAndNormalizeCreateItems<
+    T extends {
+      productId?: string;
+      productVariantId?: string;
+      serviceId?: string;
+      serviceVariantId?: string;
+      description: string;
+      type: string;
+    },
+  >(
+    tx: Pick<DatabaseService, 'product' | 'productVariant' | 'service' | 'serviceVariant'>,
+    items: T[],
+  ): Promise<T[]> {
+    const productIds = [...new Set(items.map((item) => item.productId).filter((value): value is string => Boolean(value)))];
+    const productVariantIds = [
+      ...new Set(items.map((item) => item.productVariantId).filter((value): value is string => Boolean(value))),
+    ];
+    const serviceIds = [...new Set(items.map((item) => item.serviceId).filter((value): value is string => Boolean(value)))];
+    const serviceVariantIds = [
+      ...new Set(items.map((item) => item.serviceVariantId).filter((value): value is string => Boolean(value))),
+    ];
+
+    const [directProducts, productVariants, directServices, serviceVariants] = await Promise.all([
+      productIds.length > 0 ? tx.product.findMany({ where: { id: { in: productIds } }, select: { id: true } }) : [],
+      productVariantIds.length > 0
+        ? tx.productVariant.findMany({ where: { id: { in: productVariantIds } }, select: { id: true, productId: true } })
+        : [],
+      serviceIds.length > 0 ? tx.service.findMany({ where: { id: { in: serviceIds } }, select: { id: true } }) : [],
+      serviceVariantIds.length > 0
+        ? tx.serviceVariant.findMany({ where: { id: { in: serviceVariantIds } }, select: { id: true, serviceId: true } })
+        : [],
+    ]);
+
+    const inferredProductIds = [
+      ...new Set(productVariants.map((item) => item.productId).filter((id) => !productIds.includes(id))),
+    ];
+    const inferredServiceIds = [
+      ...new Set(serviceVariants.map((item) => item.serviceId).filter((id) => !serviceIds.includes(id))),
+    ];
+
+    const [inferredProducts, inferredServices] = await Promise.all([
+      inferredProductIds.length > 0
+        ? tx.product.findMany({ where: { id: { in: inferredProductIds } }, select: { id: true } })
+        : [],
+      inferredServiceIds.length > 0
+        ? tx.service.findMany({ where: { id: { in: inferredServiceIds } }, select: { id: true } })
+        : [],
+    ]);
+
+    const products = [...directProducts, ...inferredProducts];
+    const services = [...directServices, ...inferredServices];
+
+    const productSet = new Set(products.map((item) => item.id));
+    const serviceSet = new Set(services.map((item) => item.id));
+    const productVariantMap = new Map(productVariants.map((item) => [item.id, item]));
+    const serviceVariantMap = new Map(serviceVariants.map((item) => [item.id, item]));
+
+    return items.map((item, index) => {
+      const itemLabel = item.description?.trim() ? `"${item.description}"` : `muc ${index + 1}`;
+      let productId = item.productId;
+      let serviceId = item.serviceId;
+
+      if (item.productVariantId) {
+        const variant = productVariantMap.get(item.productVariantId);
+        if (!variant) {
+          throw new BadRequestException(`Bien the san pham cua ${itemLabel} khong ton tai`);
+        }
+
+        if (!productId) {
+          productId = variant.productId;
+        } else if (productId !== variant.productId) {
+          throw new BadRequestException(`San pham va bien the cua ${itemLabel} khong khop nhau`);
+        }
+      }
+
+      if (item.serviceVariantId) {
+        const variant = serviceVariantMap.get(item.serviceVariantId);
+        if (!variant) {
+          throw new BadRequestException(`Bien the dich vu cua ${itemLabel} khong ton tai`);
+        }
+
+        if (!serviceId) {
+          serviceId = variant.serviceId;
+        } else if (serviceId !== variant.serviceId) {
+          throw new BadRequestException(`Dich vu va bien the cua ${itemLabel} khong khop nhau`);
+        }
+      }
+
+      if (productId && !productSet.has(productId)) {
+        throw new BadRequestException(`San pham cua ${itemLabel} khong ton tai hoac da bi xoa`);
+      }
+
+      if (serviceId && !serviceSet.has(serviceId)) {
+        throw new BadRequestException(`Dich vu cua ${itemLabel} khong ton tai hoac da bi xoa`);
+      }
+
+      if (item.type === 'product' && !productId) {
+        throw new BadRequestException(`Muc ${itemLabel} dang la san pham nhung thieu productId`);
+      }
+
+      if (item.type === 'service' && !serviceId) {
+        throw new BadRequestException(`Muc ${itemLabel} dang la dich vu nhung thieu serviceId`);
+      }
+
+      const normalizedItem = { ...item } as T;
+
+      if (productId) {
+        normalizedItem.productId = productId;
+      } else {
+        delete normalizedItem.productId;
+      }
+
+      if (serviceId) {
+        normalizedItem.serviceId = serviceId;
+      } else {
+        delete normalizedItem.serviceId;
+      }
+
+      return normalizedItem;
+    });
+  }
+
   private buildOrderItemData(item: CreateOrderDto['items'][number] | UpdateOrderItemDto) {
     return {
       description: item.description,
@@ -639,6 +761,7 @@ export class OrdersService {
     // ── Database transaction ──────────────────────────────────────────────
     return this.prisma.$transaction(async (tx) => {
       const serviceTraceParts: string[] = [];
+      const normalizedItems = await this.validateAndNormalizeCreateItems(tx as any, items);
 
       // 1. Create order with items and payments
       const order = await tx.order.create({
@@ -658,7 +781,7 @@ export class OrdersService {
           remainingAmount: this.calculateRemainingAmount(total, totalPaid),
           notes: data.notes ?? null,
           items: {
-            create: items.map((item) => ({
+            create: normalizedItems.map((item) => ({
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
@@ -688,8 +811,8 @@ export class OrdersService {
       });
 
       // 2. Handle stock & service sessions per item
-      for (let idx = 0; idx < items.length; idx++) {
-        const item = items[idx]!;
+      for (let idx = 0; idx < normalizedItems.length; idx++) {
+        const item = normalizedItems[idx]!;
         const orderItem = order.items[idx]!
 
         // ── Product stock handling ─────────────────────────────────────
@@ -882,11 +1005,12 @@ export class OrdersService {
     const paymentStatus = this.calculatePaymentStatus(total, order.paidAmount);
 
     await this.prisma.$transaction(async (tx) => {
+      const normalizedItems = await this.validateAndNormalizeCreateItems(tx as any, data.items);
       const existingItems = await tx.orderItem.findMany({
         where: { orderId: id },
       });
       const existingById = new Map(existingItems.map((item) => [item.id, item]));
-      const incomingIds = new Set(data.items.map((item) => item.id).filter(Boolean) as string[]);
+      const incomingIds = new Set(normalizedItems.map((item) => item.id).filter(Boolean) as string[]);
 
       for (const currentItem of existingItems) {
         if (incomingIds.has(currentItem.id)) continue;
@@ -922,7 +1046,7 @@ export class OrdersService {
         await tx.orderItem.delete({ where: { id: currentItem.id } });
       }
 
-      for (const item of data.items) {
+      for (const item of normalizedItems) {
         const itemData = this.buildOrderItemData(item);
         const existingItem = item.id ? existingById.get(item.id) : null;
 

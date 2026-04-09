@@ -48,7 +48,6 @@ export function HotelCheckoutModal({ isOpen, onClose, customerId, onConfirm }: H
     
     onConfirm({
       id: `HOTEL-CHECKOUT-${activeStay.id}`,
-      serviceId: 'EXTERNAL', // Special ID
       description: `Thanh toán trả chuồng (${activeStay.roomName})`,
       unitPrice: activeStay.totalPrice,
       type: 'hotel',
