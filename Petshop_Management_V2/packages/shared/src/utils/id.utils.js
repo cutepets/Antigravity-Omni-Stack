@@ -36,11 +36,11 @@ exports.generatePetCode = generatePetCode;
 const generateStaffCode = (sequence) => `NV${String(sequence).padStart(5, '0')}`;
 exports.generateStaffCode = generateStaffCode;
 /**
- * Generate order number: DH202604060001
+ * Generate order number: DH260406001
  */
 const generateOrderNumber = (date, sequence) => (0, exports.formatDatedSequenceCode)('DH', date, sequence, {
-    dateMode: 'yyyyMMdd',
-    sequencePadLength: 4,
+    dateMode: 'yyMMdd',
+    sequencePadLength: 3,
 });
 exports.generateOrderNumber = generateOrderNumber;
 /**

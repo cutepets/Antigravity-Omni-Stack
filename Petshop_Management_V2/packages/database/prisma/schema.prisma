@@ -1,3 +1,13 @@
+// =============================================================================
+// @file     schema.prisma — Petshop Management V2 Database Schema
+// @encoding utf-8  ← This file and ALL seed/migration files MUST be UTF-8.
+//                    AI tools: always open with encoding='utf-8'.
+//                    Never save as Latin-1 / cp1252 / Windows-1252.
+// @db       PostgreSQL — collation UTF-8 is enforced at the server level.
+//           String fields storing Vietnamese text use TEXT / VARCHAR,
+//           which inherits the database-level UTF-8 collation.
+// =============================================================================
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,6 +16,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 
 model Branch {
   id                    String                 @id @default(cuid())
@@ -35,6 +46,8 @@ model Branch {
   supplierPayments      SupplierPayment[]
   supplierReturns       SupplierReturn[]
   supplierReturnRefunds SupplierReturnRefund[]
+  productSalesDaily     ProductSalesDaily[]
+  paymentIntents        PaymentIntent[]
   transactions          Transaction[]
   users                 User[]
   authorizedUsers       User[]                 @relation("UserAuthorizedBranches")
@@ -135,10 +148,13 @@ model Customer {
   isActive     Boolean        @default(true)
   isSupplier   Boolean        @default(false)
   supplierCode String?        @unique
-  companyName  String?
-  bankAccount  String?
-  bankName     String?
-  createdAt    DateTime       @default(now())
+  companyName         String?
+  companyAddress      String?
+  representativeName  String?
+  representativePhone String?
+  bankAccount         String?
+  bankName            String?
+  createdAt           DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   branch       Branch?        @relation(fields: [branchId], references: [id])
   group        CustomerGroup? @relation(fields: [groupId], references: [id])
@@ -259,6 +275,7 @@ model Product {
   supplier            Supplier?                 @relation(fields: [supplierId], references: [id])
   receiptItems        StockReceiptItem[]
   receiveItems        StockReceiptReceiveItem[]
+  salesDaily          ProductSalesDaily[]
   stockTransactions   StockTransaction[]
   supplierReturnItems SupplierReturnItem[]
 
@@ -287,6 +304,7 @@ model ProductVariant {
   orderItems          OrderItem[]
   receiptItems        StockReceiptItem[]
   receiveItems        StockReceiptReceiveItem[]
+  salesDaily          ProductSalesDaily[]
   supplierReturnItems SupplierReturnItem[]
   product             Product                   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -344,11 +362,15 @@ model Order {
   remainingAmount  Float             @default(0)
   notes            String?
   createdAt        DateTime          @default(now())
+  completedAt      DateTime?
   updatedAt        DateTime          @updatedAt
   groomingSessions GroomingSession[]
   hotelStays       HotelStay[]
   items            OrderItem[]
   payments         OrderPayment[]
+  paymentIntents   PaymentIntent[]
+  bankTransactions BankTransaction[]
+  webhookEvents    PaymentWebhookEvent[]
   branch           Branch?           @relation(fields: [branchId], references: [id])
   customer         Customer?         @relation(fields: [customerId], references: [id])
   staff            User              @relation(fields: [staffId], references: [id])
@@ -358,6 +380,7 @@ model Order {
   @@index([status])
   @@index([paymentStatus])
   @@index([createdAt])
+  @@index([completedAt])
   @@map("orders")
 }
 
@@ -366,10 +389,14 @@ model OrderPayment {
   orderId   String
   method    String
   amount    Float
+  note      String?
+  paymentAccountId    String?
+  paymentAccountLabel String?
   createdAt DateTime @default(now())
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
+  @@index([paymentAccountId])
   @@map("order_payments")
 }
 
@@ -402,6 +429,30 @@ model OrderItem {
   @@index([orderId])
   @@index([hotelStayId])
   @@map("order_items")
+}
+
+model ProductSalesDaily {
+  id               String          @id @default(cuid())
+  date             DateTime
+  branchId         String?
+  branchScope      String
+  productId        String
+  productVariantId String?
+  salesKey         String
+  quantitySold     Int             @default(0)
+  revenue          Float           @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  branch           Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+
+  @@unique([date, branchScope, salesKey])
+  @@index([branchId, date])
+  @@index([productId, date])
+  @@index([productVariantId, date])
+  @@index([salesKey, date])
+  @@map("product_sales_daily")
 }
 
 model GroomingSession {
@@ -806,6 +857,8 @@ model Transaction {
   category      String?
   orderId       String?
   paymentMethod String?
+  paymentAccountId    String?
+  paymentAccountLabel String?
   branchId      String?
   branchName    String?
   refType       String?
@@ -828,6 +881,7 @@ model Transaction {
 
   @@index([branchId])
   @@index([paymentMethod])
+  @@index([paymentAccountId])
   @@index([refType])
   @@index([refId])
   @@index([refNumber])
@@ -836,6 +890,268 @@ model Transaction {
   @@index([type])
   @@index([date])
   @@map("transactions")
+}
+
+enum CashbookCategoryType {
+  INCOME
+  EXPENSE
+}
+
+enum PaymentMethodType {
+  CASH
+  BANK
+  EWALLET
+  CARD
+}
+
+enum PaymentMethodColorKey {
+  emerald
+  sky
+  amber
+  orange
+  violet
+  rose
+  cyan
+  slate
+}
+
+enum PaymentQrProvider {
+  VIETQR
+}
+
+enum PaymentIntentStatus {
+  PENDING
+  PAID
+  EXPIRED
+}
+
+enum PaymentWebhookEventStatus {
+  RECEIVED
+  DUPLICATE
+  UNMATCHED
+  APPLIED
+  IGNORED_ALREADY_PAID
+  REJECTED
+}
+
+enum BankTransactionStatus {
+  RECEIVED
+  SUGGESTED
+  APPLIED
+  REVIEW
+  DUPLICATE
+  IGNORED
+  REJECTED
+}
+
+enum BankTransactionClassification {
+  UNCLASSIFIED
+  SALES_PAYMENT
+  SUPPLIER_PAYMENT
+  CUSTOMER_CREDIT
+  MANUAL_TRANSACTION
+}
+
+model CashbookCategory {
+  id        String               @id @default(cuid())
+  type      CashbookCategoryType
+  name      String
+  isActive  Boolean              @default(true)
+  sortOrder Int                  @default(0)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@unique([type, name])
+  @@index([type, isActive, sortOrder])
+  @@map("cashbook_categories")
+}
+
+model BankTransferAccount {
+  id            String   @id @default(cuid())
+  name          String
+  bankName      String
+  accountNumber String   @unique
+  accountHolder String
+  notes         String?
+  isDefault     Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isDefault, isActive])
+  @@index([bankName, isActive])
+  @@map("bank_transfer_accounts")
+}
+
+model PaymentMethod {
+  id            String            @id @default(cuid())
+  code          String?           @unique
+  name          String
+  type          PaymentMethodType
+  colorKey      PaymentMethodColorKey @default(emerald)
+  isSystem      Boolean           @default(false)
+  isDefault     Boolean           @default(false)
+  isActive      Boolean           @default(true)
+  sortOrder     Int               @default(0)
+  minAmount     Float?
+  maxAmount     Float?
+  timeFrom      String?
+  timeTo        String?
+  weekdays      Int[]             @default([])
+  branchIds     String[]          @default([])
+  notes         String?
+  bankName      String?
+  accountNumber String?
+  accountHolder String?
+  qrEnabled     Boolean           @default(false)
+  qrProvider    PaymentQrProvider?
+  qrBankBin     String?
+  qrTemplate    String?
+  transferNotePrefix String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  paymentIntents PaymentIntent[]
+  bankTransactions BankTransaction[]
+  webhookEvents  PaymentWebhookEvent[]
+
+  @@index([type, isActive, sortOrder])
+  @@index([isDefault, isActive])
+  @@map("payment_methods")
+}
+
+model PaymentIntent {
+  id              String              @id @default(cuid())
+  code            String              @unique
+  orderId         String?
+  branchId        String?
+  paymentMethodId String
+  amount          Float
+  currency        String              @default("VND")
+  status          PaymentIntentStatus @default(PENDING)
+  provider        PaymentQrProvider?
+  transferContent String
+  qrUrl           String?
+  qrPayload       String?
+  metadata        Json?
+  expiresAt       DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  branch          Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  order           Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  paymentMethod   PaymentMethod       @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict)
+  webhookEvents   PaymentWebhookEvent[]
+  bankTransactions BankTransaction[]
+
+  @@index([orderId])
+  @@index([branchId])
+  @@index([paymentMethodId])
+  @@index([status, expiresAt])
+  @@map("payment_intents")
+}
+
+model BankTransaction {
+  id                    String                        @id @default(cuid())
+  provider              String
+  sourceEventKey        String?
+  dedupeKey             String
+  externalEventId       String?
+  externalTxnId         String?
+  bankBin               String?
+  accountNumber         String
+  amount                Float
+  currency              String                        @default("VND")
+  direction             String                        @default("IN")
+  description           String
+  normalizedDescription String
+  status                BankTransactionStatus         @default(RECEIVED)
+  classification        BankTransactionClassification @default(UNCLASSIFIED)
+  isTest                Boolean                       @default(false)
+  sourceCount           Int                           @default(1)
+  matchedPaymentIntentId String?
+  matchedOrderId        String?
+  matchedPaymentMethodId String?
+  matchReason           String?
+  note                  String?
+  txnAt                 DateTime?
+  processedAt           DateTime?
+  rawPayload            Json?
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  paymentIntent         PaymentIntent?                @relation(fields: [matchedPaymentIntentId], references: [id], onDelete: SetNull)
+  order                 Order?                        @relation(fields: [matchedOrderId], references: [id], onDelete: SetNull)
+  paymentMethod         PaymentMethod?                @relation(fields: [matchedPaymentMethodId], references: [id], onDelete: SetNull)
+  webhookEvents         PaymentWebhookEvent[]
+
+  @@index([provider, createdAt])
+  @@index([sourceEventKey])
+  @@index([dedupeKey])
+  @@index([status, createdAt])
+  @@index([classification, createdAt])
+  @@index([isTest, createdAt])
+  @@index([accountNumber, amount, createdAt])
+  @@index([matchedPaymentIntentId])
+  @@map("bank_transactions")
+}
+
+model PaymentWebhookEvent {
+  id                    String                    @id @default(cuid())
+  provider              String
+  sourceEventKey        String?
+  dedupeKey             String
+  externalEventId       String?
+  externalTxnId         String?
+  bankBin               String?
+  accountNumber         String
+  amount                Float
+  currency              String                    @default("VND")
+  direction             String                    @default("IN")
+  description           String
+  normalizedDescription String
+  status                PaymentWebhookEventStatus @default(RECEIVED)
+  duplicateOfId         String?
+  bankTransactionId     String?
+  matchedPaymentIntentId String?
+  matchedOrderId        String?
+  matchedPaymentMethodId String?
+  matchReason           String?
+  note                  String?
+  txnAt                 DateTime?
+  processedAt           DateTime?
+  rawPayload            Json
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  duplicateOf           PaymentWebhookEvent?      @relation("PaymentWebhookEventDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates            PaymentWebhookEvent[]     @relation("PaymentWebhookEventDuplicates")
+  bankTransaction       BankTransaction?          @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+  paymentIntent         PaymentIntent?            @relation(fields: [matchedPaymentIntentId], references: [id], onDelete: SetNull)
+  order                 Order?                    @relation(fields: [matchedOrderId], references: [id], onDelete: SetNull)
+  paymentMethod         PaymentMethod?            @relation(fields: [matchedPaymentMethodId], references: [id], onDelete: SetNull)
+
+  @@index([provider, createdAt])
+  @@index([sourceEventKey])
+  @@index([dedupeKey])
+  @@index([status, createdAt])
+  @@index([accountNumber, amount, createdAt])
+  @@index([bankTransactionId])
+  @@index([matchedPaymentIntentId])
+  @@map("payment_webhook_events")
+}
+
+model PaymentWebhookSecret {
+  id            String   @id @default(cuid())
+  provider      String
+  name          String
+  secretHash    String
+  secretPreview String
+  lastUsedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([provider, name])
+  @@index([provider, createdAt])
+  @@index([secretHash])
+  @@map("payment_webhook_secrets")
 }
 
 model ShiftSession {
@@ -904,6 +1220,7 @@ model SystemConfig {
   loyaltyPointExpiryMonths   Int?
   loyaltyTierRetentionMonths Int?
   loyaltyTierRules           String?
+  allowMultiPayment          Boolean  @default(true)
 
   @@map("system_configs")
 }

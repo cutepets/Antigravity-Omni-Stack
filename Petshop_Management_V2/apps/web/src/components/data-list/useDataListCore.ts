@@ -32,9 +32,19 @@ export function useDataListCore<TColumnId extends string, TFilterId extends stri
   const stored = getStoredState()
 
   // Columns
-  const [columnOrder, setColumnOrder] = useState<TColumnId[]>(stored?.columnOrder ?? initialColumnOrder)
+  const [columnOrder, setColumnOrder] = useState<TColumnId[]>(() => {
+    const rawOrder = stored?.columnOrder ?? initialColumnOrder
+    // If we added new columns to the code but local storage has an old list, append the new ones safely
+    const existing = new Set(rawOrder)
+    const missing = initialColumnOrder.filter((id) => !existing.has(id))
+    return [...rawOrder, ...missing]
+  })
+  
   const [visibleColumns, setVisibleColumns] = useState<Set<TColumnId>>(
-    new Set(stored?.visibleColumns ?? initialVisibleColumns)
+    () => {
+      // If we don't have stored visible columns, use initial. But we always ensure standard columns are respected.
+      return new Set(stored?.visibleColumns ?? initialVisibleColumns)
+    }
   )
   const [draggingColumnId, setDraggingColumnId] = useState<TColumnId | null>(null)
 

@@ -69,6 +69,9 @@ export interface Transaction {
     amount: number;
     description: string;
     category?: string | null;
+    paymentMethod?: string | null;
+    paymentAccountId?: string | null;
+    paymentAccountLabel?: string | null;
     orderId?: string | null;
     staffId?: string | null;
     date: Date;

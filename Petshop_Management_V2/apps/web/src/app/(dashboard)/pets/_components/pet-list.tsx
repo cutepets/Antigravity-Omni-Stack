@@ -88,7 +88,7 @@ export function PetList() {
     initialColumnOrder: COLUMN_OPTIONS.map((c) => c.id),
     initialVisibleColumns: ['avatar', 'pet', 'breed', 'owner', 'weight', 'dob', 'petCode'],
     initialTopFilterVisibility: { species: true },
-    storageKey: 'pet-list-columns-v1',
+    storageKey: 'pet-list-columns-v2',
   })
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 

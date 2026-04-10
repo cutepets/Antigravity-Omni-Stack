@@ -21,12 +21,13 @@ import {
   useDataListSelection,
 } from '@/components/data-list'
 import { financeApi, type FinanceTransaction } from '@/lib/api/finance.api'
-import { settingsApi } from '@/lib/api'
+import { settingsApi } from '@/lib/api/settings.api'
 import { buildFinanceVoucherHref } from '@/lib/finance-routes'
 import { toast } from 'sonner'
 import { CreateTransactionModal } from './create-transaction-modal'
 import { FinanceReceiptReconciliationModal } from './finance-receipt-reconciliation-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import { BankTransactionsTab } from './bank-transactions-tab'
 
 type DisplayColumnId = 'voucher' | 'tags' | 'date' | 'createdAt' | 'updatedAt' | 'type' | 'payer' | 'creator' | 'branch' | 'paymentMethod' | 'amount' | 'category' | 'description' | 'ref' | 'notes' | 'source'
 type PinFilterId = 'type' | 'branch' | 'paymentMethod'
@@ -36,6 +37,7 @@ type TransactionWindowState = {
   transaction: FinanceTransaction | null
   initialType?: 'INCOME' | 'EXPENSE'
 }
+type FinanceViewTab = 'cashbook' | 'bank-transactions'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
   { id: 'voucher', label: 'Mã phiếu', minWidth: 'min-w-[110px]' },
@@ -66,6 +68,10 @@ function firstDayOfMonth() {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
+}
+
+function isValidDateInput(value: string | null | undefined) {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value))
 }
 
 function formatCurrency(value: number) {
@@ -106,10 +112,14 @@ export function FinanceWorkspace() {
   const queryClient = useQueryClient()
   const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
   const canReadCashbook = hasPermission('report.cashbook')
+  const canManagePayment = hasPermission('settings.payment.manage')
+  const canReadBankTransactions = canReadCashbook || canManagePayment
   const routeVoucherParam = Array.isArray(params?.voucher) ? params.voucher[0] : params?.voucher
   const voucherParam = routeVoucherParam ?? searchParams.get('voucher')
+  const tabParam = searchParams.get('tab')
   const linkedSearch = searchParams.get('search') ?? voucherParam ?? ''
   const [search, setSearch] = useState(linkedSearch)
+  const [activeTab, setActiveTab] = useState<FinanceViewTab>(tabParam === 'bank-transactions' ? 'bank-transactions' : 'cashbook')
   const deferredSearch = useDeferredValue(search)
   const [type, setType] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL')
   const [branchId, setBranchId] = useState('')
@@ -123,10 +133,91 @@ export function FinanceWorkspace() {
 
   useEffect(() => {
     if (isAuthLoading) return
-    if (!canReadCashbook) {
+    if (!canReadCashbook && !canReadBankTransactions) {
       router.replace('/dashboard')
     }
-  }, [canReadCashbook, isAuthLoading, router])
+  }, [canReadBankTransactions, canReadCashbook, isAuthLoading, router])
+
+  useEffect(() => {
+    if (tabParam === 'bank-transactions' && canReadBankTransactions) {
+      setActiveTab('bank-transactions')
+      return
+    }
+    if (tabParam === 'cashbook' && canReadCashbook) {
+      setActiveTab('cashbook')
+      return
+    }
+    if (!canReadCashbook && canReadBankTransactions) {
+      setActiveTab('bank-transactions')
+    }
+  }, [canReadBankTransactions, canReadCashbook, tabParam])
+
+  useEffect(() => {
+    const nextSearch = searchParams.get('search') ?? voucherParam ?? ''
+    const nextBranchId = searchParams.get('branchId') ?? ''
+    const nextType = searchParams.get('type')
+    const nextPaymentMethod = searchParams.get('paymentMethod') ?? ''
+    const nextDateFrom = isValidDateInput(searchParams.get('dateFrom')) ? String(searchParams.get('dateFrom')) : firstDayOfMonth()
+    const nextDateTo = isValidDateInput(searchParams.get('dateTo')) ? String(searchParams.get('dateTo')) : todayString()
+    const nextPage = Number(searchParams.get('page') ?? '1')
+    const nextPageSize = Number(searchParams.get('limit') ?? '20')
+
+    setSearch((current) => (current !== nextSearch ? nextSearch : current))
+    setBranchId((current) => (current !== nextBranchId ? nextBranchId : current))
+    setType((current) =>
+      nextType === 'INCOME' || nextType === 'EXPENSE' || nextType === 'ALL'
+        ? (current !== nextType ? nextType : current)
+        : current !== 'ALL'
+          ? 'ALL'
+          : current,
+    )
+    setPaymentMethod((current) => (current !== nextPaymentMethod ? nextPaymentMethod : current))
+    setDateFrom((current) => (current !== nextDateFrom ? nextDateFrom : current))
+    setDateTo((current) => (current !== nextDateTo ? nextDateTo : current))
+    setPage((current) => (Number.isFinite(nextPage) && nextPage > 0 ? (current !== nextPage ? nextPage : current) : current !== 1 ? 1 : current))
+    setPageSize((current) =>
+      Number.isFinite(nextPageSize) && nextPageSize > 0 ? (current !== nextPageSize ? nextPageSize : current) : current !== 20 ? 20 : current,
+    )
+  }, [searchParams, voucherParam])
+
+  useEffect(() => {
+    if (isAuthLoading) return
+
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete('voucher')
+
+    if (activeTab === 'cashbook') nextParams.delete('tab')
+    else nextParams.set('tab', activeTab)
+
+    if (search.trim()) nextParams.set('search', search.trim())
+    else nextParams.delete('search')
+
+    if (type !== 'ALL') nextParams.set('type', type)
+    else nextParams.delete('type')
+
+    if (branchId) nextParams.set('branchId', branchId)
+    else nextParams.delete('branchId')
+
+    if (paymentMethod) nextParams.set('paymentMethod', paymentMethod)
+    else nextParams.delete('paymentMethod')
+
+    nextParams.set('dateFrom', dateFrom)
+    nextParams.set('dateTo', dateTo)
+
+    if (page > 1) nextParams.set('page', String(page))
+    else nextParams.delete('page')
+
+    if (pageSize !== 20) nextParams.set('limit', String(pageSize))
+    else nextParams.delete('limit')
+
+    const currentQuery = searchParams.toString()
+    const nextQuery = nextParams.toString()
+    if (currentQuery !== nextQuery) {
+      startTransition(() => {
+        router.replace(nextQuery ? `/finance?${nextQuery}` : '/finance', { scroll: false })
+      })
+    }
+  }, [activeTab, branchId, dateFrom, dateTo, isAuthLoading, page, pageSize, paymentMethod, router, search, searchParams, type])
 
   useEffect(() => {
     if (!transactionWindow?.transaction) {
@@ -200,9 +291,29 @@ export function FinanceWorkspace() {
   const financeListHref = useMemo(() => {
     const nextParams = new URLSearchParams(searchParams.toString())
     nextParams.delete('voucher')
+    if (activeTab === 'cashbook') {
+      nextParams.delete('tab')
+    } else {
+      nextParams.set('tab', activeTab)
+    }
     const nextQuery = nextParams.toString()
     return nextQuery ? `/finance?${nextQuery}` : '/finance'
-  }, [searchParams])
+  }, [activeTab, searchParams])
+
+  const handleChangeTab = (nextTab: FinanceViewTab) => {
+    setActiveTab(nextTab)
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete('voucher')
+    if (nextTab === 'cashbook') {
+      nextParams.delete('tab')
+    } else {
+      nextParams.set('tab', nextTab)
+    }
+    const nextQuery = nextParams.toString()
+    startTransition(() => {
+      router.replace(nextQuery ? `/finance?${nextQuery}` : '/finance')
+    })
+  }
 
   const clearFilters = () => {
     setSearch('')
@@ -295,13 +406,36 @@ export function FinanceWorkspace() {
     return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>
   }
 
-  if (!canReadCashbook) {
+  if (!canReadCashbook && !canReadBankTransactions) {
     return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
   }
 
   return (
     <>
       <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {([
+            canReadCashbook ? (['cashbook', 'Sổ quỹ'] as const) : null,
+            canReadBankTransactions ? (['bank-transactions', 'Nhận tiền tài khoản'] as const) : null,
+          ].filter(Boolean) as ReadonlyArray<readonly [FinanceViewTab, string]>).map(([tabId, label]) => (
+            <button
+              key={tabId}
+              type="button"
+              onClick={() => handleChangeTab(tabId)}
+              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                activeTab === tabId
+                  ? 'border-primary-500/40 bg-primary-500/12 text-primary-100'
+                  : 'border-border/60 bg-background-secondary text-foreground-muted hover:border-border hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'bank-transactions' && canReadBankTransactions ? <BankTransactionsTab canManagePayment={canManagePayment} /> : null}
+        {activeTab === 'cashbook' && canReadCashbook ? (
+        <>
         <div className="grid shrink-0 gap-3 lg:grid-cols-4">
           {[
             { label: 'Số dư đầu kỳ', value: financeData?.openingBalance ?? 0 },
@@ -349,8 +483,8 @@ export function FinanceWorkspace() {
                   <select value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setPage(1) }} className={toolbarSelectClass}>
                     <option value="">Mọi hình thức</option>
                     {(meta?.paymentMethods ?? []).map((method) => (
-                      <option key={method} value={method}>
-                        {method}
+                      <option key={method.value} value={method.value}>
+                        {method.label}
                       </option>
                     ))}
                   </select>
@@ -432,8 +566,8 @@ export function FinanceWorkspace() {
               <select value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setPage(1) }} className={filterSelectClass}>
                 <option value="">Mọi hình thức</option>
                 {(meta?.paymentMethods ?? []).map((method) => (
-                  <option key={method} value={method}>
-                    {method}
+                  <option key={method.value} value={method.value}>
+                    {method.label}
                   </option>
                 ))}
               </select>
@@ -527,7 +661,7 @@ export function FinanceWorkspace() {
                     {columnId === 'branch' ? (
                       <span className="text-foreground-muted">{transaction.branchName || 'Toàn hệ thống'}</span>
                     ) : null}
-                    {columnId === 'paymentMethod' ? <span>{transaction.paymentMethod || '-'}</span> : null}
+                    {columnId === 'paymentMethod' ? <span>{transaction.paymentAccountLabel || transaction.paymentMethod || '-'}</span> : null}
                     {columnId === 'amount' ? (
                       <span className={transaction.type === 'INCOME' ? 'font-semibold text-emerald-400' : 'font-semibold text-rose-400'}>
                         {transaction.type === 'INCOME' ? '+' : '-'}
@@ -595,6 +729,8 @@ export function FinanceWorkspace() {
             }
           />
         </DataListShell>
+        </>
+        ) : null}
       </div>
 
       {transactionWindow ? (

@@ -1,19 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, ShoppingCart, User, Phone, Calendar, CreditCard,
   Package, Scissors, CheckCircle2, Clock, AlertCircle, Printer,
-  Receipt, Tag, Hash, Store, ChevronRight, Percent
+  Receipt, Tag, Hash, Store, ChevronRight, Percent, QrCode, Copy, RefreshCw, Landmark
 } from 'lucide-react'
 import { orderApi, type CompleteOrderPayload } from '@/lib/api/order.api'
+import { settingsApi } from '@/lib/api/settings.api'
+import { filterVisiblePaymentMethods } from '@/lib/payment-methods'
 import { formatDateTime, formatCurrency } from '@/lib/utils'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { PosPaymentModal } from '../../pos/components/PosPaymentModal'
 import { OrderSettlementModal } from '../_components/order-settlement-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import { usePaymentIntentStream } from '@/hooks/use-payment-intent-stream'
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: 'Tiền mặt',
@@ -60,6 +64,8 @@ export default function OrderDetailPage() {
   
   const [showPayModal, setShowPayModal] = useState(false)
   const [showSettlementModal, setShowSettlementModal] = useState(false)
+  const [selectedQrMethodId, setSelectedQrMethodId] = useState('')
+  const handledPaidIntentCodeRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (isAuthLoading) return
@@ -73,6 +79,18 @@ export default function OrderDetailPage() {
     queryFn: () => orderApi.get(id as string),
     enabled: !!id,
   })
+  const { data: paymentMethods = [] } = useQuery({
+    queryKey: ['settings', 'payment-methods'],
+    queryFn: () => settingsApi.getPaymentMethods(),
+    staleTime: 30_000,
+    enabled: !!id && canReadOrders,
+  })
+  const { data: paymentIntents = [] } = useQuery({
+    queryKey: ['order-payment-intents', id],
+    queryFn: () => orderApi.listPaymentIntents(id as string),
+    staleTime: 10_000,
+    enabled: !!id && canReadOrders,
+  })
 
   const { mutate: payOrder, isPending: paying } = useMutation({
     mutationFn: (data: any) => orderApi.pay(id as string, data),
@@ -80,6 +98,7 @@ export default function OrderDetailPage() {
       toast.success('Thanh toán thành công')
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['order-payment-intents', id] })
       setShowPayModal(false)
     },
     onError: () => toast.error('Lỗi khi thao tác thanh toán'),
@@ -91,10 +110,26 @@ export default function OrderDetailPage() {
       toast.success('Quyết toán đơn hàng thành công')
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['order-payment-intents', id] })
       setShowSettlementModal(false)
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message || 'Không thể quyết toán đơn hàng')
+    },
+  })
+
+  const { mutate: createPaymentIntent, isPending: creatingPaymentIntent } = useMutation({
+    mutationFn: (paymentMethodId: string) =>
+      orderApi.createPaymentIntent(id as string, {
+        paymentMethodId,
+      }),
+    onSuccess: (intent) => {
+      toast.success('Da tao QR chuyen khoan')
+      setSelectedQrMethodId(intent.paymentMethodId)
+      queryClient.invalidateQueries({ queryKey: ['order-payment-intents', id] })
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Khong the tao QR chuyen khoan')
     },
   })
 
@@ -149,6 +184,30 @@ export default function OrderDetailPage() {
   const transactions: any[] = order.transactions || []
   const canFinalize = order.status !== 'COMPLETED' && order.status !== 'CANCELLED'
   const canKeepCredit = Boolean(order.customer?.id || order.customerId)
+  const payableAmount = remainingDebt > 0 ? remainingDebt : total
+  const visiblePaymentMethods = filterVisiblePaymentMethods(paymentMethods, {
+    branchId: order.branchId,
+    amount: payableAmount,
+  })
+  const qrBankMethods = visiblePaymentMethods.filter((method) => method.type === 'BANK' && method.qrEnabled)
+  const activePaymentIntents = paymentIntents.filter((intent) => intent.status === 'PENDING')
+  const selectedQrMethod = qrBankMethods.find((method) => method.id === selectedQrMethodId) ?? qrBankMethods[0] ?? null
+  const activeQrIntent = activePaymentIntents.find((intent) => intent.paymentMethodId === selectedQrMethod?.id) ?? null
+  const qrIntentStream = usePaymentIntentStream(activeQrIntent?.code, Boolean(activeQrIntent?.code))
+  const displayedQrIntent =
+    qrIntentStream.latestIntent?.code === activeQrIntent?.code ? qrIntentStream.latestIntent : activeQrIntent
+
+  useEffect(() => {
+    if (!displayedQrIntent) return
+    if (qrIntentStream.lastEvent !== 'paid') return
+    if (handledPaidIntentCodeRef.current === displayedQrIntent.code) return
+
+    handledPaidIntentCodeRef.current = displayedQrIntent.code
+    toast.success('Da doi soat thanh toan chuyen khoan thanh cong')
+    queryClient.invalidateQueries({ queryKey: ['order', id] })
+    queryClient.invalidateQueries({ queryKey: ['orders'] })
+    queryClient.invalidateQueries({ queryKey: ['order-payment-intents', id] })
+  }, [displayedQrIntent, id, qrIntentStream.lastEvent, queryClient])
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in pb-16">
@@ -204,7 +263,7 @@ export default function OrderDetailPage() {
                     {/* Icon / image */}
                     <div className="w-12 h-12 rounded-xl overflow-hidden bg-background flex items-center justify-center shrink-0 border border-border/80 shadow-sm">
                       {img
-                        ? <img src={img} alt={name} className="w-full h-full object-cover" />
+                        ? <Image src={img} alt={name} width={48} height={48} className="h-full w-full object-cover" />
                         : isService
                           ? <Scissors size={18} className="text-accent-500" />
                           : <Package size={18} className="text-primary-500" />
@@ -352,6 +411,135 @@ export default function OrderDetailPage() {
             )}
           </div>
 
+          {remainingDebt > 0 && qrBankMethods.length > 0 ? (
+            <div className="bg-background border border-border rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-bold text-base text-foreground flex items-center gap-2">
+                  <QrCode size={18} className="text-primary-500" /> QR chuyen khoan
+                </h2>
+                {displayedQrIntent ? (
+                  <span className="rounded-full bg-primary-500/10 px-3 py-1 text-xs font-semibold text-primary-500">
+                    {formatCurrency(displayedQrIntent.amount)}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-[0.16em] text-foreground-muted">
+                    Tai khoan nhan
+                  </label>
+                  <select
+                    value={selectedQrMethod?.id ?? ''}
+                    onChange={(event) => setSelectedQrMethodId(event.target.value)}
+                    className="w-full rounded-xl border border-border bg-background-secondary px-4 py-3 text-sm font-medium text-foreground outline-none transition-colors focus:border-primary-500"
+                  >
+                    {qrBankMethods.map((method) => (
+                      <option key={method.id} value={method.id}>
+                        {method.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedQrMethod) return
+                    createPaymentIntent(selectedQrMethod.id)
+                  }}
+                  disabled={!selectedQrMethod || creatingPaymentIntent || displayedQrIntent?.status === 'PAID'}
+                  className="w-full rounded-xl bg-sky-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw size={16} className={creatingPaymentIntent ? 'animate-spin' : ''} />
+                    {displayedQrIntent ? 'Lam moi QR' : 'Tao QR'}
+                  </span>
+                </button>
+
+                {displayedQrIntent ? (
+                  <div className={`rounded-2xl border p-4 ${displayedQrIntent.status === 'PAID' ? 'border-emerald-200 bg-emerald-50/80' : 'border-sky-200 bg-sky-50/70'}`}>
+                    {displayedQrIntent.qrUrl ? (
+                      <div className="rounded-2xl bg-white p-3 shadow-sm">
+                        <img
+                          src={displayedQrIntent.qrUrl}
+                          alt={`QR ${displayedQrIntent.transferContent}`}
+                          className="mx-auto h-64 w-64 max-w-full"
+                        />
+                      </div>
+                    ) : null}
+
+                    {displayedQrIntent.status === 'PAID' ? (
+                      <div className="mt-4 rounded-xl border border-emerald-200 bg-white/90 p-3 text-sm font-semibold text-emerald-700">
+                        He thong da nhan thong bao chuyen khoan thanh cong cho QR nay.
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 space-y-3">
+                      <div className="rounded-xl bg-white/80 p-3">
+                        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">So tien</div>
+                        <div className="mt-1 text-xl font-bold text-foreground">{formatCurrency(displayedQrIntent.amount)}</div>
+                      </div>
+
+                      <div className="rounded-xl bg-white/80 p-3">
+                        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">Noi dung chuyen khoan</div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="font-mono text-sm font-bold text-foreground">{displayedQrIntent.transferContent}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(displayedQrIntent.transferContent)
+                              toast.success('Da copy noi dung chuyen khoan')
+                            }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-white text-foreground-muted transition-colors hover:text-foreground"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl bg-white/80 p-3">
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">Tai khoan</div>
+                          <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-foreground">
+                            <Landmark size={14} className="text-sky-600" />
+                            <span>{displayedQrIntent.paymentMethod.bankName || displayedQrIntent.paymentMethod.name}</span>
+                          </div>
+                          <div className="mt-1 text-sm text-foreground-secondary">{displayedQrIntent.paymentMethod.accountNumber}</div>
+                          <div className="mt-1 text-xs text-foreground-muted">{displayedQrIntent.paymentMethod.accountHolder}</div>
+                        </div>
+
+                        <div className="rounded-xl bg-white/80 p-3">
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">
+                            {displayedQrIntent.status === 'PAID' ? 'Xac nhan luc' : 'Han QR'}
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-foreground">
+                            {displayedQrIntent.status === 'PAID'
+                              ? displayedQrIntent.paidAt
+                                ? new Date(displayedQrIntent.paidAt).toLocaleString('vi-VN')
+                                : 'Da xac nhan'
+                              : displayedQrIntent.expiresAt
+                                ? new Date(displayedQrIntent.expiresAt).toLocaleString('vi-VN')
+                                : 'Khong gioi han'}
+                          </div>
+                          <div className="mt-2 text-xs text-foreground-muted">
+                            {displayedQrIntent.status === 'PAID'
+                              ? 'He thong khoa duplicate neu webhook backup gui lai giao dich nay.'
+                              : 'QR duoc tao noi bo theo dung so tien con no cua don hang.'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-border bg-background-secondary/60 p-4 text-sm text-foreground-muted">
+                    Chon tai khoan BANK da bat QR roi bam tao QR de lay ma thanh toan theo dung so tien con no.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
           {/* Customer */}
           <div className="bg-background border border-border rounded-2xl p-5 shadow-sm">
             <h2 className="font-bold text-base text-foreground mb-4 flex items-center gap-2">
@@ -481,11 +669,18 @@ export default function OrderDetailPage() {
       <PosPaymentModal 
          isOpen={showPayModal} 
          onClose={() => setShowPayModal(false)}
-         cartTotal={remainingDebt > 0 ? remainingDebt : total}
-         onConfirm={(method, amount) => {
-            payOrder({ payments: [{ method, amount }] });
-         }}
-      />
+         cartTotal={payableAmount}
+         paymentMethods={visiblePaymentMethods}
+         initialPayments={[]}
+         minimumMethods={1}
+         title="Thu tien don hang"
+         description="Chon mot hoac nhieu phuong thuc thanh toan de ghi nhan vao don hang hien tai."
+         onConfirm={(payload) => {
+            payOrder({
+              payments: payload.payments,
+            });
+          }}
+       />
 
       <OrderSettlementModal
         isOpen={showSettlementModal}
@@ -496,6 +691,7 @@ export default function OrderDetailPage() {
         amountPaid={amountPaid}
         canKeepCredit={canKeepCredit}
         isPending={completing}
+        branchId={order.branchId}
       />
     </div>
   )

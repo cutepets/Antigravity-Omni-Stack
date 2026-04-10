@@ -24,7 +24,7 @@
         "./src/*"
       ],
       "@petshop/auth": [
-        "../../packages/auth/src/index.ts"
+        "../../packages/auth/src/web.ts"
       ],
       "@petshop/config": [
         "../../packages/config/src/index.ts"

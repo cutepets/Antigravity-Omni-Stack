@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { resolvePermissions } from '@petshop/auth';
 import type { JwtPayload } from '@petshop/shared';
 import { DatabaseService } from '../../database/database.service.js';
@@ -7,6 +8,7 @@ import { UpdateOrderDto, UpdateOrderItemDto } from './dto/update-order.dto.js';
 import { PayOrderDto } from './dto/pay-order.dto.js';
 import { CompleteOrderDto } from './dto/complete-order.dto.js';
 import { CancelOrderDto } from './dto/cancel-order.dto.js';
+import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto.js';
 import {
   generateGroomingSessionCode as formatGroomingSessionCode,
   generateHotelStayCode as formatHotelStayCode,
@@ -14,13 +16,54 @@ import {
 } from '@petshop/shared';
 import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js';
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
+import { buildVietQrDataUrl, buildVietQrPayload } from '../../common/utils/vietqr.util.js';
 
 type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>;
 
-// ─── Payment method labels ──────────────────────────────────────────────────
+const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
+const PAYMENT_INTENT_TTL_MS = 15 * 60 * 1000;
+
+type OrderPaymentIntentView = {
+  id: string;
+  code: string;
+  orderId?: string | null;
+  paymentMethodId: string;
+  amount: number;
+  currency: string;
+  status: 'PENDING' | 'PAID' | 'EXPIRED';
+  provider?: 'VIETQR' | null;
+  transferContent: string;
+  qrUrl?: string | null;
+  qrPayload?: string | null;
+  expiresAt?: Date | null;
+  paidAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  paymentMethod: {
+    id: string;
+    name: string;
+    type: string;
+    colorKey?: string | null;
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+    qrTemplate?: string | null;
+  };
+  order?: {
+    id: string;
+    orderNumber: string;
+    total: number;
+    paidAmount: number;
+    remainingAmount: number;
+    customerName?: string | null;
+  } | null;
+};
+
+// â”€â”€â”€ Payment method labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const METHOD_LABELS: Record<string, string> = {
   CASH: 'Tiền mặt',
   BANK: 'Chuyển khoản',
+  EWALLET: 'Vi dien tu',
   MOMO: 'MoMo',
   VNPAY: 'VNPay',
   CARD: 'Thẻ',
@@ -56,7 +99,7 @@ export class OrdersService {
     }
   }
 
-  // ─── Helpers ────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /** Generate order number: DH202604060001 */
   private async generateOrderNumber(): Promise<string> {
@@ -176,11 +219,278 @@ export class OrdersService {
     return Math.max(0, total - paidAmount);
   }
 
+  private getVietnamNow(date = new Date()) {
+    return new Date(date.toLocaleString('en-US', { timeZone: VIETNAM_TIMEZONE }));
+  }
+
+  private getMinutesFromTime(time?: string | null) {
+    const normalized = String(time ?? '').trim();
+    if (!normalized) return null;
+
+    const parts = normalized.split(':');
+    const hours = Number(parts[0]);
+    const minutes = Number(parts[1]);
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+    return hours * 60 + minutes;
+  }
+
+  private isPaymentMethodAvailableForIntent(
+    method: {
+      isActive: boolean;
+      branchIds: string[];
+      minAmount?: number | null;
+      maxAmount?: number | null;
+      weekdays: number[];
+      timeFrom?: string | null;
+      timeTo?: string | null;
+    },
+    params: { branchId?: string | null; amount: number; now?: Date },
+  ) {
+    if (!method.isActive) return false;
+
+    if (method.branchIds.length > 0) {
+      if (!params.branchId || !method.branchIds.includes(params.branchId)) {
+        return false;
+      }
+    }
+
+    if (method.minAmount !== null && method.minAmount !== undefined && params.amount < method.minAmount) {
+      return false;
+    }
+
+    if (method.maxAmount !== null && method.maxAmount !== undefined && params.amount > method.maxAmount) {
+      return false;
+    }
+
+    const now = params.now ?? this.getVietnamNow();
+    if (method.weekdays.length > 0 && !method.weekdays.includes(now.getDay())) {
+      return false;
+    }
+
+    const fromMinutes = this.getMinutesFromTime(method.timeFrom);
+    const toMinutes = this.getMinutesFromTime(method.timeTo);
+    if (fromMinutes !== null && toMinutes !== null) {
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      if (fromMinutes <= toMinutes) {
+        return currentMinutes >= fromMinutes && currentMinutes <= toMinutes;
+      }
+
+      return currentMinutes >= fromMinutes || currentMinutes <= toMinutes;
+    }
+
+    return true;
+  }
+
+  private generatePaymentIntentCode() {
+    return `PI${Date.now().toString(36).toUpperCase()}${randomBytes(3).toString('hex').toUpperCase()}`;
+  }
+
+  private sanitizeTransferContentPart(value: string | null | undefined, maxLength: number) {
+    return String(value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, maxLength);
+  }
+
+  private buildTransferContent(params: {
+    prefix?: string | null;
+    branchCode?: string | null;
+    orderNumber?: string | null;
+    paymentAccountName?: string | null;
+    fallbackId: string;
+  }) {
+    let prefix = this.sanitizeTransferContentPart(params.prefix, 5) || 'PET';
+    let branchCode = this.sanitizeTransferContentPart(params.branchCode, 4) || 'CN';
+    const orderToken =
+      this.sanitizeTransferContentPart(params.orderNumber ?? params.fallbackId, 14) || 'MADON';
+    const paymentAccountName = this.sanitizeTransferContentPart(params.paymentAccountName, 6) || 'TK';
+
+    let base = `${prefix}${branchCode}${orderToken}`;
+    if (base.length > 23 && prefix.length > 3) {
+      const overflow = base.length - 23;
+      prefix = prefix.slice(0, Math.max(3, prefix.length - overflow));
+      base = `${prefix}${branchCode}${orderToken}`;
+    }
+
+    if (base.length > 23 && branchCode.length > 2) {
+      const overflow = base.length - 23;
+      branchCode = branchCode.slice(0, Math.max(2, branchCode.length - overflow));
+      base = `${prefix}${branchCode}${orderToken}`;
+    }
+
+    const remaining = Math.max(0, 25 - base.length);
+    const transferContent = `${base}${paymentAccountName.slice(0, remaining)}`.slice(0, 25);
+
+    if (!transferContent) {
+      throw new BadRequestException('Khong the tao noi dung chuyen khoan cho QR');
+    }
+
+    return transferContent;
+  }
+
+  private async expirePendingPaymentIntents(
+    db: Pick<DatabaseService, 'paymentIntent'>,
+    params: { orderId: string; paymentMethodId?: string },
+  ) {
+    await db.paymentIntent.updateMany({
+      where: {
+        orderId: params.orderId,
+        status: 'PENDING',
+        ...(params.paymentMethodId ? { paymentMethodId: params.paymentMethodId } : {}),
+      },
+      data: {
+        status: 'EXPIRED',
+        expiresAt: new Date(),
+      } as any,
+    });
+  }
+
+  private async hydratePaymentIntent(intentId: string): Promise<OrderPaymentIntentView> {
+    const paymentIntent = await this.prisma.paymentIntent.findUnique({
+      where: { id: intentId },
+      include: {
+        paymentMethod: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            colorKey: true,
+            bankName: true,
+            accountNumber: true,
+            accountHolder: true,
+            qrTemplate: true,
+          },
+        },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            total: true,
+            paidAmount: true,
+            remainingAmount: true,
+            customerName: true,
+          },
+        },
+      },
+    });
+
+    if (!paymentIntent) {
+      throw new NotFoundException('Khong tim thay payment intent');
+    }
+
+    return this.mapPaymentIntentView(paymentIntent);
+  }
+
+  private mapPaymentIntentView(paymentIntent: any): OrderPaymentIntentView {
+    return {
+      id: paymentIntent.id,
+      code: paymentIntent.code,
+      orderId: paymentIntent.orderId ?? null,
+      paymentMethodId: paymentIntent.paymentMethodId,
+      amount: Number(paymentIntent.amount) || 0,
+      currency: paymentIntent.currency,
+      status: paymentIntent.status,
+      provider: paymentIntent.provider ?? null,
+      transferContent: paymentIntent.transferContent,
+      qrUrl: paymentIntent.qrUrl ?? null,
+      qrPayload: paymentIntent.qrPayload ?? null,
+      expiresAt: paymentIntent.expiresAt ?? null,
+      paidAt: paymentIntent.paidAt ?? null,
+      createdAt: paymentIntent.createdAt,
+      updatedAt: paymentIntent.updatedAt,
+      paymentMethod: {
+        id: paymentIntent.paymentMethod.id,
+        name: paymentIntent.paymentMethod.name,
+        type: paymentIntent.paymentMethod.type,
+        colorKey: paymentIntent.paymentMethod.colorKey ?? null,
+        bankName: paymentIntent.paymentMethod.bankName ?? null,
+        accountNumber: paymentIntent.paymentMethod.accountNumber ?? null,
+        accountHolder: paymentIntent.paymentMethod.accountHolder ?? null,
+        qrTemplate: paymentIntent.paymentMethod.qrTemplate ?? null,
+      },
+      order: paymentIntent.order
+        ? {
+            id: paymentIntent.order.id,
+            orderNumber: paymentIntent.order.orderNumber,
+            total: Number(paymentIntent.order.total) || 0,
+            paidAmount: Number(paymentIntent.order.paidAmount) || 0,
+            remainingAmount: Number(paymentIntent.order.remainingAmount) || 0,
+            customerName: paymentIntent.order.customerName ?? null,
+          }
+        : null,
+    };
+  }
+
   private async generateVoucherNumberFor(
     db: Pick<DatabaseService, 'transaction'>,
     type: 'INCOME' | 'EXPENSE',
   ): Promise<string> {
     return generateFinanceVoucherNumber(db, type);
+  }
+
+  private async resolvePaymentAccount(
+    db: Pick<DatabaseService, '$queryRaw' | 'paymentMethod'>,
+    paymentMethod?: string | null,
+    paymentAccountId?: string | null,
+  ) {
+    const normalizedMethod = paymentMethod?.trim().toUpperCase() || null;
+    const normalizedAccountId = paymentAccountId?.trim() || null;
+
+    if (!normalizedAccountId) {
+      if (normalizedMethod === 'BANK') {
+        throw new BadRequestException('Vui long chon phuong thuc chuyen khoan');
+      }
+
+      return {
+        paymentMethod: normalizedMethod,
+        paymentAccountId: null,
+        paymentAccountLabel: null,
+      };
+    }
+
+    const account = await db.paymentMethod.findUnique({
+      where: { id: normalizedAccountId },
+      select: { id: true, name: true, type: true, isActive: true, bankName: true, accountNumber: true },
+    });
+
+    if (!account || account.isActive !== true) {
+      throw new BadRequestException('Phuong thuc thanh toan khong hop le hoac da ngung hoat dong');
+    }
+
+    return {
+      paymentMethod: account.type as string,
+      paymentAccountId: account.id as string,
+      paymentAccountLabel: `${account.name} â€¢ ${account.bankName} â€¢ ${account.accountNumber}` as string,
+    };
+  }
+
+  private async normalizePayments(
+    db: Pick<DatabaseService, '$queryRaw' | 'paymentMethod'>,
+    payments: Array<{
+      method: string;
+      amount: number;
+      note?: string | null | undefined;
+      paymentAccountId?: string | null;
+      paymentAccountLabel?: string | null;
+    }>,
+  ) {
+    const normalizedPayments = [];
+
+    for (const payment of payments) {
+      const paymentAccount = await this.resolvePaymentAccount(db, payment.method, payment.paymentAccountId);
+      normalizedPayments.push({
+        method: (paymentAccount.paymentMethod ?? payment.method) as string,
+        amount: payment.amount,
+        note: payment.note?.trim() || undefined,
+        paymentAccountId: paymentAccount.paymentAccountId,
+        paymentAccountLabel: payment.paymentAccountLabel?.trim() || paymentAccount.paymentAccountLabel,
+      });
+    }
+
+    return normalizedPayments;
   }
 
   private async createOrderTransaction(
@@ -196,10 +506,12 @@ export class OrdersService {
       type: 'INCOME' | 'EXPENSE';
       amount: number;
       paymentMethod?: string | null;
+      paymentAccountId?: string | null;
+      paymentAccountLabel?: string | null;
       description: string;
       note?: string | null;
       source: 'ORDER_PAYMENT' | 'ORDER_ADJUSTMENT';
-      staffId: string;
+      staffId?: string | null;
       traceParts?: string[];
     },
   ) {
@@ -216,6 +528,8 @@ export class OrdersService {
         description: params.description,
         orderId: params.order.id,
         paymentMethod: params.paymentMethod ?? null,
+        paymentAccountId: params.paymentAccountId ?? null,
+        paymentAccountLabel: params.paymentAccountLabel ?? null,
         branchId: params.order.branchId ?? null,
         refType: 'ORDER',
         refId: params.order.id,
@@ -226,8 +540,90 @@ export class OrdersService {
         tags,
         source: params.source,
         isManual: false,
-        staffId: params.staffId,
+        staffId: params.staffId ?? null,
       } as any,
+    });
+  }
+
+  private async applyPaymentsToOrder(
+    tx: DatabaseService,
+    params: {
+      order: {
+        id: string;
+        orderNumber: string;
+        total: number;
+        paidAmount: number;
+        customerId?: string | null;
+        customerName?: string | null;
+        branchId?: string | null;
+        paymentStatus?: string | null;
+        items?: Array<{ groomingSessionId?: string | null; hotelStayId?: string | null }>;
+        hotelStays?: Array<{ id: string; stayCode?: string | null }>;
+      };
+      payments: Array<{
+        method: string;
+        amount: number;
+        note?: string | null | undefined;
+        paymentAccountId?: string | null;
+        paymentAccountLabel?: string | null;
+      }>;
+      staffId?: string | null;
+    },
+  ) {
+    const paymentsArr = params.payments.filter((payment) => payment.amount > 0);
+    if (paymentsArr.length === 0) {
+      throw new BadRequestException('So tien thanh toan phai lon hon 0');
+    }
+
+    const newPaidThisTime = paymentsArr.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalPaid = params.order.paidAmount + newPaidThisTime;
+    const remaining = this.calculateRemainingAmount(params.order.total, totalPaid);
+    const paymentStatus = this.calculatePaymentStatus(params.order.total, totalPaid);
+    const traceParts = this.buildOrderServiceTraceParts(params.order as any);
+
+    for (const payment of paymentsArr) {
+      await tx.orderPayment.create({
+        data: {
+          orderId: params.order.id,
+          method: payment.method,
+          amount: payment.amount,
+          note: payment.note ?? null,
+          paymentAccountId: payment.paymentAccountId ?? null,
+          paymentAccountLabel: payment.paymentAccountLabel ?? null,
+        } as any,
+      });
+
+      await this.createOrderTransaction(tx as any, {
+        order: {
+          id: params.order.id,
+          orderNumber: params.order.orderNumber,
+          branchId: params.order.branchId ?? null,
+          customerId: params.order.customerId ?? null,
+          customerName: params.order.customerName ?? null,
+        },
+        type: 'INCOME',
+        amount: payment.amount,
+        paymentMethod: payment.method,
+        paymentAccountId: payment.paymentAccountId ?? null,
+        paymentAccountLabel: payment.paymentAccountLabel ?? null,
+        description: `Thu bo sung don hang ${params.order.orderNumber} - ${this.getPaymentLabel(payment.method)}`,
+        note: payment.note ?? null,
+        source: 'ORDER_PAYMENT',
+        staffId: params.staffId ?? null,
+        traceParts,
+      });
+    }
+
+    await this.expirePendingPaymentIntents(tx as any, { orderId: params.order.id });
+
+    return tx.order.update({
+      where: { id: params.order.id },
+      data: {
+        paidAmount: totalPaid,
+        remainingAmount: remaining,
+        paymentStatus: paymentStatus as any,
+      },
+      include: { items: true, payments: true, customer: true },
     });
   }
 
@@ -254,6 +650,195 @@ export class OrdersService {
         points: { increment: pointsEarned },
       } as any,
     });
+  }
+
+  private getCompletedSalesBucket(date: Date): Date {
+    const bucket = new Date(date);
+    bucket.setHours(0, 0, 0, 0);
+    return bucket;
+  }
+
+  private getCompletedSalesBranchScope(branchId?: string | null): string {
+    return branchId ?? 'UNASSIGNED';
+  }
+
+  private getCompletedSalesKey(productId: string, productVariantId?: string | null): string {
+    return productVariantId ? `variant:${productVariantId}` : `product:${productId}`;
+  }
+
+  private createEmptySalesMetrics() {
+    return {
+      totalQuantitySold: 0,
+      totalRevenue: 0,
+      weekQuantitySold: 0,
+      weekRevenue: 0,
+      monthQuantitySold: 0,
+      monthRevenue: 0,
+      yearQuantitySold: 0,
+      yearRevenue: 0,
+    };
+  }
+
+  private async applyCompletedProductSalesDelta(
+    tx: Pick<DatabaseService, 'productSalesDaily'>,
+    params: {
+      completedAt: Date;
+      branchId?: string | null;
+      items: Array<{
+        productId?: string | null;
+        productVariantId?: string | null;
+        quantity: number;
+        subtotal: number;
+      }>;
+      multiplier?: 1 | -1;
+    },
+  ) {
+    const multiplier = params.multiplier ?? 1;
+    const date = this.getCompletedSalesBucket(params.completedAt);
+    const branchScope = this.getCompletedSalesBranchScope(params.branchId);
+    const grouped = new Map<
+      string,
+      {
+        productId: string;
+        productVariantId: string | null;
+        quantitySold: number;
+        revenue: number;
+      }
+    >();
+
+    for (const item of params.items) {
+      if (!item.productId) continue;
+
+      const salesKey = this.getCompletedSalesKey(item.productId, item.productVariantId ?? null);
+      const current = grouped.get(salesKey) ?? {
+        productId: item.productId,
+        productVariantId: item.productVariantId ?? null,
+        quantitySold: 0,
+        revenue: 0,
+      };
+
+      current.quantitySold += item.quantity * multiplier;
+      current.revenue += item.subtotal * multiplier;
+      grouped.set(salesKey, current);
+    }
+
+    for (const [salesKey, value] of grouped.entries()) {
+      if (value.quantitySold === 0 && value.revenue === 0) continue;
+
+      await tx.productSalesDaily.upsert({
+        where: {
+          date_branchScope_salesKey: {
+            date,
+            branchScope,
+            salesKey,
+          },
+        },
+        create: {
+          date,
+          branchId: params.branchId ?? null,
+          branchScope,
+          productId: value.productId,
+          productVariantId: value.productVariantId,
+          salesKey,
+          quantitySold: value.quantitySold,
+          revenue: value.revenue,
+        },
+        update: {
+          branchId: params.branchId ?? null,
+          productId: value.productId,
+          productVariantId: value.productVariantId,
+          quantitySold: { increment: value.quantitySold },
+          revenue: { increment: value.revenue },
+        },
+      });
+    }
+  }
+
+  private async loadProductSalesMetrics(productIds: string[]) {
+    const uniqueProductIds = [...new Set(productIds.filter(Boolean))];
+    if (uniqueProductIds.length === 0) {
+      return {
+        byProductId: new Map<string, ReturnType<OrdersService['createEmptySalesMetrics']>>(),
+        byVariantId: new Map<string, ReturnType<OrdersService['createEmptySalesMetrics']>>(),
+      };
+    }
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfWeek.getDate() - 6);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    const whereBase = { productId: { in: uniqueProductIds } };
+
+    const [totalRows, weekRows, monthRows, yearRows] = await Promise.all([
+      this.prisma.productSalesDaily.groupBy({
+        by: ['productId', 'productVariantId'],
+        where: whereBase,
+        _sum: { quantitySold: true, revenue: true },
+      }),
+      this.prisma.productSalesDaily.groupBy({
+        by: ['productId', 'productVariantId'],
+        where: {
+          ...whereBase,
+          date: { gte: startOfWeek },
+        },
+        _sum: { quantitySold: true, revenue: true },
+      }),
+      this.prisma.productSalesDaily.groupBy({
+        by: ['productId', 'productVariantId'],
+        where: {
+          ...whereBase,
+          date: { gte: startOfMonth },
+        },
+        _sum: { quantitySold: true, revenue: true },
+      }),
+      this.prisma.productSalesDaily.groupBy({
+        by: ['productId', 'productVariantId'],
+        where: {
+          ...whereBase,
+          date: { gte: startOfYear },
+        },
+        _sum: { quantitySold: true, revenue: true },
+      }),
+    ]);
+
+    const byProductId = new Map<string, ReturnType<OrdersService['createEmptySalesMetrics']>>();
+    const byVariantId = new Map<string, ReturnType<OrdersService['createEmptySalesMetrics']>>();
+
+    const mergeRows = (
+      rows: Array<{
+        productId: string | null;
+        productVariantId: string | null;
+        _sum: { quantitySold: number | null; revenue: number | null };
+      }>,
+      quantityKey: 'totalQuantitySold' | 'weekQuantitySold' | 'monthQuantitySold' | 'yearQuantitySold',
+      revenueKey: 'totalRevenue' | 'weekRevenue' | 'monthRevenue' | 'yearRevenue',
+    ) => {
+      for (const row of rows) {
+        if (!row.productId) continue;
+
+        const productMetrics = byProductId.get(row.productId) ?? this.createEmptySalesMetrics();
+        productMetrics[quantityKey] += row._sum.quantitySold ?? 0;
+        productMetrics[revenueKey] += row._sum.revenue ?? 0;
+        byProductId.set(row.productId, productMetrics);
+
+        if (!row.productVariantId) continue;
+
+        const variantMetrics = byVariantId.get(row.productVariantId) ?? this.createEmptySalesMetrics();
+        variantMetrics[quantityKey] += row._sum.quantitySold ?? 0;
+        variantMetrics[revenueKey] += row._sum.revenue ?? 0;
+        byVariantId.set(row.productVariantId, variantMetrics);
+      }
+    };
+
+    mergeRows(totalRows as any, 'totalQuantitySold', 'totalRevenue');
+    mergeRows(weekRows as any, 'weekQuantitySold', 'weekRevenue');
+    mergeRows(monthRows as any, 'monthQuantitySold', 'monthRevenue');
+    mergeRows(yearRows as any, 'yearQuantitySold', 'yearRevenue');
+
+    return { byProductId, byVariantId };
   }
 
   private async restoreProductBranchStock(
@@ -318,6 +903,36 @@ export class OrdersService {
     },
   ) {
     const branch = await resolveBranchIdentity(tx as any, params.branchId ?? null);
+    const productDisplayLabel = params.productVariantId
+      ? await tx.productVariant
+          .findUnique({
+            where: { id: params.productVariantId },
+            select: {
+              name: true,
+              sku: true,
+              product: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          })
+          .then((variant) => {
+            const productName = variant?.product?.name || variant?.name || params.productId;
+            return variant?.sku ? `${productName} (${variant.sku})` : productName;
+          })
+      : await tx.product
+          .findUnique({
+            where: { id: params.productId },
+            select: {
+              name: true,
+              sku: true,
+            },
+          })
+          .then((product) => {
+            const productName = product?.name || params.productId;
+            return product?.sku ? `${productName} (${product.sku})` : productName;
+          });
     const branchStock =
       (params.productVariantId
         ? await tx.branchStock.findFirst({
@@ -334,6 +949,16 @@ export class OrdersService {
           productVariantId: null,
         },
       });
+
+    if (!branchStock) {
+      throw new BadRequestException(`San pham ${productDisplayLabel} chua co ton kho tai chi nhanh ${branch.name}`);
+    }
+
+    if (branchStock.stock < params.quantity) {
+      throw new BadRequestException(
+        `Ton kho khong du cho san pham ${productDisplayLabel} tai chi nhanh ${branch.name}. Con ${branchStock.stock}, can ${params.quantity}.`,
+      );
+    }
 
     if (!branchStock) {
       throw new BadRequestException(`Sản phẩm ${params.productId} chưa có tồn kho tại chi nhánh ${branch.name}`);
@@ -699,10 +1324,10 @@ export class OrdersService {
     return order;
   }
 
-  // ─── Catalog (POS quick access) ────────────────────────────────────────────
+  // â”€â”€â”€ Catalog (POS quick access) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getProducts() {
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where: { isActive: true, deletedAt: null },
       include: { 
         variants: { 
@@ -715,6 +1340,27 @@ export class OrdersService {
       },
       orderBy: { name: 'asc' },
     });
+
+    const { byProductId, byVariantId } = await this.loadProductSalesMetrics(products.map((product) => product.id));
+
+    return products.map((product) => {
+      const productMetrics = byProductId.get(product.id) ?? this.createEmptySalesMetrics();
+
+      return {
+        ...product,
+        soldCount: productMetrics.totalQuantitySold,
+        salesMetrics: productMetrics,
+        variants: product.variants.map((variant) => {
+          const variantMetrics = byVariantId.get(variant.id) ?? this.createEmptySalesMetrics();
+
+          return {
+            ...variant,
+            soldCount: variantMetrics.totalQuantitySold,
+            salesMetrics: variantMetrics,
+          };
+        }),
+      };
+    });
   }
 
   async getServices() {
@@ -725,10 +1371,10 @@ export class OrdersService {
     });
   }
 
-  // ─── createOrder ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ createOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Auto-classify: QUICK (product only) vs SERVICE (has grooming/hotel)
-  // QUICK: deduct stock immediately, status → PAID/PARTIAL
-  // SERVICE: reserve stock, status → PENDING, pay later
+  // QUICK: deduct stock immediately, status â†’ PAID/PARTIAL
+  // SERVICE: reserve stock, status â†’ PENDING, pay later
   async createOrder(data: CreateOrderDto, staffId: string) {
     const { items, payments = [], discount = 0, shippingFee = 0 } = data;
 
@@ -743,22 +1389,23 @@ export class OrdersService {
       (i) => i.groomingDetails || i.hotelDetails || i.type === 'grooming' || i.type === 'hotel',
     );
     const orderType = hasService ? 'SERVICE' : 'QUICK';
+    const normalizedPayments = await this.normalizePayments(this.prisma as any, payments);
 
-    // ── Financial calculations ────────────────────────────────────────────
+    // â”€â”€ Financial calculations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let subtotal = 0;
     for (const item of items) {
       const lineNet = item.unitPrice * item.quantity - (item.discountItem ?? 0);
       subtotal += lineNet;
     }
     const total = subtotal + shippingFee - discount;
-    const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const totalPaid = normalizedPayments.reduce((s, p) => s + p.amount, 0);
 
-    // ── Payment status ────────────────────────────────────────────────────
+    // â”€â”€ Payment status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const paymentStatus = this.calculatePaymentStatus(total, totalPaid);
 
     const orderStatus = orderType === 'QUICK' && paymentStatus === 'PAID' ? 'COMPLETED' : 'PENDING';
 
-    // ── Database transaction ──────────────────────────────────────────────
+    // â”€â”€ Database transaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     return this.prisma.$transaction(async (tx) => {
       const serviceTraceParts: string[] = [];
       const normalizedItems = await this.validateAndNormalizeCreateItems(tx as any, items);
@@ -773,6 +1420,7 @@ export class OrdersService {
           branchId: data.branchId ?? null,
           status: orderStatus as any,
           paymentStatus: paymentStatus as any,
+          completedAt: orderStatus === 'COMPLETED' ? new Date() : null,
           subtotal,
           discount,
           shippingFee,
@@ -797,9 +1445,12 @@ export class OrdersService {
             })),
           },
           payments: {
-            create: payments.map((p) => ({
+            create: normalizedPayments.map((p) => ({
               method: p.method,
               amount: p.amount,
+              note: p.note ?? null,
+              paymentAccountId: p.paymentAccountId ?? null,
+              paymentAccountLabel: p.paymentAccountLabel ?? null,
             })),
           },
         },
@@ -815,7 +1466,7 @@ export class OrdersService {
         const item = normalizedItems[idx]!;
         const orderItem = order.items[idx]!
 
-        // ── Product stock handling ─────────────────────────────────────
+        // â”€â”€ Product stock handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (item.productId) {
           const product = await tx.product.findUnique({ where: { id: item.productId } });
           if (!product) throw new BadRequestException(`Sản phẩm ${item.productId} không tồn tại`);
@@ -834,7 +1485,7 @@ export class OrdersService {
           // SERVICE stock reservation handled by BranchStock if needed
         }
 
-        // ── Grooming session creation ──────────────────────────────────
+        // â”€â”€ Grooming session creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (item.groomingDetails && orderItem) {
           const branch = await resolveBranchIdentity(tx as any, data.branchId ?? null);
           const session = await tx.groomingSession.create({
@@ -878,7 +1529,7 @@ export class OrdersService {
           serviceTraceParts.push(`GROOMING_SESSION:${session.id}`);
         }
 
-        // ── Hotel stay creation ────────────────────────────────────────
+        // â”€â”€ Hotel stay creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (item.hotelDetails && orderItem) {
           const checkInDate = new Date(item.hotelDetails.checkInDate);
           const checkOutDate = new Date(item.hotelDetails.checkOutDate);
@@ -935,7 +1586,7 @@ export class OrdersService {
       }
 
       // 3. Create income transaction records
-      for (const pay of payments) {
+      for (const pay of normalizedPayments) {
         if (pay.amount <= 0) continue;
         const traceParts = serviceTraceParts;
         const label = this.getPaymentLabel(pay.method);
@@ -944,9 +1595,11 @@ export class OrdersService {
             voucherNumber: await this.generateVoucherNumberFor(tx as any, 'INCOME'),
             type: 'INCOME',
             amount: pay.amount,
-            description: `Thu từ đơn hàng ${order.orderNumber} — ${label}`,
+            description: `Thu từ đơn hàng ${order.orderNumber} - ${label}`,
             orderId: order.id,
             paymentMethod: pay.method,
+            paymentAccountId: pay.paymentAccountId ?? null,
+            paymentAccountLabel: pay.paymentAccountLabel ?? null,
             branchId: data.branchId ?? null,
             refType: 'ORDER',
             refId: order.id,
@@ -968,11 +1621,24 @@ export class OrdersService {
         await this.incrementCustomerStats(tx as any, data.customerId, total);
       }
 
+      if (orderStatus === 'COMPLETED') {
+        await this.applyCompletedProductSalesDelta(tx as any, {
+          completedAt: order.completedAt ?? order.createdAt,
+          branchId: order.branchId ?? null,
+          items: order.items.map((item) => ({
+            productId: item.productId,
+            productVariantId: item.productVariantId,
+            quantity: item.quantity,
+            subtotal: item.subtotal,
+          })),
+        });
+      }
+
       return order;
     });
   }
 
-  // ─── payOrder ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ payOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Collect additional payment for SERVICE orders (multi-payment support)
   async updateOrder(id: string, data: UpdateOrderDto, staffId: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
@@ -1125,6 +1791,333 @@ export class OrdersService {
     return this.findOne(id);
   }
 
+  async listPaymentIntents(id: string, user?: AccessUser): Promise<OrderPaymentIntentView[]> {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        branchId: true,
+      },
+    });
+
+    if (order) this.assertOrderScope(order, user);
+    if (!order) throw new NotFoundException('Khong tim thay don hang');
+
+    const paymentIntents = await this.prisma.paymentIntent.findMany({
+      where: { orderId: id },
+      include: {
+        paymentMethod: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            colorKey: true,
+            bankName: true,
+            accountNumber: true,
+            accountHolder: true,
+            qrTemplate: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+
+    return paymentIntents.map((paymentIntent) => this.mapPaymentIntentView(paymentIntent));
+  }
+
+  async getPaymentIntentByCode(code: string, user?: AccessUser): Promise<OrderPaymentIntentView> {
+    const paymentIntent = await this.prisma.paymentIntent.findUnique({
+      where: { code },
+      include: {
+        paymentMethod: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            colorKey: true,
+            bankName: true,
+            accountNumber: true,
+            accountHolder: true,
+            qrTemplate: true,
+          },
+        },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            total: true,
+            paidAmount: true,
+            remainingAmount: true,
+            customerName: true,
+            branchId: true,
+          },
+        },
+      },
+    });
+
+    if (!paymentIntent) {
+      throw new NotFoundException('Khong tim thay payment intent');
+    }
+
+    if (paymentIntent.order) {
+      this.assertOrderScope(paymentIntent.order, user);
+    }
+
+    return this.mapPaymentIntentView(paymentIntent);
+  }
+
+  async createPaymentIntent(id: string, dto: CreatePaymentIntentDto, user?: AccessUser): Promise<OrderPaymentIntentView> {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        orderNumber: true,
+        branchId: true,
+        customerName: true,
+        total: true,
+        paidAmount: true,
+        paymentStatus: true,
+        status: true,
+      },
+    });
+
+    if (order) this.assertOrderScope(order, user);
+    if (!order) throw new NotFoundException('Khong tim thay don hang');
+    if (order.status === 'CANCELLED') {
+      throw new BadRequestException('Khong the tao QR cho don hang da huy');
+    }
+    if (order.paymentStatus === 'PAID' || order.paymentStatus === 'COMPLETED') {
+      throw new BadRequestException('Don hang da duoc thanh toan day du');
+    }
+
+    const remainingAmount = this.calculateRemainingAmount(order.total, order.paidAmount);
+    if (remainingAmount <= 0) {
+      throw new BadRequestException('Don hang khong con so tien de tao QR');
+    }
+
+    const requestedAmount = dto.amount !== undefined ? Number(dto.amount) : remainingAmount;
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+      throw new BadRequestException('So tien tao QR khong hop le');
+    }
+
+    if (!Number.isInteger(requestedAmount)) {
+      throw new BadRequestException('So tien QR phai la so nguyen VND');
+    }
+
+    if (requestedAmount > remainingAmount) {
+      throw new BadRequestException('So tien QR khong duoc vuot qua cong no con lai');
+    }
+
+    const paymentMethod = await this.prisma.paymentMethod.findUnique({
+      where: { id: dto.paymentMethodId },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        isActive: true,
+        colorKey: true,
+        branchIds: true,
+        minAmount: true,
+        maxAmount: true,
+        timeFrom: true,
+        timeTo: true,
+        weekdays: true,
+        bankName: true,
+        accountNumber: true,
+        accountHolder: true,
+        qrEnabled: true,
+        qrProvider: true,
+        qrBankBin: true,
+        qrTemplate: true,
+        transferNotePrefix: true,
+      },
+    });
+
+    if (!paymentMethod || paymentMethod.type !== 'BANK') {
+      throw new BadRequestException('Phuong thuc thanh toan khong hop le cho QR chuyen khoan');
+    }
+
+    if (!paymentMethod.qrEnabled || paymentMethod.qrProvider !== 'VIETQR') {
+      throw new BadRequestException('Phuong thuc nay chua bat VietQR');
+    }
+
+    if (!paymentMethod.qrBankBin || !paymentMethod.accountNumber || !paymentMethod.accountHolder) {
+      throw new BadRequestException('Phuong thuc thanh toan thieu cau hinh QR bat buoc');
+    }
+
+    if (
+      !this.isPaymentMethodAvailableForIntent(paymentMethod, {
+        branchId: order.branchId ?? null,
+        amount: requestedAmount,
+      })
+    ) {
+      throw new BadRequestException('Phuong thuc thanh toan hien khong du dieu kien ap dung cho don hang nay');
+    }
+
+    const branch = await resolveBranchIdentity(this.prisma as any, order.branchId ?? null);
+    const code = this.generatePaymentIntentCode();
+    const transferContent = this.buildTransferContent({
+      prefix: paymentMethod.transferNotePrefix,
+      branchCode: branch.code,
+      orderNumber: order.orderNumber,
+      paymentAccountName: paymentMethod.name,
+      fallbackId: order.id,
+    });
+    const qrPayload = buildVietQrPayload({
+      bankBin: paymentMethod.qrBankBin,
+      accountNumber: paymentMethod.accountNumber,
+      amount: requestedAmount,
+      transferContent,
+    });
+    const qrUrl = await buildVietQrDataUrl(qrPayload);
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + PAYMENT_INTENT_TTL_MS);
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      await this.expirePendingPaymentIntents(tx as any, {
+        orderId: id,
+        paymentMethodId: paymentMethod.id,
+      });
+
+      return tx.paymentIntent.create({
+        data: {
+          code,
+          orderId: order.id,
+          branchId: order.branchId ?? null,
+          paymentMethodId: paymentMethod.id,
+          amount: requestedAmount,
+          currency: 'VND',
+          status: 'PENDING',
+          provider: 'VIETQR',
+          transferContent,
+          qrUrl,
+          qrPayload,
+          expiresAt,
+          metadata: {
+            orderNumber: order.orderNumber,
+            customerName: order.customerName,
+            paymentMethodName: paymentMethod.name,
+            branchCode: branch.code,
+            template: paymentMethod.qrTemplate ?? null,
+          },
+        } as any,
+      });
+    });
+
+    return this.hydratePaymentIntent(created.id);
+  }
+
+  async confirmPaymentIntentPaidFromWebhook(params: {
+    intentId: string;
+    provider: string;
+    paidAt?: Date | null;
+    externalTxnId?: string | null;
+    note?: string | null;
+  }): Promise<{ outcome: 'APPLIED' | 'ALREADY_PAID'; intent: OrderPaymentIntentView }> {
+    const paidAt = params.paidAt ?? new Date();
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const paymentIntent = await tx.paymentIntent.findUnique({
+        where: { id: params.intentId },
+        include: {
+          paymentMethod: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              bankName: true,
+              accountNumber: true,
+              isActive: true,
+            },
+          },
+          order: {
+            include: {
+              items: {
+                select: {
+                  groomingSessionId: true,
+                  hotelStayId: true,
+                },
+              },
+              hotelStays: {
+                select: {
+                  id: true,
+                  stayCode: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!paymentIntent || !paymentIntent.order) {
+        throw new NotFoundException('Khong tim thay payment intent hop le de doi soat');
+      }
+
+      if (paymentIntent.status === 'PAID') {
+        return { outcome: 'ALREADY_PAID' as const };
+      }
+
+      if (paymentIntent.status !== 'PENDING') {
+        throw new BadRequestException('Payment intent khong con hop le de doi soat');
+      }
+
+      if (!paymentIntent.paymentMethod.isActive || paymentIntent.paymentMethod.type !== 'BANK') {
+        throw new BadRequestException('Phuong thuc thanh toan cua QR da ngung hoat dong hoac khong hop le');
+      }
+
+      if (paymentIntent.order.status === 'CANCELLED') {
+        throw new BadRequestException('Don hang da huy, khong the auto confirm thanh toan');
+      }
+
+      const markPaid = await tx.paymentIntent.updateMany({
+        where: {
+          id: paymentIntent.id,
+          status: 'PENDING',
+        },
+        data: {
+          status: 'PAID',
+          paidAt,
+          metadata: {
+            ...(((paymentIntent.metadata as Record<string, unknown> | null) ?? {})),
+            webhookProvider: params.provider,
+            externalTxnId: params.externalTxnId ?? null,
+            webhookConfirmedAt: paidAt.toISOString(),
+          },
+        } as any,
+      });
+
+      if (markPaid.count === 0) {
+        return { outcome: 'ALREADY_PAID' as const };
+      }
+
+      const normalizedPayments = await this.normalizePayments(tx as any, [
+        {
+          method: paymentIntent.paymentMethod.type,
+          amount: Number(paymentIntent.amount) || 0,
+          note:
+            params.note?.trim()
+            || `Webhook ${params.provider}${params.externalTxnId ? ` #${params.externalTxnId}` : ''}`,
+          paymentAccountId: paymentIntent.paymentMethod.id,
+          paymentAccountLabel: paymentIntent.paymentMethod.name,
+        },
+      ]);
+
+      await this.applyPaymentsToOrder(tx as any, {
+        order: paymentIntent.order as any,
+        payments: normalizedPayments,
+        staffId: null,
+      });
+
+      return { outcome: 'APPLIED' as const };
+    });
+
+    return {
+      outcome: result.outcome,
+      intent: await this.hydratePaymentIntent(params.intentId),
+    };
+  }
+
   async payOrder(id: string, dto: PayOrderDto, staffId: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
       where: { id },
@@ -1150,71 +2143,35 @@ export class OrdersService {
       throw new BadRequestException('Đơn hàng đã thanh toán đầy đủ');
     }
 
-    const paymentsArr = dto.payments.filter((p) => p.amount > 0);
+    const paymentsArr = await this.normalizePayments(
+      this.prisma as any,
+      dto.payments.filter((p) => p.amount > 0),
+    );
     if (paymentsArr.length === 0) {
       throw new BadRequestException('Số tiền thanh toán phải lớn hơn 0');
     }
 
-    const newPaidThisTime = paymentsArr.reduce((s, p) => s + p.amount, 0);
-    const totalPaid = order.paidAmount + newPaidThisTime;
-    const remaining = this.calculateRemainingAmount(order.total, totalPaid);
-
-    // Detect primary method
-    const uniqueMethods = [...new Set(paymentsArr.map((p) => p.method))];
-    const primaryMethod = uniqueMethods.length > 1 ? 'MIXED' : (uniqueMethods[0] ?? 'CASH');
-
-    // Payment status
-    const status = this.calculatePaymentStatus(order.total, totalPaid);
-
     return this.prisma.$transaction(async (tx) => {
-      // Create payment records
-      for (const p of paymentsArr) {
-        await tx.orderPayment.create({
-          data: { orderId: id, method: p.method, amount: p.amount },
-        });
-      }
-
-      // Create transaction record
-      const label = this.getPaymentLabel(primaryMethod);
-      const serviceTraceParts = this.buildOrderServiceTraceParts(order);
-      await tx.transaction.create({
-        data: {
-          voucherNumber: await this.generateVoucherNumberFor(tx as any, 'INCOME'),
-          type: 'INCOME',
-          amount: newPaidThisTime,
-          description: `Thu bổ sung đơn hàng ${order.orderNumber} — ${label}`,
-          orderId: id,
-          paymentMethod: primaryMethod,
+      return this.applyPaymentsToOrder(tx as any, {
+        order: {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          total: order.total,
+          paidAmount: order.paidAmount,
+          customerId: order.customerId ?? null,
+          customerName: order.customerName,
           branchId: order.branchId ?? null,
-          refType: 'ORDER',
-          refId: order.id,
-          refNumber: order.orderNumber,
-          payerId: order.customerId ?? null,
-          payerName: order.customerName ?? null,
-          notes: this.mergeTransactionNotes(dto.payments.map((p) => p.note).filter(Boolean).join(' | ') || null, serviceTraceParts),
-          tags: this.buildServiceTraceTags(serviceTraceParts),
-          source: 'ORDER_PAYMENT',
-          isManual: false,
-          staffId,
-        } as any,
-      });
-
-      // Update order
-      const updated = await tx.order.update({
-        where: { id },
-        data: {
-          paidAmount: totalPaid,
-          remainingAmount: remaining,
-          paymentStatus: status as any,
+          paymentStatus: order.paymentStatus,
+          items: order.items,
+          hotelStays: order.hotelStays,
         },
-        include: { items: true, payments: true, customer: true },
+        payments: paymentsArr,
+        staffId,
       });
-
-      return updated;
     });
   }
 
-  // ─── completeOrder ──────────────────────────────────────────────────────────
+  // â”€â”€â”€ completeOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Finalize SERVICE order: validate sessions, deduct stock, update customer
   async completeOrder(id: string, dto: CompleteOrderDto, staffId: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
@@ -1261,7 +2218,10 @@ export class OrdersService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const extraPayments = (dto.payments ?? []).filter((payment) => payment.amount > 0);
+      const extraPayments = await this.normalizePayments(
+        tx as any,
+        (dto.payments ?? []).filter((payment) => payment.amount > 0),
+      );
       const extraPaidAmount = extraPayments.reduce((sum, payment) => sum + payment.amount, 0);
       const traceParts = this.buildOrderServiceTraceParts(order);
 
@@ -1284,7 +2244,10 @@ export class OrdersService {
             orderId: id,
             method: payment.method,
             amount: payment.amount,
-          },
+            note: payment.note ?? null,
+            paymentAccountId: payment.paymentAccountId ?? null,
+            paymentAccountLabel: payment.paymentAccountLabel ?? null,
+          } as any,
         });
 
         await this.createOrderTransaction(tx as any, {
@@ -1298,13 +2261,17 @@ export class OrdersService {
           type: 'INCOME',
           amount: payment.amount,
           paymentMethod: payment.method,
-          description: `Thu bổ sung đơn hàng ${order.orderNumber} — ${this.getPaymentLabel(payment.method)}`,
+          paymentAccountId: payment.paymentAccountId ?? null,
+          paymentAccountLabel: payment.paymentAccountLabel ?? null,
+          description: `Thu bổ sung đơn hàng ${order.orderNumber} - ${this.getPaymentLabel(payment.method)}`,
           note: payment.note ?? dto.settlementNote ?? null,
           source: 'ORDER_PAYMENT',
           staffId,
           traceParts,
         });
       }
+
+      await this.expirePendingPaymentIntents(tx as any, { orderId: id });
 
       const grossPaidAmount = order.paidAmount + extraPaidAmount;
       const overpaidAmount = Math.max(0, grossPaidAmount - order.total);
@@ -1320,6 +2287,11 @@ export class OrdersService {
 
       if (overpaidAmount > 0) {
         if (dto.overpaymentAction === 'REFUND') {
+          const refundPaymentAccount = await this.resolvePaymentAccount(
+            tx as any,
+            dto.refundMethod ?? 'CASH',
+            dto.refundPaymentAccountId,
+          );
           finalPaidAmount = order.total;
           await this.createOrderTransaction(tx as any, {
             order: {
@@ -1331,7 +2303,9 @@ export class OrdersService {
             },
             type: 'EXPENSE',
             amount: overpaidAmount,
-            paymentMethod: dto.refundMethod ?? 'CASH',
+            paymentMethod: refundPaymentAccount.paymentMethod ?? dto.refundMethod ?? 'CASH',
+            paymentAccountId: refundPaymentAccount.paymentAccountId,
+            paymentAccountLabel: dto.refundPaymentAccountLabel?.trim() || refundPaymentAccount.paymentAccountLabel,
             description: `Hoàn tiền dư đơn hàng ${order.orderNumber}`,
             note: dto.settlementNote ?? null,
             source: 'ORDER_ADJUSTMENT',
@@ -1358,6 +2332,7 @@ export class OrdersService {
         where: { id },
         data: {
           status: 'COMPLETED' as any,
+          completedAt: new Date(),
           paidAmount: finalPaidAmount,
           remainingAmount: 0,
           paymentStatus: paymentStatus as any,
@@ -1372,12 +2347,22 @@ export class OrdersService {
       // Update customer spending
       // QUICK orders handle this at createOrder, but they cannot reach here since they are COMPLETED
       await this.incrementCustomerStats(tx as any, order.customerId, order.total);
+      await this.applyCompletedProductSalesDelta(tx as any, {
+        completedAt: completed.completedAt ?? new Date(),
+        branchId: completed.branchId ?? null,
+        items: completed.items.map((item) => ({
+          productId: item.productId,
+          productVariantId: item.productVariantId,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+        })),
+      });
 
       return completed;
     });
   }
 
-  // ─── cancelOrder ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ cancelOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Cancel order: release reserved stock, cancel sessions
   async cancelOrder(id: string, dto: CancelOrderDto, staffId: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
@@ -1443,7 +2428,7 @@ export class OrdersService {
     });
   }
 
-  // ─── removeOrderItem ────────────────────────────────────────────────────────
+  // â”€â”€â”€ removeOrderItem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Remove single item from pending/processing order, recalculate totals
   async removeOrderItem(orderId: string, itemId: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
@@ -1504,7 +2489,7 @@ export class OrdersService {
     });
   }
 
-  // ─── findAll (advanced filtering) ───────────────────────────────────────────
+  // â”€â”€â”€ findAll (advanced filtering) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async findAll(params?: {
     search?: string | undefined;
     paymentStatus?: string | undefined;
@@ -1555,6 +2540,9 @@ export class OrdersService {
           staff: { select: { id: true, fullName: true } },
           items: { include: { product: true, service: true } },
           payments: true,
+          transactions: { select: { voucherNumber: true, type: true } },
+          groomingSessions: { select: { sessionCode: true } },
+          hotelStays: { select: { stayCode: true } },
         },
         skip,
         take: limit,
@@ -1572,7 +2560,7 @@ export class OrdersService {
     };
   }
 
-  // ─── findOne ────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ findOne â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async findOne(id: string, user?: AccessUser) {
     const order = await this.prisma.order.findUnique({
       where: { id },

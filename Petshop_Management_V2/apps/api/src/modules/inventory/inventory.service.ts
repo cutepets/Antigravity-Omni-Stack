@@ -60,6 +60,7 @@ export interface FindProductsDto {
   category?: string
   brand?: string
   supplierId?: string
+  branchId?: string
   tags?: string
   lowStock?: string
   status?: string
@@ -133,7 +134,7 @@ export class InventoryService {
   // ─── Products ─────────────────────────────────────────────────────────────
 
   async findAllProducts(query: FindProductsDto) {
-    const { search, category, brand, supplierId, tags, lowStock, status, page = 1, limit = 20 } = query
+    const { search, category, brand, supplierId, branchId, tags, lowStock, status, page = 1, limit = 20 } = query
     const skip = (Number(page) - 1) * Number(limit)
     const where: any = {}
     const searchTokens = tokenizeSearch(search)
@@ -141,6 +142,7 @@ export class InventoryService {
     if (category) where.category = { contains: category, mode: 'insensitive' }
     if (brand) where.brand = { contains: brand, mode: 'insensitive' }
     if (supplierId) where.supplierId = supplierId
+    if (branchId) where.branchStocks = { some: { branchId } }
     if (tags) where.tags = { contains: tags, mode: 'insensitive' }
     if (lowStock === 'true') {
       // Products where current stock <= product minStock threshold.

@@ -34,21 +34,26 @@ import {
 } from '@/components/data-list'
 
 // ── Types & Constants ────────────────────────────────────────────────────────
-type DisplayColumnId = 'code' | 'customer' | 'items' | 'total' | 'customerPaid' | 'payment' | 'status' | 'branch' | 'creator' | 'created' | 'updated'
+type DisplayColumnId = 'code' | 'customer' | 'customerPhone' | 'items' | 'discount' | 'shippingFee' | 'total' | 'customerPaid' | 'payment' | 'status' | 'linkedCodes' | 'note' | 'branch' | 'creator' | 'created' | 'updated'
 type PinFilterId = 'paymentStatus'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
   { id: 'code',         label: 'Mã đơn',         sortable: false, width: 'w-24' },
-  { id: 'customer',     label: 'Khách hàng',     sortable: false, minWidth: 'min-w-[150px]' },
-  { id: 'items',        label: 'Số SP',          sortable: false, width: 'w-20' },
+  { id: 'customer',     label: 'Tên khách',      sortable: false, minWidth: 'min-w-[150px]' },
+  { id: 'customerPhone',label: 'SĐT Khách',      sortable: false, width: 'whitespace-nowrap' },
+  { id: 'items',        label: 'Số SP',          sortable: false, width: 'whitespace-nowrap' },
+  { id: 'discount',     label: 'Chiết khấu',      sortable: false, width: 'w-28', align: 'right' },
+  { id: 'shippingFee',  label: 'Phí ship',       sortable: false, width: 'w-28', align: 'right' },
   { id: 'total',        label: 'Tổng tiền',      sortable: false, width: 'w-28', align: 'right' },
   { id: 'customerPaid', label: 'Khách đã trả',   sortable: false, width: 'w-28', align: 'right' },
   { id: 'payment',      label: 'TT',             sortable: false, width: 'w-32' },
   { id: 'status',       label: 'Trạng thái',     sortable: false, width: 'w-32' },
-  { id: 'branch',       label: 'Chi nhánh',      sortable: false, width: 'w-28' },
-  { id: 'creator',      label: 'Người tạo',      sortable: false, width: 'w-28' },
-  { id: 'created',      label: 'Ngày tạo',       sortable: false, width: 'w-36' },
-  { id: 'updated',      label: 'Thời gian cập nhật',  sortable: false, width: 'w-36' },
+  { id: 'linkedCodes',  label: 'Mã liên kết',     sortable: false, minWidth: 'min-w-[180px]' },
+  { id: 'note',         label: 'Ghi chú',        sortable: false, minWidth: 'min-w-[150px]' },
+  { id: 'branch',       label: 'Chi nhánh',      sortable: false, width: 'whitespace-nowrap' },
+  { id: 'creator',      label: 'Người tạo',      sortable: false, width: 'whitespace-nowrap' },
+  { id: 'created',      label: 'Ngày tạo',       sortable: false, width: 'whitespace-nowrap' },
+  { id: 'updated',      label: 'Thời gian cập nhật',  sortable: false, width: 'whitespace-nowrap' },
 ]
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
   COLUMN_OPTIONS.filter((c) => c.sortable).map((c) => c.id)
@@ -296,13 +301,62 @@ export function OrderList() {
                     <div className="font-semibold text-foreground text-sm">
                       {o.customer?.name || o.customer?.fullName || 'Khách lẻ'}
                     </div>
-                    {(o.customer?.phone) && (
-                      <div className="text-xs text-foreground-muted mt-0.5">{o.customer.phone}</div>
-                    )}
+                  </td>
+                );
+                case 'customerPhone': return (
+                  <td key={columnId} className="px-3 py-3 whitespace-nowrap">
+                    <div className="text-sm font-medium text-foreground-secondary">
+                      {o.customer?.phone || '--'}
+                    </div>
+                  </td>
+                );
+                case 'discount': return (
+                  <td key={columnId} className="px-3 py-3 w-28 text-right">
+                    <div className="text-sm font-medium text-foreground-secondary">
+                      {formatCurrency(o.discount || 0)}
+                    </div>
+                  </td>
+                );
+                case 'shippingFee': return (
+                  <td key={columnId} className="px-3 py-3 w-28 text-right">
+                    <div className="text-sm font-medium text-foreground-secondary">
+                      {formatCurrency(o.shippingFee || 0)}
+                    </div>
+                  </td>
+                );
+                case 'linkedCodes': return (
+                  <td key={columnId} className="px-3 py-3 min-w-[180px]">
+                    <div className="flex flex-wrap gap-1">
+                      {o.transactions?.map((t: any, idx: number) => (
+                        <span key={'tx-'+idx} className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${t.type === 'INCOME' ? 'bg-success/10 text-success-600' : 'bg-destructive/10 text-destructive-600'}`}>
+                          {t.type === 'INCOME' ? 'PT' : 'PC'}: {t.voucherNumber}
+                        </span>
+                      ))}
+                      {o.groomingSessions?.map((s: any, idx: number) => (
+                        <span key={'gr-'+idx} className="bg-primary/10 text-primary-700 px-1.5 py-0.5 rounded-md text-[10px] font-medium">
+                          SPA: {s.sessionCode}
+                        </span>
+                      ))}
+                      {o.hotelStays?.map((h: any, idx: number) => (
+                        <span key={'ht-'+idx} className="bg-warning/10 text-warning-700 px-1.5 py-0.5 rounded-md text-[10px] font-medium">
+                          HOTEL: {h.stayCode}
+                        </span>
+                      ))}
+                      {!(o.transactions?.length) && !(o.groomingSessions?.length) && !(o.hotelStays?.length) && (
+                        <span className="text-xs text-foreground-muted">--</span>
+                      )}
+                    </div>
+                  </td>
+                );
+                case 'note': return (
+                  <td key={columnId} className="px-3 py-3 min-w-[150px]">
+                    <div className="text-xs text-foreground-secondary line-clamp-2" title={o.notes || ''}>
+                      {o.notes || '--'}
+                    </div>
                   </td>
                 );
                 case 'items': return (
-                  <td key={columnId} className="px-3 py-3 w-20">
+                  <td key={columnId} className="px-3 py-3 whitespace-nowrap">
                     <div className="inline-flex items-center gap-1.5 bg-background-tertiary px-2 py-0.5 rounded-md">
                       <ShoppingBag size={11} className="text-foreground-muted" />
                       <span className="text-xs font-medium text-foreground-secondary">{o.items?.length || 0} SP</span>
@@ -337,21 +391,21 @@ export function OrderList() {
                   </td>
                 );
                 case 'branch': return (
-                  <td key={columnId} className="px-3 py-3 w-28">
+                  <td key={columnId} className="px-3 py-3 whitespace-nowrap">
                     <div className="text-xs text-foreground-secondary font-medium">
                       {o.branch?.name || '--'}
                     </div>
                   </td>
                 );
                 case 'creator': return (
-                  <td key={columnId} className="px-3 py-3 w-28">
+                  <td key={columnId} className="px-3 py-3 whitespace-nowrap">
                     <div className="text-xs text-foreground-secondary">
                       {o.staff?.fullName || o.staff?.name || '--'}
                     </div>
                   </td>
                 );
                 case 'created': return (
-                  <td key={columnId} className="px-3 py-3 w-36 text-xs text-foreground-muted">
+                  <td key={columnId} className="px-3 py-3 whitespace-nowrap text-xs text-foreground-muted">
                     <div className="flex items-center gap-1">
                       <CalendarDays size={12}/>
                       {o.createdAt ? formatDateTime(o.createdAt) : '--'}
@@ -359,7 +413,7 @@ export function OrderList() {
                   </td>
                 );
                 case 'updated': return (
-                  <td key={columnId} className="px-3 py-3 w-36 text-xs text-foreground-muted">
+                  <td key={columnId} className="px-3 py-3 whitespace-nowrap text-xs text-foreground-muted">
                     <div className="flex items-center gap-1">
                       <CalendarDays size={12}/>
                       {o.updatedAt ? formatDateTime(o.updatedAt) : '--'}

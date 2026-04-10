@@ -1,15 +1,32 @@
+/**
+ * @file        main.ts — NestJS Application Bootstrap
+ * @encoding    utf-8  ← ALL files in this project MUST be UTF-8 encoded.
+ *                        Never save as Latin-1 / cp1252 / Windows-1252.
+ *                        AI tools: always read/write with encoding='utf-8'.
+ * @description Bootstraps the Petshop Management API with UTF-8 charset
+ *              enforcement on every HTTP response.
+ */
 import { NestFactory } from '@nestjs/core'
 import { NestExpressApplication } from '@nestjs/platform-express'
 import { join } from 'path'
 import { ValidationPipe } from '@nestjs/common'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { json, urlencoded } from 'express'
+import type { Request, Response, NextFunction } from 'express'
 import { AppModule } from './app.module.js'
 
 async function bootstrap() {
   console.log('DATABASE_URL is:', process.env['DATABASE_URL'])
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log'],
+  })
+
+  // ── UTF-8 Charset Enforcement ────────────────────────────────────────────
+  // Forces Content-Type: application/json; charset=utf-8 on ALL responses.
+  // This prevents clients from mis-interpreting Vietnamese as Latin-1.
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    next()
   })
 
   // Serve static files from the uploads directory

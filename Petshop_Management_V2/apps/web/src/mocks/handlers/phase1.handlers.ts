@@ -628,7 +628,7 @@ export const stockHandlers = [
   http.post(`${BASE}/stock/receipts/:id/payments`, async ({ params, request }) => {
     await delay(300)
     const receipt = procurementDemoReceipts.find((r) => r.id === params.id)
-    if (!receipt) return HttpResponse.json({ success: false, message: 'KhÃ´ng tÃ¬m tháº¥y phiáº¿u nháº­p' }, { status: 404 })
+    if (!receipt) return HttpResponse.json({ success: false, message: 'Không tìm thấy phiếu nhập' }, { status: 404 })
     const body = await request.json() as any
     refreshProcurementMocks()
     const outstanding = Math.max(0, Number(receipt.payableAmount ?? 0) - Number(receipt.paidAmount ?? 0))
@@ -674,7 +674,7 @@ export const stockHandlers = [
   http.post(`${BASE}/stock/suppliers/:supplierId/payments`, async ({ params, request }) => {
     await delay(300)
     const supplier = procurementDemoSuppliers.find((item) => item.id === params.supplierId)
-    if (!supplier) return HttpResponse.json({ success: false, message: 'KhÃ´ng tÃ¬m tháº¥y nhÃ  cung cáº¥p' }, { status: 404 })
+    if (!supplier) return HttpResponse.json({ success: false, message: 'Không tìm thấy nhà cung cấp' }, { status: 404 })
     const body = await request.json() as any
     procurementDemoSupplierCredits.push({
       id: `proc-credit-${Date.now()}`,
@@ -694,7 +694,7 @@ export const stockHandlers = [
   http.post(`${BASE}/stock/receipts/:id/receivings`, async ({ params, request }) => {
     await delay(350)
     const receipt = procurementDemoReceipts.find((r) => r.id === params.id)
-    if (!receipt) return HttpResponse.json({ success: false, message: 'KhÃ´ng tÃ¬m tháº¥y phiáº¿u nháº­p' }, { status: 404 })
+    if (!receipt) return HttpResponse.json({ success: false, message: 'Không tìm thấy phiếu nhập' }, { status: 404 })
     const body = await request.json() as any
     const eventItems = (body.items ?? [])
       .map((entry: any) => {
@@ -735,7 +735,7 @@ export const stockHandlers = [
   http.post(`${BASE}/stock/receipts/:id/close`, async ({ params, request }) => {
     await delay(300)
     const receipt = procurementDemoReceipts.find((r) => r.id === params.id)
-    if (!receipt) return HttpResponse.json({ success: false, message: 'KhÃ´ng tÃ¬m tháº¥y phiáº¿u nháº­p' }, { status: 404 })
+    if (!receipt) return HttpResponse.json({ success: false, message: 'Không tìm thấy phiếu nhập' }, { status: 404 })
     const body = await request.json() as any
     for (const entry of body.items ?? []) {
       const receiptItem = (receipt.items ?? []).find((item: any) => item.id === entry.receiptItemId)
@@ -752,7 +752,7 @@ export const stockHandlers = [
   http.post(`${BASE}/stock/receipts/:id/returns`, async ({ params, request }) => {
     await delay(320)
     const receipt = procurementDemoReceipts.find((r) => r.id === params.id)
-    if (!receipt) return HttpResponse.json({ success: false, message: 'KhÃ´ng tÃ¬m tháº¥y phiáº¿u nháº­p' }, { status: 404 })
+    if (!receipt) return HttpResponse.json({ success: false, message: 'Không tìm thấy phiếu nhập' }, { status: 404 })
     const body = await request.json() as any
     const returnItems = (body.items ?? [])
       .map((entry: any) => {
@@ -796,7 +796,7 @@ export const stockHandlers = [
     const supplierReturn = procurementDemoReceipts
       .flatMap((receipt) => receipt.supplierReturns ?? [])
       .find((item) => item.id === params.id)
-    if (!supplierReturn) return HttpResponse.json({ success: false, message: 'KhÃ´ng tÃ¬m tháº¥y phiáº¿u tráº£ NCC' }, { status: 404 })
+    if (!supplierReturn) return HttpResponse.json({ success: false, message: 'Không tìm thấy phiếu trả NCC' }, { status: 404 })
     const body = await request.json() as any
     const amount = Math.max(0, Number(body.amount ?? 0))
     supplierReturn.refunds = [

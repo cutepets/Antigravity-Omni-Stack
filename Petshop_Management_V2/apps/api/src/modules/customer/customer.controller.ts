@@ -47,10 +47,13 @@ export class CustomerController {
   @ApiQuery({ name: 'isActive', required: false })
   @ApiQuery({ name: 'minSpent', required: false })
   @ApiQuery({ name: 'maxSpent', required: false })
+  @ApiQuery({ name: 'branchId', required: false })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
   @ApiQuery({ name: 'sortBy', required: false })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
   findAll(@Query() query: FindCustomersDto, @Req() req: AuthenticatedRequest) {
-    return this.customerService.findAll(query, req.user)
+    return this.customerService.findAll(query, req.user, query.branchId ?? getRequestedBranchId(req))
   }
 
   @Get('export')

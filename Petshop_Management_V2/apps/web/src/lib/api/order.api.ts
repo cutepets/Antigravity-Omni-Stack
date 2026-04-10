@@ -40,7 +40,7 @@ export interface CreateOrderPayload {
       surcharge?: number;
     };
   }[];
-  payments?: { method: string; amount: number; note?: string }[];
+  payments?: { method: string; amount: number; note?: string; paymentAccountId?: string; paymentAccountLabel?: string }[];
   discount?: number;
   shippingFee?: number;
   notes?: string;
@@ -49,19 +49,62 @@ export interface CreateOrderPayload {
 export interface UpdateOrderPayload extends CreateOrderPayload {}
 
 export interface PayOrderPayload {
-  payments: { method: string; amount: number; note?: string }[];
+  payments: { method: string; amount: number; note?: string; paymentAccountId?: string; paymentAccountLabel?: string }[];
 }
 
 export interface CompleteOrderPayload {
   forceComplete?: boolean;
-  payments?: { method: string; amount: number; note?: string }[];
+  payments?: { method: string; amount: number; note?: string; paymentAccountId?: string; paymentAccountLabel?: string }[];
   overpaymentAction?: 'NONE' | 'REFUND' | 'KEEP_CREDIT';
   refundMethod?: string;
+  refundPaymentAccountId?: string;
+  refundPaymentAccountLabel?: string;
   settlementNote?: string;
 }
 
 export interface CancelOrderPayload {
   reason?: string;
+}
+
+export interface CreatePaymentIntentPayload {
+  paymentMethodId: string;
+  amount?: number;
+}
+
+export interface OrderPaymentIntent {
+  id: string;
+  code: string;
+  orderId?: string | null;
+  paymentMethodId: string;
+  amount: number;
+  currency: string;
+  status: 'PENDING' | 'PAID' | 'EXPIRED';
+  provider?: 'VIETQR' | null;
+  transferContent: string;
+  qrUrl?: string | null;
+  qrPayload?: string | null;
+  expiresAt?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  paymentMethod: {
+    id: string;
+    name: string;
+    type: string;
+    colorKey?: string | null;
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+    qrTemplate?: string | null;
+  };
+  order?: {
+    id: string;
+    orderNumber: string;
+    total: number;
+    paidAmount: number;
+    remainingAmount: number;
+    customerName?: string | null;
+  } | null;
 }
 
 export interface OrderListParams {
@@ -89,6 +132,12 @@ export const orderApi = {
 
   complete: (id: string, data?: CompleteOrderPayload) =>
     api.post(`/orders/${id}/complete`, data ?? {}).then((r) => r.data),
+
+  listPaymentIntents: (id: string): Promise<OrderPaymentIntent[]> =>
+    api.get(`/orders/${id}/payment-intents`).then((r) => r.data),
+
+  createPaymentIntent: (id: string, data: CreatePaymentIntentPayload): Promise<OrderPaymentIntent> =>
+    api.post(`/orders/${id}/payment-intents`, data).then((r) => r.data),
 
   cancel: (id: string, data?: CancelOrderPayload) =>
     api.post(`/orders/${id}/cancel`, data ?? {}).then((r) => r.data),

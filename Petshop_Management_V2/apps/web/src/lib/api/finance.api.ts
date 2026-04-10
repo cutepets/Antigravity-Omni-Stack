@@ -18,6 +18,8 @@ export interface FinanceTransaction {
   description: string
   category?: string | null
   paymentMethod?: string | null
+  paymentAccountId?: string | null
+  paymentAccountLabel?: string | null
   branchId?: string | null
   branchName?: string | null
   payerId?: string | null
@@ -68,7 +70,7 @@ export interface FinanceListResponse {
   closingBalance: number
   meta?: {
     branches: Array<{ id: string; name: string }>
-    paymentMethods: string[]
+    paymentMethods: Array<{ value: string; label: string }>
     creators: Array<{ id: string; name: string }>
     sources: string[]
   }
@@ -80,6 +82,8 @@ export interface CreateFinanceTransactionInput {
   description: string
   category?: string
   paymentMethod?: string
+  paymentAccountId?: string
+  paymentAccountLabel?: string
   branchId?: string
   branchName?: string
   payerName?: string
@@ -116,5 +120,5 @@ export const financeApi = {
   remove: (id: string) => api.delete(`/reports/transactions/${id}`).then((r) => r.data),
 
   getByVoucher: (voucherNumber: string) =>
-    api.get(`/reports/transactions/${voucherNumber}`).then((r) => r.data.data as FinanceTransaction),
+    api.get(`/reports/transactions/by-voucher/${voucherNumber}`).then((r) => r.data.data as FinanceTransaction),
 }

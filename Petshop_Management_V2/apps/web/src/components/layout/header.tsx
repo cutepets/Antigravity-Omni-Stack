@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, Settings } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { settingsApi } from '@/lib/api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { useAuthStore } from '@/stores/auth.store'
@@ -20,6 +20,11 @@ const CustomerSettingsDrawer = dynamic(
 
 const InventorySettingsDrawer = dynamic(
   () => import('@/app/(dashboard)/products/_components/inventory-settings-drawer').then(mod => mod.InventorySettingsDrawer),
+  { ssr: false }
+)
+
+const CashbookSettingsDrawer = dynamic(
+  () => import('@/app/(dashboard)/finance/_components/cashbook-settings-drawer').then(mod => mod.CashbookSettingsDrawer),
   { ssr: false }
 )
 
@@ -45,18 +50,20 @@ function resolveHeaderTitle(pathname: string) {
 export function Header() {
   const { user, allowedBranches, activeBranchId, switchBranch } = useAuthStore()
   const { toggleSidebar } = useThemeStore()
-  const { hasPermission } = useAuthorization()
+  const { hasPermission, allowedBranchIds } = useAuthorization()
   const router = useRouter()
   const pathname = usePathname()
   const [showBranchDropdown, setShowBranchDropdown] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
   const [showCustomerSettingsDrawer, setShowCustomerSettingsDrawer] = useState(false)
   const [showInventorySettingsDrawer, setShowInventorySettingsDrawer] = useState(false)
+  const [showCashbookSettingsDrawer, setShowCashbookSettingsDrawer] = useState(false)
   const [showPetSettings, setShowPetSettings] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const pageTitle = resolveHeaderTitle(pathname)
   const canManageCustomerSettings = hasPermission('customer.update')
   const canManagePetSettings = hasPermission('pet.update')
+  const canManageCashbookSettings = hasPermission('settings.app.update')
   const canOpenInventorySettings =
     hasPermission('product.read') ||
     hasPermission('product.create') ||
@@ -70,7 +77,16 @@ export function Header() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const displayBranches = branches && branches.length > 0 ? branches : allowedBranches
+  const displayBranches = useMemo(() => {
+    const sourceBranches = (branches && branches.length > 0 ? branches : allowedBranches) ?? []
+    const activeBranches = sourceBranches.filter((branch: any) => branch?.isActive !== false)
+
+    if (hasPermission('branch.access.all')) {
+      return activeBranches
+    }
+
+    return activeBranches.filter((branch: any) => allowedBranchIds.includes(branch.id))
+  }, [allowedBranchIds, allowedBranches, branches, hasPermission])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -82,6 +98,12 @@ export function Header() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!displayBranches.length) return
+    if (activeBranchId && displayBranches.some((branch: any) => branch.id === activeBranchId)) return
+    switchBranch(displayBranches[0]!.id)
+  }, [activeBranchId, displayBranches, switchBranch])
 
   return (
     <motion.header
@@ -118,6 +140,15 @@ export function Header() {
                 onClick={() => setShowCustomerSettingsDrawer(true)} 
                 className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
                 title="Cài đặt khách hàng"
+              >
+                <Settings size={18} />
+              </button>
+            )}
+            {pathname.startsWith('/finance') && canManageCashbookSettings && (
+              <button 
+                onClick={() => setShowCashbookSettingsDrawer(true)} 
+                className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
+                title="Cài đặt sổ quỹ"
               >
                 <Settings size={18} />
               </button>
@@ -257,6 +288,7 @@ export function Header() {
       <UserSettingsDrawer isOpen={showDrawer} onClose={() => setShowDrawer(false)} />
       <CustomerSettingsDrawer isOpen={showCustomerSettingsDrawer} onClose={() => setShowCustomerSettingsDrawer(false)} />
       <InventorySettingsDrawer isOpen={showInventorySettingsDrawer} onClose={() => setShowInventorySettingsDrawer(false)} />
+      <CashbookSettingsDrawer isOpen={showCashbookSettingsDrawer} onClose={() => setShowCashbookSettingsDrawer(false)} />
       <PetSettingsModal open={showPetSettings} onClose={() => setShowPetSettings(false)} />
     </motion.header>
   )

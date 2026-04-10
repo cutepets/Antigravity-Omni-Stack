@@ -21,7 +21,22 @@ import { extname, resolve } from 'path'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { JwtGuard } from '../auth/guards/jwt.guard'
-import { CreateBranchDto, SettingsService, UpdateBranchDto, UpdateConfigDto } from './settings.service'
+import { PaymentWebhookService } from '../orders/payment-webhook.service.js'
+import {
+  CreateBranchDto,
+  CreateBankTransferAccountDto,
+  CreateCashbookCategoryDto,
+  CreatePaymentMethodDto,
+  CreatePaymentWebhookSecretDto,
+  SettingsService,
+  TestPaymentWebhookDto,
+  UpdateBankTransferAccountDto,
+  UpdateBranchDto,
+  UpdateCashbookCategoryDto,
+  UpdateConfigDto,
+  UpdatePaymentMethodDto,
+  UpdatePaymentOptionsDto,
+} from './settings.service'
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
@@ -68,7 +83,10 @@ function resolveDocumentUploadPath(url: string) {
 @UseGuards(JwtGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class SettingsController {
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(
+    private readonly settingsService: SettingsService,
+    private readonly paymentWebhookService: PaymentWebhookService,
+  ) {}
 
   @Get('settings/configs')
   @Permissions('settings.app.read')
@@ -82,6 +100,184 @@ export class SettingsController {
   @ApiOperation({ summary: 'Cập nhật cấu hình hệ thống' })
   updateConfigs(@Body() dto: UpdateConfigDto) {
     return this.settingsService.updateConfigs(dto)
+  }
+
+  @Get('settings/cashbook-categories')
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Danh sach danh muc so quy' })
+  findAllCashbookCategories(@Query('type') type?: string) {
+    return this.settingsService.findAllCashbookCategories(type)
+  }
+
+  @Post('settings/cashbook-categories')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Tao danh muc so quy' })
+  createCashbookCategory(@Body() dto: CreateCashbookCategoryDto) {
+    return this.settingsService.createCashbookCategory(dto)
+  }
+
+  @Put('settings/cashbook-categories/:id')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Cap nhat danh muc so quy' })
+  updateCashbookCategory(@Param('id') id: string, @Body() dto: UpdateCashbookCategoryDto) {
+    return this.settingsService.updateCashbookCategory(id, dto)
+  }
+
+  @Delete('settings/cashbook-categories/:id')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Xoa danh muc so quy' })
+  removeCashbookCategory(@Param('id') id: string) {
+    return this.settingsService.removeCashbookCategory(id)
+  }
+
+  @Get('settings/payment-methods')
+  @Permissions(
+    'settings.payment.manage',
+    'report.cashbook',
+    'order.create',
+    'order.read.all',
+    'order.read.assigned',
+    'order.update',
+    'order.pay',
+    'sales_channel.pos',
+  )
+  @ApiOperation({ summary: 'Danh sach phuong thuc thanh toan' })
+  findAllPaymentMethods() {
+    return this.settingsService.findAllPaymentMethods()
+  }
+
+  @Get('settings/payment-options')
+  @Permissions(
+    'settings.payment.manage',
+    'order.create',
+    'order.read.all',
+    'order.read.assigned',
+    'order.update',
+    'order.pay',
+    'sales_channel.pos',
+  )
+  @ApiOperation({ summary: 'Cau hinh hanh vi thanh toan' })
+  getPaymentOptions() {
+    return this.settingsService.getPaymentOptions()
+  }
+
+  @Put('settings/payment-options')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Cap nhat cau hinh hanh vi thanh toan' })
+  updatePaymentOptions(@Body() dto: UpdatePaymentOptionsDto) {
+    return this.settingsService.updatePaymentOptions(dto)
+  }
+
+  @Get('settings/payment-webhook-secrets')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Danh sach key webhook chuyen khoan' })
+  findAllPaymentWebhookSecrets() {
+    return this.settingsService.findAllPaymentWebhookSecrets()
+  }
+
+  @Post('settings/payment-webhook-secrets')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Tao key webhook chuyen khoan' })
+  createPaymentWebhookSecret(@Body() dto: CreatePaymentWebhookSecretDto) {
+    return this.settingsService.createPaymentWebhookSecret(dto)
+  }
+
+  @Delete('settings/payment-webhook-secrets/:id')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Thu hoi key webhook chuyen khoan' })
+  removePaymentWebhookSecret(@Param('id') id: string) {
+    return this.settingsService.removePaymentWebhookSecret(id)
+  }
+
+  @Post('settings/payment-webhook-secrets/test')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Test webhook va ghi vao hang doi giao dich ngan hang' })
+  testPaymentWebhook(@Body() dto: TestPaymentWebhookDto) {
+    return this.paymentWebhookService.testBankTransferWebhook(dto.provider, dto.payload)
+  }
+
+  @Get('settings/bank-transactions')
+  @Permissions('settings.payment.manage', 'report.cashbook')
+  @ApiOperation({ summary: 'Danh sach giao dich ngan hang da nhan' })
+  listBankTransactions(
+    @Query('scope') scope?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    const params: {
+      scope?: string
+      status?: string
+      search?: string
+    } = {}
+    if (scope !== undefined) params.scope = scope
+    if (status !== undefined) params.status = status
+    if (search !== undefined) params.search = search
+    return this.paymentWebhookService.listBankTransactions(params)
+  }
+
+  @Delete('settings/bank-transactions/:id')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Xoa du lieu test webhook trong hang doi giao dich ngan hang' })
+  removeBankTransaction(@Param('id') id: string) {
+    return this.paymentWebhookService.removeTestBankTransaction(id)
+  }
+
+  @Post('settings/payment-methods')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Tao phuong thuc thanh toan' })
+  createPaymentMethod(@Body() dto: CreatePaymentMethodDto) {
+    return this.settingsService.createPaymentMethod(dto)
+  }
+
+  @Put('settings/payment-methods/:id')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Cap nhat phuong thuc thanh toan' })
+  updatePaymentMethod(@Param('id') id: string, @Body() dto: UpdatePaymentMethodDto) {
+    return this.settingsService.updatePaymentMethod(id, dto)
+  }
+
+  @Delete('settings/payment-methods/:id')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Xoa phuong thuc thanh toan' })
+  removePaymentMethod(@Param('id') id: string) {
+    return this.settingsService.removePaymentMethod(id)
+  }
+
+  @Get('settings/bank-transfer-accounts')
+  @Permissions(
+    'settings.payment.manage',
+    'report.cashbook',
+    'order.create',
+    'order.read.all',
+    'order.read.assigned',
+    'order.update',
+    'order.pay',
+    'sales_channel.pos',
+  )
+  @ApiOperation({ summary: 'Danh sach tai khoan chuyen khoan' })
+  findAllBankTransferAccounts() {
+    return this.settingsService.findAllBankTransferAccounts()
+  }
+
+  @Post('settings/bank-transfer-accounts')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Tao tai khoan chuyen khoan' })
+  createBankTransferAccount(@Body() dto: CreateBankTransferAccountDto) {
+    return this.settingsService.createBankTransferAccount(dto)
+  }
+
+  @Put('settings/bank-transfer-accounts/:id')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Cap nhat tai khoan chuyen khoan' })
+  updateBankTransferAccount(@Param('id') id: string, @Body() dto: UpdateBankTransferAccountDto) {
+    return this.settingsService.updateBankTransferAccount(id, dto)
+  }
+
+  @Delete('settings/bank-transfer-accounts/:id')
+  @Permissions('settings.payment.manage')
+  @ApiOperation({ summary: 'Xoa tai khoan chuyen khoan' })
+  removeBankTransferAccount(@Param('id') id: string) {
+    return this.settingsService.removeBankTransferAccount(id)
   }
 
   @Get('settings/branches')
@@ -214,7 +410,7 @@ export class SettingsController {
     }),
   )
   uploadFile(@UploadedFile() file: Express.Multer.File) {
-    if (!file) return { success: false, message: 'KhÃ´ng tÃ¬m tháº¥y file tài liệu' }
+    if (!file) return { success: false, message: 'Không tìm thấy file tài liệu' }
     return { success: true, url: `/uploads/files/${file.filename}`, name: file.originalname }
   }
 

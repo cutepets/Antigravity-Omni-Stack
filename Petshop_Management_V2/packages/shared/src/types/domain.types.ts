@@ -90,6 +90,8 @@ export interface Transaction {
   description: string
   category?: string | null
   paymentMethod?: string | null
+  paymentAccountId?: string | null
+  paymentAccountLabel?: string | null
   branchId?: string | null
   branchName?: string | null
   refType?: TransactionReferenceType | null

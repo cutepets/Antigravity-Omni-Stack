@@ -58,6 +58,8 @@ export interface OrderTab {
   productSearch: string
   cart: CartItem[]
   payments: PaymentEntry[]
+  manualDiscountTotal?: number
+  roundingDiscountTotal?: number
   discountTotal: number
   shippingFee: number
   notes: string

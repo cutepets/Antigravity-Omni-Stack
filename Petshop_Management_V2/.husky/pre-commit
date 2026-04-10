@@ -1,2 +1,2 @@
-pnpm utf8:check
+pnpm utf8:check --staged
 pnpm exec lint-staged

@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Search, AlertCircle, PackageCheck, Download, Pin, PinOff } from 'lucide-react'
 import { inventoryApi } from '@/lib/api/inventory.api'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   DataListShell,
   DataListToolbar,
@@ -38,11 +38,16 @@ const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
 
 export function StockList() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('ALL') // ALL, LOW_STOCK
   const [page, setPage] = useState(1)
 
   const [pageSize, setPageSize] = useState(20)
+  const reportSource = searchParams.get('from')
+  const scopedBranchId = searchParams.get('branchId')?.trim() || ''
+  const scopedDateFrom = searchParams.get('dateFrom')?.trim() || ''
+  const scopedDateTo = searchParams.get('dateTo')?.trim() || ''
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
@@ -51,10 +56,47 @@ export function StockList() {
   })
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 
+  useEffect(() => {
+    const nextSearch = searchParams.get('search') ?? ''
+    const nextFilterType = searchParams.get('filterType') ?? 'ALL'
+    const nextPage = Number(searchParams.get('page') ?? '1')
+    const nextPageSize = Number(searchParams.get('limit') ?? '20')
+
+    setSearch((current) => (current !== nextSearch ? nextSearch : current))
+    setFilterType((current) => (current !== nextFilterType ? nextFilterType : current))
+    setPage((current) => (Number.isFinite(nextPage) && nextPage > 0 ? (current !== nextPage ? nextPage : current) : current !== 1 ? 1 : current))
+    setPageSize((current) =>
+      Number.isFinite(nextPageSize) && nextPageSize > 0 ? (current !== nextPageSize ? nextPageSize : current) : current !== 20 ? 20 : current,
+    )
+  }, [searchParams])
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams.toString())
+
+    if (search.trim()) nextParams.set('search', search.trim())
+    else nextParams.delete('search')
+
+    if (filterType !== 'ALL') nextParams.set('filterType', filterType)
+    else nextParams.delete('filterType')
+
+    if (page > 1) nextParams.set('page', String(page))
+    else nextParams.delete('page')
+
+    if (pageSize !== 20) nextParams.set('limit', String(pageSize))
+    else nextParams.delete('limit')
+
+    const currentQuery = searchParams.toString()
+    const nextQuery = nextParams.toString()
+    if (currentQuery !== nextQuery) {
+      router.replace(nextQuery ? `/inventory/stock?${nextQuery}` : '/inventory/stock', { scroll: false })
+    }
+  }, [filterType, page, pageSize, router, search, searchParams])
+
   const { data, isLoading } = useQuery({
-    queryKey: ['products-stock', search, filterType, page, pageSize, columnSort.columnId, columnSort.direction],
+    queryKey: ['products-stock', search, filterType, scopedBranchId || 'all', page, pageSize, columnSort.columnId, columnSort.direction],
     queryFn: () => inventoryApi.getProducts({
       search,
+      branchId: scopedBranchId || undefined,
       page,
       limit: pageSize,
       sortBy: columnSort.columnId || undefined,
@@ -63,7 +105,23 @@ export function StockList() {
   })
 
   const rawProducts = Array.isArray((data as any)?.data) ? (data as any).data : []
-  const products = filterType === 'LOW_STOCK' ? rawProducts.filter((p: any) => p.stock <= p.minStock) : rawProducts
+  const products = useMemo(() => {
+    const scopedProducts = scopedBranchId
+      ? rawProducts
+          .filter((product: any) => Array.isArray(product.branchStocks) && product.branchStocks.some((stock: any) => stock.branchId === scopedBranchId))
+          .map((product: any) => {
+            const branchStock = product.branchStocks.find((stock: any) => stock.branchId === scopedBranchId)
+            return {
+              ...product,
+              displayStock: Number(branchStock?.stock ?? 0),
+            }
+          })
+      : rawProducts.map((product: any) => ({ ...product, displayStock: Number(product.stock ?? 0) }))
+
+    return filterType === 'LOW_STOCK'
+      ? scopedProducts.filter((product: any) => Number(product.displayStock ?? 0) <= Number(product.minStock ?? 0))
+      : scopedProducts
+  }, [filterType, rawProducts, scopedBranchId])
 
   const totalPages = (data as any)?.totalPages ?? 1
   const total = (data as any)?.total ?? products.length
@@ -104,6 +162,19 @@ export function StockList() {
 
   return (
     <DataListShell>
+      {reportSource === 'reports' ? (
+        <div className="mx-4 mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-primary-500/15 bg-primary-500/5 px-4 py-3 text-sm text-foreground">
+          <span className="font-semibold text-primary-600">Dang mo tu bao cao</span>
+          {scopedBranchId ? <span className="rounded-full bg-background px-3 py-1 text-xs">Chi nhanh: {scopedBranchId}</span> : null}
+          {scopedDateFrom && scopedDateTo ? (
+            <span className="rounded-full bg-background px-3 py-1 text-xs">
+              Pham vi ngay: {scopedDateFrom} den {scopedDateTo}
+            </span>
+          ) : null}
+          <span className="rounded-full bg-background px-3 py-1 text-xs">Ton kho la snapshot hien tai</span>
+        </div>
+      ) : null}
+
       <DataListToolbar
         searchValue={search}
         onSearchChange={(v) => { setSearch(v); setPage(1) }}
@@ -244,7 +315,7 @@ export function StockList() {
                   );
                   case 'stock': return (
                     <td key={columnId} className={`px-3 py-3 text-right font-bold text-lg w-32 ${isLowStock ? 'text-error' : 'text-emerald-500'}`}>
-                      {p.stock ?? 0}
+                      {p.displayStock ?? 0}
                     </td>
                   );
                   case 'status': return (

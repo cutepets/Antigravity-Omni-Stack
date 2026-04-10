@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { CartItem, OrderTab, PaymentMethod } from '@petshop/shared';
+import type { CartItem, OrderTab, PaymentEntry, PaymentMethod } from '@petshop/shared';
+
+type PosRoundingUnit = 100 | 1000;
 
 // ─── Default tab factory ──────────────────────────────────────────────────────
 const createNewTab = (id?: string): OrderTab => ({
@@ -11,11 +13,69 @@ const createNewTab = (id?: string): OrderTab => ({
   productSearch: '',
   cart: [],
   payments: [],
+  manualDiscountTotal: 0,
+  roundingDiscountTotal: 0,
   discountTotal: 0,
   shippingFee: 0,
   notes: '',
   activePetIds: [],
 });
+
+const toFiniteNumber = (value: unknown, fallback = 0) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+};
+
+const calculateCartSubtotal = (cart: OrderTab['cart']) =>
+  cart.reduce(
+    (sum, item) =>
+      sum +
+      toFiniteNumber(item.unitPrice) * Math.max(0, toFiniteNumber(item.quantity)) -
+      toFiniteNumber(item.discountItem),
+    0,
+  );
+
+const normalizeRoundingUnit = (value: unknown): PosRoundingUnit => (Number(value) === 1000 ? 1000 : 100);
+
+const calculateBaseTotal = (tab: OrderTab) =>
+  Math.max(0, calculateCartSubtotal(tab.cart) + Math.max(0, toFiniteNumber(tab.shippingFee)));
+
+const calculateRoundingDiscount = (
+  amount: number,
+  roundingEnabled: boolean,
+  roundingUnit: PosRoundingUnit,
+) => {
+  const safeAmount = Math.max(0, toFiniteNumber(amount));
+  if (!roundingEnabled || safeAmount < roundingUnit) return 0;
+
+  return safeAmount - Math.floor(safeAmount / roundingUnit) * roundingUnit;
+};
+
+const reconcileTabDiscounts = (
+  tab: OrderTab,
+  roundingEnabled: boolean,
+  roundingUnit: PosRoundingUnit,
+): OrderTab => {
+  const baseTotal = calculateBaseTotal(tab);
+  const manualSeed = toFiniteNumber(tab.manualDiscountTotal ?? tab.discountTotal);
+  const manualDiscountTotal = Math.min(baseTotal, Math.max(0, manualSeed));
+  const payableBeforeRounding = Math.max(0, baseTotal - manualDiscountTotal);
+  const roundingDiscountTotal = Math.min(
+    payableBeforeRounding,
+    calculateRoundingDiscount(payableBeforeRounding, roundingEnabled, roundingUnit),
+  );
+
+  return {
+    ...tab,
+    shippingFee: Math.max(0, toFiniteNumber(tab.shippingFee)),
+    manualDiscountTotal,
+    roundingDiscountTotal,
+    discountTotal: Math.min(baseTotal, manualDiscountTotal + roundingDiscountTotal),
+  };
+};
+
+const calculateCartTotal = (tab: OrderTab) =>
+  calculateCartSubtotal(tab.cart) - toFiniteNumber(tab.discountTotal) + toFiniteNumber(tab.shippingFee);
 
 // ─── Store Interface ──────────────────────────────────────────────────────────
 interface PosStore {
@@ -38,6 +98,10 @@ interface PosStore {
   setZoomLevel: (val: number) => void;
   defaultPayment: string;
   setDefaultPayment: (val: string) => void;
+  roundingEnabled: boolean;
+  setRoundingEnabled: (val: boolean) => void;
+  roundingUnit: PosRoundingUnit;
+  setRoundingUnit: (val: PosRoundingUnit) => void;
 
   // ── Print Settings ───────────────────────────────────────────
   printerIp: string;
@@ -79,10 +143,10 @@ interface PosStore {
   setActivePets: (petIds: string[]) => void;
 
   // ── Payment Actions ──────────────────────────────────────────
-  addPayment: (method: PaymentMethod, amount: number) => void;
+  addPayment: (method: PaymentMethod, amount: number, extra?: Partial<PaymentEntry>) => void;
   removePayment: (index: number) => void;
   updatePaymentAmount: (index: number, amount: number) => void;
-  setSinglePayment: (method: PaymentMethod, amount: number) => void;
+  setSinglePayment: (method: PaymentMethod, amount: number, extra?: Partial<PaymentEntry>) => void;
   clearPayments: () => void;
 
   // ── Order-level Actions ──────────────────────────────────────
@@ -97,6 +161,7 @@ interface PosStore {
     orderNumber: string;
     paymentStatus: string;
     amountPaid: number;
+    payments?: OrderTab['payments'];
     branchId?: string;
     customerId?: string;
     customerName: string;
@@ -104,6 +169,13 @@ interface PosStore {
     discountTotal: number;
     shippingFee: number;
     notes: string;
+  }) => void;
+  attachActiveOrderMeta: (data: {
+    orderId: string;
+    orderNumber: string;
+    paymentStatus?: string;
+    amountPaid?: number;
+    branchId?: string;
   }) => void;
 
   // ── Branch ───────────────────────────────────────────────────
@@ -116,12 +188,18 @@ interface PosStore {
 
 // ─── Helper: update active tab ────────────────────────────────────────────────
 function updateActiveTab(
-  state: Pick<PosStore, 'tabs' | 'activeTabId'>,
+  state: Pick<PosStore, 'tabs' | 'activeTabId' | 'roundingEnabled' | 'roundingUnit'>,
   updater: (tab: OrderTab) => Partial<OrderTab>,
 ) {
   return {
     tabs: state.tabs.map((tab) =>
-      tab.id === state.activeTabId ? { ...tab, ...updater(tab) } : tab,
+      tab.id === state.activeTabId
+        ? reconcileTabDiscounts(
+            { ...tab, ...updater(tab) },
+            state.roundingEnabled,
+            state.roundingUnit,
+          )
+        : tab,
     ),
   };
 }
@@ -148,8 +226,22 @@ export const usePosStore = create<PosStore>()(
         setSoundEnabled: (val) => set({ soundEnabled: val }),
         zoomLevel: 100,
         setZoomLevel: (val) => set({ zoomLevel: val }),
-        defaultPayment: 'CASH',
+        defaultPayment: '',
         setDefaultPayment: (val) => set({ defaultPayment: val }),
+        roundingEnabled: false,
+        setRoundingEnabled: (val) =>
+          set((state) => ({
+            roundingEnabled: val,
+            tabs: state.tabs.map((tab) => reconcileTabDiscounts(tab, val, state.roundingUnit)),
+          })),
+        roundingUnit: 100,
+        setRoundingUnit: (val) => {
+          const nextUnit = normalizeRoundingUnit(val);
+          set((state) => ({
+            roundingUnit: nextUnit,
+            tabs: state.tabs.map((tab) => reconcileTabDiscounts(tab, state.roundingEnabled, nextUnit)),
+          }));
+        },
 
         printerIp: '',
         setPrinterIp: (ip) => set({ printerIp: ip }),
@@ -279,20 +371,25 @@ export const usePosStore = create<PosStore>()(
                     };
                   }
                   
-                  if (c.variants) {
-                    const variant = c.variants.find(v => v.id === variantId);
-                    if (variant) {
-                      return {
-                        ...c,
-                        productVariantId: variant.id,
-                        variantName: variant.name,
-                        sku: variant.sku ?? baseSku,
-                        unitPrice: variant.sellingPrice ?? variant.price ?? baseUnitPrice,
-                        baseSku,
-                        baseUnitPrice,
-                      };
-                    }
-                  }
+                   if (c.variants) {
+                     const variant = c.variants.find(v => v.id === variantId);
+                     if (variant) {
+                       return {
+                         ...c,
+                         productVariantId: variant.id,
+                         variantName: variant.name,
+                         sku: variant.sku ?? baseSku,
+                         unitPrice: variant.sellingPrice ?? variant.price ?? baseUnitPrice,
+                         stock: variant.stock ?? c.stock,
+                         availableStock: variant.availableStock ?? c.availableStock,
+                         trading: variant.trading ?? c.trading,
+                         reserved: variant.reserved ?? c.reserved,
+                         branchStocks: variant.branchStocks ?? c.branchStocks,
+                         baseSku,
+                         baseUnitPrice,
+                       };
+                     }
+                   }
                 }
                 return c;
               }),
@@ -304,6 +401,8 @@ export const usePosStore = create<PosStore>()(
             updateActiveTab(s, () => ({
               cart: [],
               payments: [],
+              manualDiscountTotal: 0,
+              roundingDiscountTotal: 0,
               discountTotal: 0,
               shippingFee: 0,
               notes: '',
@@ -333,10 +432,10 @@ export const usePosStore = create<PosStore>()(
           set((s) => updateActiveTab(s, () => ({ activePetIds: petIds }))),
 
         // ── Payments ─────────────────────────────────────────────
-        addPayment: (method, amount) =>
+        addPayment: (method, amount, extra) =>
           set((s) =>
             updateActiveTab(s, (tab) => ({
-              payments: [...tab.payments, { method, amount }],
+              payments: [...tab.payments, { method, amount, ...extra }],
             })),
           ),
 
@@ -356,10 +455,10 @@ export const usePosStore = create<PosStore>()(
             })),
           ),
 
-        setSinglePayment: (method, amount) =>
+        setSinglePayment: (method, amount, extra) =>
           set((s) =>
             updateActiveTab(s, () => ({
-              payments: [{ method, amount }],
+              payments: [{ method, amount, ...extra }],
             })),
           ),
 
@@ -368,7 +467,7 @@ export const usePosStore = create<PosStore>()(
 
         // ── Order-level ──────────────────────────────────────────
         setDiscount: (discount) =>
-          set((s) => updateActiveTab(s, () => ({ discountTotal: discount }))),
+          set((s) => updateActiveTab(s, () => ({ manualDiscountTotal: discount }))),
 
         setShippingFee: (fee) =>
           set((s) => updateActiveTab(s, () => ({ shippingFee: fee }))),
@@ -381,31 +480,63 @@ export const usePosStore = create<PosStore>()(
 
         // ── Load existing order ──────────────────────────────────
         loadExistingOrder: (data) => {
-          const newTab = createNewTab();
-          set((s) => ({
-            tabs: [
-              ...s.tabs,
-              {
-                ...newTab,
-                title: `#${data.orderNumber}`,
-                customerId: data.customerId,
-                customerName: data.customerName,
-                cart: data.cart,
-                discountTotal: data.discountTotal,
-                shippingFee: data.shippingFee,
-                notes: data.notes,
-                existingOrderId: data.orderId,
-                existingOrderNumber: data.orderNumber,
-                existingPaymentStatus: data.paymentStatus,
-                existingAmountPaid: data.amountPaid,
-                branchId: data.branchId,
-              },
-            ],
-            activeTabId: newTab.id,
-          }));
+          set((s) => {
+            const existingTab = s.tabs.find((tab) => tab.existingOrderId === data.orderId);
+            const orderDiscountTotal = Math.max(0, toFiniteNumber(data.discountTotal));
+            const existingOrderPatch: Partial<OrderTab> = {
+              title: `#${data.orderNumber}`,
+              customerId: data.customerId,
+              customerName: data.customerName,
+              cart: data.cart,
+              payments: data.payments ?? [],
+              manualDiscountTotal: orderDiscountTotal,
+              roundingDiscountTotal: 0,
+              discountTotal: orderDiscountTotal,
+              shippingFee: toFiniteNumber(data.shippingFee),
+              notes: data.notes,
+              existingOrderId: data.orderId,
+              existingOrderNumber: data.orderNumber,
+              existingPaymentStatus: data.paymentStatus,
+              existingAmountPaid: toFiniteNumber(data.amountPaid),
+              branchId: data.branchId,
+            };
+
+            if (existingTab) {
+              return {
+                tabs: s.tabs.map((tab) =>
+                  tab.id === existingTab.id ? { ...tab, ...existingOrderPatch } : tab,
+                ),
+                activeTabId: existingTab.id,
+              };
+            }
+
+            const newTab = createNewTab();
+            return {
+              tabs: [
+                ...s.tabs,
+                {
+                  ...newTab,
+                  ...existingOrderPatch,
+                },
+              ],
+              activeTabId: newTab.id,
+            };
+          });
         },
 
         // ── Branch ───────────────────────────────────────────────
+        attachActiveOrderMeta: (data) =>
+          set((s) =>
+            updateActiveTab(s, () => ({
+              title: `#${data.orderNumber}`,
+              existingOrderId: data.orderId,
+              existingOrderNumber: data.orderNumber,
+              existingPaymentStatus: data.paymentStatus,
+              existingAmountPaid: toFiniteNumber(data.amountPaid),
+              branchId: data.branchId,
+            })),
+          ),
+
         setBranch: (branchId) =>
           set((s) =>
             updateActiveTab(s, () => ({ branchId })),
@@ -444,10 +575,30 @@ export const usePosStore = create<PosStore>()(
           soundEnabled: state.soundEnabled,
           zoomLevel: state.zoomLevel,
           defaultPayment: state.defaultPayment,
+          roundingEnabled: state.roundingEnabled,
+          roundingUnit: state.roundingUnit,
           printerIp: state.printerIp,
           paperSize: state.paperSize,
           autoPrint: state.autoPrint,
           autoPrintQR: state.autoPrintQR,
+        };
+      },
+      merge: (persistedState, currentState) => {
+        const mergedState = {
+          ...currentState,
+          ...(persistedState as Partial<PosStore>),
+        } as PosStore;
+        const roundingUnit = normalizeRoundingUnit(mergedState.roundingUnit);
+        const roundingEnabled = Boolean(mergedState.roundingEnabled);
+        const tabs =
+          mergedState.tabs?.map((tab) => reconcileTabDiscounts(tab, roundingEnabled, roundingUnit)) ??
+          currentState.tabs;
+
+        return {
+          ...mergedState,
+          tabs,
+          roundingEnabled,
+          roundingUnit,
         };
       },
     },
@@ -463,33 +614,26 @@ export const useCartSubtotal = () =>
   usePosStore((s) => {
     const tab = s.tabs.find((t) => t.id === s.activeTabId);
     if (!tab) return 0;
-    return tab.cart.reduce(
-      (sum, item) => sum + item.unitPrice * item.quantity - item.discountItem,
-      0,
-    );
+    return calculateCartSubtotal(tab.cart);
   });
 
 export const useCartTotal = () =>
   usePosStore((s) => {
     const tab = s.tabs.find((t) => t.id === s.activeTabId);
     if (!tab) return 0;
-    const subtotal = tab.cart.reduce(
-      (sum, item) => sum + item.unitPrice * item.quantity - item.discountItem,
-      0,
-    );
-    return subtotal - tab.discountTotal + tab.shippingFee;
+    return calculateCartTotal(tab);
   });
 
 export const useTotalPaid = () =>
   usePosStore((s) => {
     const tab = s.tabs.find((t) => t.id === s.activeTabId);
     if (!tab) return 0;
-    return tab.payments.reduce((sum, p) => sum + p.amount, 0);
+    return tab.payments.reduce((sum, p) => sum + toFiniteNumber(p.amount), 0);
   });
 
 export const useCartItemCount = () =>
   usePosStore((s) => {
     const tab = s.tabs.find((t) => t.id === s.activeTabId);
     if (!tab) return 0;
-    return tab.cart.reduce((sum, item) => sum + item.quantity, 0);
+    return tab.cart.reduce((sum, item) => sum + Math.max(0, toFiniteNumber(item.quantity)), 0);
   });

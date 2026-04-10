@@ -21,6 +21,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CancelOrderDto } from './dto/cancel-order.dto.js'
 import { CompleteOrderDto } from './dto/complete-order.dto.js'
+import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto.js'
 import { CreateOrderDto } from './dto/create-order.dto.js'
 import { PayOrderDto } from './dto/pay-order.dto.js'
 import { UpdateOrderDto } from './dto/update-order.dto.js'
@@ -89,6 +90,22 @@ export class OrdersController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.ordersService.payOrder(id, dto, this.getStaffId(req), req.user)
+  }
+
+  @Get(':id/payment-intents')
+  @Permissions('order.read.all', 'order.read.assigned', 'order.pay')
+  getPaymentIntents(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<unknown> {
+    return this.ordersService.listPaymentIntents(id, req.user)
+  }
+
+  @Post(':id/payment-intents')
+  @Permissions('order.pay')
+  createPaymentIntent(
+    @Param('id') id: string,
+    @Body() dto: CreatePaymentIntentDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<unknown> {
+    return this.ordersService.createPaymentIntent(id, dto, req.user)
   }
 
   @Post(':id/complete')

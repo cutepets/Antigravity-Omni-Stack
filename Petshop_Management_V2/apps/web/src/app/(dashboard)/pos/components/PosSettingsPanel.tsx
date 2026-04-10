@@ -1,177 +1,283 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { Settings, X, SlidersHorizontal, Printer, Keyboard } from 'lucide-react';
-import { usePosStore } from '@/stores/pos.store';
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Keyboard, Printer, Settings, SlidersHorizontal, X } from 'lucide-react'
+import { settingsApi } from '@/lib/api/settings.api'
+import { PAYMENT_METHOD_TYPE_LABELS } from '@/lib/payment-methods'
+import { useAuthStore } from '@/stores/auth.store'
+import { usePosStore } from '@/stores/pos.store'
 
-type Tab = 'POS' | 'PRINT' | 'SHORTCUTS';
+type Tab = 'POS' | 'PRINT' | 'SHORTCUTS'
 
 export function PosSettingsPanel() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>('POS');
+  const [isOpen, setIsOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<Tab>('POS')
+  const activeBranchId = useAuthStore((state) => state.activeBranchId)
 
-  // Load state and setters from store
   const {
-    autoFocusSearch, setAutoFocusSearch,
-    barcodeMode, setBarcodeMode,
-    soundEnabled, setSoundEnabled,
-    zoomLevel, setZoomLevel,
-    defaultPayment, setDefaultPayment,
-    printerIp, setPrinterIp,
-    paperSize, setPaperSize,
-    autoPrint, setAutoPrint,
-    autoPrintQR, setAutoPrintQR
-  } = usePosStore();
+    autoFocusSearch,
+    setAutoFocusSearch,
+    barcodeMode,
+    setBarcodeMode,
+    soundEnabled,
+    setSoundEnabled,
+    zoomLevel,
+    setZoomLevel,
+    defaultPayment,
+    setDefaultPayment,
+    roundingEnabled,
+    setRoundingEnabled,
+    roundingUnit,
+    setRoundingUnit,
+    printerIp,
+    setPrinterIp,
+    paperSize,
+    setPaperSize,
+    autoPrint,
+    setAutoPrint,
+    autoPrintQR,
+    setAutoPrintQR,
+  } = usePosStore()
 
-  // Apply zoom effect globally for POS
+  const { data: paymentMethods = [], isLoading: isPaymentMethodsLoading, isError: isPaymentMethodsError } = useQuery({
+    queryKey: ['settings', 'payment-methods'],
+    queryFn: () => settingsApi.getPaymentMethods(),
+    staleTime: 30_000,
+  })
+
   useEffect(() => {
-    // We only apply this safely on client
-    const container = document.querySelector('main')?.parentElement;
+    const container = document.querySelector('main')?.parentElement
     if (container) {
-      // In webkit, 'zoom' works perfectly to scale the whole UI layout
-      (container as any).style.zoom = `${zoomLevel}%`;
+      ;(container as any).style.zoom = `${zoomLevel}%`
     }
-  }, [zoomLevel]);
+  }, [zoomLevel])
+
+  const selectablePaymentMethods = useMemo(
+    () =>
+      paymentMethods
+        .filter((method) => method.isActive)
+        .filter((method) => method.branchIds.length === 0 || !activeBranchId || method.branchIds.includes(activeBranchId))
+        .sort((left, right) => {
+          if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder
+          if (left.isDefault !== right.isDefault) return left.isDefault ? -1 : 1
+          return left.name.localeCompare(right.name, 'vi')
+        }),
+    [activeBranchId, paymentMethods],
+  )
+
+  const resolvedDefaultPaymentId = useMemo(() => {
+    if (selectablePaymentMethods.some((method) => method.id === defaultPayment)) {
+      return defaultPayment
+    }
+
+    return selectablePaymentMethods.find((method) => method.isDefault)?.id ?? selectablePaymentMethods[0]?.id ?? ''
+  }, [defaultPayment, selectablePaymentMethods])
+
+  useEffect(() => {
+    if (!resolvedDefaultPaymentId || defaultPayment === resolvedDefaultPaymentId) return
+    setDefaultPayment(resolvedDefaultPaymentId)
+  }, [defaultPayment, resolvedDefaultPaymentId, setDefaultPayment])
 
   const renderTabs = () => (
     <div className="flex items-center border-b border-gray-200">
-      <button 
-        className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${activeTab === 'POS' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 hover:bg-gray-50'}`}
-        onClick={() => setActiveTab('POS')}
-      >
-        <SlidersHorizontal size={16} /> Cài đặt POS
-      </button>
-      <button 
-        className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${activeTab === 'PRINT' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 hover:bg-gray-50'}`}
-        onClick={() => setActiveTab('PRINT')}
-      >
-        <Printer size={16} /> Cài đặt in
-      </button>
-      <button 
-        className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${activeTab === 'SHORTCUTS' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 hover:bg-gray-50'}`}
-        onClick={() => setActiveTab('SHORTCUTS')}
-      >
-        <Keyboard size={16} /> Phím tắt
-      </button>
+      {[
+        { id: 'POS' as const, label: 'Cài đặt POS', icon: SlidersHorizontal },
+        { id: 'PRINT' as const, label: 'Cài đặt in', icon: Printer },
+        { id: 'SHORTCUTS' as const, label: 'Phím tắt', icon: Keyboard },
+      ].map((tab) => {
+        const Icon = tab.icon
+        return (
+          <button
+            key={tab.id}
+            className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${
+              activeTab === tab.id ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 hover:bg-gray-50'
+            }`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <Icon size={16} /> {tab.label}
+          </button>
+        )
+      })}
     </div>
-  );
+  )
+
+  const renderToggle = (
+    label: string,
+    checked: boolean,
+    onChange: (checked: boolean) => void,
+  ) => (
+    <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3">
+      <div className="text-[15px] font-medium">{label}</div>
+      <label className="relative inline-flex cursor-pointer items-center">
+        <input type="checkbox" className="peer sr-only" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+        <div className="h-6 w-11 rounded-full bg-gray-300 peer-focus:outline-none peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-['']"></div>
+      </label>
+    </div>
+  )
 
   const renderPOS = () => (
-    <div className="flex flex-col gap-4 p-4 animate-fade-in text-gray-800">
-      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Tuỳ chỉnh hành vi POS</h3>
-      
-      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
-        <div>
-          <div className="text-[15px] font-medium">Tự động focus ô tìm kiếm</div>
-          <div className="text-xs text-gray-500">Focus ô tìm SP khi mở đơn mới</div>
+    <div className="flex animate-fade-in flex-col gap-4 p-4 text-gray-800">
+      <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-500">Tùy chỉnh hành vi POS</h3>
+
+      {renderToggle('Tự động focus ô tìm kiếm', autoFocusSearch, setAutoFocusSearch)}
+      {renderToggle('Chế độ quét mã vạch', barcodeMode, setBarcodeMode)}
+      {renderToggle('Âm thanh thao tác', soundEnabled, setSoundEnabled)}
+      {renderToggle('Làm tròn tổng tiền', roundingEnabled, setRoundingEnabled)}
+
+      <div className="flex flex-col gap-3 rounded-lg border border-gray-100 bg-gray-50 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[15px] font-medium">Đơn vị làm tròn</div>
+            <div className="text-xs text-gray-500">Chỉ áp dụng round down theo 100 hoặc 1000 VND</div>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-primary-600 shadow-sm">
+            {roundingUnit.toLocaleString('vi-VN')} VND
+          </span>
         </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input type="checkbox" className="sr-only peer" checked={autoFocusSearch} onChange={e => setAutoFocusSearch(e.target.checked)} />
-          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-        </label>
+        <div className="grid grid-cols-2 gap-2">
+          {[100, 1000].map((unit) => {
+            const isSelected = roundingUnit === unit
+            return (
+              <button
+                key={unit}
+                type="button"
+                onClick={() => setRoundingUnit(unit as 100 | 1000)}
+                className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                  isSelected
+                    ? 'border-primary-500 bg-primary-500 text-white shadow'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-primary-300'
+                }`}
+              >
+                {unit.toLocaleString('vi-VN')}
+              </button>
+            )
+          })}
+        </div>
+        <div className="text-xs text-gray-500">
+          Ví dụ 25,970 sẽ thành 25,900 hoặc 25,000 tùy đơn vị đang chọn.
+        </div>
       </div>
 
-      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
-        <div>
-          <div className="text-[15px] font-medium">Chế độ quét mã vạch</div>
-          <div className="text-xs text-gray-500">Tự động thêm SP khi quét barcode</div>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input type="checkbox" className="sr-only peer" checked={barcodeMode} onChange={e => setBarcodeMode(e.target.checked)} />
-          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-        </label>
-      </div>
-
-      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
-        <div>
-          <div className="text-[15px] font-medium">Âm thanh thao tác</div>
-          <div className="text-xs text-gray-500">Phát âm khi thêm SP / thanh toán</div>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input type="checkbox" className="sr-only peer" checked={soundEnabled} onChange={e => setSoundEnabled(e.target.checked)} />
-          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-        </label>
-      </div>
-
-      <div className="flex flex-col gap-3 bg-gray-50 p-4 rounded-lg border border-gray-100 mt-2">
+      <div className="mt-2 flex flex-col gap-3 rounded-lg border border-gray-100 bg-gray-50 p-4">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-[15px] font-medium">Kích thước giao diện</div>
-            <div className="text-xs text-gray-500">Tương thích với màn hình</div>
+            <div className="text-xs text-gray-500">Tương thích với màn hình hiện tại</div>
           </div>
-          <div className="text-primary-600 font-bold">
-            {zoomLevel > 100 ? '+' : ''}{(zoomLevel - 100).toString()}%
+          <div className="font-bold text-primary-600">
+            {zoomLevel > 100 ? '+' : ''}
+            {zoomLevel - 100}%
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button 
-            className="w-8 h-8 rounded border border-gray-300 hover:bg-gray-100 flex items-center justify-center font-bold"
+          <button
+            className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 font-bold hover:bg-gray-100"
             onClick={() => setZoomLevel(Math.max(75, zoomLevel - 5))}
-          >-</button>
-          
-          <input 
-            type="range" 
-            min="75" max="150" step="5" 
-            value={zoomLevel} 
-            onChange={(e) => setZoomLevel(parseInt(e.target.value))} 
-            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+          >
+            -
+          </button>
+
+          <input
+            type="range"
+            min="75"
+            max="150"
+            step="5"
+            value={zoomLevel}
+            onChange={(event) => setZoomLevel(parseInt(event.target.value, 10))}
+            className="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-gray-200 accent-primary-600"
           />
 
-          <button 
-            className="w-8 h-8 rounded border border-gray-300 hover:bg-gray-100 flex items-center justify-center font-bold"
+          <button
+            className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 font-bold hover:bg-gray-100"
             onClick={() => setZoomLevel(Math.min(150, zoomLevel + 5))}
-          >+</button>
+          >
+            +
+          </button>
         </div>
         <div className="text-center">
-          <button 
+          <button
             onClick={() => setZoomLevel(100)}
-            className="text-[11px] text-gray-500 hover:text-gray-800 underline decoration-dashed underline-offset-2 flex items-center justify-center gap-1 mx-auto"
+            className="mx-auto flex items-center justify-center gap-1 text-[11px] text-gray-500 underline decoration-dashed underline-offset-2 hover:text-gray-800"
           >
             Về mặc định (100%)
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 bg-gray-50 p-3 rounded-lg border border-gray-100 mt-2">
+      <div className="mt-2 flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
         <div className="text-[15px] font-medium">Phương thức thanh toán mặc định</div>
-        <div className="grid grid-cols-3 gap-2 mt-1">
-          {['CASH', 'BANK', 'QR'].map(method => (
-            <button 
-              key={method}
-              className={`py-2 text-xs font-semibold rounded ${defaultPayment === method ? 'bg-primary-500 text-white shadow' : 'bg-white border border-gray-200 text-gray-700 hover:border-primary-300'}`}
-              onClick={() => setDefaultPayment(method)}
-            >
-              {method === 'CASH' ? 'Tiền mặt' : method === 'BANK' ? 'Chuyển khoản' : 'QR Code'}
-            </button>
-          ))}
-        </div>
+
+        {isPaymentMethodsLoading ? (
+          <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500">
+            Đang tải cấu hình thanh toán...
+          </div>
+        ) : null}
+
+        {isPaymentMethodsError ? (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+            Không tải được danh sách phương thức thanh toán.
+          </div>
+        ) : null}
+
+        {!isPaymentMethodsLoading && !isPaymentMethodsError ? (
+          selectablePaymentMethods.length > 0 ? (
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              {selectablePaymentMethods.map((method) => {
+                const isSelected = resolvedDefaultPaymentId === method.id
+                return (
+                  <button
+                    key={method.id}
+                    type="button"
+                    className={`flex items-center justify-center rounded-lg border px-3 py-2 text-center transition-colors ${
+                      isSelected
+                        ? 'border-primary-500 bg-primary-500 text-white shadow'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-primary-300'
+                    }`}
+                    onClick={() => setDefaultPayment(method.id)}
+                  >
+                    <div className="text-[13px] font-semibold">{method.name}</div>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Chưa có phương thức thanh toán phù hợp cho chi nhánh hiện tại.
+            </div>
+          )
+        ) : null}
       </div>
     </div>
-  );
+  )
 
   const renderPrint = () => (
-    <div className="flex flex-col gap-4 p-4 animate-fade-in text-gray-800">
-      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Cài đặt máy in</h3>
+    <div className="flex animate-fade-in flex-col gap-4 p-4 text-gray-800">
+      <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-500">Cài đặt máy in</h3>
 
       <div className="flex flex-col gap-1.5">
         <label className="text-[15px] font-medium">IP máy in (LAN / Wifi)</label>
-        <div className="text-xs text-gray-500 mb-1">Điền IP của máy in để in khi cần kết nối mạng LAN/Mobile</div>
-        <input 
-          type="text" 
+        <div className="mb-1 text-xs text-gray-500">Nhập IP của máy in nếu cần kết nối qua mạng LAN hoặc Wifi.</div>
+        <input
+          type="text"
           value={printerIp}
-          onChange={e => setPrinterIp(e.target.value)}
+          onChange={(event) => setPrinterIp(event.target.value)}
           placeholder="VD: 192.168.1.100"
-          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-primary-500 focus:bg-white transition-colors"
+          className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 outline-none transition-colors focus:border-primary-500 focus:bg-white"
         />
       </div>
 
-      <div className="flex flex-col gap-1.5 mt-2">
+      <div className="mt-2 flex flex-col gap-1.5">
         <label className="text-[15px] font-medium">Khổ giấy</label>
         <div className="grid grid-cols-3 gap-2">
-          {['K57', 'K80', 'A4'].map(size => (
-            <button 
+          {['K57', 'K80', 'A4'].map((size) => (
+            <button
               key={size}
-              className={`py-2.5 text-sm font-semibold rounded-lg ${paperSize === size ? 'bg-primary-500 text-white shadow' : 'bg-gray-50 border border-gray-200 text-gray-700 hover:border-primary-300'}`}
+              className={`rounded-lg py-2.5 text-sm font-semibold ${
+                paperSize === size
+                  ? 'bg-primary-500 text-white shadow'
+                  : 'border border-gray-200 bg-gray-50 text-gray-700 hover:border-primary-300'
+              }`}
               onClick={() => setPaperSize(size)}
             >
               {size}
@@ -180,132 +286,78 @@ export function PosSettingsPanel() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-100 mt-4">
-        <div>
-          <div className="text-[15px] font-medium">Tự động in sau khi thanh toán</div>
-          <div className="text-xs text-gray-500">In phiếu ngay sau khi hoàn thành đơn</div>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input type="checkbox" className="sr-only peer" checked={autoPrint} onChange={e => setAutoPrint(e.target.checked)} />
-          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-        </label>
-      </div>
-
-      <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-100">
-        <div className="pr-4">
-          <div className="text-[15px] font-medium">Tự động in mã QR khi thanh toán CK</div>
-          <div className="text-xs text-gray-500">In QR chuyển khoản ngay khi chọn phương thức CK / QR</div>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input type="checkbox" className="sr-only peer" checked={autoPrintQR} onChange={e => setAutoPrintQR(e.target.checked)} />
-          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-        </label>
-      </div>
-
+      {renderToggle('Tự động in sau khi thanh toán', autoPrint, setAutoPrint)}
+      {renderToggle('Tự động in mã QR khi chuyển khoản', autoPrintQR, setAutoPrintQR)}
     </div>
-  );
+  )
 
   const renderShortcuts = () => (
-    <div className="flex flex-col gap-4 p-4 animate-fade-in text-gray-800">
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Phím tắt có thể tuỳ chỉnh</h3>
-        <button className="text-xs border border-gray-200 px-2 py-1 rounded bg-white hover:bg-gray-50 flex items-center gap-1">
-           Mặc định
+    <div className="flex animate-fade-in flex-col gap-4 p-4 text-gray-800">
+      <div className="mb-1 flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Phím tắt có thể tùy chỉnh</h3>
+        <button className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs hover:bg-gray-50">
+          Mặc định
         </button>
       </div>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between bg-gray-50 p-2.5 px-4 rounded-lg border border-gray-100">
-          <span className="text-[15px] font-medium text-gray-700">Tìm kiếm sản phẩm</span>
-          <div className="flex items-center gap-2">
-            <kbd className="px-2 py-1 bg-white border border-gray-200 rounded text-xs font-bold text-gray-600 shadow-sm">F1</kbd>
-            <button className="text-sm text-gray-500 hover:text-primary-600 px-2">Sửa</button>
+        {[
+          ['Tìm kiếm sản phẩm', 'F1'],
+          ['Tìm kiếm khách hàng', 'F4'],
+          ['Mở cửa sổ thanh toán', 'F7'],
+          ['Xác nhận đơn hàng', 'F12'],
+        ].map(([label, key]) => (
+          <div key={label} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-2.5 px-4">
+            <span className="text-[15px] font-medium text-gray-700">{label}</span>
+            <div className="flex items-center gap-2">
+              <kbd className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-bold text-gray-600 shadow-sm">{key}</kbd>
+              <button className="px-2 text-sm text-gray-500 hover:text-primary-600">Sửa</button>
+            </div>
           </div>
-        </div>
-        
-        <div className="flex items-center justify-between bg-gray-50 p-2.5 px-4 rounded-lg border border-gray-100">
-          <span className="text-[15px] font-medium text-gray-700">Tìm kiếm khách hàng</span>
-          <div className="flex items-center gap-2">
-            <kbd className="px-2 py-1 bg-white border border-gray-200 rounded text-xs font-bold text-gray-600 shadow-sm">F4</kbd>
-            <button className="text-sm text-gray-500 hover:text-primary-600 px-2">Sửa</button>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between bg-gray-50 p-2.5 px-4 rounded-lg border border-gray-100">
-          <span className="text-[15px] font-medium text-gray-700">Mở cửa sổ thanh toán</span>
-          <div className="flex items-center gap-2">
-            <kbd className="px-2 py-1 bg-white border border-gray-200 rounded text-xs font-bold text-gray-600 shadow-sm">F7</kbd>
-            <button className="text-sm text-gray-500 hover:text-primary-600 px-2">Sửa</button>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between bg-gray-50 p-2.5 px-4 rounded-lg border border-gray-100">
-          <span className="text-[15px] font-medium text-gray-700">Xác nhận đơn hàng</span>
-          <div className="flex items-center gap-2">
-            <kbd className="px-2 py-1 bg-white border border-gray-200 rounded text-xs font-bold text-gray-600 shadow-sm">F12</kbd>
-            <button className="text-sm text-gray-500 hover:text-primary-600 px-2">Sửa</button>
-          </div>
-        </div>
+        ))}
       </div>
 
-      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mt-2 mb-1">Phím cố định</h3>
+      <h3 className="mb-1 mt-2 text-xs font-bold uppercase tracking-wider text-gray-500">Phím cố định</h3>
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between bg-white px-1">
-          <span className="text-[15px] text-gray-500">Tìm kiếm khách hàng (phụ)</span>
-          <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs font-bold text-gray-500">F2</kbd>
-        </div>
-        <div className="flex items-center justify-between bg-white px-1">
-          <span className="text-[15px] text-gray-500">Mở thanh toán (phụ)</span>
-          <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs font-bold text-gray-500">F11</kbd>
-        </div>
-        <div className="flex items-center justify-between bg-white px-1">
-          <span className="text-[15px] text-gray-500">Đóng popup / hủy thao tác</span>
-          <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs font-bold text-gray-500">Esc</kbd>
-        </div>
-        <div className="flex items-center justify-between bg-white px-1">
-          <span className="text-[15px] text-gray-500">Chuyển vị trí con trỏ</span>
-          <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs font-bold text-gray-500">Tab</kbd>
-        </div>
-        <div className="flex items-center justify-between bg-white px-1">
-          <span className="text-[15px] text-gray-500">Tăng / giảm số lượng SP</span>
-          <kbd className="px-2 py-0.5 bg-gray-100 rounded text-[10px] tracking-widest font-bold text-gray-500">↑ / ↓</kbd>
-        </div>
-        <div className="flex items-center justify-between bg-white px-1">
-          <span className="text-[15px] text-gray-500">Xác nhận / chuyển dòng</span>
-          <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs font-bold text-gray-500">Enter</kbd>
-        </div>
+        {[
+          ['Tìm kiếm khách hàng (phụ)', 'F2'],
+          ['Mở thanh toán (phụ)', 'F11'],
+          ['Đóng popup / hủy thao tác', 'Esc'],
+          ['Chuyển vị trí con trỏ', 'Tab'],
+          ['Tăng / giảm số lượng SP', 'Up / Down'],
+          ['Xác nhận / chuyển dòng', 'Enter'],
+        ].map(([label, key]) => (
+          <div key={label} className="flex items-center justify-between bg-white px-1">
+            <span className="text-[15px] text-gray-500">{label}</span>
+            <kbd className="rounded bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-500">{key}</kbd>
+          </div>
+        ))}
       </div>
     </div>
-  );
+  )
 
   return (
     <>
-      <button 
-        className="p-1.5 hover:bg-primary-500 rounded-md transition-colors text-white"
+      <button
+        className="rounded-md p-1.5 text-white transition-colors hover:bg-primary-500"
         onClick={() => setIsOpen(true)}
         title="Cài đặt POS"
       >
         <Settings size={18} />
       </button>
 
-      {isOpen && (
+      {isOpen ? (
         <div className="fixed inset-0 z-[100] flex justify-end font-sans">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm" 
-            onClick={() => setIsOpen(false)}
-          />
-          
-          {/* Panel */}
-          <div className="relative w-[400px] bg-white h-full shadow-2xl flex flex-col animate-slide-in-right">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="font-bold text-lg flex items-center gap-2 text-gray-800">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
+
+          <div className="relative flex h-full w-[400px] flex-col bg-white shadow-2xl animate-slide-in-right">
+            <div className="flex items-center justify-between border-b border-gray-200 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800">
                 <Settings size={20} className="text-primary-600" />
                 Cài đặt POS
               </h2>
-              <button 
-                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+              <button
+                className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100"
                 onClick={() => setIsOpen(false)}
               >
                 <X size={20} />
@@ -314,32 +366,46 @@ export function PosSettingsPanel() {
 
             {renderTabs()}
 
-            <div className="flex-1 overflow-y-auto no-scrollbar">
-              {activeTab === 'POS' && renderPOS()}
-              {activeTab === 'PRINT' && renderPrint()}
-              {activeTab === 'SHORTCUTS' && renderShortcuts()}
+            <div className="no-scrollbar flex-1 overflow-y-auto">
+              {activeTab === 'POS' ? renderPOS() : null}
+              {activeTab === 'PRINT' ? renderPrint() : null}
+              {activeTab === 'SHORTCUTS' ? renderShortcuts() : null}
             </div>
-            
           </div>
         </div>
-      )}
+      ) : null}
 
       <style jsx>{`
         .animate-slide-in-right {
           animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
+
         @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
         }
+
         .animate-fade-in {
           animation: fadeIn 0.2s ease-out forwards;
         }
+
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(5px); }
-          to { opacity: 1; transform: translateY(0); }
+          from {
+            opacity: 0;
+            transform: translateY(5px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
       `}</style>
     </>
-  );
+  )
 }

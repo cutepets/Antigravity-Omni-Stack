@@ -37,6 +37,7 @@ const MANUAL_REFERENCE_TYPES = ['MANUAL', 'ORDER', 'STOCK_RECEIPT'] as const
 const SEARCHABLE_FIELDS = ['voucherNumber', 'refNumber', 'payerName', 'description', 'payerId'] as const
 const MANUAL_FULL_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000
 const NOTE_ONLY_FIELDS = ['notes'] as const
+const LEGACY_PAYMENT_METHOD_TYPES = new Set(['CASH', 'BANK', 'EWALLET', 'CARD', 'MOMO', 'VNPAY', 'POINTS'])
 
 export interface FindTransactionsDto {
   page?: number | string
@@ -61,6 +62,8 @@ export interface CreateTransactionDto {
   description: string
   category?: string
   paymentMethod?: string
+  paymentAccountId?: string
+  paymentAccountLabel?: string
   branchId?: string
   branchName?: string
   payerName?: string
@@ -79,6 +82,8 @@ export interface UpdateTransactionDto {
   description?: string
   category?: string
   paymentMethod?: string
+  paymentAccountId?: string
+  paymentAccountLabel?: string
   branchId?: string
   branchName?: string
   payerName?: string
@@ -119,6 +124,19 @@ function toBoolean(value: boolean | string | undefined, fallback = false) {
   if (typeof value === 'boolean') return value
   if (typeof value === 'string') return value === 'true'
   return fallback
+}
+
+function toNumber(value: unknown) {
+  const amount = Number(value ?? 0)
+  return Number.isFinite(amount) ? amount : 0
+}
+
+function toInt(value: unknown) {
+  return Math.max(0, Math.round(toNumber(value)))
+}
+
+function roundCurrency(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
 @Injectable()
@@ -211,6 +229,46 @@ export class ReportsService {
     }
   }
 
+  private async resolvePaymentAccount(paymentMethod?: string | null, paymentAccountId?: string | null) {
+    const normalizedMethod = paymentMethod?.trim().toUpperCase() || null
+    const normalizedAccountId = paymentAccountId?.trim() || null
+
+    if (!normalizedAccountId) {
+      return {
+        paymentMethod: normalizedMethod,
+        paymentAccountId: null,
+        paymentAccountLabel: null,
+      }
+    }
+
+    const account = await this.db.paymentMethod.findUnique({
+      where: { id: normalizedAccountId },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        isActive: true,
+        bankName: true,
+        accountNumber: true,
+      },
+    })
+
+    if (!account || account.isActive !== true) {
+      throw new BadRequestException('Phuong thuc thanh toan khong hop le hoac da ngung hoat dong')
+    }
+
+    const paymentAccountLabel =
+      account.type === 'BANK' && (account.bankName || account.accountNumber)
+        ? [account.name, account.bankName, account.accountNumber].filter(Boolean).join(' • ')
+        : account.name
+
+    return {
+      paymentMethod: account.type as string,
+      paymentAccountId: account.id as string,
+      paymentAccountLabel,
+    }
+  }
+
   private getTransactionCapability(tx: { isManual?: boolean | null; source?: string | null; createdAt?: Date | string | null }): TransactionCapability {
     const isManual = tx.isManual ?? tx.source === 'MANUAL'
     const createdAt = tx.createdAt ? new Date(tx.createdAt) : null
@@ -250,6 +308,8 @@ export class ReportsService {
       description: tx.description,
       category: tx.category ?? null,
       paymentMethod: tx.paymentMethod ?? null,
+      paymentAccountId: tx.paymentAccountId ?? null,
+      paymentAccountLabel: tx.paymentAccountLabel ?? null,
       branchId: tx.branchId ?? null,
       branchName: tx.branchName ?? tx.branch?.name ?? null,
       payerId: tx.payerId ?? null,
@@ -287,7 +347,15 @@ export class ReportsService {
     if (query.type && query.type !== 'ALL') where.type = query.type
     if (query.createdById) where.staffId = query.createdById
     if (branchIdFilter !== undefined) where.branchId = branchIdFilter
-    if (query.paymentMethod) where.paymentMethod = query.paymentMethod
+    if (query.paymentMethod?.trim()) {
+      const normalizedPaymentFilter = query.paymentMethod.trim()
+      const upperPaymentFilter = normalizedPaymentFilter.toUpperCase()
+      if (LEGACY_PAYMENT_METHOD_TYPES.has(upperPaymentFilter)) {
+        where.paymentMethod = upperPaymentFilter
+      } else {
+        where.paymentAccountId = normalizedPaymentFilter
+      }
+    }
     if (query.source && query.source !== 'ALL') where.source = query.source
     if (query.refNumber?.trim()) where.refNumber = { contains: query.refNumber.trim(), mode: 'insensitive' }
     if (query.description?.trim()) where.description = { contains: query.description.trim(), mode: 'insensitive' }
@@ -311,6 +379,220 @@ export class ReportsService {
     }
 
     return where
+  }
+
+  private resolveDateRange(dateFrom?: string | null, dateTo?: string | null) {
+    const from = dateFrom?.trim() ? startOfDay(dateFrom) : null
+    const to = dateTo?.trim() ? endOfDay(dateTo) : null
+
+    if (from && Number.isNaN(from.getTime())) {
+      throw new BadRequestException('dateFrom khong hop le')
+    }
+
+    if (to && Number.isNaN(to.getTime())) {
+      throw new BadRequestException('dateTo khong hop le')
+    }
+
+    if (from && to && from.getTime() > to.getTime()) {
+      throw new BadRequestException('dateFrom khong duoc lon hon dateTo')
+    }
+
+    return { from, to }
+  }
+
+  private buildCustomerBranchScope(user?: BranchScopedUser, requestedBranchId?: string | null) {
+    const scopedBranchIds = getScopedBranchIds(user, requestedBranchId)
+    if (!scopedBranchIds) return null
+
+    const branchIdFilter = scopedBranchIds.length === 1 ? scopedBranchIds[0] : { in: scopedBranchIds }
+
+    return {
+      OR: [
+        { branchId: branchIdFilter },
+        {
+          AND: [
+            { branchId: null },
+            {
+              OR: [
+                { orders: { some: { branchId: { in: scopedBranchIds } } } },
+                { hotelStays: { some: { branchId: { in: scopedBranchIds } } } },
+                { pets: { some: { branchId: { in: scopedBranchIds } } } },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+  }
+
+  private buildSupplierEvaluation(params: {
+    totalSpent: number
+    totalDebt: number
+    uniqueProducts: number
+    ordersLast30Days: number
+    lastOrderAt?: Date | null
+  }) {
+    const now = new Date()
+    const daysSinceLastOrder = params.lastOrderAt
+      ? Math.floor((now.getTime() - params.lastOrderAt.getTime()) / (24 * 60 * 60 * 1000))
+      : 999
+    const frequencyScore = Math.min(100, params.ordersLast30Days * 18)
+    const recencyScore =
+      daysSinceLastOrder <= 7 ? 100 : daysSinceLastOrder <= 30 ? 85 : daysSinceLastOrder <= 60 ? 65 : 35
+    const debtRatio = params.totalSpent > 0 ? params.totalDebt / params.totalSpent : 0
+    const debtScore = Math.max(0, 100 - Math.round(Math.min(1, debtRatio) * 100))
+    const assortmentScore = Math.min(100, params.uniqueProducts * 16)
+    const score = Math.round((frequencyScore + recencyScore + debtScore + assortmentScore) / 4)
+
+    const label =
+      score >= 85 ? 'Doi tac chien luoc' : score >= 70 ? 'On dinh' : score >= 55 ? 'Can theo doi' : 'Rui ro'
+    const summary =
+      score >= 85
+        ? 'Nguon cung on dinh, nen uu tien duy tri.'
+        : score >= 70
+          ? 'Quan he giao dich tot, theo doi dinh ky.'
+          : score >= 55
+            ? 'Can theo doi them ve cong no va tan suat giao dich.'
+            : 'Bien dong cao, can ra soat dieu kien hop tac.'
+
+    return {
+      score,
+      label,
+      summary,
+      debtRatio,
+    }
+  }
+
+  private async buildPurchaseSummaryData(
+    user?: BranchScopedUser,
+    requestedBranchId?: string | null,
+    dateFrom?: string | null,
+    dateTo?: string | null,
+  ) {
+    const branchIdFilter = this.getBranchIdFilter(user, requestedBranchId)
+    const { from, to } = this.resolveDateRange(dateFrom, dateTo)
+    const last30Days = new Date()
+    last30Days.setDate(last30Days.getDate() - 30)
+
+    const suppliers = await this.db.supplier.findMany({
+      ...(branchIdFilter !== undefined
+        ? { where: { stockReceipts: { some: { branchId: branchIdFilter } } } }
+        : {}),
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        phone: true,
+        isActive: true,
+        stockReceipts: {
+          where: {
+            ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
+            ...(from || to
+              ? {
+                  createdAt: {
+                    ...(from ? { gte: from } : {}),
+                    ...(to ? { lte: to } : {}),
+                  },
+                }
+              : {}),
+            status: { not: 'CANCELLED' },
+            receiptStatus: { not: 'CANCELLED' },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            receiptNumber: true,
+            createdAt: true,
+            totalReceivedAmount: true,
+            totalReturnedAmount: true,
+            paidAmount: true,
+            items: {
+              select: {
+                productId: true,
+                productVariantId: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    const rows = suppliers
+      .map((supplier) => {
+        const receipts = supplier.stockReceipts ?? []
+        const lastReceiptAt = receipts[0]?.createdAt ?? null
+        const productKeys = new Set<string>()
+        let totalSpent = 0
+        let totalDebt = 0
+        let spendLast30Days = 0
+        let ordersLast30Days = 0
+
+        for (const receipt of receipts) {
+          const payableAmount = roundCurrency(
+            Math.max(0, toNumber(receipt.totalReceivedAmount) - toNumber(receipt.totalReturnedAmount)),
+          )
+          const debtAmount = roundCurrency(Math.max(0, payableAmount - toNumber(receipt.paidAmount)))
+
+          totalSpent += payableAmount
+          totalDebt += debtAmount
+
+          if (new Date(receipt.createdAt) >= last30Days) {
+            spendLast30Days += payableAmount
+            ordersLast30Days += 1
+          }
+
+          for (const item of receipt.items ?? []) {
+            productKeys.add(`${item.productId}:${item.productVariantId ?? 'base'}`)
+          }
+        }
+
+        totalSpent = roundCurrency(totalSpent)
+        totalDebt = roundCurrency(totalDebt)
+        spendLast30Days = roundCurrency(spendLast30Days)
+
+        return {
+          id: supplier.id,
+          code: supplier.code,
+          name: supplier.name,
+          phone: supplier.phone,
+          debt: totalDebt,
+          _isActive: supplier.isActive,
+          stats: {
+            totalOrders: receipts.length,
+            totalSpent,
+            totalDebt,
+            spendLast30Days,
+            avgOrderValue: receipts.length > 0 ? roundCurrency(totalSpent / receipts.length) : 0,
+            lastOrderAt: lastReceiptAt ? lastReceiptAt.toISOString() : null,
+            uniqueProducts: productKeys.size,
+          },
+          evaluation: this.buildSupplierEvaluation({
+            totalSpent,
+            totalDebt,
+            uniqueProducts: productKeys.size,
+            ordersLast30Days,
+            lastOrderAt: lastReceiptAt,
+          }),
+        }
+      })
+      .sort((left, right) => right.stats.totalSpent - left.stats.totalSpent || right.stats.totalDebt - left.stats.totalDebt)
+
+    const summary = {
+      totalSuppliers: rows.length,
+      activeSuppliers: rows.filter((supplier) => supplier._isActive !== false).length,
+      suppliersWithDebt: rows.filter((supplier) => supplier.stats.totalDebt > 0).length,
+      totalDebt: roundCurrency(rows.reduce((sum, supplier) => sum + supplier.stats.totalDebt, 0)),
+      spendLast30Days: roundCurrency(rows.reduce((sum, supplier) => sum + supplier.stats.spendLast30Days, 0)),
+      avgEvaluationScore:
+        rows.length > 0
+          ? Math.round(rows.reduce((sum, supplier) => sum + supplier.evaluation.score, 0) / rows.length)
+          : 0,
+    }
+
+    return {
+      suppliers: rows.map(({ _isActive, ...supplier }) => supplier),
+      summary,
+    }
   }
 
   async getDashboard(user?: BranchScopedUser, requestedBranchId?: string) {
@@ -367,17 +649,28 @@ export class ReportsService {
     }
   }
 
-  async getRevenueChart(days: number = 7, user?: BranchScopedUser, requestedBranchId?: string) {
+  async getRevenueChart(
+    days: number = 7,
+    user?: BranchScopedUser,
+    requestedBranchId?: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
     const result: { date: string; revenue: number }[] = []
+    const { from, to } = this.resolveDateRange(dateFrom, dateTo)
     const today = new Date()
     const branchIdFilter = this.getBranchIdFilter(user, requestedBranchId)
     const branchScope = branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}
 
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(today.getDate() - i)
-      const start = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-      const end = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
+    const startDate = from ?? new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1))
+    const endDate = to ?? new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999)
+    const cursor = new Date(startDate)
+    cursor.setHours(0, 0, 0, 0)
+
+    while (cursor.getTime() <= endDate.getTime()) {
+      const start = new Date(cursor)
+      const end = new Date(cursor)
+      end.setDate(end.getDate() + 1)
 
       const agg = await this.db.order.aggregate({
         where: {
@@ -392,17 +685,34 @@ export class ReportsService {
         date: start.toISOString().slice(0, 10),
         revenue: agg._sum.total ?? 0,
       })
+
+      cursor.setDate(cursor.getDate() + 1)
     }
 
     return { success: true, data: result }
   }
 
-  async getTopCustomers(limit: number = 10, user?: BranchScopedUser, requestedBranchId?: string) {
+  async getTopCustomers(
+    limit: number = 10,
+    user?: BranchScopedUser,
+    requestedBranchId?: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
     const branchIdFilter = this.getBranchIdFilter(user, requestedBranchId)
+    const { from, to } = this.resolveDateRange(dateFrom, dateTo)
     const orders = await this.db.order.groupBy({
       by: ['customerId'] as any,
       where: {
         ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
+        ...(from || to
+          ? {
+              createdAt: {
+                ...(from ? { gte: from } : {}),
+                ...(to ? { lte: to } : {}),
+              },
+            }
+          : {}),
         paymentStatus: { in: ['PAID', 'COMPLETED'] },
       },
       _sum: { total: true },
@@ -426,13 +736,36 @@ export class ReportsService {
     return { success: true, data }
   }
 
-  async getTopProducts(limit: number = 10, user?: BranchScopedUser, requestedBranchId?: string) {
+  async getTopProducts(
+    limit: number = 10,
+    user?: BranchScopedUser,
+    requestedBranchId?: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
     const branchIdFilter = this.getBranchIdFilter(user, requestedBranchId)
+    const { from, to } = this.resolveDateRange(dateFrom, dateTo)
     const items = await this.db.orderItem.groupBy({
       by: ['productId'] as any,
       where: {
         productId: { not: null },
-        ...(branchIdFilter !== undefined ? { order: { is: { branchId: branchIdFilter } } } : {}),
+        ...(branchIdFilter !== undefined || from || to
+          ? {
+              order: {
+                is: {
+                  ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
+                  ...(from || to
+                    ? {
+                        createdAt: {
+                          ...(from ? { gte: from } : {}),
+                          ...(to ? { lte: to } : {}),
+                        },
+                      }
+                    : {}),
+                },
+              },
+            }
+          : {}),
       },
       _sum: { quantity: true, subtotal: true },
       orderBy: { _sum: { quantity: 'desc' } },
@@ -452,6 +785,120 @@ export class ReportsService {
     }))
 
     return { success: true, data }
+  }
+
+  async getPurchaseSummary(user?: BranchScopedUser, requestedBranchId?: string, dateFrom?: string, dateTo?: string) {
+    const data = await this.buildPurchaseSummaryData(user, requestedBranchId, dateFrom, dateTo)
+    return { success: true, data }
+  }
+
+  async getInventoryHealth(user?: BranchScopedUser, requestedBranchId?: string) {
+    const branchIdFilter = this.getBranchIdFilter(user, requestedBranchId)
+    const rows = await this.db.branchStock.findMany({
+      where: {
+        ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
+        stock: { lte: 5 },
+      },
+      include: {
+        branch: { select: { id: true, name: true } },
+        product: { select: { id: true, name: true, sku: true, unit: true } },
+        variant: { select: { id: true, name: true } },
+      },
+      orderBy: [{ stock: 'asc' }, { updatedAt: 'asc' }],
+    })
+
+    const items = rows.map((row) => ({
+      id: row.id,
+      stock: row.stock,
+      minStock: row.minStock ?? 5,
+      shortage: Math.max(0, (row.minStock ?? 5) - toInt(row.stock)),
+      branch: row.branch,
+      product: row.product,
+      variant: row.variant,
+    }))
+
+    return {
+      success: true,
+      data: {
+        items,
+        summary: {
+          totalItems: items.length,
+          outOfStockCount: items.filter((item) => item.stock <= 0).length,
+          totalShortage: items.reduce((sum, item) => sum + item.shortage, 0),
+          affectedBranches: new Set(items.map((item) => item.branch?.id).filter(Boolean)).size,
+        },
+      },
+    }
+  }
+
+  async getDebtSummary(
+    limit: number = 100,
+    user?: BranchScopedUser,
+    requestedBranchId?: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
+    const customerScope = this.buildCustomerBranchScope(user, requestedBranchId)
+    const customerWhere =
+      customerScope == null
+        ? { debt: { gt: 0 } }
+        : {
+            AND: [
+              { debt: { gt: 0 } },
+              customerScope,
+            ],
+          }
+    const normalizedLimit = toPositiveInt(limit, 100)
+
+    const [customers, purchaseSummary] = await Promise.all([
+      this.db.customer.findMany({
+        where: customerWhere as any,
+        orderBy: [{ debt: 'desc' }, { totalSpent: 'desc' }],
+        take: normalizedLimit,
+        select: {
+          id: true,
+          fullName: true,
+          customerCode: true,
+          phone: true,
+          debt: true,
+          totalSpent: true,
+          branchId: true,
+          _count: {
+            select: {
+              orders: true,
+              hotelStays: true,
+            },
+          },
+        },
+      }),
+      this.buildPurchaseSummaryData(user, requestedBranchId, dateFrom, dateTo),
+    ])
+
+    const suppliers = purchaseSummary.suppliers
+      .filter((supplier) => supplier.stats.totalDebt > 0)
+      .sort((left, right) => right.stats.totalDebt - left.stats.totalDebt)
+      .slice(0, normalizedLimit)
+
+    const totalCustomerDebt = roundCurrency(customers.reduce((sum, customer) => sum + toNumber(customer.debt), 0))
+    const totalSupplierDebt = roundCurrency(suppliers.reduce((sum, supplier) => sum + supplier.stats.totalDebt, 0))
+
+    return {
+      success: true,
+      data: {
+        customers,
+        suppliers,
+        summary: {
+          totalCustomerDebt,
+          totalSupplierDebt,
+          customersWithDebt: customers.length,
+          suppliersWithDebt: suppliers.length,
+          highestDebt: Math.max(
+            customers[0] ? toNumber(customers[0].debt) : 0,
+            suppliers[0]?.stats.totalDebt ?? 0,
+          ),
+        },
+      },
+    }
   }
 
   async findTransactions(query: FindTransactionsDto, user?: BranchScopedUser, requestedBranchId?: string) {
@@ -528,10 +975,14 @@ export class ReportsService {
           this.db.transaction.findMany({
             where: {
               ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
-              paymentMethod: { not: null },
+              OR: [{ paymentAccountId: { not: null } }, { paymentMethod: { not: null } }],
             },
-            select: { paymentMethod: true },
-            distinct: ['paymentMethod'],
+            select: {
+              paymentMethod: true,
+              paymentAccountId: true,
+              paymentAccountLabel: true,
+            },
+            orderBy: [{ paymentAccountLabel: 'asc' }, { paymentMethod: 'asc' }],
           }),
           this.db.transaction.findMany({
             where: {
@@ -565,12 +1016,22 @@ export class ReportsService {
 
     if (metaResult) {
       const [branches, creators, paymentMethods, sources] = metaResult
+      const paymentMethodOptions = Array.from(
+        paymentMethods.reduce((map, item) => {
+          const value = item.paymentAccountId ?? item.paymentMethod
+          const label = item.paymentAccountLabel ?? item.paymentMethod
+          if (value && label && !map.has(value)) {
+            map.set(value, label)
+          }
+          return map
+        }, new Map<string, string>()),
+      )
+        .map(([value, label]) => ({ value, label }))
+        .sort((left, right) => left.label.localeCompare(right.label, 'vi'))
+
       data.meta = {
         branches,
-        paymentMethods: paymentMethods
-          .map((item) => item.paymentMethod)
-          .filter((value): value is string => Boolean(value))
-          .sort((left, right) => left.localeCompare(right)),
+        paymentMethods: paymentMethodOptions,
         creators: creators.map((item) => ({ id: item.id, name: item.fullName })),
         sources: Array.from(new Set([...TRANSACTION_SOURCES, ...sources.map((item) => item.source).filter(Boolean)])).sort(),
       }
@@ -605,6 +1066,7 @@ export class ReportsService {
       refNumber: dto.refNumber,
       user,
     })
+    const paymentAccount = await this.resolvePaymentAccount(dto.paymentMethod, dto.paymentAccountId)
 
     const writableBranchId = resolveWritableBranchId(user, dto.branchId ?? requestedBranchId)
     const branch = writableBranchId
@@ -628,7 +1090,9 @@ export class ReportsService {
             amount: Number(dto.amount),
             description: dto.description.trim(),
             category: dto.category?.trim() || null,
-            paymentMethod: dto.paymentMethod?.trim() || null,
+            paymentMethod: paymentAccount.paymentMethod ?? null,
+            paymentAccountId: paymentAccount.paymentAccountId,
+            paymentAccountLabel: paymentAccount.paymentAccountLabel,
             branchId: branch?.id ?? null,
             branchName: dto.branchName?.trim() || branch?.name || null,
             payerName: dto.payerName?.trim() || null,
@@ -725,6 +1189,11 @@ export class ReportsService {
           user,
         })
       : null
+    const shouldUpdatePaymentAccount =
+      allowCoreEdit && (dto.paymentMethod !== undefined || dto.paymentAccountId !== undefined || dto.paymentAccountLabel !== undefined)
+    const paymentAccount = shouldUpdatePaymentAccount
+      ? await this.resolvePaymentAccount(dto.paymentMethod ?? existing.paymentMethod, dto.paymentAccountId)
+      : null
 
     const updated = await this.db.transaction.update({
       where: { id } as any,
@@ -732,7 +1201,13 @@ export class ReportsService {
         ...(allowCoreEdit && dto.amount !== undefined ? { amount: Number(dto.amount) } : {}),
         ...(allowCoreEdit && dto.description !== undefined ? { description: dto.description.trim() } : {}),
         ...(allowCoreEdit && dto.category !== undefined ? { category: dto.category?.trim() || null } : {}),
-        ...(allowCoreEdit && dto.paymentMethod !== undefined ? { paymentMethod: dto.paymentMethod?.trim() || null } : {}),
+        ...(paymentAccount
+          ? {
+              paymentMethod: paymentAccount.paymentMethod ?? null,
+              paymentAccountId: paymentAccount.paymentAccountId,
+              paymentAccountLabel: paymentAccount.paymentAccountLabel,
+            }
+          : {}),
         ...(allowCoreEdit && (dto.branchId !== undefined || requestedBranchId) ? { branchId: branch?.id ?? null } : {}),
         ...(allowCoreEdit && (dto.branchId !== undefined || dto.branchName !== undefined || requestedBranchId)
           ? { branchName: dto.branchName?.trim() || branch?.name || null }

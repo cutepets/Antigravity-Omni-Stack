@@ -1,6 +1,7 @@
 export const PAYMENT_METHODS = [
   { key: 'CASH', label: 'Tiền mặt' },
   { key: 'BANK', label: 'Chuyển khoản' },
+  { key: 'EWALLET', label: 'Vi dien tu' },
   { key: 'MOMO', label: 'MoMo' },
   { key: 'VNPAY', label: 'VNPay' },
   { key: 'CARD', label: 'Thẻ' },

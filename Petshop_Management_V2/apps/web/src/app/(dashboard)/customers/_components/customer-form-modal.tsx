@@ -6,10 +6,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import {
   Plus, X, User, Phone, Mail, MapPin, AlignLeft,
-  Building2, Receipt, CreditCard, ToggleLeft, ToggleRight, FileText
+  Building2, Receipt, CreditCard, ToggleLeft, ToggleRight, FileText, Users
 } from 'lucide-react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customerApi } from '@/lib/api/customer.api'
+import { api } from '@/lib/api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import type { Customer } from '@petshop/shared'
 
@@ -21,10 +22,14 @@ const customerSchema = z.object({
   notes: z.string().optional(),
   tier: z.string().optional(),
   // Extended fields
+  groupId: z.string().optional(),
   taxCode: z.string().optional(),
   description: z.string().optional(),
   isActive: z.boolean().optional(),
   companyName: z.string().optional(),
+  companyAddress: z.string().optional(),
+  representativeName: z.string().optional(),
+  representativePhone: z.string().optional(),
   bankAccount: z.string().optional(),
   bankName: z.string().optional(),
 })
@@ -35,6 +40,12 @@ interface Props {
   isOpen: boolean
   onClose: () => void
   initialData?: Customer | null
+}
+
+interface CustomerGroupOption {
+  id: string
+  name: string
+  isDefault?: boolean
 }
 
 const TIER_OPTIONS = [
@@ -61,8 +72,18 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
     defaultValues: {
       fullName: '', phone: '', email: '', address: '', notes: '',
       tier: 'BRONZE', taxCode: '', description: '', isActive: true,
-      companyName: '', bankAccount: '', bankName: '',
+      companyName: '', bankAccount: '', bankName: '', groupId: '',
+      companyAddress: '', representativeName: '', representativePhone: '',
     },
+  })
+
+  const { data: customerGroups = [] } = useQuery({
+    queryKey: ['settings', 'customer-groups'],
+    queryFn: async () => {
+      const res = await api.get('/customer-groups')
+      return (res.data.data ?? []) as CustomerGroupOption[]
+    },
+    enabled: isOpen,
   })
 
   const isActive = watch('isActive')
@@ -76,16 +97,32 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
         address: initialData?.address || '',
         notes: initialData?.notes || '',
         tier: initialData?.tier || 'BRONZE',
+        groupId: initialData?.groupId || '',
         taxCode: (initialData as any)?.taxCode || '',
         description: (initialData as any)?.description || '',
         isActive: (initialData as any)?.isActive ?? true,
         companyName: (initialData as any)?.companyName || '',
+        companyAddress: (initialData as any)?.companyAddress || '',
+        representativeName: (initialData as any)?.representativeName || '',
+        representativePhone: (initialData as any)?.representativePhone || '',
         bankAccount: (initialData as any)?.bankAccount || '',
         bankName: (initialData as any)?.bankName || '',
       })
       setShowAdvanced(false)
     }
   }, [isOpen, initialData, reset])
+
+  const currentGroupId = watch('groupId')
+  useEffect(() => {
+    if (isOpen && !isEditing && customerGroups.length > 0) {
+      if (!currentGroupId) {
+        const defaultGroup = customerGroups.find((g) => g.isDefault || g.name === 'Khách lẻ') || customerGroups[0]
+        if (defaultGroup) {
+          setValue('groupId', defaultGroup.id)
+        }
+      }
+    }
+  }, [isOpen, isEditing, customerGroups, setValue, currentGroupId])
 
   const createMutation = useMutation({
     mutationFn: customerApi.createCustomer,
@@ -217,27 +254,36 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
               </div>
             </div>
 
-            {/* Hạng thành viên */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-foreground mb-1.5">Hạng thành viên</label>
-              <select {...register('tier')} className="form-input">
-                {TIER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-
-            {/* isActive toggle */}
-            <div className="md:col-span-2 flex items-center justify-between p-4 bg-background-tertiary rounded-xl border border-border">
+            {/* Nhóm khách hàng & Trạng thái */}
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-medium text-foreground">Trạng thái hoạt động</p>
-                <p className="text-xs text-foreground-muted mt-0.5">{isActive ? 'Khách hàng đang hoạt động' : 'Khách hàng bị vô hiệu hoá'}</p>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Nhóm khách hàng</label>
+                <div className="relative">
+                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><Users size={18} /></div>
+                  <select {...register('groupId')} className="form-input pl-10 h-11">
+                    <option value="">-- Chọn nhóm khách hàng --</option>
+                    {customerGroups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setValue('isActive', !isActive)}
-                className={`transition-colors ${isActive ? 'text-primary-500' : 'text-foreground-muted'}`}
-              >
-                {isActive ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
-              </button>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5 opacity-0 pointer-events-none hidden md:block">Trạng thái</label>
+                <div className="flex items-center justify-between p-2.5 bg-background-tertiary rounded-xl border border-border h-11">
+                  <div>
+                    <p className="text-sm font-medium text-foreground leading-tight">Trạng thái hoạt động</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setValue('isActive', !isActive)}
+                    className={`transition-colors shrink-0 ${isActive ? 'text-primary-500' : 'text-foreground-muted'}`}
+                  >
+                    {isActive ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -283,6 +329,33 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
                 <div className="relative">
                   <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><Building2 size={18} /></div>
                   <input {...register('companyName')} placeholder="Công ty TNHH..." className="form-input pl-10" />
+                </div>
+              </div>
+
+              {/* Địa chỉ công ty */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-foreground mb-1.5">Địa chỉ công ty</label>
+                <div className="relative">
+                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><MapPin size={18} /></div>
+                  <input {...register('companyAddress')} placeholder="Số nhà, đường, phường..." className="form-input pl-10" />
+                </div>
+              </div>
+
+              {/* Người đại diện */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Người đại diện</label>
+                <div className="relative">
+                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><User size={18} /></div>
+                  <input {...register('representativeName')} placeholder="Họ và tên..." className="form-input pl-10" />
+                </div>
+              </div>
+
+              {/* SĐT Người đại diện */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">SĐT người đại diện</label>
+                <div className="relative">
+                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><Phone size={18} /></div>
+                  <input {...register('representativePhone')} placeholder="Số điện thoại..." className="form-input pl-10" />
                 </div>
               </div>
 

@@ -11,6 +11,9 @@ export interface FindCustomersParams {
   isActive?: boolean
   minSpent?: number
   maxSpent?: number
+  branchId?: string
+  dateFrom?: string
+  dateTo?: string
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
 }
@@ -38,11 +41,15 @@ export interface CreateCustomerDto {
   address?: string
   notes?: string
   tier?: string
+  groupId?: string
   debt?: number
   taxCode?: string
   description?: string
   isActive?: boolean
   companyName?: string
+  companyAddress?: string
+  representativeName?: string
+  representativePhone?: string
   bankAccount?: string
   bankName?: string
 }

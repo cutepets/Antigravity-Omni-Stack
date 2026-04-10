@@ -152,6 +152,14 @@ export class CreateOrderPaymentDto {
   @IsString()
   @IsOptional()
   note?: string;
+
+  @IsString()
+  @IsOptional()
+  paymentAccountId?: string;
+
+  @IsString()
+  @IsOptional()
+  paymentAccountLabel?: string;
 }
 
 // === Main DTO ===

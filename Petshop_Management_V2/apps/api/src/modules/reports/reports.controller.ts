@@ -62,22 +62,67 @@ export class ReportsController {
   @Get('revenue-chart')
   @Permissions('report.sales')
   @ApiOperation({ summary: 'Biểu đồ doanh thu theo ngày' })
-  getRevenueChart(@Query('days') days: string, @Req() req: AuthenticatedRequest) {
-    return this.reportsService.getRevenueChart(Number(days) || 7, req.user, getRequestedBranchId(req))
+  getRevenueChart(
+    @Query('days') days: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reportsService.getRevenueChart(Number(days) || 7, req.user, getRequestedBranchId(req), dateFrom, dateTo)
   }
 
   @Get('top-customers')
   @Permissions('report.customer')
   @ApiOperation({ summary: 'Top khách hàng chi tiêu cao' })
-  getTopCustomers(@Query('limit') limit: string, @Req() req: AuthenticatedRequest) {
-    return this.reportsService.getTopCustomers(Number(limit) || 10, req.user, getRequestedBranchId(req))
+  getTopCustomers(
+    @Query('limit') limit: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reportsService.getTopCustomers(Number(limit) || 10, req.user, getRequestedBranchId(req), dateFrom, dateTo)
   }
 
   @Get('top-products')
   @Permissions('report.sales')
   @ApiOperation({ summary: 'Top sản phẩm bán chạy' })
-  getTopProducts(@Query('limit') limit: string, @Req() req: AuthenticatedRequest) {
-    return this.reportsService.getTopProducts(Number(limit) || 10, req.user, getRequestedBranchId(req))
+  getTopProducts(
+    @Query('limit') limit: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reportsService.getTopProducts(Number(limit) || 10, req.user, getRequestedBranchId(req), dateFrom, dateTo)
+  }
+
+  @Get('purchases/summary')
+  @Permissions('report.purchase', 'report.debt')
+  @ApiOperation({ summary: 'Bao cao tong hop mua hang theo nha cung cap' })
+  getPurchaseSummary(
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reportsService.getPurchaseSummary(req.user, getRequestedBranchId(req), dateFrom, dateTo)
+  }
+
+  @Get('inventory/health')
+  @Permissions('report.inventory')
+  @ApiOperation({ summary: 'Bao cao suc khoe ton kho va hang sap thieu' })
+  getInventoryHealth(@Req() req: AuthenticatedRequest) {
+    return this.reportsService.getInventoryHealth(req.user, getRequestedBranchId(req))
+  }
+
+  @Get('debts/summary')
+  @Permissions('report.debt')
+  @ApiOperation({ summary: 'Bao cao tong hop cong no khach hang va nha cung cap' })
+  getDebtSummary(
+    @Query('limit') limit: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reportsService.getDebtSummary(Number(limit) || 100, req.user, getRequestedBranchId(req), dateFrom, dateTo)
   }
 
   @Get('transactions')
@@ -146,7 +191,7 @@ export class ReportsController {
     return this.reportsService.removeTransaction(id, req.user)
   }
 
-  @Get('transactions/:voucherNumber')
+  @Get('transactions/by-voucher/:voucherNumber')
   @Permissions('report.cashbook')
   @ApiOperation({ summary: 'Tìm phiếu thu chi theo số chứng từ' })
   findTransactionByVoucher(@Param('voucherNumber') voucherNumber: string, @Req() req: AuthenticatedRequest) {

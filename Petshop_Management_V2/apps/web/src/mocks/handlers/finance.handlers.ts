@@ -486,7 +486,7 @@ export const financeHandlers = [
     return HttpResponse.json({ success: true, data: withCapability(transaction) }, { status: 201 })
   }),
 
-  http.get(`${BASE}/reports/transactions/:voucherNumber`, async ({ params }) => {
+  http.get(`${BASE}/reports/transactions/by-voucher/:voucherNumber`, async ({ params }) => {
     await delay(150)
 
     const transaction = mockFinanceTransactions.find((item) => item.voucherNumber === params.voucherNumber)

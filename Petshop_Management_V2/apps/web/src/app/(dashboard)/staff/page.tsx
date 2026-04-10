@@ -10,7 +10,7 @@ import { rolesApi } from '@/lib/api'
 import { CreateStaffDto, Staff, staffApi, UpdateStaffDto } from '@/lib/api/staff.api'
 import { cn } from '@/lib/utils'
 import { StaffFormModal } from './components/StaffFormModal'
-import { StaffGrid } from './components/StaffGrid'
+import { StaffList } from './components/StaffList'
 import { TabRolesPermissions } from './components/TabRolesPermissions'
 
 type StaffTab = 'staff' | 'roles'
@@ -38,9 +38,6 @@ export default function StaffManagementPage() {
   const [error, setError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('ALL')
-  const [roleFilter, setRoleFilter] = useState('ALL')
 
   const fetchStaff = useCallback(async () => {
     try {
@@ -93,22 +90,6 @@ export default function StaffManagementPage() {
     }
   }
 
-  const filteredStaff = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase()
-
-    return staff.filter((member) => {
-      const matchesSearch =
-        !normalizedQuery ||
-        member.fullName.toLowerCase().includes(normalizedQuery) ||
-        member.staffCode.toLowerCase().includes(normalizedQuery) ||
-        member.phone?.includes(searchQuery)
-
-      const matchesStatus = statusFilter === 'ALL' || member.status === statusFilter
-      const matchesRole = roleFilter === 'ALL' || member.role?.id === roleFilter
-
-      return matchesSearch && matchesStatus && matchesRole
-    })
-  }, [roleFilter, searchQuery, staff, statusFilter])
 
   // Compute visible tabs based on permissions
   const visibleTabs = useMemo(() => {
@@ -194,66 +175,27 @@ export default function StaffManagementPage() {
         >
           {activeTab === 'staff' ? (
             <>
-              <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-border/50 bg-background-secondary p-4 shadow-sm md:flex-row">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    placeholder="Tìm theo tên, mã NV, SĐT..."
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    className="w-full rounded-xl border border-border/60 bg-background-base px-4 py-3 pl-11 text-sm text-foreground-base outline-none transition-all placeholder:text-foreground-muted focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-                  />
-                  <Search size={20} className="absolute left-4 top-3 h-5 w-5 text-foreground-muted" />
-                </div>
-
-                {roles.length > 0 ? (
-                  <select
-                    className="min-w-[180px] appearance-none rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm text-foreground-base outline-none focus:border-primary-500"
-                    value={roleFilter}
-                    onChange={(event) => setRoleFilter(event.target.value)}
-                  >
-                    <option value="ALL">Tất cả chức vụ</option>
-                    {roles.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-
-                <select
-                  className="min-w-[180px] appearance-none rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm text-foreground-base outline-none focus:border-primary-500"
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                >
-                  <option value="ALL">Tất cả trạng thái</option>
-                  <option value="WORKING">Đang làm việc</option>
-                  <option value="PROBATION">Thử việc</option>
-                  <option value="LEAVE">Nghỉ phép</option>
-                  <option value="RESIGNED">Đã nghỉ việc</option>
-                </select>
-              </div>
-
               {error ? (
-                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-6 text-center text-red-500">
+                <div className="rounded-xl border border-error/20 bg-error/10 p-6 text-center text-error">
                   {error}
                   <button
                     onClick={() => void fetchStaff()}
-                    className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold transition-colors hover:bg-red-500/20"
+                    className="mt-4 rounded-lg border border-error/20 bg-error/10 px-4 py-2 text-sm font-semibold transition-colors hover:bg-error/20"
                   >
                     Thử lại
                   </button>
                 </div>
               ) : loading ? (
                 <div className="flex h-64 items-center justify-center">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2A2D3C] border-t-primary-500" />
-                    <p className="text-foreground-muted">Đang tải danh sách nhân viên...</p>
+                  <div className="flex items-center gap-3 text-foreground-muted text-sm">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-primary-500" />
+                    Đang tải danh sách nhân viên...
                   </div>
                 </div>
               ) : (
-                <StaffGrid
-                  staffList={filteredStaff}
+                <StaffList
+                  staffList={staff}
+                  roles={roles}
                   canEdit={canEditStaff}
                   canDeactivate={canDeactivateStaff}
                   onEdit={(member) => {

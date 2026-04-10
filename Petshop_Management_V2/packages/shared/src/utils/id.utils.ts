@@ -46,12 +46,12 @@ export const generateStaffCode = (sequence: number): string =>
   `NV${String(sequence).padStart(5, '0')}`
 
 /**
- * Generate order number: DH202604060001
+ * Generate order number: DH260406001
  */
 export const generateOrderNumber = (date: Date, sequence: number): string => {
   return formatDatedSequenceCode('DH', date, sequence, {
-    dateMode: 'yyyyMMdd',
-    sequencePadLength: 4,
+    dateMode: 'yyMMdd',
+    sequencePadLength: 3,
   })
 }
 

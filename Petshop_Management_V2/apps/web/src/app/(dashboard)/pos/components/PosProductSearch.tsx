@@ -9,28 +9,67 @@ export interface PosProductSearchProps {
   onSelect: (item: any) => void;
 }
 
+function getSellableQuantity(stockSource: any, branchId?: string) {
+  if (!stockSource) return null;
+
+  if (branchId && Array.isArray(stockSource.branchStocks) && stockSource.branchStocks.length > 0) {
+    const branchStock = stockSource.branchStocks.find(
+      (entry: any) => entry.branchId === branchId || entry.branch?.id === branchId,
+    );
+
+    if (!branchStock) return 0;
+
+    const available =
+      branchStock.availableStock ?? ((branchStock.stock ?? 0) - (branchStock.reservedStock ?? branchStock.reserved ?? 0));
+
+    return Math.max(0, Number(available) || 0);
+  }
+
+  if (stockSource.availableStock !== undefined && stockSource.availableStock !== null) {
+    return Math.max(0, Number(stockSource.availableStock) || 0);
+  }
+
+  if (stockSource.stock !== undefined && stockSource.stock !== null) {
+    return Math.max(0, Number(stockSource.stock || 0) - Number(stockSource.trading ?? stockSource.reserved ?? 0));
+  }
+
+  return null;
+}
+
 export function PosProductSearch({ onSelect }: PosProductSearchProps) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const isMultiSelect = usePosStore(s => s.isMultiSelect);
   const setIsMultiSelect = usePosStore(s => s.setIsMultiSelect);
+  const outOfStockHidden = usePosStore(s => s.outOfStockHidden);
   const [sessionAdded, setSessionAdded] = useState<Record<string, number>>({});
   const [errorId, setErrorId] = useState<string | null>(null);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
   const isProgrammaticFocus = useRef(false);
+  const activeTab = useActiveTab();
 
   const { data: products = [], isLoading: loadingProducts } = usePosProducts(query);
   const { data: services = [], isLoading: loadingServices } = usePosServices(query);
 
-  const results = [...products, ...services].slice(0, 15);
+  const results = [...products, ...services]
+    .filter((item: any) => {
+      if (!outOfStockHidden) return true;
+      const sellableQty = getSellableQuantity(item, activeTab.branchId);
+      return sellableQty === null || sellableQty > 0;
+    })
+    .slice(0, 15);
   const loading = loadingProducts || loadingServices;
-  
-  const activeTab = useActiveTab();
+
   const getCartQty = (catalogItem: any) => {
     return activeTab.cart.reduce((total, cartItem) => {
-      const sameProduct = catalogItem.duration === undefined && cartItem.productId === catalogItem.id;
+      const sameProduct =
+        catalogItem.duration === undefined &&
+        cartItem.productId === (catalogItem.productId ?? catalogItem.id) &&
+        (catalogItem.productVariantId
+          ? cartItem.productVariantId === catalogItem.productVariantId
+          : !cartItem.productVariantId);
       const sameService = catalogItem.duration !== undefined && cartItem.serviceId === catalogItem.id;
       return sameProduct || sameService ? total + cartItem.quantity : total;
     }, 0);
@@ -68,14 +107,13 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
   }, [isOpen]);
 
   const handleSelect = (item: any) => {
+    const entryId = item.entryId ?? item.id;
     const qty = getCartQty(item);
-    const availableStock = item.availableStock !== undefined 
-      ? item.availableStock 
-      : Math.max(0, (item.stock || 0) - (item.trading || item.reserved || 0));
+    const availableStock = getSellableQuantity(item, activeTab.branchId);
 
     // Only block if this item actually tracks stock
-    if ((item.stock !== undefined || item.availableStock !== undefined) && qty >= availableStock) {
-      setErrorId(item.id);
+    if (availableStock !== null && qty >= availableStock) {
+      setErrorId(entryId);
       setTimeout(() => setErrorId(null), 500);
       return;
     }
@@ -85,7 +123,7 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
     // We don't actually need sessionAdded for rollback anymore, 
     // but just in case we need it later we can leave it or remove it. Let's keep it simple.
     if (isMultiSelect) {
-      setSessionAdded(prev => ({ ...prev, [item.id]: (prev[item.id] || 0) + 1 }));
+      setSessionAdded(prev => ({ ...prev, [entryId]: (prev[entryId] || 0) + 1 }));
     }
     
     if (!isMultiSelect) {
@@ -194,19 +232,21 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
             {!loading && results.length > 0 && (
               <ul className="w-full">
                 {results.map((item: any) => {
+                  const entryId = item.entryId ?? item.id;
                   const isService = item.duration !== undefined;
                   const qty = getCartQty(item);
                   const isSelected = qty > 0;
+                  const displayName = item.productName ?? item.name;
+                  const displaySku = item.sku;
+                  const variantLabel = item.variantLabel;
                   
-                  const availableStock = item.availableStock !== undefined 
-                    ? item.availableStock 
-                    : Math.max(0, (item.stock || 0) - (item.trading || item.reserved || 0));
-                  const hasStock = item.stock !== undefined || item.availableStock !== undefined;
+                  const availableStock = getSellableQuantity(item, activeTab.branchId);
+                  const hasStock = availableStock !== null;
                   
                   return (
-                    <li key={item.id}>
+                    <li key={entryId}>
                       <button
-                        className={`w-full text-left px-4 py-3 border-b border-gray-100 flex items-start gap-4 transition-all duration-300 last:border-0 group bg-white ${errorId === item.id ? 'bg-red-50 translate-x-2' : isSelected && isMultiSelect ? 'bg-primary-50/20' : 'hover:bg-[#f0f9fa]'}`}
+                        className={`w-full text-left px-4 py-3 border-b border-gray-100 flex items-start gap-4 transition-all duration-300 last:border-0 group bg-white ${errorId === entryId ? 'bg-red-50 translate-x-2' : isSelected && isMultiSelect ? 'bg-primary-50/20' : 'hover:bg-[#f0f9fa]'}`}
                         onClick={() => handleSelect(item)}
                       >
                         <div className="relative w-[50px] h-[50px] lg:w-[48px] lg:h-[48px] rounded-md overflow-visible bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center text-gray-400 mt-0.5">
@@ -218,24 +258,41 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
                           
                           {/* Selected Badge */}
                           {isSelected && isMultiSelect && (
-                            <div className={`absolute -top-1.5 -right-1.5 w-5 h-5 text-white text-[11px] font-bold rounded-full flex items-center justify-center shadow-sm border-2 border-white transition-colors duration-300 ${errorId === item.id ? 'bg-red-500' : 'bg-primary-500'}`}>
+                            <div className={`absolute -top-1.5 -right-1.5 w-5 h-5 text-white text-[11px] font-bold rounded-full flex items-center justify-center shadow-sm border-2 border-white transition-colors duration-300 ${errorId === entryId ? 'bg-red-500' : 'bg-primary-500'}`}>
                               {qty > 99 ? '99+' : qty}
                             </div>
                           )}
                         </div>
                         
-                        <div className="flex-1 flex flex-col justify-start overflow-hidden pt-0.5">
-                          <span className={`${errorId === item.id ? 'text-red-600 font-bold' : 'text-[#333333] font-medium'} text-[15px] lg:text-[14px] leading-snug pr-2 transition-colors duration-300`}>{item.name}</span>
-                          <span className="text-[12px] text-gray-500 mt-1 uppercase tracking-wide">
-                            SKU: {item.sku || 'N/A'}
+                        <div className="flex-1 flex flex-col justify-start overflow-hidden pt-0.5 min-w-0">
+                          <span className={`${errorId === entryId ? 'text-red-600 font-bold' : 'text-[#333333] font-medium'} text-[15px] lg:text-[14px] leading-snug pr-2 transition-colors duration-300`}>
+                            {displayName}
+                            {variantLabel ? (
+                              <span className="ml-2 text-[12px] font-medium text-[#0089A1]">
+                                {variantLabel}
+                              </span>
+                            ) : null}
                           </span>
+                          {displaySku ? (
+                            <div className="mt-1">
+                              <span className="block text-[12px] font-semibold uppercase tracking-wide text-gray-400 truncate">
+                                {displaySku}
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
                         
                         <div className="flex-shrink-0 flex flex-col items-end justify-start pt-0.5 min-w-[70px]">
                           <span className="text-[15px] lg:text-[14px] font-bold text-[#333333] tracking-tight">{money(item.sellingPrice ?? item.price ?? 0)}</span>
                           {hasStock ? (
-                            <span className={`text-[12px] mt-1 font-medium transition-colors duration-300 ${errorId === item.id || availableStock <= 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                              {availableStock <= 0 ? 'Hết hàng' : `Có thể bán: ${availableStock}`}
+                            <span
+                              className={`mt-1 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors duration-300 ${
+                                errorId === entryId || availableStock <= 0
+                                  ? 'bg-red-50 text-red-600'
+                                  : 'bg-emerald-50 text-emerald-700'
+                              }`}
+                            >
+                              Có thể bán: {availableStock}
                             </span>
                           ) : null}
                         </div>

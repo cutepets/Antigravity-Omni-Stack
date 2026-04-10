@@ -7,8 +7,9 @@ import { Pencil, Printer, ReceiptText, Trash2, X, Paperclip } from 'lucide-react
 import type { Customer } from '@petshop/shared'
 import { customerApi } from '@/lib/api/customer.api'
 import { financeApi, type CreateFinanceTransactionInput, type FinanceTransaction } from '@/lib/api/finance.api'
-import { settingsApi, type CashbookCategory } from '@/lib/api/settings.api'
+import { settingsApi, type CashbookCategory, type PaymentMethod } from '@/lib/api/settings.api'
 import { buildFinanceVoucherHref } from '@/lib/finance-routes'
+import { filterVisiblePaymentMethods } from '@/lib/payment-methods'
 import { useAuthStore } from '@/stores/auth.store'
 import { toast } from 'sonner'
 
@@ -109,6 +110,8 @@ function buildInitialForm(
     amount: transaction?.amount ?? 0,
     description: transaction?.description ?? '',
     paymentMethod: transaction?.paymentMethod ?? 'CASH',
+    paymentAccountId: transaction?.paymentAccountId ?? undefined,
+    paymentAccountLabel: transaction?.paymentAccountLabel ?? undefined,
     branchId: transaction?.branchId ?? defaultBranchId ?? '',
     payerName: transaction?.payerName ?? '',
     payerId: transaction?.payerId ?? undefined,
@@ -227,11 +230,21 @@ export function CreateTransactionModal({
     queryKey: ['cashbook-categories', form.type],
     queryFn: () => settingsApi.getCashbookCategories(form.type),
   })
+  const { data: rawPaymentMethods = [] } = useQuery({
+    queryKey: ['settings', 'payment-methods'],
+    queryFn: () => settingsApi.getPaymentMethods(),
+    staleTime: 30_000,
+  })
 
   // Chỉ hiển thị các danh mục đang active hoặc danh mục đang được chọn
   const categories = rawCategories.filter((c) => c.isActive || c.name === form.category)
   const filteredCategories = categories.filter((c) => c.name.toLowerCase().includes((form.category ?? '').toLowerCase()))
   const showQuickAdd = form.category && form.category.trim() !== '' && !categories.some((c) => c.name.toLowerCase() === form.category?.toLowerCase())
+  const paymentMethods = filterVisiblePaymentMethods(rawPaymentMethods, {
+    branchId: form.branchId || defaultBranchId,
+    amount: form.amount,
+    selectedId: form.paymentAccountId,
+  })
 
   const createCategoryMutation = useMutation({
     mutationFn: (name: string) => settingsApi.createCashbookCategory({ type: form.type, name }),
@@ -268,6 +281,7 @@ export function CreateTransactionModal({
       setIsUploading(false)
     },
   })
+  const { mutate: uploadFiles } = uploadMutation
   const currentBranch =
     branches.find((branch) => branch.id === (transaction?.branchId ?? form.branchId ?? defaultBranchId)) ??
     allowedBranches.find((branch) => branch.id === (transaction?.branchId ?? form.branchId ?? defaultBranchId)) ??
@@ -282,6 +296,27 @@ export function CreateTransactionModal({
     if (transaction || form.branchId || !defaultBranchId) return
     setForm((current) => ({ ...current, branchId: defaultBranchId }))
   }, [defaultBranchId, form.branchId, transaction])
+
+  useEffect(() => {
+    if (paymentMethods.length === 0) return
+    if (form.paymentAccountId && paymentMethods.some((method) => method.id === form.paymentAccountId)) return
+
+    const preferred =
+      paymentMethods.find((method) => method.id === transaction?.paymentAccountId) ??
+      paymentMethods.find((method) => method.type === form.paymentMethod && method.isDefault) ??
+      paymentMethods.find((method) => method.type === form.paymentMethod) ??
+      paymentMethods.find((method) => method.isDefault) ??
+      paymentMethods[0]
+
+    if (!preferred) return
+
+    setForm((current) => ({
+      ...current,
+      paymentMethod: preferred.type,
+      paymentAccountId: preferred.id,
+      paymentAccountLabel: preferred.name,
+    }))
+  }, [form.paymentAccountId, form.paymentMethod, paymentMethods, transaction?.paymentAccountId])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -313,14 +348,14 @@ export function CreateTransactionModal({
     const handlePaste = (e: ClipboardEvent) => {
       if (canEditCore && e.clipboardData?.files?.length) {
         const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith('image/'))
-        if (files.length > 0) uploadMutation.mutate(files as any)
+        if (files.length > 0) uploadFiles(files as any)
       }
     }
     const handleDrop = (e: DragEvent) => {
       e.preventDefault()
       if (canEditCore && e.dataTransfer?.files?.length) {
         const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
-        if (files.length > 0) uploadMutation.mutate(files as any)
+        if (files.length > 0) uploadFiles(files as any)
       }
     }
     const handleDragOver = (e: DragEvent) => {
@@ -335,7 +370,7 @@ export function CreateTransactionModal({
       window.removeEventListener('drop', handleDrop)
       window.removeEventListener('dragover', handleDragOver)
     }
-  }, [canEditCore])
+  }, [canEditCore, uploadFiles])
 
   const { data: customers = [] } = useQuery({
     queryKey: ['finance', 'customer-search', deferredCustomerSearch],
@@ -367,13 +402,17 @@ export function CreateTransactionModal({
                 description: form.description,
                 category: form.category,
                 paymentMethod: form.paymentMethod,
+                paymentAccountId: form.paymentAccountId,
+                paymentAccountLabel: form.paymentAccountLabel,
                 branchId: form.branchId || undefined,
                 payerName: form.payerName,
                 payerId: form.payerId,
                 refType: manualReferenceType,
                 refNumber: normalizedRefNumber,
+                notes: form.notes,
                 tags: normalizedTags ?? '',
                 date: form.date,
+                attachmentUrl: form.attachmentUrl,
               }
             : {}
 
@@ -386,7 +425,9 @@ export function CreateTransactionModal({
         branchId: form.branchId || undefined,
         refType: manualReferenceType,
         refNumber: normalizedRefNumber,
-        notes: undefined,
+        paymentAccountId: form.paymentAccountId,
+        paymentAccountLabel: form.paymentAccountLabel,
+        notes: form.notes || undefined,
         tags: normalizedTags ?? '',
       })
     },
@@ -407,14 +448,17 @@ export function CreateTransactionModal({
     },
   })
 
+  const hasPaymentAccount = Boolean(form.paymentAccountId?.trim())
   const canSubmit = transaction
     ? editScope === 'FULL'
       ? Number(form.amount) > 0 &&
         form.description.trim().length > 0 &&
+        hasPaymentAccount &&
         (form.manualReferenceKind === 'NONE' || Boolean(form.refNumber?.trim()))
       : false
     : Number(form.amount) > 0 &&
       form.description.trim().length > 0 &&
+      hasPaymentAccount &&
       (form.manualReferenceKind === 'NONE' || Boolean(form.refNumber?.trim()))
 
   const title = isCreate ? getTypeLabel(form.type) : isEdit ? `Sửa ${getTypeLabel(form.type).toLowerCase()}` : getTypeLabel(form.type)
@@ -560,18 +604,34 @@ export function CreateTransactionModal({
                 <label className="space-y-2">
                   <span className="text-sm text-foreground-muted">Hình thức thanh toán</span>
                   <select
-                    value={form.paymentMethod ?? ''}
+                    value={form.paymentAccountId ?? ''}
                     disabled={!canEditCore}
-                    onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
+                    onChange={(event) => {
+                      const selectedMethod = paymentMethods.find((method) => method.id === event.target.value)
+                      setForm((current) => ({
+                        ...current,
+                        paymentMethod: selectedMethod?.type ?? current.paymentMethod,
+                        paymentAccountId: event.target.value || undefined,
+                        paymentAccountLabel: selectedMethod?.name ?? undefined,
+                      }))
+                    }}
                     className={inputClass}
                   >
-                    <option value="CASH">Tiền mặt</option>
-                    <option value="BANK">Chuyển khoản</option>
-                    <option value="MOMO">MoMo</option>
-                    <option value="CARD">Thẻ</option>
+                    <option value="">Chon phuong thuc thanh toan</option>
+                    {paymentMethods.map((method: PaymentMethod) => (
+                      <option key={method.id} value={method.id}>
+                        {method.name}
+                      </option>
+                    ))}
                   </select>
+                  {paymentMethods.length === 0 ? (
+                    <p className="text-xs text-amber-300">
+                      Khong co phuong thuc thanh toan nao dang hien cho chi nhanh hoac so tien hien tai.
+                    </p>
+                  ) : null}
                 </label>
               </div>
+
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="space-y-2">
@@ -809,6 +869,12 @@ export function CreateTransactionModal({
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-foreground-muted shrink-0">Tham chiếu CK</span>
                           <span className="font-medium text-foreground text-right truncate">{transaction.notes}</span>
+                        </div>
+                      )}
+                      {transaction?.paymentAccountLabel && (
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-foreground-muted shrink-0">Tài khoản nhận</span>
+                          <span className="font-medium text-foreground text-right truncate">{transaction.paymentAccountLabel}</span>
                         </div>
                       )}
                     </>

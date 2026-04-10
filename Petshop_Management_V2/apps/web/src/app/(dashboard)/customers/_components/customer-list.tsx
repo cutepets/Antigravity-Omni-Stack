@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
@@ -17,7 +18,6 @@ import {
   CalendarDays,
   Users,
 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { customerApi, type ImportCustomerRow } from '@/lib/api/customer.api'
 import { CustomerFormModal } from './customer-form-modal'
@@ -109,6 +109,7 @@ function downloadCSV(data: any[], filename: string) {
 // ── Main component ─────────────────────────────────────────────────────────────
 export function CustomerList() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { hasAnyPermission, hasPermission, isLoading: isAuthLoading } = useAuthorization()
@@ -128,13 +129,22 @@ export function CustomerList() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const reportSource = searchParams.get('from')
+  const reportTab = searchParams.get('tab')
+  const scopedBranchId = searchParams.get('branchId')?.trim() || undefined
+  const scopedDateFrom = searchParams.get('dateFrom')?.trim() || undefined
+  const scopedDateTo = searchParams.get('dateTo')?.trim() || undefined
+  const shouldApplyReportActivityRange =
+    reportSource === 'reports' &&
+    reportTab === 'customers' &&
+    Boolean(scopedDateFrom && scopedDateTo)
 
   // System hook for data-list standard
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
     initialVisibleColumns: ['code', 'name', 'contact', 'petCount', 'debt', 'tier', 'spent', 'status'],
     initialTopFilterVisibility: { tier: true, status: false },
-    storageKey: 'customer-list-columns-v2',
+    storageKey: 'customer-list-columns-v3',
   })
   
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
@@ -146,13 +156,71 @@ export function CustomerList() {
     }
   }, [canReadCustomers, isAuthLoading, router])
 
+  useEffect(() => {
+    const nextSearch = searchParams.get('search') ?? ''
+    const nextTier = searchParams.get('tier') ?? ''
+    const nextStatus = searchParams.get('status') ?? ''
+    const nextPage = Number(searchParams.get('page') ?? '1')
+    const nextPageSize = Number(searchParams.get('limit') ?? '15')
+
+    setSearch((current) => (current !== nextSearch ? nextSearch : current))
+    setTier((current) => (current !== nextTier ? nextTier : current))
+    setIsActiveFilter((current) => (current !== nextStatus ? nextStatus : current))
+    setPage((current) => (Number.isFinite(nextPage) && nextPage > 0 ? (current !== nextPage ? nextPage : current) : current !== 1 ? 1 : current))
+    setPageSize((current) =>
+      Number.isFinite(nextPageSize) && nextPageSize > 0 ? (current !== nextPageSize ? nextPageSize : current) : current !== 15 ? 15 : current,
+    )
+  }, [searchParams])
+
+  useEffect(() => {
+    if (isAuthLoading || !canReadCustomers) return
+
+    const nextParams = new URLSearchParams(searchParams.toString())
+
+    if (search.trim()) nextParams.set('search', search.trim())
+    else nextParams.delete('search')
+
+    if (tier) nextParams.set('tier', tier)
+    else nextParams.delete('tier')
+
+    if (isActiveFilter) nextParams.set('status', isActiveFilter)
+    else nextParams.delete('status')
+
+    if (page > 1) nextParams.set('page', String(page))
+    else nextParams.delete('page')
+
+    if (pageSize !== 15) nextParams.set('limit', String(pageSize))
+    else nextParams.delete('limit')
+
+    const currentQuery = searchParams.toString()
+    const nextQuery = nextParams.toString()
+    if (currentQuery !== nextQuery) {
+      router.replace(nextQuery ? `/customers?${nextQuery}` : '/customers', { scroll: false })
+    }
+  }, [canReadCustomers, isActiveFilter, isAuthLoading, page, pageSize, router, search, searchParams, tier])
+
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', search, tier, isActiveFilter, page, pageSize, columnSort.columnId, columnSort.direction],
+    queryKey: [
+      'customers',
+      search,
+      tier,
+      isActiveFilter,
+      scopedBranchId ?? 'all',
+      shouldApplyReportActivityRange ? scopedDateFrom : '',
+      shouldApplyReportActivityRange ? scopedDateTo : '',
+      page,
+      pageSize,
+      columnSort.columnId,
+      columnSort.direction,
+    ],
     queryFn: () => customerApi.getCustomers({
       search,
       tier: tier || undefined,
       isActive: isActiveFilter === '' ? undefined : isActiveFilter === 'true',
+      branchId: scopedBranchId,
+      dateFrom: shouldApplyReportActivityRange ? scopedDateFrom : undefined,
+      dateTo: shouldApplyReportActivityRange ? scopedDateTo : undefined,
       page,
       limit: pageSize,
       sortBy: columnSort.columnId || undefined,
@@ -277,6 +345,18 @@ export function CustomerList() {
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <DataListShell>
+      {reportSource === 'reports' ? (
+        <div className="mx-4 mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-primary-500/15 bg-primary-500/5 px-4 py-3 text-sm text-foreground">
+          <span className="font-semibold text-primary-600">Dang mo tu bao cao</span>
+          {scopedBranchId ? <span className="rounded-full bg-background px-3 py-1 text-xs">Chi nhanh: {scopedBranchId}</span> : null}
+          {scopedDateFrom && scopedDateTo ? (
+            <span className="rounded-full bg-background px-3 py-1 text-xs">
+              Pham vi ngay: {scopedDateFrom} den {scopedDateTo}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Toolbar */}
       <DataListToolbar
         searchValue={search}

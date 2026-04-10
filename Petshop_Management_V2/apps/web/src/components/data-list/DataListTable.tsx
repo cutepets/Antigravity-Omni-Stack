@@ -6,6 +6,7 @@ interface ColDef {
   label: string
   width?: string       // e.g. 'w-20'
   minWidth?: string    // e.g. 'min-w-[300px]'
+  align?: 'left' | 'center' | 'right'
 }
 
 interface DataListTableProps {
@@ -70,7 +71,7 @@ export function DataListTable({
               {columns.map((col) => (
                 <th
                   key={col.id}
-                  className={`px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted ${col.width ?? ''} ${col.minWidth ?? ''}`}
+                  className={`px-3 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.width ?? ''} ${col.minWidth ?? ''}`}
                 >
                   {col.label}
                 </th>

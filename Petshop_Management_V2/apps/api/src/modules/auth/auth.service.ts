@@ -67,7 +67,7 @@ export class AuthService {
       throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không đúng')
     }
 
-    const combinedRole = (user as any).role?.code ?? (user as any).legacyRole
+    const combinedRole = (user as any).role?.code ?? ''
     const combinedPermissions = (user as any).role?.permissions ?? []
 
     let mappedAuthorizedBranches = this.mapAuthorizedBranches(user as any)
@@ -144,12 +144,12 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token đã hết hạn hoặc không tồn tại')
     }
 
-    // Rotate — delete old, issue new
-    await this.db.refreshToken.delete({ where: { id: stored.id } })
+    // Rotate — delete old, issue new (deleteMany avoids P2025 on race condition)
+    await this.db.refreshToken.deleteMany({ where: { id: stored.id } })
 
     const u = stored.user
-    const combinedRole = (u as any).role?.code ?? (u as any).legacyRole
-    const combinedPermissions = (u as any).role?.permissions ?? []
+    const combinedRole = u.role?.code ?? ''
+    const combinedPermissions = (u.role as any)?.permissions ?? []
     let mappedAuthorizedBranches = this.mapAuthorizedBranches(u as any)
 
     if (combinedPermissions.includes('FULL_BRANCH_ACCESS') || combinedRole === 'SUPER_ADMIN' || combinedRole === 'ADMIN') {
@@ -218,7 +218,7 @@ export class AuthService {
 
     if (!user) throw new NotFoundException('Không tìm thấy người dùng')
 
-    const combinedRole = (user as any).role?.code ?? (user as any).legacyRole
+    const combinedRole = (user as any).role?.code ?? ''
     const combinedPermissions = (user as any).role?.permissions ?? []
 
     return {

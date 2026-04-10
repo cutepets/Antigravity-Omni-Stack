@@ -3,13 +3,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bell, Check, CheckCircle2, History, MapPin, Moon, Palette, Save, Settings, Store, Zap } from 'lucide-react'
+import { ArrowRightLeft, Bell, Check, CheckCircle2, History, MapPin, Moon, Palette, Save, Settings, Store, Zap } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { cn } from '@/lib/utils'
 import { ThemeTogglePremium } from '@/components/ui/dark-mode-button'
 import { useThemeStore } from '@/stores/theme.store'
 import { useAnimationStore, type AnimConfig } from '@/stores/animation.store'
+import { TabPayments } from './components/TabPayments'
 import { TabBranches } from './components/TabBranches'
 import { TabGeneral } from './components/TabGeneral'
 import { TabHistory } from './components/TabHistory'
@@ -49,6 +50,7 @@ const SETTINGS_PAGE_PERMISSIONS = [
 const SETTINGS_TABS: SettingsTabConfig[] = [
   { id: 'general', label: 'Cửa hàng', icon: Store, anyPermissions: ['settings.app.read', 'settings.app.update'] },
   { id: 'branches', label: 'Chi nhánh', icon: MapPin, anyPermissions: ['branch.read', 'branch.create', 'branch.update', 'branch.delete'] },
+  { id: 'payments', label: 'Thanh toán', icon: ArrowRightLeft, anyPermissions: ['settings.payment.manage'] },
   { id: 'theme', label: 'Giao diện', icon: Palette },
   { id: 'notifications', label: 'Thông báo', icon: Bell, anyPermissions: ['settings.app.read', 'settings.app.update'] },
   { id: 'history', label: 'Lịch sử thao tác', icon: History, anyPermissions: ['settings.audit_log.read'] },
@@ -94,6 +96,8 @@ export default function SettingsPage() {
 
   const renderActiveTab = () => {
     switch (activeTab) {
+      case 'payments':
+        return <TabPayments />
       case 'general':
         return <TabGeneral />
       case 'branches':

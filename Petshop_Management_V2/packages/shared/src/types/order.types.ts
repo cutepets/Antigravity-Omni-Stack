@@ -43,6 +43,9 @@ export interface OrderItem {
 export interface PaymentEntry {
   method: PaymentMethod
   amount: number
+  note?: string
+  paymentAccountId?: string
+  paymentAccountLabel?: string
 }
 
-export type PaymentMethod = 'CASH' | 'BANK' | 'MOMO' | 'VNPAY' | 'CARD' | 'POINTS'
+export type PaymentMethod = 'CASH' | 'BANK' | 'EWALLET' | 'MOMO' | 'VNPAY' | 'CARD' | 'POINTS'

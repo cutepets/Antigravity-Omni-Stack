@@ -60,6 +60,7 @@ export function ReceiptList() {
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
     initialVisibleColumns: ['code', 'date', 'supplier', 'total', 'status'],
     initialTopFilterVisibility: {},
+    storageKey: 'receipt-list-columns-v1',
   })
 
   const { columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState

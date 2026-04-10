@@ -23,5 +23,13 @@ export class CompleteOrderDto {
 
   @IsString()
   @IsOptional()
+  refundPaymentAccountId?: string;
+
+  @IsString()
+  @IsOptional()
+  refundPaymentAccountLabel?: string;
+
+  @IsString()
+  @IsOptional()
   settlementNote?: string;
 }

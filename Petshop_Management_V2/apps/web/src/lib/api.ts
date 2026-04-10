@@ -23,8 +23,21 @@ api.interceptors.request.use((config) => {
       config.headers['Authorization'] = `Bearer ${token}`
     }
     const branchId = useAuthStore.getState().activeBranchId
-    if (branchId) {
+    const method = (config.method ?? 'get').toLowerCase()
+    const requestedBranchScope = (config.headers as any)?.['X-Use-Branch-Scope']
+    const shouldAttachBranchId =
+      typeof requestedBranchScope === 'string'
+        ? requestedBranchScope.toLowerCase() === 'true'
+        : !['get', 'head', 'options'].includes(method)
+
+    if (branchId && shouldAttachBranchId) {
       config.headers['X-Branch-ID'] = branchId
+    } else if (config.headers) {
+      delete (config.headers as any)['X-Branch-ID']
+    }
+
+    if (config.headers) {
+      delete (config.headers as any)['X-Use-Branch-Scope']
     }
   }
   return config
@@ -114,6 +127,16 @@ export const authApi = {
   me: () => api.get<AuthUser>('/auth/me').then((r) => r.data),
 }
 
+export type CashbookCategory = {
+  id: string
+  type: 'INCOME' | 'EXPENSE'
+  name: string
+  isActive: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
 // Settings
 export const settingsApi = {
     getConfigs: () => api.get('/settings/configs').then(r => r.data.data),
@@ -122,6 +145,13 @@ export const settingsApi = {
     createBranch: (data: any) => api.post('/settings/branches', data).then(r => r.data.data),
     updateBranch: (id: string, data: any) => api.put(`/settings/branches/${id}`, data).then(r => r.data.data),
     deleteBranch: (id: string) => api.delete(`/settings/branches/${id}`),
+    getCashbookCategories: (type?: 'INCOME' | 'EXPENSE') =>
+      api.get('/settings/cashbook-categories', { params: type ? { type } : undefined }).then(r => r.data.data as CashbookCategory[]),
+    createCashbookCategory: (data: { type: 'INCOME' | 'EXPENSE'; name: string }) =>
+      api.post('/settings/cashbook-categories', data).then(r => r.data.data as CashbookCategory),
+    updateCashbookCategory: (id: string, data: Partial<{ name: string; isActive: boolean; sortOrder: number }>) =>
+      api.put(`/settings/cashbook-categories/${id}`, data).then(r => r.data.data as CashbookCategory),
+    deleteCashbookCategory: (id: string) => api.delete(`/settings/cashbook-categories/${id}`).then(r => r.data),
 }
 
 // Upload — use native fetch to completely bypass axios Content-Type override

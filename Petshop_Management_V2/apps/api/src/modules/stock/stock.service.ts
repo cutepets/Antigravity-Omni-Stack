@@ -1819,7 +1819,7 @@ export class StockService {
       where: { id },
       select: { id: true, name: true, code: true },
     })
-    if (!currentSupplier) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y nhÃ  cung cáº¥p')
+    if (!currentSupplier) throw new NotFoundException('Không tìm thấy nhà cung cấp')
 
     const nextName = dto.name?.trim() || currentSupplier.name
     const shouldUpdateCode = dto.code !== undefined || (dto.name !== undefined && !currentSupplier.code)

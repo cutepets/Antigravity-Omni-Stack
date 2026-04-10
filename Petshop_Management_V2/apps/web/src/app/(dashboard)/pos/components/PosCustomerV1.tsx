@@ -158,8 +158,8 @@ export function PosCustomerV1() {
                </div>
 
                {/* Points */}
-               <div className="ml-auto mt-1 flex items-center gap-1 font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
-                 <Medal size={16} className="text-orange-500" /> {customerDetail?.points || 0} điểm
+               <div className="ml-auto mt-1 flex items-center gap-1 font-bold text-[13px] text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
+                 <Medal size={14} className="text-orange-500" /> {customerDetail?.points || 0} điểm
                </div>
              </div>
            </div>

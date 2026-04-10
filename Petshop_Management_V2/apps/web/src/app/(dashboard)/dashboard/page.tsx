@@ -296,15 +296,15 @@ export default function DashboardPage() {
             <div className="space-y-4">
               {topCustomers.map((item, index) => (
                 <div
-                  key={item.customer.id}
+                  key={item.customer?.id ?? `customer-${index}`}
                   className="flex items-center justify-between rounded-2xl border border-border/50 bg-black/5 px-4 py-3 dark:bg-white/5"
                 >
                   <div>
                     <p className="font-semibold text-foreground-base">
-                      #{index + 1} {item.customer.fullName}
+                      #{index + 1} {item.customer?.fullName ?? 'Khách lẻ / Đã xóa'}
                     </p>
                     <p className="text-xs text-foreground-muted">
-                      {item.customer.customerCode ?? 'KH'} • {item.orderCount} đơn
+                      {item.customer?.customerCode ?? 'KH'} • {item.orderCount} đơn
                     </p>
                   </div>
                   <p className="text-sm font-bold text-primary-500">{formatCurrency(item.totalSpent)}</p>
@@ -327,15 +327,15 @@ export default function DashboardPage() {
             <div className="space-y-4">
               {topProducts.map((item, index) => (
                 <div
-                  key={item.product.id}
+                  key={item.product?.id ?? `product-${index}`}
                   className="flex items-center justify-between rounded-2xl border border-border/50 bg-black/5 px-4 py-3 dark:bg-white/5"
                 >
                   <div>
                     <p className="font-semibold text-foreground-base">
-                      #{index + 1} {item.product.name}
+                      #{index + 1} {item.product?.name ?? 'Sản phẩm đã xóa'}
                     </p>
                     <p className="text-xs text-foreground-muted">
-                      {item.product.sku ?? 'N/A'} • {formatNumber(item.totalQuantity)} lượt bán
+                      {item.product?.sku ?? 'N/A'} • {formatNumber(item.totalQuantity)} lượt bán
                     </p>
                   </div>
                   <p className="text-sm font-bold text-emerald-500">{formatCurrency(item.totalRevenue)}</p>

@@ -14,7 +14,7 @@ import {
   UserCircle2,
   Wallet,
 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { stockApi } from '@/lib/api/stock.api'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import {
@@ -93,12 +93,69 @@ function getScoreTone(score: number) {
   return 'border-red-500/20 bg-red-500/10 text-red-400'
 }
 
+function toAmount(value: unknown) {
+  const parsed = Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function buildFilteredSupplierStats(supplier: any, branchId?: string, dateFrom?: string, dateTo?: string) {
+  const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null
+  const to = dateTo ? new Date(`${dateTo}T23:59:59.999`) : null
+  const now = new Date()
+  const last30Days = new Date(now)
+  last30Days.setDate(last30Days.getDate() - 30)
+
+  const receipts = Array.isArray(supplier.stockReceipts)
+    ? supplier.stockReceipts.filter((receipt: any) => {
+        if (receipt.status === 'CANCELLED') return false
+        if (branchId && receipt.branchId !== branchId) return false
+        const createdAt = new Date(receipt.createdAt)
+        if (from && createdAt < from) return false
+        if (to && createdAt > to) return false
+        return true
+      })
+    : []
+
+  const totalOrders = receipts.length
+  const totalSpent = receipts.reduce((sum: number, receipt: any) => sum + toAmount(receipt.payableAmount ?? receipt.totalReceivedAmount ?? receipt.totalAmount), 0)
+  const totalDebt = receipts.reduce((sum: number, receipt: any) => {
+    const payableAmount = toAmount(receipt.payableAmount ?? receipt.totalReceivedAmount ?? receipt.totalAmount)
+    const paidAmount = toAmount(receipt.paidAmount)
+    return sum + Math.max(0, toAmount(receipt.debtAmount) || payableAmount - paidAmount)
+  }, 0)
+  const spendLast30Days = receipts
+    .filter((receipt: any) => new Date(receipt.createdAt) >= last30Days)
+    .reduce((sum: number, receipt: any) => sum + toAmount(receipt.payableAmount ?? receipt.totalReceivedAmount ?? receipt.totalAmount), 0)
+  const lastOrderAt =
+    receipts
+      .map((receipt: any) => receipt.createdAt)
+      .sort((left: string, right: string) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null
+
+  return {
+    ...supplier,
+    stats: {
+      ...(supplier.stats ?? {}),
+      totalOrders,
+      totalSpent,
+      totalDebt,
+      spendLast30Days,
+      avgOrderValue: totalOrders > 0 ? totalSpent / totalOrders : 0,
+      lastOrderAt,
+    },
+  }
+}
+
 export function SupplierList({ initialSupplierCode }: SupplierListProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
   const canReadSuppliers = hasPermission('supplier.read')
   const canCreateSupplier = hasPermission('supplier.create')
   const canUpdateSupplier = hasPermission('supplier.update')
+  const reportSource = searchParams.get('from')
+  const scopedBranchId = searchParams.get('branchId')?.trim() || undefined
+  const scopedDateFrom = searchParams.get('dateFrom')?.trim() || undefined
+  const scopedDateTo = searchParams.get('dateTo')?.trim() || undefined
 
   const [search, setSearch] = useState('')
   const [pageSize, setPageSize] = useState(20)
@@ -115,6 +172,39 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
     }
   }, [canReadSuppliers, isAuthLoading, router])
 
+  useEffect(() => {
+    const nextSearch = searchParams.get('search') ?? ''
+    const nextPage = Number(searchParams.get('page') ?? '1')
+    const nextPageSize = Number(searchParams.get('limit') ?? '20')
+
+    setSearch((current) => (current !== nextSearch ? nextSearch : current))
+    setPage((current) => (Number.isFinite(nextPage) && nextPage > 0 ? (current !== nextPage ? nextPage : current) : current !== 1 ? 1 : current))
+    setPageSize((current) =>
+      Number.isFinite(nextPageSize) && nextPageSize > 0 ? (current !== nextPageSize ? nextPageSize : current) : current !== 20 ? 20 : current,
+    )
+  }, [searchParams])
+
+  useEffect(() => {
+    if (isAuthLoading || !canReadSuppliers) return
+
+    const nextParams = new URLSearchParams(searchParams.toString())
+
+    if (search.trim()) nextParams.set('search', search.trim())
+    else nextParams.delete('search')
+
+    if (page > 1) nextParams.set('page', String(page))
+    else nextParams.delete('page')
+
+    if (pageSize !== 20) nextParams.set('limit', String(pageSize))
+    else nextParams.delete('limit')
+
+    const currentQuery = searchParams.toString()
+    const nextQuery = nextParams.toString()
+    if (currentQuery !== nextQuery) {
+      router.replace(nextQuery ? `/inventory/suppliers?${nextQuery}` : '/inventory/suppliers', { scroll: false })
+    }
+  }, [canReadSuppliers, isAuthLoading, page, pageSize, router, search, searchParams])
+
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
     initialVisibleColumns: ['name', 'contact', 'activity', 'score', 'debt'],
@@ -128,10 +218,13 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
     queryFn: () => stockApi.getSuppliers(),
   })
 
-  const suppliers = useMemo(() => getSuppliers(suppliersResponse), [suppliersResponse])
+  const suppliers = useMemo(
+    () => getSuppliers(suppliersResponse).map((supplier: any) => buildFilteredSupplierStats(supplier, scopedBranchId, scopedDateFrom, scopedDateTo)),
+    [scopedBranchId, scopedDateFrom, scopedDateTo, suppliersResponse],
+  )
   const summary = useMemo(
-    () => (suppliersResponse as any)?.data?.summary ?? buildFallbackSummary(suppliers),
-    [suppliersResponse, suppliers],
+    () => buildFallbackSummary(suppliers),
+    [suppliers],
   )
 
   const filteredSuppliers = useMemo(() => {
@@ -252,6 +345,18 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
   return (
     <>
       <DataListShell>
+        {reportSource === 'reports' ? (
+          <div className="mx-4 mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-primary-500/15 bg-primary-500/5 px-4 py-3 text-sm text-foreground">
+            <span className="font-semibold text-primary-600">Dang mo tu bao cao</span>
+            {scopedBranchId ? <span className="rounded-full bg-background px-3 py-1 text-xs">Chi nhanh: {scopedBranchId}</span> : null}
+            {scopedDateFrom && scopedDateTo ? (
+              <span className="rounded-full bg-background px-3 py-1 text-xs">
+                Pham vi ngay: {scopedDateFrom} den {scopedDateTo}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="grid gap-3 px-4 pt-1 md:grid-cols-2 xl:grid-cols-4">
           {[
             {

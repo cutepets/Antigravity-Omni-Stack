@@ -12,6 +12,14 @@ export class PaymentEntryDto {
   @IsString()
   @IsOptional()
   note?: string;
+
+  @IsString()
+  @IsOptional()
+  paymentAccountId?: string;
+
+  @IsString()
+  @IsOptional()
+  paymentAccountLabel?: string;
 }
 
 export class PayOrderDto {

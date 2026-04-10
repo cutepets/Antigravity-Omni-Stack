@@ -261,7 +261,7 @@ export function ProductList() {
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
     initialTopFilterVisibility: { category: true, stock: false, sale: true },
-    storageKey: 'product-list-columns-v1',
+    storageKey: 'product-list-columns-v2',
   })
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 

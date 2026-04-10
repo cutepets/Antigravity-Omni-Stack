@@ -24,6 +24,18 @@ const removeAccents = (str: string): string => {
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
+const startOfDay = (value: string) => {
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+const endOfDay = (value: string) => {
+  const date = new Date(value)
+  date.setHours(23, 59, 59, 999)
+  return date
+}
+
 export interface FindCustomersDto {
   search?: string
   page?: number
@@ -33,6 +45,9 @@ export interface FindCustomersDto {
   isActive?: boolean
   minSpent?: number
   maxSpent?: number
+  branchId?: string
+  dateFrom?: string
+  dateTo?: string
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
 }
@@ -54,6 +69,9 @@ export interface CreateCustomerDto {
   isSupplier?: boolean
   supplierCode?: string
   companyName?: string
+  companyAddress?: string
+  representativeName?: string
+  representativePhone?: string
   bankAccount?: string
   bankName?: string
 }
@@ -123,16 +141,27 @@ export class CustomerService {
     return !permissions.has('branch.access.all')
   }
 
-  private buildBranchCustomerScope(user?: AccessUser) {
-    if (!this.shouldRestrictToCustomerBranches(user)) return null
+  private buildBranchCustomerScope(user?: AccessUser, requestedBranchId?: string | null): any {
+    const normalizedRequestedBranchId = requestedBranchId?.trim() || null
+    const restrictByPermission = this.shouldRestrictToCustomerBranches(user)
 
-    const authorizedBranchIds = this.getAuthorizedBranchIds(user)
-    const legacyScope = this.buildLegacyBranchCustomerScope(authorizedBranchIds)
+    if (!restrictByPermission && !normalizedRequestedBranchId) return null
+
+    if (restrictByPermission && normalizedRequestedBranchId) {
+      const authorizedBranchIds = this.getAuthorizedBranchIds(user)
+      if (!authorizedBranchIds.includes(normalizedRequestedBranchId)) {
+        throw new ForbiddenException('Ban chi duoc truy cap du lieu thuoc chi nhanh duoc phan quyen')
+      }
+    }
+
+    const scopedBranchIds = normalizedRequestedBranchId ? [normalizedRequestedBranchId] : this.getAuthorizedBranchIds(user)
+    const legacyScope = this.buildLegacyBranchCustomerScope(scopedBranchIds)
+    const branchIdFilter: any = scopedBranchIds.length === 1 ? scopedBranchIds[0] : { in: scopedBranchIds }
 
     return {
       OR: [
         {
-          branchId: { in: authorizedBranchIds },
+          branchId: branchIdFilter,
         },
         {
           AND: [
@@ -162,8 +191,8 @@ export class CustomerService {
     return branch.id
   }
 
-  private mergeCustomerScope(where: Record<string, any>, user?: AccessUser) {
-    const scope = this.buildBranchCustomerScope(user)
+  private mergeCustomerScope(where: Record<string, any>, user?: AccessUser, requestedBranchId?: string | null): any {
+    const scope = this.buildBranchCustomerScope(user, requestedBranchId)
     if (!scope) return where
     if (Object.keys(where).length === 0) return scope
     return { AND: [where, scope] }
@@ -183,7 +212,7 @@ export class CustomerService {
   }
 
   // ── List (paginated + accent-insensitive search) ───────────────────────────
-  async findAll(query: FindCustomersDto, user?: AccessUser) {
+  async findAll(query: FindCustomersDto, user?: AccessUser, requestedBranchId?: string | null) {
     const {
       search,
       page = 1,
@@ -193,6 +222,8 @@ export class CustomerService {
       isActive,
       minSpent,
       maxSpent,
+      dateFrom,
+      dateTo,
       sortBy = 'createdAt',
       sortOrder = 'desc',
     } = query
@@ -208,7 +239,34 @@ export class CustomerService {
       if (minSpent !== undefined) baseWhere.totalSpent.gte = Number(minSpent)
       if (maxSpent !== undefined) baseWhere.totalSpent.lte = Number(maxSpent)
     }
-    const where = this.mergeCustomerScope(baseWhere, user)
+    if (dateFrom || dateTo) {
+      const createdAt: Record<string, Date> = {}
+
+      if (dateFrom) {
+        const from = startOfDay(dateFrom)
+        if (Number.isNaN(from.getTime())) throw new BadRequestException('dateFrom khong hop le')
+        createdAt.gte = from
+      }
+
+      if (dateTo) {
+        const to = endOfDay(dateTo)
+        if (Number.isNaN(to.getTime())) throw new BadRequestException('dateTo khong hop le')
+        createdAt.lte = to
+      }
+
+      if (createdAt.gte && createdAt.lte && createdAt.gte.getTime() > createdAt.lte.getTime()) {
+        throw new BadRequestException('dateFrom khong duoc lon hon dateTo')
+      }
+
+      baseWhere.orders = {
+        some: {
+          createdAt,
+          ...(requestedBranchId ? { branchId: requestedBranchId } : {}),
+        },
+      }
+    }
+
+    const where = this.mergeCustomerScope(baseWhere, user, requestedBranchId)
 
     const orderBy: any = { [sortBy]: sortOrder }
 
@@ -310,7 +368,7 @@ export class CustomerService {
     // Calculate periodSpent (N months)
     const periodStart = new Date()
     periodStart.setMonth(periodStart.getMonth() - tierRetentionMonths)
-    const periodSpent = (customer.orders || [])
+    const periodSpent = (((customer as any).orders as any[]) || [])
       .filter((o: any) => new Date(o.createdAt) >= periodStart && o.paymentStatus === 'PAID')
       .reduce((sum: number, o: any) => sum + (o.total || 0), 0)
 
@@ -352,6 +410,9 @@ export class CustomerService {
         isSupplier: dto.isSupplier ?? false,
         supplierCode: dto.supplierCode || null,
         companyName: dto.companyName || null,
+        companyAddress: dto.companyAddress || null,
+        representativeName: dto.representativeName || null,
+        representativePhone: dto.representativePhone || null,
         bankAccount: dto.bankAccount || null,
         bankName: dto.bankName || null,
       } as any,
