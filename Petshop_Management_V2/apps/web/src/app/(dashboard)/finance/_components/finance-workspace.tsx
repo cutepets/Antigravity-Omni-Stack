@@ -28,6 +28,7 @@ import { CreateTransactionModal } from './create-transaction-modal'
 import { FinanceReceiptReconciliationModal } from './finance-receipt-reconciliation-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { BankTransactionsTab } from './bank-transactions-tab'
+import { CashShiftsTab } from './cash-shifts-tab'
 
 type DisplayColumnId = 'voucher' | 'tags' | 'date' | 'createdAt' | 'updatedAt' | 'type' | 'payer' | 'creator' | 'branch' | 'paymentMethod' | 'amount' | 'category' | 'description' | 'ref' | 'notes' | 'source'
 type PinFilterId = 'type' | 'branch' | 'paymentMethod'
@@ -37,7 +38,7 @@ type TransactionWindowState = {
   transaction: FinanceTransaction | null
   initialType?: 'INCOME' | 'EXPENSE'
 }
-type FinanceViewTab = 'cashbook' | 'bank-transactions'
+type FinanceViewTab = 'cashbook' | 'bank-transactions' | 'cash-shifts'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
   { id: 'voucher', label: 'Mã phiếu', minWidth: 'min-w-[110px]' },
@@ -119,7 +120,9 @@ export function FinanceWorkspace() {
   const tabParam = searchParams.get('tab')
   const linkedSearch = searchParams.get('search') ?? voucherParam ?? ''
   const [search, setSearch] = useState(linkedSearch)
-  const [activeTab, setActiveTab] = useState<FinanceViewTab>(tabParam === 'bank-transactions' ? 'bank-transactions' : 'cashbook')
+  const [activeTab, setActiveTab] = useState<FinanceViewTab>(
+    tabParam === 'bank-transactions' || tabParam === 'cash-shifts' ? tabParam : 'cashbook',
+  )
   const deferredSearch = useDeferredValue(search)
   const [type, setType] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL')
   const [branchId, setBranchId] = useState('')
@@ -141,6 +144,10 @@ export function FinanceWorkspace() {
   useEffect(() => {
     if (tabParam === 'bank-transactions' && canReadBankTransactions) {
       setActiveTab('bank-transactions')
+      return
+    }
+    if (tabParam === 'cash-shifts' && canReadCashbook) {
+      setActiveTab('cash-shifts')
       return
     }
     if (tabParam === 'cashbook' && canReadCashbook) {
@@ -416,7 +423,8 @@ export function FinanceWorkspace() {
         <div className="flex shrink-0 flex-wrap gap-2">
           {([
             canReadCashbook ? (['cashbook', 'Sổ quỹ'] as const) : null,
-            canReadBankTransactions ? (['bank-transactions', 'Nhận tiền tài khoản'] as const) : null,
+            canReadBankTransactions ? (['bank-transactions', 'Sổ chuyển khoản'] as const) : null,
+            canReadCashbook ? (['cash-shifts', 'Sổ Tiền mặt'] as const) : null,
           ].filter(Boolean) as ReadonlyArray<readonly [FinanceViewTab, string]>).map(([tabId, label]) => (
             <button
               key={tabId}
@@ -434,6 +442,7 @@ export function FinanceWorkspace() {
         </div>
 
         {activeTab === 'bank-transactions' && canReadBankTransactions ? <BankTransactionsTab canManagePayment={canManagePayment} /> : null}
+        {activeTab === 'cash-shifts' && canReadCashbook ? <CashShiftsTab /> : null}
         {activeTab === 'cashbook' && canReadCashbook ? (
         <>
         <div className="grid shrink-0 gap-3 lg:grid-cols-4">

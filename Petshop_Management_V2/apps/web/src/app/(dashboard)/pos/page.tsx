@@ -16,6 +16,7 @@ import { PosCustomerV1 } from './components/PosCustomerV1';
 import { PosSettingsPanel } from './components/PosSettingsPanel';
 import { PosPaymentModal } from './components/PosPaymentModal';
 import { PosQrPaymentModal } from './components/PosQrPaymentModal';
+import { PosShiftClosingModal } from './components/PosShiftClosingModal';
 import { PosOrderBookingModal } from './components/PosOrderBookingModal';
 import { ReceiptModal } from './components/ReceiptModal';
 import { PosProductSearch } from './components/PosProductSearch';
@@ -29,6 +30,7 @@ import { useSearchParams } from 'next/navigation';
 import { orderApi } from '@/lib/api/order.api';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
 import { usePaymentIntentStream } from '@/hooks/use-payment-intent-stream';
+import { shiftApi } from '@/lib/api/shift.api';
 
 // â”€â”€â”€ Format helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const money = (n: number) => new Intl.NumberFormat('vi-VN').format(n);
@@ -136,6 +138,7 @@ function PosPageContent() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showQrPaymentModal, setShowQrPaymentModal] = useState(false);
+  const [showShiftClosingModal, setShowShiftClosingModal] = useState(false);
   const [activeQrIntent, setActiveQrIntent] = useState<OrderPaymentIntent | null>(null);
   const [isQrIntentPending, setIsQrIntentPending] = useState(false);
   const [isPaymentMenuOpen, setIsPaymentMenuOpen] = useState(false);
@@ -163,6 +166,22 @@ function PosPageContent() {
     queryFn: () => settingsApi.getPaymentOptions(),
     staleTime: 30_000,
   });
+  const shiftCurrentQuery = useQuery({
+    queryKey: ['shifts', 'current', activeBranchId],
+    queryFn: () => shiftApi.current(),
+    enabled: Boolean(activeBranchId),
+    staleTime: 15_000,
+  });
+
+  // Auto-open shift modal khi ca chưa mở hoặc đã đóng
+  useEffect(() => {
+    if (!shiftCurrentQuery.isFetched) return
+    const shift = shiftCurrentQuery.data
+    // Chưa có ca nào hoặc ca hiện tại đã chốt (CLOSED) → mở modal
+    if (!shift || shift.status === 'CLOSED') {
+      setShowShiftClosingModal(true)
+    }
+  }, [shiftCurrentQuery.isFetched, shiftCurrentQuery.data])
 
   // â”€â”€ Mutations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const createOrder = useCreateOrder();
@@ -855,6 +874,15 @@ function PosPageContent() {
             </div>
             <PosNotifications />
           </div>
+
+          <button
+            className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors"
+            title="Chốt sổ tiền mặt"
+            onClick={() => setShowShiftClosingModal(true)}
+          >
+            <NotebookText size={16} />
+            <span>Chốt sổ</span>
+          </button>
 
           <button
             className="flex items-center gap-2 bg-[#006E82] hover:bg-[#005767] text-white px-3 py-1.5 rounded text-sm font-bold transition-colors ml-1"
@@ -1623,6 +1651,13 @@ onClose = {() => {
     minimumMethods={2}
     onConfirm={handleMultiPaymentConfirm}
   />
+
+      <PosShiftClosingModal
+        isOpen={showShiftClosingModal}
+        currentShift={shiftCurrentQuery.data ?? null}
+        onClose={() => setShowShiftClosingModal(false)}
+        onSaved={() => void shiftCurrentQuery.refetch()}
+      />
 
       <PosQrPaymentModal
         isOpen={showQrPaymentModal}

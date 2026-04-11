@@ -47,18 +47,18 @@ type TabConfig = {
 }
 
 const REPORTS_TABS: TabConfig[] = [
-  { id: 'sales', label: 'Ban hang', icon: TrendingUp, anyPermissions: ['report.sales'] },
-  { id: 'customers', label: 'Khach hang', icon: Users, anyPermissions: ['report.customer'] },
-  { id: 'purchase', label: 'Mua hang', icon: Truck, anyPermissions: ['report.purchase'] },
+  { id: 'sales', label: 'Bán hàng', icon: TrendingUp, anyPermissions: ['report.sales'] },
+  { id: 'customers', label: 'Khách hàng', icon: Users, anyPermissions: ['report.customer'] },
+  { id: 'purchase', label: 'Mua hàng', icon: Truck, anyPermissions: ['report.purchase'] },
   { id: 'inventory', label: 'Kho', icon: Package, anyPermissions: ['report.inventory'] },
-  { id: 'debt', label: 'Cong no', icon: Landmark, anyPermissions: ['report.debt'] },
-  { id: 'cashbook', label: 'So quy', icon: Wallet, anyPermissions: ['report.cashbook'] },
+  { id: 'debt', label: 'Công nợ', icon: Landmark, anyPermissions: ['report.debt'] },
+  { id: 'cashbook', label: 'Sổ quỹ', icon: Wallet, anyPermissions: ['report.cashbook'] },
 ]
 
 const RANGE_OPTIONS: Array<{ label: string; value: RangePreset }> = [
-  { label: '7 ngay', value: 7 },
-  { label: '30 ngay', value: 30 },
-  { label: '90 ngay', value: 90 },
+  { label: '7 ngày', value: 7 },
+  { label: '30 ngày', value: 30 },
+  { label: '90 ngày', value: 90 },
 ]
 
 const DEFAULT_RANGE: RangePreset = 30
@@ -283,10 +283,10 @@ export function ReportsWorkspace() {
   const isBranchSyncing = Boolean(requestedBranchId && requestedBranchId !== activeBranchId && requestedBranchId === resolvedBranchId)
   const currentFilterLabel = useMemo(() => {
     if (isCustomRange) {
-      return 'Tuy chon'
+      return 'Tùy chọn'
     }
     const rangeOption = RANGE_OPTIONS.find((option) => option.value === presetRange)
-    return rangeOption?.label ?? `${rangeDays} ngay`
+    return rangeOption?.label ?? `${rangeDays} ngày`
   }, [isCustomRange, presetRange, rangeDays])
   const detailQueryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -427,41 +427,41 @@ export function ReportsWorkspace() {
   const customerDebtRows = debtSummary?.customers ?? []
   const currentBranchName =
     allowedBranches.find((branch) => branch.id === resolvedBranchId)?.name ??
-    'Chi nhanh dang chon'
+    'Chi nhánh đang chọn'
   const salesKpis = useMemo(() => buildSalesKpis(metrics, revenuePoints), [metrics, revenuePoints])
   const customerKpis = useMemo(() => buildCustomerKpis(metrics, topCustomers), [metrics, topCustomers])
   const activeTabMeta = useMemo(() => {
     switch (activeTab) {
       case 'customers':
         return {
-          title: 'Bao cao khach hang',
-          description: 'Tap trung vao nhom khach chi tieu cao, tan suat mua va quy mo tap khach.',
+          title: 'Báo cáo khách hàng',
+          description: 'Tập trung vào nhóm khách chi tiêu cao, tần suất mua và quy mô tập khách.',
         }
       case 'purchase':
         return {
-          title: 'Bao cao mua hang',
-          description: 'Theo doi nha cung cap, tong chi mua va diem can xu ly trong van hanh nhap hang.',
+          title: 'Báo cáo mua hàng',
+          description: 'Theo dõi nhà cung cấp, tổng chi mua và điểm cần xử lý trong vận hành nhập hàng.',
         }
       case 'inventory':
         return {
-          title: 'Bao cao kho',
-          description: 'Tap trung vao mat hang sap thieu, muc do thieu va chi nhanh dang can bo sung.',
+          title: 'Báo cáo kho',
+          description: 'Tập trung vào mặt hàng sắp thiếu, mức độ thiếu và chi nhánh đang cần bổ sung.',
         }
       case 'debt':
         return {
-          title: 'Bao cao cong no',
-          description: 'Tong hop cong no khach hang va nha cung cap de uu tien thu hoi va doi soat.',
+          title: 'Báo cáo công nợ',
+          description: 'Tổng hợp công nợ khách hàng và nhà cung cấp để ưu tiên thu hồi và đối soát.',
         }
       case 'cashbook':
         return {
-          title: 'Bao cao so quy',
-          description: 'Theo doi dong tien, giao dich gan nhat va dieu huong sang workspace doi soat chi tiet.',
+          title: 'Báo cáo sổ quỹ',
+          description: 'Theo dõi dòng tiền, giao dịch gần nhất và điều hướng sang workspace đối soát chi tiết.',
         }
       case 'sales':
       default:
         return {
-          title: 'Bao cao ban hang',
-          description: 'Di sau vao doanh thu theo ky, bien dong theo ngay va nhom san pham dong gop.',
+          title: 'Báo cáo bán hàng',
+          description: 'Đi sâu vào doanh thu theo kỳ, biến động theo ngày và nhóm sản phẩm đóng góp.',
         }
     }
   }, [activeTab])
@@ -496,74 +496,74 @@ export function ReportsWorkspace() {
     switch (activeTab) {
       case 'customers':
         return topCustomers.map((item, index) => ({
-          'Hang': index + 1,
-          'Ma KH': item.customer?.customerCode ?? 'KH',
-          'Khach hang': item.customer?.fullName ?? 'Khach le / da xoa',
-          'So don': item.orderCount,
-          'Tong chi tieu': item.totalSpent,
+          'Hạng': index + 1,
+          'Mã KH': item.customer?.customerCode ?? 'KH',
+          'Khách hàng': item.customer?.fullName ?? 'Khách lẻ / đã xóa',
+          'Số đơn': item.orderCount,
+          'Tổng chi tiêu': item.totalSpent,
         }))
       case 'purchase':
         return (supplierAnalytics?.data ?? []).map((supplier, index) => ({
-          'Hang': index + 1,
-          'Ma NCC': supplier.code ?? 'NCC',
-          'Nha cung cap': supplier.name,
-          'Tong phieu': supplier.stats.totalOrders,
-          'Tong chi': supplier.stats.totalSpent,
-          'Cong no': supplier.stats.totalDebt,
-          'Diem danh gia': supplier.evaluation.score,
-          'Nhan xet': supplier.evaluation.label,
+          'Hạng': index + 1,
+          'Mã NCC': supplier.code ?? 'NCC',
+          'Nhà cung cấp': supplier.name,
+          'Tổng phiếu': supplier.stats.totalOrders,
+          'Tổng chi': supplier.stats.totalSpent,
+          'Công nợ': supplier.stats.totalDebt,
+          'Điểm đánh giá': supplier.evaluation.score,
+          'Nhận xét': supplier.evaluation.label,
         }))
       case 'inventory':
         return inventorySuggestions.map((item, index) => ({
-          'Hang': index + 1,
-          'San pham': item.product?.name ?? 'San pham',
-          'Bien the': item.variant?.name ?? '',
+          'Hạng': index + 1,
+          'Sản phẩm': item.product?.name ?? 'Sản phẩm',
+          'Biến thể': item.variant?.name ?? '',
           'SKU': item.product?.sku ?? 'N/A',
-          'Chi nhanh': item.branch?.name ?? '',
-          'Ton hien tai': item.stock,
-          'Min ton': item.minStock,
-          'Thieu hut': item.shortage,
+          'Chi nhánh': item.branch?.name ?? '',
+          'Tồn hiện tại': item.stock,
+          'Min tồn': item.minStock,
+          'Thiếu hụt': item.shortage,
         }))
       case 'debt':
         return [
           ...customerDebtRows.map((item, index) => ({
-            'Loai': 'Khach hang',
-            'Hang': index + 1,
-            'Ma': item.customerCode ?? 'KH',
-            'Ten': item.fullName,
-            'Gia tri cong no': Number(item.debt ?? 0),
-            'Ghi chu': `${item.phone ?? 'Chua co SDT'} • ${formatNumber(item._count?.orders ?? 0)} don`,
+            'Loại': 'Khách hàng',
+            'Hạng': index + 1,
+            'Mã': item.customerCode ?? 'KH',
+            'Tên': item.fullName,
+            'Giá trị công nợ': Number(item.debt ?? 0),
+            'Ghi chú': `${item.phone ?? 'Chưa có SĐT'} • ${formatNumber(item._count?.orders ?? 0)} đơn`,
           })),
           ...(supplierAnalytics?.data ?? [])
             .filter((supplier) => supplier.stats.totalDebt > 0)
             .map((supplier, index) => ({
-              'Loai': 'Nha cung cap',
-              'Hang': index + 1,
-              'Ma': supplier.code ?? 'NCC',
-              'Ten': supplier.name,
-              'Gia tri cong no': supplier.stats.totalDebt,
-              'Ghi chu': `${supplier.evaluation.label} • ${formatNumber(supplier.stats.totalOrders)} phieu`,
+              'Loại': 'Nhà cung cấp',
+              'Hạng': index + 1,
+              'Mã': supplier.code ?? 'NCC',
+              'Tên': supplier.name,
+              'Giá trị công nợ': supplier.stats.totalDebt,
+              'Ghi chú': `${supplier.evaluation.label} • ${formatNumber(supplier.stats.totalOrders)} phiếu`,
             })),
         ]
       case 'cashbook':
         return (cashbookSummary?.transactions ?? []).map((transaction, index) => ({
-          'Hang': index + 1,
-          'So phieu': transaction.voucherNumber,
-          'Loai': transaction.type === 'INCOME' ? 'Thu' : 'Chi',
-          'So tien': transaction.amount,
-          'Mo ta': transaction.description,
-          'Nguon': transaction.source,
-          'Thoi gian': formatDateTimeForExport(transaction.date),
-          'Chi nhanh': transaction.branchName ?? '',
+          'Hạng': index + 1,
+          'Số phiếu': transaction.voucherNumber,
+          'Loại': transaction.type === 'INCOME' ? 'Thu' : 'Chi',
+          'Số tiền': transaction.amount,
+          'Mô tả': transaction.description,
+          'Nguồn': transaction.source,
+          'Thời gian': formatDateTimeForExport(transaction.date),
+          'Chi nhánh': transaction.branchName ?? '',
         }))
       case 'sales':
       default:
         return revenuePoints.map((item, index) => ({
-          'Hang': index + 1,
-          'Ngay': formatShortDate(item.date),
+          'Hạng': index + 1,
+          'Ngày': formatShortDate(item.date),
           'Doanh thu': item.revenue,
-          'Doanh thu hom nay': metrics?.todayRevenue ?? 0,
-          'Doanh thu thang': metrics?.monthRevenue ?? 0,
+          'Doanh thu hôm nay': metrics?.todayRevenue ?? 0,
+          'Doanh thu tháng': metrics?.monthRevenue ?? 0,
         }))
     }
   }, [activeTab, cashbookSummary?.transactions, customerDebtRows, inventorySuggestions, metrics?.monthRevenue, metrics?.todayRevenue, revenuePoints, supplierAnalytics?.data, topCustomers])
@@ -573,7 +573,7 @@ export function ReportsWorkspace() {
 
     const workbook = XLSX.utils.book_new()
     const worksheet = XLSX.utils.json_to_sheet(exportRows)
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Bao cao')
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Báo cáo')
     const branchSlug = (currentBranchName || 'chi-nhanh')
       .toLowerCase()
       .normalize('NFD')
@@ -585,11 +585,11 @@ export function ReportsWorkspace() {
   }
 
   if (isAuthLoading) {
-    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang kiểm tra quyền truy cập...</div>
   }
 
   if (!canAccessReports) {
-    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang chuyển hướng...</div>
   }
 
   return (
@@ -663,23 +663,13 @@ export function ReportsWorkspace() {
               )}
             >
               <Download size={16} />
-              Xuat XLSX
+              Xuất XLSX
             </button>
           </div>
         }
       />
 
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-background-secondary px-4 py-3 text-sm text-foreground-muted">
-        <span className="rounded-full border border-border/60 bg-background-base px-3 py-1.5 font-semibold text-foreground-base">
-          Chi nhanh: {currentBranchName}
-        </span>
-        <span className="rounded-full border border-border/60 bg-background-base px-3 py-1.5">
-          Ky: {currentFilterLabel}
-        </span>
-        <span className="rounded-full border border-border/60 bg-background-base px-3 py-1.5">
-          Tu {formatShortDate(dateFrom)} den {formatShortDate(dateTo)}
-        </span>
-      </div>
+
 
       {visibleTabs.length > 1 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-background-secondary p-2">
@@ -798,7 +788,7 @@ function SalesTab({
   isLoading: boolean
 }) {
   if (isLoading && revenuePoints.length === 0 && topProducts.length === 0) {
-    return <LoadingPanel message="Dang tai bao cao ban hang..." />
+    return <LoadingPanel message="Đang tải báo cáo bán hàng..." />
   }
 
   const strongestDay = revenuePoints.reduce<RevenuePoint | null>(
@@ -825,31 +815,31 @@ function SalesTab({
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-3">
-          <SectionCard title="Bieu do doanh thu" description="So sanh bien dong doanh thu theo ngay trong ky dang chon.">
+          <SectionCard title="Biểu đồ doanh thu" description="So sánh biến động doanh thu theo ngày trong kỳ đang chọn.">
             <RevenueChartPanel data={revenuePoints} variant="line" />
           </SectionCard>
         </div>
 
         <div className="xl:col-span-2">
-          <SectionCard title="Diem nhan trong ky" description="Nhung moc can xem ky hon khi doc bao cao ban hang.">
+          <SectionCard title="Điểm nhấn trong kỳ" description="Những mốc cần xem kỹ hơn khi đọc báo cáo bán hàng.">
             <div className="space-y-3">
               <InsightRow
                 icon={<TrendingUp size={16} className="text-primary-500" />}
-                title="Ngay cao nhat"
+                title="Ngày cao nhất"
                 value={strongestDay ? `${formatCurrency(strongestDay.revenue)}` : '0'}
-                description={strongestDay ? `Dat dinh vao ngay ${formatShortDate(strongestDay.date)}.` : 'Chua co du lieu de xac dinh.'}
+                description={strongestDay ? `Đạt đỉnh vào ngày ${formatShortDate(strongestDay.date)}.` : 'Chưa có dữ liệu để xác định.'}
               />
               <InsightRow
                 icon={<BarChart3 size={16} className="text-blue-500" />}
-                title="Ngay thap nhat"
+                title="Ngày thấp nhất"
                 value={weakestDay ? `${formatCurrency(weakestDay.revenue)}` : '0'}
-                description={weakestDay ? `Can doi chieu ngay ${formatShortDate(weakestDay.date)} de tim nguyen nhan.` : 'Chua co du lieu de xac dinh.'}
+                description={weakestDay ? `Cần đối chiếu ngày ${formatShortDate(weakestDay.date)} để tìm nguyên nhân.` : 'Chưa có dữ liệu để xác định.'}
               />
               <InsightRow
                 icon={<Wallet size={16} className="text-emerald-500" />}
-                title="Doanh thu ngay gan nhat"
+                title="Doanh thu ngày gần nhất"
                 value={formatCurrency(latestRevenue)}
-                description={`Hom nay: ${formatCurrency(metrics?.todayRevenue ?? 0)} • Thang nay: ${formatCurrency(metrics?.monthRevenue ?? 0)}.`}
+                description={`Hôm nay: ${formatCurrency(metrics?.todayRevenue ?? 0)} • Tháng này: ${formatCurrency(metrics?.monthRevenue ?? 0)}.`}
               />
             </div>
           </SectionCard>
@@ -858,13 +848,13 @@ function SalesTab({
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-3">
-          <SectionCard title="San pham / dich vu dong gop doanh thu" description="Xep hang theo doanh thu va san luong ban.">
+          <SectionCard title="Sản phẩm / dịch vụ đóng góp doanh thu" description="Xếp hạng theo doanh thu và sản lượng bán.">
             <TopProductsList data={topProducts} showRevenueBar />
           </SectionCard>
         </div>
 
         <div className="xl:col-span-2">
-          <SectionCard title="Top ngay doanh thu" description="Danh sach ngay co doanh thu cao nhat trong ky.">
+          <SectionCard title="Top ngày doanh thu" description="Danh sách ngày có doanh thu cao nhất trong kỳ.">
             {revenueRows.length > 0 ? (
               <div className="space-y-3">
                 {revenueRows.map((row, index) => (
@@ -873,7 +863,7 @@ function SalesTab({
                       <div>
                         <div className="text-sm font-bold text-foreground-base">#{index + 1} {formatShortDate(row.date)}</div>
                         <div className="mt-1 text-xs text-foreground-muted">
-                          {strongestDay?.revenue ? `${Math.round((row.revenue / strongestDay.revenue) * 100)}% so voi dinh ky` : 'Chua co moc so sanh'}
+                          {strongestDay?.revenue ? `${Math.round((row.revenue / strongestDay.revenue) * 100)}% so với đỉnh kỳ` : 'Chưa có mốc so sánh'}
                         </div>
                       </div>
                       <div className="text-sm font-bold text-primary-500">{formatCurrency(row.revenue)}</div>
@@ -882,7 +872,7 @@ function SalesTab({
                 ))}
               </div>
             ) : (
-              <EmptyState message="Chua co du lieu theo ngay." />
+              <EmptyState message="Chưa có dữ liệu theo ngày." />
             )}
           </SectionCard>
         </div>
@@ -905,7 +895,7 @@ function CustomersTab({
   isLoading: boolean
 }) {
   if (isLoading && topCustomers.length === 0) {
-    return <LoadingPanel message="Dang tai bao cao khach hang..." />
+    return <LoadingPanel message="Đang tải báo cáo khách hàng..." />
   }
 
   const leadingCustomer = topCustomers[0] ?? null
@@ -923,31 +913,31 @@ function CustomersTab({
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-3">
-          <SectionCard title="Top khach hang" description="Bang xep hang khach hang co tong chi tieu cao nhat." action={<Link href={customersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mo khach hang</Link>}>
+          <SectionCard title="Top khách hàng" description="Bảng xếp hạng khách hàng có tổng chi tiêu cao nhất." action={<Link href={customersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mở khách hàng</Link>}>
             <TopCustomersList data={topCustomers} showSpendBar />
           </SectionCard>
         </div>
 
         <div className="xl:col-span-2">
-          <SectionCard title="Goc nhin nhanh" description="Chi so tham khao de chot chuong trinh cham soc khach hang.">
+          <SectionCard title="Góc nhìn nhanh" description="Chỉ số tham khảo để chốt chương trình chăm sóc khách hàng.">
             <div className="space-y-3">
               <InsightRow
                 icon={<Crown size={16} className="text-amber-500" />}
-                title="Khach moi thang nay"
+                title="Khách mới tháng này"
                 value={formatNumber(metrics?.newCustomersThisMonth ?? 0)}
-                description="Nguon dau vao moi cho remarketing va nhac lich."
+                description="Nguồn đầu vào mới cho remarketing và nhắc lịch."
               />
               <InsightRow
                 icon={<Users size={16} className="text-primary-500" />}
-                title="Tong khach dang luu"
+                title="Tổng khách đang lưu"
                 value={formatNumber(metrics?.totalCustomers ?? 0)}
-                description="Quy mo tap khach co the tiep can lai."
+                description="Quy mô tập khách có thể tiếp cận lại."
               />
               <InsightRow
                 icon={<PiggyBank size={16} className="text-emerald-500" />}
-                title="Chi tieu top 1"
+                title="Chi tiêu top 1"
                 value={formatCurrency(leadingCustomer?.totalSpent ?? 0)}
-                description="Moc tham chieu de xay tier va uu dai."
+                description="Mốc tham chiếu để xây tier và ưu đãi."
               />
             </div>
           </SectionCard>
@@ -956,35 +946,35 @@ function CustomersTab({
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-2">
-          <SectionCard title="Tiep can nhom VIP" description="Tap trung vao quy mo va tan suat mua cua nhom dau bang.">
+          <SectionCard title="Tiếp cận nhóm VIP" description="Tập trung vào quy mô và tần suất mua của nhóm đầu bảng.">
             <div className="grid grid-cols-1 gap-3">
-              <MetricCard label="Tong chi tieu top nhom" value={formatCurrency(totalSpent)} hint={`${formatNumber(topCustomers.length)} khach duoc xep hang`} tone="primary" />
-              <MetricCard label="Don trung binh / khach" value={formatNumber(Math.round(averageOrderPerTopCustomer))} hint={`${formatNumber(totalOrders)} don trong nhom`} tone="blue" />
-              <MetricCard label="Khach dan dau" value={leadingCustomer?.customer?.fullName ?? 'Chua co'} hint={formatCurrency(leadingCustomer?.totalSpent ?? 0)} tone="amber" />
+              <MetricCard label="Tổng chi tiêu top nhóm" value={formatCurrency(totalSpent)} hint={`${formatNumber(topCustomers.length)} khách được xếp hạng`} tone="primary" />
+              <MetricCard label="Đơn trung bình / khách" value={formatNumber(Math.round(averageOrderPerTopCustomer))} hint={`${formatNumber(totalOrders)} đơn trong nhóm`} tone="blue" />
+              <MetricCard label="Khách dẫn đầu" value={leadingCustomer?.customer?.fullName ?? 'Chưa có'} hint={formatCurrency(leadingCustomer?.totalSpent ?? 0)} tone="amber" />
             </div>
           </SectionCard>
         </div>
 
         <div className="xl:col-span-3">
-          <SectionCard title="Diem can hanh dong" description="Huong de bien bao cao thanh hanh dong ban hang va cham soc.">
+          <SectionCard title="Điểm cần hành động" description="Hướng để biến báo cáo thành hành động bán hàng và chăm sóc.">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <InsightRow
                 icon={<Users size={16} className="text-primary-500" />}
-                title="Nhac lich cham soc"
+                title="Nhắc lịch chăm sóc"
                 value={formatNumber(metrics?.newCustomersThisMonth ?? 0)}
-                description="Dung danh sach khach moi lam tap remarketing 7-14 ngay."
+                description="Dùng danh sách khách mới làm tệp remarketing 7-14 ngày."
               />
               <InsightRow
                 icon={<TrendingUp size={16} className="text-emerald-500" />}
-                title="Upsell nhom dau"
+                title="Upsell nhóm đầu"
                 value={formatNumber(topCustomers.length)}
-                description="Tao goi uu dai rieng cho nhom co tan suat va chi tieu cao."
+                description="Tạo gói ưu đãi riêng cho nhóm có tần suất và chi tiêu cao."
               />
               <InsightRow
                 icon={<PiggyBank size={16} className="text-amber-500" />}
-                title="Gia tri tham chieu"
+                title="Giá trị tham chiếu"
                 value={formatCurrency(topCustomers[2]?.totalSpent ?? leadingCustomer?.totalSpent ?? 0)}
-                description="Lay top 3 lam moc de dinh tier VIP/than thiet."
+                description="Lấy top 3 làm mốc để định tier VIP/thân thiết."
               />
             </div>
           </SectionCard>
@@ -1004,7 +994,7 @@ function PurchaseTab({
   isLoading: boolean
 }) {
   if (isLoading && !supplierAnalytics) {
-    return <LoadingPanel message="Dang tai bao cao mua hang..." />
+    return <LoadingPanel message="Đang tải báo cáo mua hàng..." />
   }
 
   const suppliers = supplierAnalytics?.data ?? []
@@ -1015,21 +1005,21 @@ function PurchaseTab({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Tong nha cung cap" value={formatNumber(summary?.totalSuppliers ?? 0)} hint={`${formatNumber(summary?.activeSuppliers ?? 0)} dang hoat dong`} />
-        <MetricCard label="Chi mua theo ky" value={formatCurrency(summary?.spendLast30Days ?? 0)} hint="Tong chi mua trong khoang ngay dang chon" tone="blue" />
-        <MetricCard label="NCC con cong no" value={formatNumber(summary?.suppliersWithDebt ?? 0)} hint={formatCurrency(summary?.totalDebt ?? 0)} tone="amber" />
-        <MetricCard label="Diem danh gia TB" value={formatNumber(summary?.avgEvaluationScore ?? 0)} hint="Chat luong quan he NCC" tone="emerald" />
+        <MetricCard label="Tổng nhà cung cấp" value={formatNumber(summary?.totalSuppliers ?? 0)} hint={`${formatNumber(summary?.activeSuppliers ?? 0)} đang hoạt động`} />
+        <MetricCard label="Chi mua theo kỳ" value={formatCurrency(summary?.spendLast30Days ?? 0)} hint="Tổng chi mua trong khoảng ngày đang chọn" tone="blue" />
+        <MetricCard label="NCC còn công nợ" value={formatNumber(summary?.suppliersWithDebt ?? 0)} hint={formatCurrency(summary?.totalDebt ?? 0)} tone="amber" />
+        <MetricCard label="Điểm đánh giá TB" value={formatNumber(summary?.avgEvaluationScore ?? 0)} hint="Chất lượng quan hệ NCC" tone="emerald" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-3">
-          <SectionCard title="Nha cung cap chi mua cao nhat" description="Tap trung vao doi tac dang dong gop chi mua lon nhat." action={<Link href={suppliersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mo nha cung cap</Link>}>
+          <SectionCard title="Nhà cung cấp chi mua cao nhất" description="Tập trung vào đối tác đang đóng góp chi mua lớn nhất." action={<Link href={suppliersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mở nhà cung cấp</Link>}>
             <SupplierSpendList suppliers={topSpendSuppliers} />
           </SectionCard>
         </div>
 
         <div className="xl:col-span-2">
-          <SectionCard title="NCC can theo doi" description="Sap xep theo diem danh gia thap de uu tien xu ly.">
+          <SectionCard title="NCC cần theo dõi" description="Sắp xếp theo điểm đánh giá thấp để ưu tiên xử lý.">
             {riskSuppliers.length > 0 ? (
               <div className="space-y-3">
                 {riskSuppliers.map((supplier) => (
@@ -1038,12 +1028,12 @@ function PurchaseTab({
                     icon={<Truck size={16} className="text-amber-500" />}
                     title={supplier.name}
                     value={`${formatNumber(supplier.evaluation.score)}/100`}
-                    description={`${supplier.evaluation.label} • Cong no ${formatCurrency(supplier.stats.totalDebt)}.`}
+                    description={`${supplier.evaluation.label} • Công nợ ${formatCurrency(supplier.stats.totalDebt)}.`}
                   />
                 ))}
               </div>
             ) : (
-              <EmptyState message="Chua co du lieu nha cung cap." />
+              <EmptyState message="Chưa có dữ liệu nhà cung cấp." />
             )}
           </SectionCard>
         </div>
@@ -1062,7 +1052,7 @@ function InventoryTab({
   isLoading: boolean
 }) {
   if (isLoading && suggestions.length === 0) {
-    return <LoadingPanel message="Dang tai bao cao kho..." />
+    return <LoadingPanel message="Đang tải báo cáo kho..." />
   }
 
   const totalShortage = suggestions.reduce((sum, item) => sum + Math.max(0, item.shortage), 0)
@@ -1073,13 +1063,13 @@ function InventoryTab({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Mat hang can bo sung" value={formatNumber(suggestions.length)} hint={`${formatNumber(affectedBranches)} chi nhanh bi anh huong`} />
-        <MetricCard label="Tong thieu hut" value={formatNumber(totalShortage)} hint="So luong can bo sung toi thieu" tone="amber" />
-        <MetricCard label="Het hang" value={formatNumber(zeroStockCount)} hint="Can xu ly uu tien" tone="primary" />
-        <MetricCard label="Canh bao kho" value={formatNumber(sortedSuggestions[0]?.shortage ?? 0)} hint={sortedSuggestions[0]?.product?.name ?? 'Chua co'} tone="blue" />
+        <MetricCard label="Mặt hàng cần bổ sung" value={formatNumber(suggestions.length)} hint={`${formatNumber(affectedBranches)} chi nhánh bị ảnh hưởng`} />
+        <MetricCard label="Tổng thiếu hụt" value={formatNumber(totalShortage)} hint="Số lượng cần bổ sung tối thiểu" tone="amber" />
+        <MetricCard label="Hết hàng" value={formatNumber(zeroStockCount)} hint="Cần xử lý ưu tiên" tone="primary" />
+        <MetricCard label="Cảnh báo kho" value={formatNumber(sortedSuggestions[0]?.shortage ?? 0)} hint={sortedSuggestions[0]?.product?.name ?? 'Chưa có'} tone="blue" />
       </div>
 
-      <SectionCard title="Danh sach sap thieu hang" description="Xep theo muc do thieu hut de doi kho bo sung." action={<Link href={inventoryHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mo kho</Link>}>
+      <SectionCard title="Danh sách sắp thiếu hàng" description="Xếp theo mức độ thiếu hụt để nhập kho bổ sung." action={<Link href={inventoryHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mở kho</Link>}>
         {sortedSuggestions.length > 0 ? (
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {sortedSuggestions.slice(0, 12).map((item) => (
@@ -1087,24 +1077,24 @@ function InventoryTab({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-bold text-foreground-base">
-                      {item.product?.name ?? 'San pham'}
+                      {item.product?.name ?? 'Sản phẩm'}
                       {item.variant?.name ? ` • ${item.variant.name}` : ''}
                     </div>
                     <div className="mt-1 text-xs text-foreground-muted">
-                      {(item.product?.sku ?? 'N/A')} • {item.branch?.name ?? 'Chua ro chi nhanh'}
+                      {(item.product?.sku ?? 'N/A')} • {item.branch?.name ?? 'Chưa rõ chi nhánh'}
                     </div>
                   </div>
-                  <div className="text-right text-sm font-bold text-amber-500">Thieu {formatNumber(item.shortage)}</div>
+                  <div className="text-right text-sm font-bold text-amber-500">Thiếu {formatNumber(item.shortage)}</div>
                 </div>
                 <div className="mt-3 flex items-center justify-between text-sm text-foreground-muted">
-                  <span>Ton hien tai: {formatNumber(item.stock)}</span>
+                  <span>Tồn hiện tại: {formatNumber(item.stock)}</span>
                   <span>Min: {formatNumber(item.minStock)}</span>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <EmptyState message="Khong co mat hang canh bao trong kho." />
+          <EmptyState message="Không có mặt hàng cảnh báo trong kho." />
         )}
       </SectionCard>
     </div>
@@ -1129,7 +1119,7 @@ function DebtTab({
   isLoading: boolean
 }) {
   if (isLoading && customerDebts.length === 0 && !supplierAnalytics) {
-    return <LoadingPanel message="Dang tai bao cao cong no..." />
+    return <LoadingPanel message="Đang tải báo cáo công nợ..." />
   }
 
   const supplierDebts = (supplierAnalytics?.data ?? []).filter((supplier) => supplier.stats.totalDebt > 0)
@@ -1139,19 +1129,19 @@ function DebtTab({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Cong no khach hang" value={formatCurrency(totalCustomerDebt)} hint={`${formatNumber(customerDebts.length)} khach dang no`} tone="primary" />
-        <MetricCard label="Cong no nha cung cap" value={formatCurrency(totalSupplierDebt)} hint={`${formatNumber(supplierDebts.length)} NCC dang no`} tone="amber" />
-        <MetricCard label="Tong doi tuong can xu ly" value={formatNumber(customerDebts.length + supplierDebts.length)} hint="Danh sach uu tien doi soat" tone="blue" />
-        <MetricCard label="Canh bao lon nhat" value={formatCurrency(Math.max(customerDebts[0]?.debt ?? 0, supplierDebts[0]?.stats.totalDebt ?? 0))} hint="Gia tri no cao nhat hien tai" tone="emerald" />
+        <MetricCard label="Công nợ khách hàng" value={formatCurrency(totalCustomerDebt)} hint={`${formatNumber(customerDebts.length)} khách đang nợ`} tone="primary" />
+        <MetricCard label="Công nợ nhà cung cấp" value={formatCurrency(totalSupplierDebt)} hint={`${formatNumber(supplierDebts.length)} NCC đang nợ`} tone="amber" />
+        <MetricCard label="Tổng đối tượng cần xử lý" value={formatNumber(customerDebts.length + supplierDebts.length)} hint="Danh sách ưu tiên đối soát" tone="blue" />
+        <MetricCard label="Cảnh báo lớn nhất" value={formatCurrency(Math.max(customerDebts[0]?.debt ?? 0, supplierDebts[0]?.stats.totalDebt ?? 0))} hint="Giá trị nợ cao nhất hiện tại" tone="emerald" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <SectionCard title="Khach hang con no" description="Danh sach khach dang co cong no lon nhat." action={canReadCustomerDebt ? <Link href={customersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mo khach hang</Link> : undefined}>
-          {canReadCustomerDebt ? <CustomerDebtList customers={customerDebts.slice(0, 10)} /> : <EmptyState message="Ban khong co quyen doc du lieu khach hang." />}
+        <SectionCard title="Khách hàng còn nợ" description="Danh sách khách đang có công nợ lớn nhất." action={canReadCustomerDebt ? <Link href={customersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mở khách hàng</Link> : undefined}>
+          {canReadCustomerDebt ? <CustomerDebtList customers={customerDebts.slice(0, 10)} /> : <EmptyState message="Bạn không có quyền đọc dữ liệu khách hàng." />}
         </SectionCard>
 
-        <SectionCard title="Nha cung cap con no" description="Theo doi NCC dang co cong no de uu tien thanh toan." action={canReadSupplierDebt ? <Link href={suppliersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mo nha cung cap</Link> : undefined}>
-          {canReadSupplierDebt ? <SupplierDebtList suppliers={supplierDebts.slice(0, 10)} /> : <EmptyState message="Ban khong co quyen doc du lieu nha cung cap." />}
+        <SectionCard title="Nhà cung cấp còn nợ" description="Theo dõi NCC đang có công nợ để ưu tiên thanh toán." action={canReadSupplierDebt ? <Link href={suppliersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mở nhà cung cấp</Link> : undefined}>
+          {canReadSupplierDebt ? <SupplierDebtList suppliers={supplierDebts.slice(0, 10)} /> : <EmptyState message="Bạn không có quyền đọc dữ liệu nhà cung cấp." />}
         </SectionCard>
       </div>
     </div>
@@ -1168,20 +1158,20 @@ function CashbookTab({
   isLoading: boolean
 }) {
   if (isLoading && !summary) {
-    return <LoadingPanel message="Dang tai tong hop so quy..." />
+    return <LoadingPanel message="Đang tải tổng hợp sổ quỹ..." />
   }
 
   return (
     <div className="space-y-6">
       <SectionCard
-        title="Tong hop dong tien"
-        description="Trang nay giu vai tro tong hop. Khi can doi soat, sua phieu hoac xem dong tien tai khoan, mo sang so quy."
+        title="Tổng hợp dòng tiền"
+        description="Trang này giữ vai trò tổng hợp. Khi cần đối soát, sửa phiếu hoặc xem dòng tiền tài khoản, mở sang sổ quỹ."
         action={
           <Link
             href={financeHref}
             className="inline-flex items-center gap-2 rounded-full border border-primary-500/30 bg-primary-500/10 px-4 py-2 text-sm font-semibold text-primary-500 transition-colors hover:bg-primary-500/15"
           >
-            Mo so quy
+            Mở sổ quỹ
             <ChevronRight size={16} />
           </Link>
         }
@@ -1200,7 +1190,7 @@ function RevenueChartPanel({
   variant?: 'bar' | 'line'
 }) {
   if (data.length === 0) {
-    return <EmptyState message="Chua co du lieu doanh thu trong khoang thoi gian nay." />
+    return <EmptyState message="Chưa có dữ liệu doanh thu trong khoảng thời gian này." />
   }
 
   const chartData = data.map((item) => ({
@@ -1253,7 +1243,7 @@ function TopCustomersList({
   showSpendBar?: boolean
 }) {
   if (data.length === 0) {
-    return <EmptyState message="Chua co du lieu khach hang noi bat." />
+    return <EmptyState message="Chưa có dữ liệu khách hàng nổi bật." />
   }
 
   const maxSpent = data.reduce((current, item) => Math.max(current, item.totalSpent), 0)
@@ -1267,10 +1257,10 @@ function TopCustomersList({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-bold text-foreground-base">
-                  #{index + 1} {item.customer?.fullName ?? 'Khach le / da xoa'}
+                  #{index + 1} {item.customer?.fullName ?? 'Khách lẻ / đã xóa'}
                 </div>
                 <div className="mt-1 text-xs text-foreground-muted">
-                  {(item.customer?.customerCode ?? 'KH')} • {formatNumber(item.orderCount)} don
+                  {(item.customer?.customerCode ?? 'KH')} • {formatNumber(item.orderCount)} đơn
                 </div>
               </div>
               <div className="text-right text-sm font-bold text-primary-500">{formatCurrency(item.totalSpent)}</div>
@@ -1295,7 +1285,7 @@ function TopProductsList({
   showRevenueBar?: boolean
 }) {
   if (data.length === 0) {
-    return <EmptyState message="Chua co du lieu san pham ban chay." />
+    return <EmptyState message="Chưa có dữ liệu sản phẩm bán chạy." />
   }
 
   const maxRevenue = data.reduce((current, item) => Math.max(current, item.totalRevenue), 0)
@@ -1309,10 +1299,10 @@ function TopProductsList({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-bold text-foreground-base">
-                  #{index + 1} {item.product?.name ?? 'San pham da xoa'}
+                  #{index + 1} {item.product?.name ?? 'Sản phẩm đã xóa'}
                 </div>
                 <div className="mt-1 text-xs text-foreground-muted">
-                  {(item.product?.sku ?? 'N/A')} • {formatNumber(item.totalQuantity)} luot ban
+                  {(item.product?.sku ?? 'N/A')} • {formatNumber(item.totalQuantity)} lượt bán
                 </div>
               </div>
               <div className="text-right text-sm font-bold text-emerald-500">{formatCurrency(item.totalRevenue)}</div>
@@ -1331,7 +1321,7 @@ function TopProductsList({
 
 function SupplierSpendList({ suppliers }: { suppliers: SupplierAnalyticsItem[] }) {
   if (suppliers.length === 0) {
-    return <EmptyState message="Chua co du lieu nha cung cap de phan tich." />
+    return <EmptyState message="Chưa có dữ liệu nhà cung cấp để phân tích." />
   }
 
   const maxSpent = suppliers.reduce((current, item) => Math.max(current, item.stats.totalSpent), 0)
@@ -1346,7 +1336,7 @@ function SupplierSpendList({ suppliers }: { suppliers: SupplierAnalyticsItem[] }
               <div className="min-w-0">
                 <div className="text-sm font-bold text-foreground-base">#{index + 1} {supplier.name}</div>
                 <div className="mt-1 text-xs text-foreground-muted">
-                  {(supplier.code ?? 'NCC')} • {formatNumber(supplier.stats.totalOrders)} phieu • {formatNumber(supplier.stats.uniqueProducts)} mat hang
+                  {(supplier.code ?? 'NCC')} • {formatNumber(supplier.stats.totalOrders)} phiếu • {formatNumber(supplier.stats.uniqueProducts)} mặt hàng
                 </div>
               </div>
               <div className="text-right text-sm font-bold text-primary-500">{formatCurrency(supplier.stats.totalSpent)}</div>
@@ -1363,7 +1353,7 @@ function SupplierSpendList({ suppliers }: { suppliers: SupplierAnalyticsItem[] }
 
 function CustomerDebtList({ customers }: { customers: CustomerDebtItem[] }) {
   if (customers.length === 0) {
-    return <EmptyState message="Khong co khach hang con cong no." />
+    return <EmptyState message="Không có khách hàng còn công nợ." />
   }
 
   return (
@@ -1374,7 +1364,7 @@ function CustomerDebtList({ customers }: { customers: CustomerDebtItem[] }) {
             <div className="min-w-0">
               <div className="text-sm font-bold text-foreground-base">#{index + 1} {customer.fullName}</div>
               <div className="mt-1 text-xs text-foreground-muted">
-                {(customer.customerCode ?? 'KH')} • {customer.phone ?? 'Chua co SDT'} • {formatNumber(customer._count?.orders ?? 0)} don
+                {(customer.customerCode ?? 'KH')} • {customer.phone ?? 'Chưa có SĐT'} • {formatNumber(customer._count?.orders ?? 0)} đơn
               </div>
             </div>
             <div className="text-right text-sm font-bold text-rose-500">{formatCurrency(Number(customer.debt ?? 0))}</div>
@@ -1387,7 +1377,7 @@ function CustomerDebtList({ customers }: { customers: CustomerDebtItem[] }) {
 
 function SupplierDebtList({ suppliers }: { suppliers: SupplierAnalyticsItem[] }) {
   if (suppliers.length === 0) {
-    return <EmptyState message="Khong co nha cung cap con cong no." />
+    return <EmptyState message="Không có nhà cung cấp còn công nợ." />
   }
 
   return (
@@ -1398,7 +1388,7 @@ function SupplierDebtList({ suppliers }: { suppliers: SupplierAnalyticsItem[] })
             <div className="min-w-0">
               <div className="text-sm font-bold text-foreground-base">#{index + 1} {supplier.name}</div>
               <div className="mt-1 text-xs text-foreground-muted">
-                {(supplier.code ?? 'NCC')} • {supplier.evaluation.label} • {formatNumber(supplier.stats.totalOrders)} phieu
+                {(supplier.code ?? 'NCC')} • {supplier.evaluation.label} • {formatNumber(supplier.stats.totalOrders)} phiếu
               </div>
             </div>
             <div className="text-right text-sm font-bold text-amber-500">{formatCurrency(supplier.stats.totalDebt)}</div>
@@ -1417,21 +1407,21 @@ function CashbookSummaryPanel({
   compact?: boolean
 }) {
   if (!summary) {
-    return <EmptyState message="Chua co du lieu so quy trong khoang thoi gian nay." />
+    return <EmptyState message="Chưa có dữ liệu sổ quỹ trong khoảng thời gian này." />
   }
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="So du dau ky" value={formatCurrency(summary.openingBalance)} tone="blue" />
-        <MetricCard label="Tong thu" value={formatCurrency(summary.totalIncome)} tone="emerald" />
-        <MetricCard label="Tong chi" value={formatCurrency(summary.totalExpense)} tone="amber" />
-        <MetricCard label="So du cuoi ky" value={formatCurrency(summary.closingBalance)} />
+        <MetricCard label="Số dư đầu kỳ" value={formatCurrency(summary.openingBalance)} tone="blue" />
+        <MetricCard label="Tổng thu" value={formatCurrency(summary.totalIncome)} tone="emerald" />
+        <MetricCard label="Tổng chi" value={formatCurrency(summary.totalExpense)} tone="amber" />
+        <MetricCard label="Số dư cuối kỳ" value={formatCurrency(summary.closingBalance)} />
       </div>
 
       {!compact ? (
         <div className="space-y-3">
-          <div className="text-sm font-bold text-foreground-base">Giao dich gan nhat</div>
+          <div className="text-sm font-bold text-foreground-base">Giao dịch gần nhất</div>
           {summary.transactions.length > 0 ? (
             summary.transactions.map((transaction) => (
               <div key={transaction.id} className="flex items-start justify-between gap-3 rounded-2xl border border-border/50 bg-background-base p-4">
@@ -1450,7 +1440,7 @@ function CashbookSummaryPanel({
               </div>
             ))
           ) : (
-            <EmptyState message="Khong co giao dich phu hop bo loc hien tai." />
+            <EmptyState message="Không có giao dịch phù hợp bộ lọc hiện tại." />
           )}
         </div>
       ) : null}
@@ -1490,27 +1480,27 @@ function buildSalesKpis(metrics: DashboardMetrics | undefined, revenuePoints: Re
 
   return [
     {
-      label: 'Doanh thu theo ky',
+      label: 'Doanh thu theo kỳ',
       value: formatCurrency(totalRevenue),
-      hint: `${formatCompactCurrency(averageRevenue)}/ngay`,
+      hint: `${formatCompactCurrency(averageRevenue)}/ngày`,
       tone: 'primary' as const,
     },
     {
-      label: 'Dinh doanh thu ngay',
+      label: 'Đỉnh doanh thu ngày',
       value: formatCurrency(bestDayRevenue),
-      hint: 'Moc doanh thu cao nhat',
+      hint: 'Mốc doanh thu cao nhất',
       tone: 'blue' as const,
     },
     {
-      label: 'Doanh thu hom nay',
+      label: 'Doanh thu hôm nay',
       value: formatCurrency(metrics?.todayRevenue ?? 0),
-      hint: `${formatNumber(metrics?.todayOrderCount ?? 0)} don hom nay`,
+      hint: `${formatNumber(metrics?.todayOrderCount ?? 0)} đơn hôm nay`,
       tone: 'emerald' as const,
     },
     {
-      label: 'Doanh thu thang',
+      label: 'Doanh thu tháng',
       value: formatCurrency(metrics?.monthRevenue ?? 0),
-      hint: `${formatNumber(metrics?.monthOrderCount ?? 0)} don trong thang`,
+      hint: `${formatNumber(metrics?.monthOrderCount ?? 0)} đơn trong tháng`,
       tone: 'amber' as const,
     },
   ]
@@ -1523,27 +1513,27 @@ function buildCustomerKpis(metrics: DashboardMetrics | undefined, topCustomers: 
 
   return [
     {
-      label: 'Tong khach hang',
+      label: 'Tổng khách hàng',
       value: formatNumber(metrics?.totalCustomers ?? 0),
-      hint: `${formatNumber(metrics?.newCustomersThisMonth ?? 0)} moi trong thang`,
+      hint: `${formatNumber(metrics?.newCustomersThisMonth ?? 0)} mới trong tháng`,
       tone: 'primary' as const,
     },
     {
-      label: 'Top spender binh quan',
+      label: 'Top spender bình quân',
       value: formatCurrency(averageTopCustomerSpent),
-      hint: `${formatNumber(topCustomers.length)} khach noi bat`,
+      hint: `${formatNumber(topCustomers.length)} khách nổi bật`,
       tone: 'emerald' as const,
     },
     {
-      label: 'Tong don top khach',
+      label: 'Tổng đơn top khách',
       value: formatNumber(topCustomerOrders),
-      hint: 'Moc de so sanh tan suat mua lai',
+      hint: 'Mốc để so sánh tần suất mua lại',
       tone: 'blue' as const,
     },
     {
-      label: 'Chi tieu top 1',
+      label: 'Chi tiêu top 1',
       value: formatCurrency(topCustomers[0]?.totalSpent ?? 0),
-      hint: topCustomers[0]?.customer?.fullName ?? 'Chua co du lieu',
+      hint: topCustomers[0]?.customer?.fullName ?? 'Chưa có dữ liệu',
       tone: 'amber' as const,
     },
   ]

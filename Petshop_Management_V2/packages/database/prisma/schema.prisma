@@ -1155,20 +1155,43 @@ model PaymentWebhookSecret {
 }
 
 model ShiftSession {
-  id          String    @id @default(cuid())
-  branchId    String
-  staffId     String
-  openAmount  Float     @default(0)
-  closeAmount Float?
-  openedAt    DateTime  @default(now())
-  closedAt    DateTime?
-  notes       String?
-  status      String    @default("OPEN")
-  branch      Branch    @relation(fields: [branchId], references: [id])
-  staff       User      @relation(fields: [staffId], references: [id])
+  id                   String    @id @default(cuid())
+  branchId             String
+  staffId              String
+  openAmount           Float     @default(0)
+  closeAmount          Float?
+  expectedCloseAmount  Float?
+  differenceAmount     Float?
+  cashIncomeAmount     Float     @default(0)
+  cashExpenseAmount    Float     @default(0)
+  orderCount           Int       @default(0)
+  refundCount          Int       @default(0)
+  manualIncomeCount    Int       @default(0)
+  manualExpenseCount   Int       @default(0)
+  nonCashSummary       Json?
+  openDenominations    Json?
+  closeDenominations   Json?
+  summarySnapshot      Json?
+  openedAt             DateTime  @default(now())
+  closedAt             DateTime?
+  lastReclosedAt       DateTime?
+  closeCount           Int       @default(0)
+  employeeNote         String?
+  managerNote          String?
+  managerConclusion    String?
+  reviewStatus         String    @default("PENDING")
+  reviewedAt           DateTime?
+  reviewedById         String?
+  notes                String?
+  status               String    @default("OPEN")
+  branch               Branch    @relation(fields: [branchId], references: [id])
+  staff                User      @relation(fields: [staffId], references: [id])
 
   @@index([status])
   @@index([branchId])
+  @@index([staffId])
+  @@index([reviewStatus])
+  @@index([openedAt])
   @@map("shift_sessions")
 }
 

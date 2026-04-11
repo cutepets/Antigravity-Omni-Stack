@@ -113,7 +113,7 @@ export function BankTransactionsTab({ canManagePayment }: Props) {
       <div className="rounded-2xl border border-border bg-card/95 p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Bảng nhận tiền tài khoản</h2>
+            <h2 className="text-lg font-semibold text-foreground">Lịch sử chuyển khoản</h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -153,7 +153,7 @@ export function BankTransactionsTab({ canManagePayment }: Props) {
           <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
             {(bankTransactionsQuery.error as any)?.response?.data?.message
               ?? (bankTransactionsQuery.error as any)?.message
-              ?? 'Không tải được bảng nhận tiền tài khoản.'}
+              ?? 'Không tải được lịch sử chuyển khoản.'}
           </div>
         ) : null}
 
