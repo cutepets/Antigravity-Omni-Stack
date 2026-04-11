@@ -5,6 +5,9 @@ import { DatabaseService } from '../../database/database.service.js'
 
 type ShiftStatus = 'OPEN' | 'CLOSED'
 type ShiftReviewStatus = 'PENDING' | 'CHECKED' | 'APPROVED' | 'REJECTED'
+type CashVaultEntryType = 'SHIFT_CLOSE' | 'VAULT_COLLECTION' | 'ADJUSTMENT'
+
+const DEFAULT_TARGET_RESERVE_AMOUNT = 2_000_000
 
 export interface FindShiftSessionsDto {
   page?: number | string
@@ -13,6 +16,15 @@ export interface FindShiftSessionsDto {
   staffId?: string
   status?: ShiftStatus | 'ALL'
   reviewStatus?: ShiftReviewStatus | 'ALL'
+  dateFrom?: string
+  dateTo?: string
+}
+
+export interface FindCashVaultEntriesDto {
+  page?: number | string
+  limit?: number | string
+  branchId?: string
+  entryType?: CashVaultEntryType | 'ALL'
   dateFrom?: string
   dateTo?: string
 }
@@ -44,6 +56,15 @@ export interface UpdateShiftReviewDto {
   notes?: string | null
 }
 
+export interface CreateVaultCollectionDto {
+  branchId?: string
+  amount?: number
+  actualCashBefore?: number
+  targetReserveAmount?: number
+  note?: string
+  occurredAt?: string
+}
+
 function toPositiveInt(value: number | string | undefined, fallback: number) {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback
@@ -52,6 +73,11 @@ function toPositiveInt(value: number | string | undefined, fallback: number) {
 function toMoney(value: unknown) {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0
+}
+
+function toSignedMoney(value: unknown) {
+  const parsed = Number(value ?? 0)
+  return Number.isFinite(parsed) ? Math.round(parsed) : 0
 }
 
 function trimNullable(value: unknown) {
@@ -90,6 +116,33 @@ function canDeleteShift(user?: BranchScopedUser) {
   return user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
 }
 
+function calculateReserveMetrics(shift: any, summary: any, closeAmount?: number | null) {
+  const reserveTargetAmount = toMoney(shift.reserveTargetAmount ?? DEFAULT_TARGET_RESERVE_AMOUNT)
+  const openAmount = toMoney(shift.openAmount)
+  const netCashAmount = toSignedMoney((summary?.cashIncome ?? 0) - (summary?.cashExpense ?? 0))
+  const reserveShortageAtOpen = Math.max(0, reserveTargetAmount - openAmount)
+  const reserveTopUpAmount = Math.min(reserveShortageAtOpen, Math.max(0, netCashAmount))
+  const resolvedCloseAmount = closeAmount === undefined
+    ? shift.closeAmount === null || shift.closeAmount === undefined
+      ? null
+      : toMoney(shift.closeAmount)
+    : closeAmount === null
+      ? null
+      : toMoney(closeAmount)
+  const withdrawableAmount = resolvedCloseAmount === null ? 0 : Math.max(0, resolvedCloseAmount - reserveTargetAmount)
+  const collectedAmount = toMoney(shift.collectedAmount ?? 0)
+
+  return {
+    reserveTargetAmount,
+    reserveShortageAtOpen,
+    netCashAmount,
+    reserveTopUpAmount,
+    withdrawableAmount,
+    collectedAmount,
+    pendingCollectionAmount: Math.max(0, withdrawableAmount - collectedAmount),
+  }
+}
+
 @Injectable()
 export class ShiftsService {
   constructor(private readonly db: DatabaseService) {}
@@ -105,6 +158,13 @@ export class ShiftsService {
       closeAmount: shift.closeAmount ?? null,
       expectedCloseAmount: shift.expectedCloseAmount ?? summary?.expectedCloseAmount ?? null,
       differenceAmount: shift.differenceAmount ?? summary?.differenceAmount ?? null,
+      reserveTargetAmount: shift.reserveTargetAmount ?? summary?.reserveTargetAmount ?? DEFAULT_TARGET_RESERVE_AMOUNT,
+      reserveShortageAtOpen: shift.reserveShortageAtOpen ?? summary?.reserveShortageAtOpen ?? 0,
+      netCashAmount: shift.netCashAmount ?? summary?.netCashAmount ?? 0,
+      reserveTopUpAmount: shift.reserveTopUpAmount ?? summary?.reserveTopUpAmount ?? 0,
+      withdrawableAmount: shift.withdrawableAmount ?? summary?.withdrawableAmount ?? 0,
+      collectedAmount: shift.collectedAmount ?? 0,
+      pendingCollectionAmount: shift.pendingCollectionAmount ?? summary?.pendingCollectionAmount ?? 0,
       cashIncomeAmount: shift.cashIncomeAmount ?? summary?.cashIncome ?? 0,
       cashExpenseAmount: shift.cashExpenseAmount ?? summary?.cashExpense ?? 0,
       orderCount: shift.orderCount ?? summary?.orderCount ?? 0,
@@ -148,6 +208,99 @@ export class ShiftsService {
     }
 
     return shift
+  }
+
+  private normalizeVaultEntry(entry: any) {
+    const cashAfterAmount = toMoney(entry.cashAfterAmount)
+    const targetReserveAmount = entry.targetReserveAmount === null || entry.targetReserveAmount === undefined
+      ? DEFAULT_TARGET_RESERVE_AMOUNT
+      : toMoney(entry.targetReserveAmount)
+    const isShiftCloseEntry = entry.entryType === 'SHIFT_CLOSE' && entry.shiftSession
+
+    return {
+      id: entry.id,
+      branchId: entry.branchId,
+      branchName: entry.branch?.name ?? null,
+      entryType: entry.entryType as CashVaultEntryType,
+      shiftSessionId: entry.shiftSessionId ?? null,
+      shiftStaffName: entry.shiftSession?.staff?.fullName ?? null,
+      shiftOpenedAt: entry.shiftSession?.openedAt ?? null,
+      shiftClosedAt: entry.shiftSession?.closedAt ?? null,
+      cashBeforeAmount: entry.cashBeforeAmount === null || entry.cashBeforeAmount === undefined ? null : toMoney(entry.cashBeforeAmount),
+      cashAfterAmount,
+      deltaAmount: Math.round(Number(entry.deltaAmount) || 0),
+      collectedAmount: isShiftCloseEntry ? toMoney(entry.shiftSession.collectedAmount) : toMoney(entry.collectedAmount),
+      targetReserveAmount,
+      netCashAmount: isShiftCloseEntry ? toSignedMoney(entry.shiftSession.netCashAmount) : 0,
+      reserveTopUpAmount: isShiftCloseEntry ? toMoney(entry.shiftSession.reserveTopUpAmount) : 0,
+      withdrawableAmount: isShiftCloseEntry ? toMoney(entry.shiftSession.withdrawableAmount) : 0,
+      pendingAmount: isShiftCloseEntry ? toMoney(entry.shiftSession.pendingCollectionAmount) : Math.max(0, cashAfterAmount - targetReserveAmount),
+      reserveShortageAmount: Math.max(0, targetReserveAmount - cashAfterAmount),
+      note: entry.note ?? null,
+      performedById: entry.performedById ?? null,
+      performedByName: entry.performedBy?.fullName ?? null,
+      occurredAt: entry.occurredAt,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    }
+  }
+
+  private async findLatestVaultEntry(branchId: string, options?: { before?: Date; excludeId?: string }) {
+    const where: any = { branchId }
+    if (options?.before) {
+      where.occurredAt = { lt: options.before }
+    }
+    if (options?.excludeId) {
+      where.id = { not: options.excludeId }
+    }
+
+    return (this.db as any).cashVaultEntry.findFirst({
+      where,
+      orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+    })
+  }
+
+  private async upsertShiftCloseVaultEntry(shift: any, closeAmount: number, performedById?: string, occurredAt = new Date()) {
+    const existing = await (this.db as any).cashVaultEntry.findUnique({
+      where: { shiftSessionId: shift.id },
+    })
+    const previous = await this.findLatestVaultEntry(shift.branchId, {
+      before: occurredAt,
+      excludeId: existing?.id,
+    })
+    const cashBeforeAmount = previous?.cashAfterAmount === null || previous?.cashAfterAmount === undefined
+      ? existing?.cashBeforeAmount ?? null
+      : toMoney(previous.cashAfterAmount)
+    const targetReserveAmount = shift.reserveTargetAmount ?? existing?.targetReserveAmount ?? previous?.targetReserveAmount ?? DEFAULT_TARGET_RESERVE_AMOUNT
+    const cashAfterAmount = toMoney(closeAmount)
+    const deltaAmount = cashBeforeAmount === null || cashBeforeAmount === undefined
+      ? cashAfterAmount
+      : cashAfterAmount - toMoney(cashBeforeAmount)
+
+    await (this.db as any).cashVaultEntry.upsert({
+      where: { shiftSessionId: shift.id },
+      create: {
+        branchId: shift.branchId,
+        entryType: 'SHIFT_CLOSE',
+        shiftSessionId: shift.id,
+        cashBeforeAmount,
+        cashAfterAmount,
+        deltaAmount,
+        collectedAmount: 0,
+        targetReserveAmount,
+        performedById,
+        occurredAt,
+      },
+      update: {
+        branchId: shift.branchId,
+        cashBeforeAmount,
+        cashAfterAmount,
+        deltaAmount,
+        targetReserveAmount,
+        performedById,
+        occurredAt,
+      },
+    })
   }
 
   async getCurrentShift(staffId: string, user?: BranchScopedUser, requestedBranchId?: string | null) {
@@ -225,6 +378,8 @@ export class ShiftsService {
         branchId,
         staffId,
         openAmount: toMoney(dto.openAmount),
+        reserveTargetAmount: DEFAULT_TARGET_RESERVE_AMOUNT,
+        reserveShortageAtOpen: Math.max(0, DEFAULT_TARGET_RESERVE_AMOUNT - toMoney(dto.openAmount)),
         openDenominations: dto.openDenominations ?? undefined,
         employeeNote: trimNullable(dto.employeeNote),
         notes: trimNullable(dto.notes),
@@ -257,6 +412,7 @@ export class ShiftsService {
     const closeAmount = toMoney(dto.closeAmount)
     const expectedCloseAmount = summary.expectedCloseAmount
     const differenceAmount = closeAmount - expectedCloseAmount
+    const reserveMetrics = calculateReserveMetrics(shift, summary, closeAmount)
 
     const updated = await (this.db as any).shiftSession.update({
       where: { id },
@@ -264,6 +420,13 @@ export class ShiftsService {
         closeAmount,
         expectedCloseAmount,
         differenceAmount,
+        reserveTargetAmount: reserveMetrics.reserveTargetAmount,
+        reserveShortageAtOpen: reserveMetrics.reserveShortageAtOpen,
+        netCashAmount: reserveMetrics.netCashAmount,
+        reserveTopUpAmount: reserveMetrics.reserveTopUpAmount,
+        withdrawableAmount: reserveMetrics.withdrawableAmount,
+        collectedAmount: reserveMetrics.collectedAmount,
+        pendingCollectionAmount: reserveMetrics.pendingCollectionAmount,
         cashIncomeAmount: summary.cashIncome,
         cashExpenseAmount: summary.cashExpense,
         orderCount: summary.orderCount,
@@ -286,6 +449,8 @@ export class ShiftsService {
         staff: { select: { id: true, fullName: true } },
       },
     })
+
+    await this.upsertShiftCloseVaultEntry(updated, closeAmount, staffId, now)
 
     return { success: true, data: this.normalizeShift(updated, { ...summary, differenceAmount }) }
   }
@@ -366,10 +531,18 @@ export class ShiftsService {
     const amountChanged = dto.openAmount !== undefined || dto.closeAmount !== undefined
     if (amountChanged) {
       const summary = await this.buildShiftSummary({ ...shift, ...data })
+      const reserveMetrics = calculateReserveMetrics({ ...shift, ...data }, summary, data.closeAmount)
       data.expectedCloseAmount = summary.expectedCloseAmount
       data.differenceAmount = data.closeAmount === null || data.closeAmount === undefined
         ? null
         : data.closeAmount - summary.expectedCloseAmount
+      data.reserveTargetAmount = reserveMetrics.reserveTargetAmount
+      data.reserveShortageAtOpen = reserveMetrics.reserveShortageAtOpen
+      data.netCashAmount = reserveMetrics.netCashAmount
+      data.reserveTopUpAmount = reserveMetrics.reserveTopUpAmount
+      data.withdrawableAmount = reserveMetrics.withdrawableAmount
+      data.collectedAmount = reserveMetrics.collectedAmount
+      data.pendingCollectionAmount = reserveMetrics.pendingCollectionAmount
       data.cashIncomeAmount = summary.cashIncome
       data.cashExpenseAmount = summary.cashExpense
       data.orderCount = summary.orderCount
@@ -392,6 +565,10 @@ export class ShiftsService {
       },
     })
 
+    if (amountChanged && updated.status === 'CLOSED' && updated.closeAmount !== null && updated.closeAmount !== undefined) {
+      await this.upsertShiftCloseVaultEntry(updated, toMoney(updated.closeAmount), reviewerId, updated.closedAt ?? new Date())
+    }
+
     return { success: true, data: this.normalizeShift(updated, await this.buildShiftSummary(updated)) }
   }
 
@@ -406,8 +583,283 @@ export class ShiftsService {
       throw new BadRequestException('Chi duoc xoa ca da chot')
     }
 
+    await (this.db as any).cashVaultEntry.deleteMany({ where: { shiftSessionId: id } })
     await (this.db as any).shiftSession.delete({ where: { id } })
     return { success: true, data: { id } }
+  }
+
+  async getVaultSummary(query: Pick<FindCashVaultEntriesDto, 'branchId' | 'dateFrom' | 'dateTo'>, user?: BranchScopedUser, requestedBranchId?: string | null) {
+    const scopedBranchIds = getScopedBranchIds(user, query.branchId ?? requestedBranchId)
+    const branchWhere: any = {}
+    if (scopedBranchIds) {
+      branchWhere.id = scopedBranchIds.length === 1 ? scopedBranchIds[0] : { in: scopedBranchIds }
+    }
+
+    const branches = await this.db.branch.findMany({
+      where: branchWhere,
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    })
+    const branchIds = branches.map((branch) => branch.id)
+
+    if (branchIds.length === 0) {
+      return {
+        success: true,
+        data: {
+          branches: [],
+          totalCurrentCashAmount: 0,
+          totalPendingAmount: 0,
+          totalReserveShortageAmount: 0,
+          totalCollectedAmount: 0,
+        },
+      }
+    }
+
+    const entryWhere: any = { branchId: { in: branchIds } }
+    const collectedWhere: any = { branchId: { in: branchIds }, entryType: 'VAULT_COLLECTION' }
+    if (query.dateFrom || query.dateTo) {
+      collectedWhere.occurredAt = {}
+      if (query.dateFrom) collectedWhere.occurredAt.gte = startOfDay(query.dateFrom)
+      if (query.dateTo) collectedWhere.occurredAt.lte = endOfDay(query.dateTo)
+    }
+
+    const [latestEntries, collectionEntries] = await Promise.all([
+      (this.db as any).cashVaultEntry.findMany({
+        where: entryWhere,
+        orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+        include: {
+          branch: { select: { id: true, name: true } },
+          performedBy: { select: { id: true, fullName: true } },
+        },
+      }),
+      (this.db as any).shiftSession.groupBy({
+        by: ['branchId'],
+        where: { branchId: { in: branchIds }, status: 'CLOSED' },
+        _sum: {
+          collectedAmount: true,
+          pendingCollectionAmount: true,
+          withdrawableAmount: true,
+        },
+      }),
+    ])
+
+    const latestByBranch = new Map<string, any>()
+    for (const entry of latestEntries) {
+      if (!latestByBranch.has(entry.branchId)) {
+        latestByBranch.set(entry.branchId, entry)
+      }
+    }
+
+    const collectionByBranch = new Map<string, any>()
+    for (const item of collectionEntries) {
+      collectionByBranch.set(item.branchId, item)
+    }
+
+    const rows = branches.map((branch) => {
+      const latest = latestByBranch.get(branch.id)
+      const collection = collectionByBranch.get(branch.id)
+      const cashAfterAmount = latest ? toMoney(latest.cashAfterAmount) : 0
+      const targetReserveAmount = latest?.targetReserveAmount === null || latest?.targetReserveAmount === undefined
+        ? DEFAULT_TARGET_RESERVE_AMOUNT
+        : toMoney(latest.targetReserveAmount)
+      return {
+        branchId: branch.id,
+        branchName: branch.name,
+        currentCashAmount: cashAfterAmount,
+        targetReserveAmount,
+        pendingAmount: toMoney(collection?._sum?.pendingCollectionAmount ?? Math.max(0, cashAfterAmount - targetReserveAmount)),
+        reserveShortageAmount: Math.max(0, targetReserveAmount - cashAfterAmount),
+        collectedAmount: toMoney(collection?._sum?.collectedAmount ?? 0),
+        withdrawableAmount: toMoney(collection?._sum?.withdrawableAmount ?? 0),
+        lastEntryAt: latest?.occurredAt ?? null,
+        lastEntryType: latest?.entryType ?? null,
+      }
+    })
+
+    return {
+      success: true,
+      data: {
+        branches: rows,
+        totalCurrentCashAmount: rows.reduce((sum, row) => sum + row.currentCashAmount, 0),
+        totalPendingAmount: rows.reduce((sum, row) => sum + row.pendingAmount, 0),
+        totalReserveShortageAmount: rows.reduce((sum, row) => sum + row.reserveShortageAmount, 0),
+        totalCollectedAmount: rows.reduce((sum, row) => sum + row.collectedAmount, 0),
+      },
+    }
+  }
+
+  async findVaultEntries(query: FindCashVaultEntriesDto, user?: BranchScopedUser, requestedBranchId?: string | null) {
+    const page = toPositiveInt(query.page, 1)
+    const limit = toPositiveInt(query.limit, 50)
+    const scopedBranchIds = getScopedBranchIds(user, query.branchId ?? requestedBranchId)
+    const where: any = {}
+
+    if (scopedBranchIds) {
+      where.branchId = scopedBranchIds.length === 1 ? scopedBranchIds[0] : { in: scopedBranchIds }
+    }
+    if (query.entryType && query.entryType !== 'ALL') where.entryType = query.entryType
+    if (query.dateFrom || query.dateTo) {
+      where.occurredAt = {}
+      if (query.dateFrom) where.occurredAt.gte = startOfDay(query.dateFrom)
+      if (query.dateTo) where.occurredAt.lte = endOfDay(query.dateTo)
+    }
+
+    const [rows, total] = await Promise.all([
+      (this.db as any).cashVaultEntry.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+        include: {
+          branch: { select: { id: true, name: true } },
+          performedBy: { select: { id: true, fullName: true } },
+          shiftSession: {
+            select: {
+              id: true,
+              openedAt: true,
+              closedAt: true,
+              netCashAmount: true,
+              reserveTopUpAmount: true,
+              withdrawableAmount: true,
+              collectedAmount: true,
+              pendingCollectionAmount: true,
+              staff: { select: { id: true, fullName: true } },
+            },
+          },
+        },
+      }),
+      (this.db as any).cashVaultEntry.count({ where }),
+    ])
+
+    return {
+      success: true,
+      data: {
+        entries: rows.map((entry: any) => this.normalizeVaultEntry(entry)),
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    }
+  }
+
+  private async allocateVaultCollection(branchId: string, amount: number) {
+    let remainingAmount = toMoney(amount)
+    if (remainingAmount <= 0) return
+
+    const pendingShifts = await (this.db as any).shiftSession.findMany({
+      where: {
+        branchId,
+        status: 'CLOSED',
+        pendingCollectionAmount: { gt: 0 },
+      },
+      orderBy: [{ closedAt: 'asc' }, { openedAt: 'asc' }],
+      select: {
+        id: true,
+        collectedAmount: true,
+        pendingCollectionAmount: true,
+      },
+    })
+
+    for (const shift of pendingShifts) {
+      if (remainingAmount <= 0) break
+      const pendingAmount = toMoney(shift.pendingCollectionAmount)
+      const allocatedAmount = Math.min(remainingAmount, pendingAmount)
+      if (allocatedAmount <= 0) continue
+
+      await (this.db as any).shiftSession.update({
+        where: { id: shift.id },
+        data: {
+          collectedAmount: toMoney(shift.collectedAmount) + allocatedAmount,
+          pendingCollectionAmount: pendingAmount - allocatedAmount,
+        },
+      })
+      remainingAmount -= allocatedAmount
+    }
+  }
+
+  async collectVault(dto: CreateVaultCollectionDto, performedById: string, user?: BranchScopedUser, requestedBranchId?: string | null) {
+    const branchId = resolveWritableBranchId(user, dto.branchId ?? requestedBranchId)
+    if (!branchId) {
+      throw new BadRequestException('Vui long chon chi nhanh')
+    }
+    assertBranchAccess(branchId, user)
+    if (!canManageShift(user)) {
+      throw new ForbiddenException('Ban khong co quyen thu tien ket')
+    }
+
+    const amount = toMoney(dto.amount)
+    if (amount <= 0) {
+      throw new BadRequestException('So tien thu phai lon hon 0')
+    }
+
+    const branch = await this.db.branch.findUnique({ where: { id: branchId }, select: { id: true } })
+    if (!branch) {
+      throw new NotFoundException('Khong tim thay chi nhanh')
+    }
+
+    const pendingAggregate = await (this.db as any).shiftSession.aggregate({
+      where: { branchId, status: 'CLOSED' },
+      _sum: { pendingCollectionAmount: true },
+    })
+    const totalPendingCollectionAmount = toMoney(pendingAggregate?._sum?.pendingCollectionAmount ?? 0)
+    if (amount > totalPendingCollectionAmount) {
+      throw new BadRequestException('So tien thu khong duoc lon hon tien cho thu cua cac ca')
+    }
+
+    const latest = await this.findLatestVaultEntry(branchId)
+    const actualCashBefore = dto.actualCashBefore === undefined || dto.actualCashBefore === null
+      ? toMoney(latest?.cashAfterAmount ?? 0)
+      : toMoney(dto.actualCashBefore)
+    const targetReserveAmount = dto.targetReserveAmount === undefined || dto.targetReserveAmount === null
+      ? toMoney(latest?.targetReserveAmount ?? DEFAULT_TARGET_RESERVE_AMOUNT)
+      : toMoney(dto.targetReserveAmount)
+
+    if (amount > actualCashBefore) {
+      throw new BadRequestException('So tien thu khong duoc lon hon tien thuc te trong ket')
+    }
+
+    const occurredAt = dto.occurredAt ? new Date(dto.occurredAt) : new Date()
+    if (Number.isNaN(occurredAt.getTime())) {
+      throw new BadRequestException('Thoi gian thu ket khong hop le')
+    }
+
+    const cashAfterAmount = actualCashBefore - amount
+    const entry = await (this.db as any).cashVaultEntry.create({
+      data: {
+        branchId,
+        entryType: 'VAULT_COLLECTION',
+        cashBeforeAmount: actualCashBefore,
+        cashAfterAmount,
+        deltaAmount: -amount,
+        collectedAmount: amount,
+        targetReserveAmount,
+        note: trimNullable(dto.note),
+        performedById,
+        occurredAt,
+      },
+      include: {
+        branch: { select: { id: true, name: true } },
+        performedBy: { select: { id: true, fullName: true } },
+        shiftSession: {
+          select: {
+            id: true,
+            openedAt: true,
+            closedAt: true,
+            netCashAmount: true,
+            reserveTopUpAmount: true,
+            withdrawableAmount: true,
+            collectedAmount: true,
+            pendingCollectionAmount: true,
+            staff: { select: { id: true, fullName: true } },
+          },
+        },
+      },
+    })
+
+    await this.allocateVaultCollection(branchId, amount)
+
+    return { success: true, data: this.normalizeVaultEntry(entry) }
   }
 
   private async buildShiftSummary(shift: any, overrideEndAt?: Date) {
@@ -497,6 +949,7 @@ export class ShiftsService {
 
     const expectedCloseAmount = toMoney(shift.openAmount) + cashIncome - cashExpense
     const closeAmount = shift.closeAmount === null || shift.closeAmount === undefined ? null : toMoney(shift.closeAmount)
+    const reserveMetrics = calculateReserveMetrics(shift, { cashIncome, cashExpense }, closeAmount)
 
     return {
       openedAt: shift.openedAt,
@@ -514,6 +967,13 @@ export class ShiftsService {
       nonCashExpense,
       expectedCloseAmount,
       differenceAmount: closeAmount === null ? null : closeAmount - expectedCloseAmount,
+      reserveTargetAmount: reserveMetrics.reserveTargetAmount,
+      reserveShortageAtOpen: reserveMetrics.reserveShortageAtOpen,
+      netCashAmount: reserveMetrics.netCashAmount,
+      reserveTopUpAmount: reserveMetrics.reserveTopUpAmount,
+      withdrawableAmount: reserveMetrics.withdrawableAmount,
+      collectedAmount: reserveMetrics.collectedAmount,
+      pendingCollectionAmount: reserveMetrics.pendingCollectionAmount,
       orderCount: orderIds.size,
       refundCount: refundIds.size,
       manualIncomeCount: manualCashIncomeCount,

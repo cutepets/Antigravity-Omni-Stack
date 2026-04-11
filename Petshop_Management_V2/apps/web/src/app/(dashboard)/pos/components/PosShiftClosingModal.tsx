@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, Clock, CreditCard, Printer, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -8,9 +8,30 @@ import { shiftApi, type CashDenomination, type ShiftDenominations, type ShiftSes
 import { useAuthStore } from '@/stores/auth.store'
 
 const DENOMINATIONS = [500000, 200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000]
+const K80_PAGE_WIDTH = '80mm'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '—'
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+function escapeHtml(value?: string | null) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
 }
 
 function normalizeDenominations(value?: CashDenomination[] | ShiftDenominations | null) {
@@ -43,6 +64,121 @@ function getModeLabel(shift: ShiftSession | null | undefined) {
   return 'Chốt sổ cuối ca'
 }
 
+function buildShiftReportPrintHtml({
+  modeLabel,
+  branchName,
+  branchAddress,
+  staffName,
+  openedAt,
+  closedAt,
+  summary,
+}: {
+  modeLabel: string
+  branchName: string
+  branchAddress?: string | null
+  staffName: string
+  openedAt?: string | null
+  closedAt?: string | null
+  summary: ShiftSummary | null
+}) {
+  const reportRows = summary
+    ? [
+        ['Tiền mặt đầu ca', summary.openAmount, false],
+        ['Thu phần mềm', (summary.orderCashIncome ?? 0) + (summary.manualCashIncome ?? 0), false],
+        ['Chi phần mềm', (summary.orderCashExpense ?? 0) + (summary.manualCashExpense ?? 0), false],
+        ['Bán được', summary.netCashAmount ?? 0, false],
+        ['Thiếu két đầu ca', summary.reserveShortageAtOpen ?? 0, false],
+        ['Bù két', summary.reserveTopUpAmount ?? 0, false],
+        ['Thực rút', summary.withdrawableAmount ?? 0, false],
+        ['Cần thu được', summary.expectedCloseAmount ?? 0, false],
+        ['Thu CK/Thẻ', summary.nonCashIncome ?? 0, false],
+        ['Chi CK/Thẻ', summary.nonCashExpense ?? 0, false],
+        ['Số đơn giao dịch', summary.orderCount ?? 0, true],
+        ['Số đơn trả/hoàn', summary.refundCount ?? 0, true],
+      ]
+    : []
+
+  const rowsHtml = reportRows
+    .map(
+      ([label, value, isCount]) => `
+        <div class="line">
+          <span>${escapeHtml(String(label))}</span>
+          <strong>${isCount ? Number(value ?? 0) : formatCurrency(Number(value ?? 0))}</strong>
+        </div>
+      `,
+    )
+    .join('')
+
+  const paymentRows = summary?.otherPayments?.length
+    ? summary.otherPayments
+        .map(
+          (payment) => `
+            <div class="line compact">
+              <span>${escapeHtml(payment.label)}</span>
+              <span>+${formatCurrency(payment.income)} / -${formatCurrency(payment.expense)}</span>
+            </div>
+          `,
+        )
+        .join('')
+    : ''
+
+  return `<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <title>In báo cáo</title>
+    <style>
+      @page { size: ${K80_PAGE_WIDTH} auto; margin: 4mm; }
+      * { box-sizing: border-box; }
+      body {
+        width: ${K80_PAGE_WIDTH};
+        margin: 0 auto;
+        padding: 0;
+        font-family: Arial, sans-serif;
+        font-size: 11px;
+        line-height: 1.35;
+        color: #111827;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .wrap { width: 100%; }
+      .center { text-align: center; }
+      .title { font-size: 15px; font-weight: 700; margin-bottom: 2px; text-transform: uppercase; }
+      .sub { font-size: 10px; color: #475569; }
+      .section { border-top: 1px dashed #94a3b8; margin-top: 8px; padding-top: 8px; }
+      .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; }
+      .line { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 2px 0; }
+      .line.compact { font-size: 10px; color: #475569; }
+      .line span:first-child { flex: 1; }
+      .line strong { font-weight: 700; }
+      .footer { border-top: 1px dashed #94a3b8; margin-top: 10px; padding-top: 8px; text-align: center; font-size: 10px; color: #64748b; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="center">
+        <div class="title">${escapeHtml(modeLabel)}</div>
+        <div class="sub">${escapeHtml(branchName)}</div>
+        ${branchAddress ? `<div class="sub">${escapeHtml(branchAddress)}</div>` : ''}
+      </div>
+      <div class="section">
+        <div class="section-title">Thông tin ca</div>
+        <div class="line"><span>Chi nhánh</span><strong>${escapeHtml(branchName)}</strong></div>
+        <div class="line"><span>Nhân viên</span><strong>${escapeHtml(staffName)}</strong></div>
+        <div class="line"><span>Mở ca</span><strong>${escapeHtml(formatDateTime(openedAt))}</strong></div>
+        ${closedAt ? `<div class="line"><span>Chốt ca</span><strong>${escapeHtml(formatDateTime(closedAt))}</strong></div>` : ''}
+      </div>
+      <div class="section">
+        <div class="section-title">Báo cáo ca</div>
+        ${rowsHtml || '<div class="sub">Chưa có dữ liệu báo cáo ca.</div>'}
+        ${paymentRows ? `<div class="section"><div class="section-title">Thanh toán khác</div>${paymentRows}</div>` : ''}
+      </div>
+      <div class="footer">Báo cáo ca POS</div>
+    </div>
+  </body>
+</html>`
+}
+
 interface PosShiftClosingModalProps {
   isOpen: boolean
   currentShift?: ShiftSession | null
@@ -53,9 +189,10 @@ interface PosShiftClosingModalProps {
 export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }: PosShiftClosingModalProps) {
   const queryClient = useQueryClient()
   const activeBranchId = useAuthStore((state) => state.activeBranchId)
+  const allowedBranches = useAuthStore((state) => state.allowedBranches)
+  const currentUser = useAuthStore((state) => state.user)
   const [denominations, setDenominations] = useState<ShiftDenominations>(() => normalizeDenominations())
   const [employeeNote, setEmployeeNote] = useState('')
-  // activeRow dùng cho keyboard navigation (↑↓)
   const [activeRow, setActiveRow] = useState<number>(0)
   const inputRefs = useRef<Array<HTMLInputElement | null>>([])
 
@@ -73,9 +210,12 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
   const isOpening = !shift
   const expectedCloseAmount = summary?.expectedCloseAmount ?? 0
   const differenceAmount = isOpening ? null : countedTotal - expectedCloseAmount
-  const diffAbs = Math.abs(differenceAmount ?? 0)
   const isBalanced = (differenceAmount ?? 0) === 0
   const isSurplus = (differenceAmount ?? 0) > 0
+  const currentBranch = useMemo(
+    () => allowedBranches.find((branch) => branch.id === (shift?.branchId ?? activeBranchId)) ?? null,
+    [activeBranchId, allowedBranches, shift?.branchId],
+  )
   const diffColor = isBalanced ? 'text-emerald-600' : isSurplus ? 'text-amber-600' : 'text-rose-600'
   const diffBg = isBalanced
     ? 'bg-emerald-50 border-emerald-200'
@@ -85,14 +225,14 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
 
   useEffect(() => {
     if (!isOpen) return
-    const source =
-      !currentShift ? null : currentShift.closeDenominations
+    const source = !currentShift
+      ? null
+      : currentShift.closeDenominations ?? currentShift.openDenominations
     setDenominations(normalizeDenominations(source))
     setEmployeeNote(currentShift?.employeeNote ?? '')
     setActiveRow(0)
   }, [currentShift, isOpen])
 
-  // Keyboard handler: ←→ tăng/giảm, ↑↓ chuyển mệnh giá
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>, index: number) => {
       const denomination = DENOMINATIONS[index]
@@ -158,6 +298,50 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
     onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Không thể chốt sổ'),
   })
 
+  const handlePrintReport = useCallback(async () => {
+    let resolvedShift = shift
+
+    if (shift?.id) {
+      try {
+        resolvedShift = await shiftApi.summary(shift.id)
+      } catch {
+        resolvedShift = shift
+      }
+    }
+
+    const resolvedSummary = resolvedShift?.summary ?? summary
+    const printWindow = window.open('', 'shift-report-print', 'width=420,height=720')
+    if (!printWindow) {
+      toast.error('Không mở được cửa sổ in báo cáo')
+      return
+    }
+
+    const html = buildShiftReportPrintHtml({
+      modeLabel,
+      branchName: resolvedShift?.branchName ?? currentBranch?.name ?? 'Chi nhánh',
+      branchAddress: currentBranch?.address ?? null,
+      staffName: resolvedShift?.staffName ?? currentUser?.fullName ?? 'Nhân viên',
+      openedAt: resolvedShift?.openedAt ?? null,
+      closedAt: resolvedShift?.closedAt ?? null,
+      summary: resolvedSummary,
+    })
+
+    printWindow.document.open()
+    printWindow.document.write(html)
+    printWindow.document.close()
+
+    const triggerPrint = () => {
+      printWindow.focus()
+      printWindow.print()
+    }
+
+    printWindow.onafterprint = () => {
+      printWindow.close()
+    }
+
+    window.setTimeout(triggerPrint, 300)
+  }, [currentBranch?.address, currentBranch?.name, currentUser?.fullName, modeLabel, shift, summary])
+
   if (!isOpen) return null
 
   const isSaving = startShift.isPending || endShift.isPending
@@ -165,8 +349,6 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
       <div className="flex max-h-[96vh] w-full max-w-[840px] flex-col overflow-hidden rounded-2xl bg-slate-50 shadow-2xl">
-
-        {/* ── Header ── */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
           <h2 className="text-xl font-bold text-slate-900">{modeLabel}</h2>
           <div className="flex items-center gap-3">
@@ -183,20 +365,15 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+              className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
             >
               <X size={22} />
             </button>
           </div>
         </div>
 
-        {/* ── Body: 2 cột ── */}
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[400px_400px] lg:overflow-hidden">
-
-          {/* === CỘT TRÁI: Báo cáo ca + Ghi chú === */}
           <div className="flex flex-col gap-3 overflow-y-auto border-r border-slate-200 p-5 lg:max-h-full">
-
-            {/* Báo cáo ca */}
             <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-4 py-3">
                 <h3 className="text-base font-bold text-slate-800">Báo cáo ca</h3>
@@ -204,37 +381,38 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
 
               <div className="p-4">
                 {isOpening ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-base text-slate-500 text-center">
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-base text-slate-500">
                     Chưa có ca đang mở. Kiểm đếm tiền thực tế trong két, nhập số lượng theo mệnh giá và nhấn <strong>Mở sổ đầu ca</strong>.
                   </div>
                 ) : summary ? (
                   <div className="space-y-3">
-
-                    {/* ─ Tiền mặt ─ */}
                     <div>
                       <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Tiền mặt</p>
                       <div className="grid grid-cols-1 gap-1.5">
                         <SummaryRow
                           icon={<Wallet size={15} />}
                           label="Đầu ca"
-                          subLabel={shift?.openedAt ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(shift.openedAt)) : undefined}
+                          subLabel={shift?.openedAt ? formatDateTime(shift.openedAt) : undefined}
                           value={summary.openAmount}
                         />
                         {shift?.closedAt ? (
                           <SummaryRow
                             icon={<CheckCircle2 size={15} />}
                             label="Chốt ca"
-                            subLabel={new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(shift.closedAt))}
+                            subLabel={formatDateTime(shift.closedAt)}
                             value={shift.closeAmount ?? 0}
                           />
                         ) : null}
                         <SummaryRow icon={<TrendingUp size={15} />} label="Thu phần mềm" value={(summary.orderCashIncome ?? 0) + (summary.manualCashIncome ?? 0)} tone="emerald" />
                         <SummaryRow icon={<TrendingDown size={15} />} label="Chi phần mềm" value={(summary.orderCashExpense ?? 0) + (summary.manualCashExpense ?? 0)} tone="rose" />
+                        <SummaryRow icon={<TrendingUp size={15} />} label="Bán được" value={summary.netCashAmount ?? 0} tone={(summary.netCashAmount ?? 0) >= 0 ? 'emerald' : 'rose'} />
+                        <SummaryRow icon={<Wallet size={15} />} label="Thiếu két đầu ca" value={summary.reserveShortageAtOpen ?? 0} tone="amber" />
+                        <SummaryRow icon={<Wallet size={15} />} label="Bù két" value={summary.reserveTopUpAmount ?? 0} tone="amber" />
+                        <SummaryRow icon={<CheckCircle2 size={15} />} label="Thực rút" value={summary.withdrawableAmount ?? 0} tone="emerald" />
                         <SummaryRow icon={<CheckCircle2 size={15} />} label="Cần thu được" value={summary.expectedCloseAmount} tone="cyan" highlight />
                       </div>
                     </div>
 
-                    {/* ─ Không tiền mặt ─ */}
                     <div>
                       <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Không tiền mặt</p>
                       <div className="grid grid-cols-1 gap-1.5">
@@ -243,7 +421,6 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
                       </div>
                     </div>
 
-                    {/* ─ Giao dịch ─ */}
                     <div>
                       <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Giao dịch</p>
                       <div className="grid grid-cols-1 gap-1.5">
@@ -260,7 +437,6 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
               </div>
             </div>
 
-            {/* Hình thức thanh toán khác */}
             {summary?.otherPayments?.length ? (
               <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-100 px-4 py-3">
@@ -279,55 +455,28 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
                 </div>
               </div>
             ) : null}
-
-            {/* Ghi chú nhân viên */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="px-4 pt-3 pb-2">
-                <label htmlFor="shift-note" className="text-base font-bold text-slate-800">Ghi chú nhân viên</label>
-              </div>
-              <div className="px-4 pb-4">
-                <textarea
-                  id="shift-note"
-                  rows={1}
-                  value={employeeNote}
-                  onChange={(event) => {
-                    setEmployeeNote(event.target.value)
-                    const el = event.target
-                    el.style.height = 'auto'
-                    el.style.height = `${el.scrollHeight}px`
-                  }}
-                  className="w-full resize-none overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-base text-slate-800 outline-none focus:border-cyan-400 focus:bg-white transition-colors placeholder:text-slate-400"
-                  placeholder="Nhập ghi chú thua/thiếu, lý do, bàn giao..."
-                />
-              </div>
-            </div>
           </div>
 
-          {/* === CỘT PHẢI: Kiểm đếm tiền mặt === */}
           <div className="flex flex-col gap-3 overflow-y-auto bg-white p-4 lg:max-h-full">
-
-            {/* Tiêu đề cột phải */}
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-slate-800">
                 {isOpening ? 'Tiền mặt đầu ca' : 'Kiểm đếm tiền cuối ca'}
               </h3>
             </div>
 
-            {/* Bảng mệnh giá */}
-            <div className="rounded-2xl border-2 border-cyan-200 bg-cyan-50 overflow-hidden">
-              {/* Header bảng */}
+            <div className="overflow-hidden rounded-2xl border-2 border-cyan-200 bg-cyan-50">
               <div className="grid grid-cols-[1fr_110px_100px] gap-2 border-b border-cyan-100 px-3 py-2 text-xs font-bold uppercase tracking-wider text-cyan-600">
                 <span>Mệnh giá</span>
-                <span className="text-right">SL</span>
+                <span className="text-center">SL</span>
                 <span className="text-right">Thành tiền</span>
               </div>
 
-              {/* Rows */}
               <div className="divide-y divide-cyan-100/60">
                 {DENOMINATIONS.map((denomination, index) => {
                   const qty = Number(denominations[String(denomination)]) || 0
                   const subtotal = denomination * qty
                   const isActive = activeRow === index
+
                   return (
                     <div
                       key={denomination}
@@ -336,15 +485,24 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
                       <span className={`text-right text-base font-semibold tabular-nums ${qty > 0 ? 'text-slate-800' : 'text-slate-500'}`}>
                         {formatCurrency(denomination)}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center justify-center gap-1">
                         <button
                           type="button"
                           tabIndex={-1}
-                          onClick={() => setDenominations((prev) => ({ ...prev, [String(denomination)]: Math.max(0, (Number(prev[String(denomination)]) || 0) - 1) }))}
-                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded-md border border-cyan-200/70 bg-cyan-50 text-cyan-400 transition-colors hover:bg-cyan-100 hover:text-cyan-600 active:scale-95 select-none text-sm font-bold"
-                        >−</button>
+                          onClick={() =>
+                            setDenominations((prev) => ({
+                              ...prev,
+                              [String(denomination)]: Math.max(0, (Number(prev[String(denomination)]) || 0) - 1),
+                            }))
+                          }
+                          className="flex h-8 w-7 shrink-0 select-none items-center justify-center rounded-md border border-cyan-200/70 bg-cyan-50 text-sm font-bold text-cyan-400 transition-colors hover:bg-cyan-100 hover:text-cyan-600 active:scale-95"
+                        >
+                          −
+                        </button>
                         <input
-                          ref={(el) => { inputRefs.current[index] = el }}
+                          ref={(el) => {
+                            inputRefs.current[index] = el
+                          }}
                           type="number"
                           min={0}
                           value={denominations[String(denomination)] || ''}
@@ -353,16 +511,23 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
                             setDenominations((current) => ({ ...current, [String(denomination)]: quantity }))
                           }}
                           onFocus={() => setActiveRow(index)}
-                          onKeyDown={(e) => handleKeyDown(e, index)}
-                          className="w-10 rounded-md border border-cyan-200 bg-white px-1 py-1.5 text-center text-base font-bold outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          onKeyDown={(event) => handleKeyDown(event, index)}
+                          className="w-10 rounded-md border border-cyan-200 bg-white px-1 py-1.5 text-center text-base font-bold outline-none transition-all [appearance:textfield] focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           placeholder="0"
                         />
                         <button
                           type="button"
                           tabIndex={-1}
-                          onClick={() => setDenominations((prev) => ({ ...prev, [String(denomination)]: (Number(prev[String(denomination)]) || 0) + 1 }))}
-                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded-md border border-cyan-200/70 bg-cyan-50 text-cyan-400 transition-colors hover:bg-cyan-100 hover:text-cyan-600 active:scale-95 select-none text-sm font-bold"
-                        >+</button>
+                          onClick={() =>
+                            setDenominations((prev) => ({
+                              ...prev,
+                              [String(denomination)]: (Number(prev[String(denomination)]) || 0) + 1,
+                            }))
+                          }
+                          className="flex h-8 w-7 shrink-0 select-none items-center justify-center rounded-md border border-cyan-200/70 bg-cyan-50 text-sm font-bold text-cyan-400 transition-colors hover:bg-cyan-100 hover:text-cyan-600 active:scale-95"
+                        >
+                          +
+                        </button>
                       </div>
                       <span className={`text-right text-base font-bold ${qty > 0 ? 'text-cyan-700' : 'text-slate-300'}`}>
                         {qty > 0 ? formatCurrency(subtotal) : '—'}
@@ -372,14 +537,12 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
                 })}
               </div>
 
-              {/* Tổng đếm được */}
               <div className="flex items-center justify-between border-t-2 border-cyan-200 bg-cyan-100/60 px-4 py-3">
                 <span className="text-base font-semibold text-cyan-800">Tổng đếm được</span>
                 <span className="text-2xl font-black text-cyan-900">{formatCurrency(countedTotal)}</span>
               </div>
             </div>
 
-            {/* Đối chiếu cuối ca */}
             {!isOpening ? (
               <div className={`rounded-2xl border p-4 ${diffBg}`}>
                 <p className="mb-2.5 text-xs font-bold uppercase tracking-wider text-slate-500">Đối chiếu cuối ca</p>
@@ -392,64 +555,83 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
                     <span className="text-slate-600">Chốt cuối ca</span>
                     <span className="font-bold text-slate-800">{formatCurrency(countedTotal)}</span>
                   </div>
-                  <div className="mt-1 border-t border-slate-200/60 pt-2 flex items-center justify-between">
+                  <div className="mt-1 flex items-center justify-between border-t border-slate-200/60 pt-2">
                     <span className={`text-base font-bold ${diffColor}`}>
-                      {isBalanced ? '✓ Cân bằng' : isSurplus ? `↑ Thừa` : `↓ Thiếu`}
+                      {isBalanced ? '✓ Cân bằng' : isSurplus ? '↑ Thừa' : '↓ Thiếu'}
                     </span>
                     <span className={`text-2xl font-black ${diffColor}`}>
-                      {(differenceAmount ?? 0) > 0 ? '+' : ''}{formatCurrency(differenceAmount ?? 0)}
+                      {(differenceAmount ?? 0) > 0 ? '+' : ''}
+                      {formatCurrency(differenceAmount ?? 0)}
                     </span>
                   </div>
                 </div>
               </div>
             ) : null}
+
+            <textarea
+              id="shift-note"
+              rows={1}
+              value={employeeNote}
+              onChange={(event) => {
+                setEmployeeNote(event.target.value)
+                const element = event.target
+                element.style.height = 'auto'
+                element.style.height = `${element.scrollHeight}px`
+              }}
+              className="mt-auto w-full resize-none overflow-hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-cyan-400"
+              placeholder="Ghi chú bàn giao, thừa thiếu..."
+            />
           </div>
         </div>
 
-        {/* ── Footer ── */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-6 py-4">
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-base font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              onClick={() => {
+                void handlePrintReport()
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-base font-semibold text-slate-600 transition-colors hover:bg-slate-50"
             >
               <Printer size={16} />
-              In báo cáo ca
+              In báo cáo
             </button>
             <button
               type="button"
               onClick={() => window.open('/finance?tab=cash-shifts', '_blank')}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-base font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-base font-semibold text-slate-600 transition-colors hover:bg-slate-50"
             >
               Sổ tiền mặt
             </button>
           </div>
+
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl px-5 py-2.5 text-base font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+              className="rounded-xl px-5 py-2.5 text-base font-semibold text-slate-600 transition-colors hover:bg-slate-100"
             >
               Hủy
             </button>
-            {/* Nút Sửa đầu ca — chỉ hiện khi có ca và chưa chốt */}
             {shift && shift.status !== 'CLOSED' ? (
               <button
                 type="button"
                 disabled={isSaving}
                 onClick={() => startShift.mutate()}
-                className="rounded-xl border border-slate-300 px-5 py-2.5 text-base font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 transition-colors"
+                className="rounded-xl border border-slate-300 px-5 py-2.5 text-base font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
               >
                 Sửa đầu ca
               </button>
             ) : null}
-            {/* Nút Đăng xuất — chỉ hiện sau khi đã chốt ca */}
             {shift?.status === 'CLOSED' ? (
               <button
                 type="button"
-                onClick={() => { void useAuthStore.getState().logout().then(() => { window.location.href = '/login' }) }}
-                className="rounded-xl border border-rose-200 px-5 py-2.5 text-base font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                onClick={() => {
+                  void useAuthStore.getState().logout().then(() => {
+                    window.location.href = '/login'
+                  })
+                }}
+                className="rounded-xl border border-rose-200 px-5 py-2.5 text-base font-semibold text-rose-600 transition-colors hover:bg-rose-50"
               >
                 Đăng xuất
               </button>
@@ -461,7 +643,7 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
                 if (isOpening) startShift.mutate()
                 else endShift.mutate()
               }}
-              className="rounded-xl bg-[#0089A1] px-7 py-2.5 text-base font-bold text-white hover:bg-[#006E82] disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+              className="rounded-xl bg-[#0089A1] px-7 py-2.5 text-base font-bold text-white transition-colors hover:bg-[#006E82] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? 'Đang lưu...' : modeLabel}
             </button>
@@ -472,8 +654,6 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
   )
 }
 
-// ── Sub-component: SummaryRow ──────────────────────────────────────────────────
-
 function SummaryRow({
   icon,
   label,
@@ -482,40 +662,24 @@ function SummaryRow({
   tone,
   highlight,
   isCount,
-  isTime,
-  raw,
 }: {
-  icon?: React.ReactNode
+  icon?: ReactNode
   label: string
-  /** Thời gian nhỏ hiện trong ngoặc sau label, VD: "Đầu ca (10:51 11/04/2026)" */
   subLabel?: string
   value: number
-  tone?: 'emerald' | 'rose' | 'cyan'
+  tone?: 'emerald' | 'rose' | 'cyan' | 'amber'
   highlight?: boolean
   isCount?: boolean
-  /** Nếu true, right side hiển thị raw/subLabel thay vì formatCurrency */
-  isTime?: boolean
-  raw?: string
 }) {
   const toneMap = {
     emerald: 'text-emerald-600',
     rose: 'text-rose-600',
     cyan: 'text-cyan-700',
+    amber: 'text-amber-600',
   }
+
   const valueColor = tone ? toneMap[tone] : 'text-slate-800'
   const bgClass = highlight ? 'bg-cyan-50 border-cyan-200' : 'bg-slate-50 border-slate-200'
-
-  // Giá trị hiển thị bên phải
-  let rightContent: React.ReactNode
-  if (isTime) {
-    rightContent = <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-500">{raw ?? subLabel ?? '—'}</span>
-  } else {
-    rightContent = (
-      <span className={`shrink-0 text-base font-bold tabular-nums ${valueColor}`}>
-        {isCount ? value : formatCurrency(value)}
-      </span>
-    )
-  }
 
   return (
     <div className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 ${bgClass}`}>
@@ -526,8 +690,9 @@ function SummaryRow({
           {subLabel ? <span className="ml-1.5 text-xs font-normal text-slate-400">({subLabel})</span> : null}
         </span>
       </div>
-      {rightContent}
+      <span className={`shrink-0 text-base font-bold tabular-nums ${valueColor}`}>
+        {isCount ? value : formatCurrency(value)}
+      </span>
     </div>
   )
 }
-

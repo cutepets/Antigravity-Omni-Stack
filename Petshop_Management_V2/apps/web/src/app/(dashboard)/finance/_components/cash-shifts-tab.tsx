@@ -219,6 +219,11 @@ function ShiftReviewModal({ shift, canManage, onClose }: ShiftReviewModalProps) 
               { label: 'Tiền đầu ca', value: shift.openAmount },
               { label: 'Thu tiền mặt', value: summary?.cashIncome ?? shift.cashIncomeAmount },
               { label: 'Chi/hoàn tiền mặt', value: summary?.cashExpense ?? shift.cashExpenseAmount },
+              { label: 'Bán được', value: shift.netCashAmount ?? summary?.netCashAmount ?? 0 },
+              { label: 'Bù két', value: shift.reserveTopUpAmount ?? summary?.reserveTopUpAmount ?? 0 },
+              { label: 'Thực rút', value: shift.withdrawableAmount ?? summary?.withdrawableAmount ?? 0 },
+              { label: 'Đã thu', value: shift.collectedAmount ?? 0 },
+              { label: 'Còn chờ thu', value: shift.pendingCollectionAmount ?? summary?.pendingCollectionAmount ?? 0 },
               {
                 label: 'Cần thu được',
                 value: shift.expectedCloseAmount ?? summary?.expectedCloseAmount ?? 0,
@@ -456,7 +461,7 @@ export function CashShiftsTab() {
 
         {/* Table */}
         <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card/95">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[1320px] text-left text-sm">
             <thead className="sticky top-0 bg-background-secondary text-xs uppercase text-foreground-muted">
               <tr>
                 <th className="px-4 py-3">Ngày ca</th>
@@ -465,6 +470,11 @@ export function CashShiftsTab() {
                 <th className="px-4 py-3 text-right">Đầu ca</th>
                 <th className="px-4 py-3 text-right">Theo app</th>
                 <th className="px-4 py-3 text-right">Thực tế</th>
+                <th className="px-4 py-3 text-right">Bán được</th>
+                <th className="px-4 py-3 text-right">Bù két</th>
+                <th className="px-4 py-3 text-right">Thực rút</th>
+                <th className="px-4 py-3 text-right">Chờ thu</th>
+                <th className="px-4 py-3 text-right">Đã thu</th>
                 <th className="px-4 py-3 text-right">Thừa/thiếu</th>
                 <th className="px-4 py-3">Trạng thái</th>
                 <th className="px-4 py-3 text-right">Thao tác</th>
@@ -473,13 +483,13 @@ export function CashShiftsTab() {
             <tbody>
               {query.isLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-foreground-muted">
+                  <td colSpan={14} className="px-4 py-12 text-center text-foreground-muted">
                     Đang tải sổ tiền mặt...
                   </td>
                 </tr>
               ) : shifts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-foreground-muted">
+                  <td colSpan={14} className="px-4 py-12 text-center text-foreground-muted">
                     Chưa có ca tiền mặt trong khoảng thời gian này.
                   </td>
                 </tr>
@@ -506,6 +516,21 @@ export function CashShiftsTab() {
                       </td>
                       <td className="px-4 py-3 text-right font-semibold">
                         {formatCurrency(shift.closeAmount)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-sky-300">
+                        {formatCurrency(shift.netCashAmount)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-amber-300">
+                        {formatCurrency(shift.reserveTopUpAmount)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-emerald-300">
+                        {formatCurrency(shift.withdrawableAmount)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-300">
+                        {formatCurrency(shift.pendingCollectionAmount)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-sky-300">
+                        {formatCurrency(shift.collectedAmount)}
                       </td>
                       <td
                         className={`px-4 py-3 text-right font-bold ${diffTone(shift.differenceAmount)}`}

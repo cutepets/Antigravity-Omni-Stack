@@ -41,6 +41,7 @@ model Branch {
   orders                Order[]
   pets                  Pet[]
   shiftSessions         ShiftSession[]
+  cashVaultEntries      CashVaultEntry[]
   stockReceipts         StockReceipt[]
   stockReceiptReceives  StockReceiptReceive[]
   supplierPayments      SupplierPayment[]
@@ -87,6 +88,7 @@ model User {
   orders                Order[]
   refreshTokens         RefreshToken[]
   shiftSessions         ShiftSession[]
+  cashVaultEntries      CashVaultEntry[]     @relation("CashVaultEntryPerformedBy")
   stockReceiptReceives  StockReceiptReceive[]
   supplierPayments      SupplierPayment[]
   supplierReturns       SupplierReturn[]
@@ -1162,6 +1164,13 @@ model ShiftSession {
   closeAmount          Float?
   expectedCloseAmount  Float?
   differenceAmount     Float?
+  reserveTargetAmount  Float     @default(2000000)
+  reserveShortageAtOpen Float    @default(0)
+  netCashAmount        Float     @default(0)
+  reserveTopUpAmount   Float     @default(0)
+  withdrawableAmount   Float     @default(0)
+  collectedAmount      Float     @default(0)
+  pendingCollectionAmount Float  @default(0)
   cashIncomeAmount     Float     @default(0)
   cashExpenseAmount    Float     @default(0)
   orderCount           Int       @default(0)
@@ -1186,6 +1195,7 @@ model ShiftSession {
   status               String    @default("OPEN")
   branch               Branch    @relation(fields: [branchId], references: [id])
   staff                User      @relation(fields: [staffId], references: [id])
+  cashVaultEntry       CashVaultEntry?
 
   @@index([status])
   @@index([branchId])
@@ -1193,6 +1203,32 @@ model ShiftSession {
   @@index([reviewStatus])
   @@index([openedAt])
   @@map("shift_sessions")
+}
+
+model CashVaultEntry {
+  id                  String   @id @default(cuid())
+  branchId            String
+  entryType           String
+  shiftSessionId      String?  @unique
+  cashBeforeAmount    Float?
+  cashAfterAmount     Float
+  deltaAmount         Float    @default(0)
+  collectedAmount     Float    @default(0)
+  targetReserveAmount Float?
+  note                String?
+  performedById       String?
+  occurredAt          DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  branch              Branch   @relation(fields: [branchId], references: [id])
+  shiftSession        ShiftSession? @relation(fields: [shiftSessionId], references: [id], onDelete: Cascade)
+  performedBy         User?    @relation("CashVaultEntryPerformedBy", fields: [performedById], references: [id], onDelete: SetNull)
+
+  @@index([branchId])
+  @@index([entryType])
+  @@index([occurredAt])
+  @@index([performedById])
+  @@map("cash_vault_entries")
 }
 
 model Role {

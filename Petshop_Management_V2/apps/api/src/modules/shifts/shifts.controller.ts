@@ -7,7 +7,9 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import {
+  CreateVaultCollectionDto,
   EndShiftDto,
+  FindCashVaultEntriesDto,
   FindShiftSessionsDto,
   ShiftsService,
   StartShiftDto,
@@ -52,6 +54,27 @@ export class ShiftsController {
   @ApiOperation({ summary: 'Mo so dau ca' })
   start(@Body() dto: StartShiftDto, @Req() req: AuthenticatedRequest) {
     return this.shiftsService.startShift(dto, this.getStaffId(req), req.user, getRequestedBranchId(req))
+  }
+
+  @Get('vault/summary')
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Tong hop tien ket theo chi nhanh' })
+  getVaultSummary(@Query() query: FindCashVaultEntriesDto, @Req() req: AuthenticatedRequest) {
+    return this.shiftsService.getVaultSummary(query, req.user, getRequestedBranchId(req))
+  }
+
+  @Get('vault/ledger')
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Timeline thu/chot tien ket theo chi nhanh' })
+  findVaultLedger(@Query() query: FindCashVaultEntriesDto, @Req() req: AuthenticatedRequest) {
+    return this.shiftsService.findVaultEntries(query, req.user, getRequestedBranchId(req))
+  }
+
+  @Post('vault/collections')
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Quan ly thu tien trong ket chi nhanh' })
+  collectVault(@Body() dto: CreateVaultCollectionDto, @Req() req: AuthenticatedRequest) {
+    return this.shiftsService.collectVault(dto, this.getStaffId(req), req.user, getRequestedBranchId(req))
   }
 
   @Get(':id/summary')

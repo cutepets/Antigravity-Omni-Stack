@@ -32,6 +32,13 @@ export type ShiftSummary = {
   nonCashExpense: number
   expectedCloseAmount: number
   differenceAmount?: number | null
+  reserveTargetAmount: number
+  reserveShortageAtOpen: number
+  netCashAmount: number
+  reserveTopUpAmount: number
+  withdrawableAmount: number
+  collectedAmount: number
+  pendingCollectionAmount: number
   orderCount: number
   refundCount: number
   manualIncomeCount: number
@@ -50,6 +57,13 @@ export type CashShift = {
   closeAmount?: number | null
   expectedCloseAmount?: number | null
   differenceAmount?: number | null
+  reserveTargetAmount: number
+  reserveShortageAtOpen: number
+  netCashAmount: number
+  reserveTopUpAmount: number
+  withdrawableAmount: number
+  collectedAmount: number
+  pendingCollectionAmount: number
   cashIncomeAmount: number
   cashExpenseAmount: number
   orderCount: number
@@ -92,6 +106,73 @@ export type ShiftListParams = {
   staffId?: string
   status?: ShiftStatus | 'ALL'
   reviewStatus?: ShiftReviewStatus | 'ALL'
+  dateFrom?: string
+  dateTo?: string
+}
+
+export type CashVaultEntryType = 'SHIFT_CLOSE' | 'VAULT_COLLECTION' | 'ADJUSTMENT'
+
+export type CashVaultEntry = {
+  id: string
+  branchId: string
+  branchName?: string | null
+  entryType: CashVaultEntryType
+  shiftSessionId?: string | null
+  shiftStaffName?: string | null
+  shiftOpenedAt?: string | null
+  shiftClosedAt?: string | null
+  cashBeforeAmount?: number | null
+  cashAfterAmount: number
+  deltaAmount: number
+  collectedAmount: number
+  targetReserveAmount: number
+  netCashAmount: number
+  reserveTopUpAmount: number
+  withdrawableAmount: number
+  pendingAmount: number
+  reserveShortageAmount: number
+  note?: string | null
+  performedById?: string | null
+  performedByName?: string | null
+  occurredAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CashVaultBranchSummary = {
+  branchId: string
+  branchName: string
+  currentCashAmount: number
+  targetReserveAmount: number
+  withdrawableAmount: number
+  pendingAmount: number
+  reserveShortageAmount: number
+  collectedAmount: number
+  lastEntryAt?: string | null
+  lastEntryType?: CashVaultEntryType | null
+}
+
+export type CashVaultSummary = {
+  branches: CashVaultBranchSummary[]
+  totalCurrentCashAmount: number
+  totalPendingAmount: number
+  totalReserveShortageAmount: number
+  totalCollectedAmount: number
+}
+
+export type CashVaultListResponse = {
+  entries: CashVaultEntry[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+export type CashVaultListParams = {
+  page?: number
+  limit?: number
+  branchId?: string
+  entryType?: CashVaultEntryType | 'ALL'
   dateFrom?: string
   dateTo?: string
 }
@@ -163,4 +244,26 @@ export const shiftApi = {
     api
       .delete(`/shifts/${id}`, { headers: branchScopedHeaders })
       .then((response) => response.data.data as { id: string }),
+
+  vaultSummary: (params: Pick<CashVaultListParams, 'branchId' | 'dateFrom' | 'dateTo'> = {}) =>
+    api
+      .get('/shifts/vault/summary', { params })
+      .then((response) => response.data.data as CashVaultSummary),
+
+  vaultLedger: (params: CashVaultListParams) =>
+    api
+      .get('/shifts/vault/ledger', { params })
+      .then((response) => response.data.data as CashVaultListResponse),
+
+  collectVault: (payload: {
+    branchId?: string
+    amount: number
+    actualCashBefore?: number
+    targetReserveAmount?: number
+    note?: string
+    occurredAt?: string
+  }) =>
+    api
+      .post('/shifts/vault/collections', payload)
+      .then((response) => response.data.data as CashVaultEntry),
 }
