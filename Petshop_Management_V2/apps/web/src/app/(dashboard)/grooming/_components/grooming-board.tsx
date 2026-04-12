@@ -3,8 +3,9 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, LayoutGrid, List, Pencil, Plus, RefreshCw, Tag, Trash2, UserRound, XCircle } from 'lucide-react'
+import { CalendarDays, LayoutGrid, List, Pencil, Plus, RefreshCw, Table, Tag, Trash2, UserRound, XCircle } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
+import { ServicePricingWorkspace } from '@/components/service-pricing/ServicePricingWorkspace'
 import {
   DataListBulkBar,
   DataListFilterPanel,
@@ -34,7 +35,7 @@ import {
   GROOMING_STATUS_ORDER,
 } from './grooming-status'
 
-type ViewMode = 'kanban' | 'list'
+type ViewMode = 'kanban' | 'list' | 'pricing'
 
 const TABLE_COLUMNS = [
   { id: 'session', label: 'Phiên', width: 'w-28' },
@@ -296,6 +297,7 @@ export function GroomingBoard() {
               <div className="inline-flex items-center p-1 border rounded-2xl border-border bg-background-secondary">
                 <button type="button" onClick={() => setViewMode('kanban')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'kanban' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><LayoutGrid size={15} />Kanban</button>
                 <button type="button" onClick={() => setViewMode('list')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'list' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><List size={15} />Danh sách</button>
+                <button type="button" onClick={() => setViewMode('pricing')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'pricing' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><Table size={15} />Bảng giá</button>
               </div>
               <button type="button" onClick={() => sessionsQuery.refetch()} className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 text-sm font-medium text-foreground transition-colors hover:border-primary-500/60"><RefreshCw size={15} className={sessionsQuery.isRefetching ? 'animate-spin' : ''} />Làm mới</button>
               <button type="button" onClick={() => setIsCreateModalOpen(true)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"><Plus size={15} />Thêm phiên</button>
@@ -311,7 +313,9 @@ export function GroomingBoard() {
 
         <p className="px-1 text-xs text-foreground-muted">Tổng <strong className="text-foreground">{filteredSessions.length}</strong> phiên{activeFilterCount > 0 ? <span> · {activeFilterCount} bộ lọc đang hoạt động</span> : null}{search ? <span> · tìm kiếm “{search}”</span> : null}</p>
 
-        {viewMode === 'kanban' ? (
+        {viewMode === 'pricing' ? (
+          <ServicePricingWorkspace mode="GROOMING" />
+        ) : viewMode === 'kanban' ? (
           <div className="custom-scrollbar flex min-h-0 flex-1 gap-4 overflow-x-auto pb-2">
             {GROOMING_STATUS_ORDER.map((status) => {
               const meta = GROOMING_STATUS_META[status]

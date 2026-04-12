@@ -32,6 +32,7 @@ model Branch {
   closeTime             String?                @default("21:00")
   isMain                Boolean                @default(false)
   isActive              Boolean                @default(true)
+  cashReserveTargetAmount Float                @default(2000000)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   branchStocks          BranchStock[]
@@ -413,11 +414,12 @@ model OrderItem {
   groomingSessionId String?
   hotelStayId       String?
   description       String
-  quantity          Int
+  quantity          Float
   unitPrice         Float
   discountItem      Float            @default(0)
   vatRate           Float            @default(0)
   subtotal          Float
+  pricingSnapshot   Json?
   type              String
   createdAt         DateTime         @default(now())
   groomingSession   GroomingSession? @relation(fields: [groomingSessionId], references: [id])
@@ -472,20 +474,47 @@ model GroomingSession {
   endTime     DateTime?
   notes       String?
   price       Float?
+  packageCode String?
+  weightAtBooking Float?
+  weightBandId String?
+  pricingSnapshot Json?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   branch      Branch?        @relation(fields: [branchId], references: [id])
   pet         Pet            @relation(fields: [petId], references: [id])
   order       Order?         @relation(fields: [orderId], references: [id])
   staff       User?          @relation(fields: [staffId], references: [id])
+  weightBand  ServiceWeightBand? @relation(fields: [weightBandId], references: [id])
   orderItems  OrderItem[]
 
   @@index([branchId])
   @@index([petId])
   @@index([orderId])
   @@index([status])
+  @@index([weightBandId])
   @@index([createdAt])
   @@map("grooming_sessions")
+}
+
+model ServiceWeightBand {
+  id              String           @id @default(cuid())
+  serviceType     ServiceType
+  species         String?
+  label           String
+  minWeight       Float
+  maxWeight       Float?
+  sortOrder       Int              @default(0)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  spaPriceRules   SpaPriceRule[]
+  groomingSessions GroomingSession[]
+  hotelPriceRules HotelPriceRule[]
+  hotelStays      HotelStay[]
+  hotelChargeLines HotelStayChargeLine[]
+
+  @@index([serviceType, species, isActive, sortOrder])
+  @@map("service_weight_bands")
 }
 
 model HotelRateTable {
@@ -519,6 +548,56 @@ model Cage {
   @@map("cages")
 }
 
+model HotelPriceRule {
+  id            String            @id @default(cuid())
+  year          Int
+  species       String?
+  weightBandId  String
+  dayType       HotelLineType     @default(REGULAR)
+  halfDayPrice  Float
+  fullDayPrice  Float
+  isActive      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  weightBand    ServiceWeightBand @relation(fields: [weightBandId], references: [id], onDelete: Cascade)
+
+  @@index([year, dayType, species, isActive])
+  @@index([weightBandId, year])
+  @@map("hotel_price_rules")
+}
+
+model SpaPriceRule {
+  id              String            @id @default(cuid())
+  species         String?
+  packageCode     String
+  weightBandId    String
+  price           Float
+  durationMinutes Int?
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  weightBand      ServiceWeightBand @relation(fields: [weightBandId], references: [id], onDelete: Cascade)
+
+  @@index([packageCode, species, isActive])
+  @@index([weightBandId, packageCode])
+  @@map("spa_price_rules")
+}
+
+model HolidayCalendarDate {
+  id        String   @id @default(cuid())
+  date      DateTime
+  name      String
+  year      Int
+  isActive  Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date])
+  @@index([year, isActive])
+  @@map("holiday_calendar_dates")
+}
+
 model HotelStay {
   id                String          @id @default(cuid())
   petId             String
@@ -543,6 +622,10 @@ model HotelStay {
   dailyRate         Float           @default(0)
   depositAmount     Float           @default(0)
   petNotes          String?
+  weightAtBooking   Float?
+  weightBandId      String?
+  pricingSnapshot   Json?
+  breakdownSnapshot Json?
   promotion         Float           @default(0)
   surcharge         Float           @default(0)
   totalPrice        Float           @default(0)
@@ -552,7 +635,9 @@ model HotelStay {
   order             Order?          @relation(fields: [orderId], references: [id])
   pet               Pet             @relation(fields: [petId], references: [id])
   rateTable         HotelRateTable? @relation(fields: [rateTableId], references: [id])
+  weightBand        ServiceWeightBand? @relation(fields: [weightBandId], references: [id])
   orderItems        OrderItem[]
+  chargeLines       HotelStayChargeLine[]
 
   @@index([petId])
   @@index([customerId])
@@ -561,9 +646,32 @@ model HotelStay {
   @@index([status])
   @@index([paymentStatus])
   @@index([orderId])
+  @@index([weightBandId])
   @@index([checkIn])
   @@index([estimatedCheckOut])
   @@map("hotel_stays")
+}
+
+model HotelStayChargeLine {
+  id              String             @id @default(cuid())
+  hotelStayId     String
+  weightBandId    String?
+  label           String
+  dayType         HotelLineType      @default(REGULAR)
+  quantityDays    Float
+  unitPrice       Float
+  subtotal        Float
+  sortOrder       Int                @default(0)
+  pricingSnapshot Json?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  hotelStay       HotelStay          @relation(fields: [hotelStayId], references: [id], onDelete: Cascade)
+  weightBand      ServiceWeightBand? @relation(fields: [weightBandId], references: [id], onDelete: SetNull)
+
+  @@index([hotelStayId, sortOrder])
+  @@index([dayType])
+  @@index([weightBandId])
+  @@map("hotel_stay_charge_lines")
 }
 
 model Supplier {

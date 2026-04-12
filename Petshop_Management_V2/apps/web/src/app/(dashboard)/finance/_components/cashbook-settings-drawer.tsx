@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDownCircle, ArrowUpCircle, Check, Loader2, Pencil, Plus, Search, Settings, X } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, Check, Loader2, Pencil, Plus, Search, Settings, WalletCards, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { settingsApi, type CashbookCategory } from '@/lib/api'
 import { useAuthorization } from '@/hooks/useAuthorization'
@@ -18,8 +18,25 @@ type CategoryCardProps = {
   icon: ComponentType<{ size?: number; className?: string }>
 }
 
+type BranchReserveSetting = {
+  id: string
+  code: string
+  name: string
+  isActive: boolean
+  cashReserveTargetAmount?: number | null
+}
+
 function normalizeText(value: string) {
   return value.trim().toLowerCase()
+}
+
+function formatCurrency(value: number | null | undefined) {
+  return new Intl.NumberFormat('vi-VN').format(Math.round(Number(value) || 0))
+}
+
+function parseAmount(value: string) {
+  const parsed = Number(value.replace(/\D/g, ''))
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function CategoryCard({ type, title, subtitle, icon: Icon }: CategoryCardProps) {
@@ -222,6 +239,145 @@ function CategoryCard({ type, title, subtitle, icon: Icon }: CategoryCardProps) 
   )
 }
 
+function ReserveTargetCard() {
+  const queryClient = useQueryClient()
+  const { hasPermission } = useAuthorization()
+  const canManageReserve = hasPermission('branch.update') || hasPermission('settings.app.update')
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+
+  const branchesQuery = useQuery({
+    queryKey: ['settings', 'branches', 'cash-reserve-target'],
+    queryFn: () => settingsApi.getBranches() as Promise<BranchReserveSetting[]>,
+  })
+
+  useEffect(() => {
+    if (!branchesQuery.data) return
+    setDrafts(
+      Object.fromEntries(
+        branchesQuery.data.map((branch) => [
+          branch.id,
+          String(Math.max(0, Math.round(Number(branch.cashReserveTargetAmount) || 0))),
+        ]),
+      ),
+    )
+  }, [branchesQuery.data])
+
+  const updateReserveTargets = useMutation({
+    mutationFn: async () => {
+      const branches = branchesQuery.data ?? []
+      const dirtyBranches = branches
+        .map((branch) => {
+          const nextAmount = parseAmount(drafts[branch.id] ?? '')
+          const currentAmount = Math.max(0, Math.round(Number(branch.cashReserveTargetAmount) || 0))
+          return nextAmount !== currentAmount ? { branchId: branch.id, amount: nextAmount } : null
+        })
+        .filter(Boolean) as Array<{ branchId: string; amount: number }>
+
+      if (dirtyBranches.length === 0) return 0
+
+      await Promise.all(
+        dirtyBranches.map((item) =>
+          settingsApi.updateBranch(item.branchId, { cashReserveTargetAmount: item.amount }),
+        ),
+      )
+
+      return dirtyBranches.length
+    },
+    onSuccess: (updatedCount) => {
+      if (!updatedCount) {
+        toast.info('Không có thay đổi tồn két')
+        return
+      }
+
+      toast.success(`Đã lưu tồn két cho ${updatedCount} chi nhánh`)
+      queryClient.invalidateQueries({ queryKey: ['settings', 'branches'] })
+      queryClient.invalidateQueries({ queryKey: ['finance', 'cash-vault'] })
+      queryClient.invalidateQueries({ queryKey: ['shifts'] })
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message ?? 'Không thể lưu cấu hình tồn két')
+    },
+  })
+
+  const branches = branchesQuery.data ?? []
+
+  return (
+    <div className="overflow-hidden rounded-3xl border border-border/70 bg-background-secondary shadow-sm xl:col-span-2">
+      <div className="flex items-start justify-between gap-4 border-b border-border/50 px-5 py-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500">
+            <WalletCards size={18} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-foreground-base">Tồn két chi nhánh</h2>
+            <p className="mt-1 text-sm text-foreground-muted">Thiết lập mức tiền cần để lại trong két cho từng chi nhánh.</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => updateReserveTargets.mutate()}
+          disabled={!canManageReserve || updateReserveTargets.isPending || branchesQuery.isLoading}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {updateReserveTargets.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+          Lưu
+        </button>
+      </div>
+
+      <div className="p-5">
+        {branchesQuery.isLoading ? (
+          <div className="flex h-24 items-center justify-center text-foreground-muted">
+            <Loader2 size={18} className="animate-spin" />
+          </div>
+        ) : branches.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/60 px-4 py-5 text-sm text-foreground-muted">
+            Chưa có chi nhánh để cấu hình tồn két.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {branches.map((branch) => {
+              const inputValue = drafts[branch.id] ?? String(Math.max(0, Math.round(Number(branch.cashReserveTargetAmount) || 0)))
+              return (
+                <div
+                  key={branch.id}
+                  className="grid items-center gap-3 rounded-2xl border border-border/60 bg-background px-4 py-3 md:grid-cols-[minmax(0,1fr)_160px]"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-foreground-base">{branch.name}</p>
+                      <span className="rounded-md bg-primary-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-primary-500">
+                        {branch.code}
+                      </span>
+                      {branch.isActive ? null : (
+                        <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                          Tạm ngưng
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <input
+                    value={inputValue ? formatCurrency(parseAmount(inputValue)) : ''}
+                    disabled={!canManageReserve || updateReserveTargets.isPending}
+                    onChange={(event) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [branch.id]: event.target.value,
+                      }))
+                    }
+                    className="h-11 w-full rounded-2xl border border-border bg-background-secondary px-3 text-right text-sm font-semibold tabular-nums text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    placeholder="0"
+                  />
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 interface CashbookSettingsDrawerProps {
   isOpen: boolean
   onClose: () => void
@@ -295,6 +451,7 @@ export function CashbookSettingsDrawer({ isOpen, onClose }: CashbookSettingsDraw
                 subtitle="Gắn vào phiếu chi trong sổ quỹ"
                 icon={ArrowDownCircle}
               />
+              <ReserveTargetCard />
             </div>
           </motion.div>
         </>

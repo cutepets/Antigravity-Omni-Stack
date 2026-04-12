@@ -23,6 +23,12 @@ export interface CreateOrderPayload {
       startTime?: string;
       notes?: string;
       serviceItems?: string;
+      packageCode?: string;
+      weightAtBooking?: number;
+      weightBandId?: string;
+      weightBandLabel?: string;
+      pricingPrice?: number;
+      pricingSnapshot?: Record<string, unknown>;
     };
     hotelDetails?: {
       petId: string;
@@ -38,6 +44,15 @@ export interface CreateOrderPayload {
       depositAmount?: number;
       promotion?: number;
       surcharge?: number;
+      bookingGroupKey?: string;
+      chargeLineIndex?: number;
+      chargeLineLabel?: string;
+      chargeDayType?: string;
+      chargeQuantityDays?: number;
+      chargeUnitPrice?: number;
+      chargeSubtotal?: number;
+      chargeWeightBandId?: string;
+      chargeWeightBandLabel?: string;
     };
   }[];
   payments?: { method: string; amount: number; note?: string; paymentAccountId?: string; paymentAccountLabel?: string }[];

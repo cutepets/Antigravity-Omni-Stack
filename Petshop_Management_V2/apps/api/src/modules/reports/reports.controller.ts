@@ -95,6 +95,17 @@ export class ReportsController {
     return this.reportsService.getTopProducts(Number(limit) || 10, req.user, getRequestedBranchId(req), dateFrom, dateTo)
   }
 
+  @Get('service-revenue')
+  @Permissions('report.sales')
+  @ApiOperation({ summary: 'Bao cao doanh thu SPA va Hotel theo snapshot don hang' })
+  getServiceRevenue(
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.reportsService.getServiceRevenue(req.user, getRequestedBranchId(req), dateFrom, dateTo)
+  }
+
   @Get('purchases/summary')
   @Permissions('report.purchase', 'report.debt')
   @ApiOperation({ summary: 'Bao cao tong hop mua hang theo nha cung cap' })

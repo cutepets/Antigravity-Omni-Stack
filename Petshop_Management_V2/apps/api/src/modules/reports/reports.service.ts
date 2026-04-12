@@ -139,6 +139,24 @@ function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
+function safeSnapshot(value: unknown): Record<string, any> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {}
+}
+
+function addGroupedAmount(
+  map: Map<string, { key: string; label: string; quantity: number; revenue: number; count: number }>,
+  key: string,
+  label: string,
+  quantity: number,
+  revenue: number,
+) {
+  const current = map.get(key) ?? { key, label, quantity: 0, revenue: 0, count: 0 }
+  current.quantity = roundCurrency(current.quantity + quantity)
+  current.revenue = roundCurrency(current.revenue + revenue)
+  current.count += 1
+  map.set(key, current)
+}
+
 @Injectable()
 export class ReportsService {
   constructor(private readonly db: DatabaseService) {}
@@ -785,6 +803,173 @@ export class ReportsService {
     }))
 
     return { success: true, data }
+  }
+
+  async getServiceRevenue(
+    user?: BranchScopedUser,
+    requestedBranchId?: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
+    const branchIdFilter = this.getBranchIdFilter(user, requestedBranchId)
+    const { from, to } = this.resolveDateRange(dateFrom, dateTo)
+
+    const items = await this.db.orderItem.findMany({
+      where: {
+        OR: [
+          { groomingSessionId: { not: null } },
+          { hotelStayId: { not: null } },
+          { service: { is: { type: { in: ['GROOMING', 'HOTEL'] } } } },
+        ],
+        order: {
+          is: {
+            ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
+            ...(from || to
+              ? {
+                  createdAt: {
+                    ...(from ? { gte: from } : {}),
+                    ...(to ? { lte: to } : {}),
+                  },
+                }
+              : {}),
+            paymentStatus: { in: ['PAID', 'COMPLETED'] },
+          },
+        },
+      } as any,
+      include: {
+        order: { select: { id: true, orderNumber: true, createdAt: true, branchId: true } },
+        service: { select: { id: true, name: true, type: true } },
+        groomingSession: {
+          select: {
+            id: true,
+            packageCode: true,
+            weightBand: { select: { id: true, label: true } },
+          },
+        },
+        hotelStay: {
+          select: {
+            id: true,
+            lineType: true,
+            weightBand: { select: { id: true, label: true } },
+          },
+        },
+      },
+      orderBy: [{ order: { createdAt: 'desc' } }, { createdAt: 'desc' }],
+      take: 1000,
+    })
+
+    const hotelByDayType = new Map<string, { key: string; label: string; quantity: number; revenue: number; count: number }>()
+    const hotelByWeightBand = new Map<string, { key: string; label: string; quantity: number; revenue: number; count: number }>()
+    const groomingByPackage = new Map<string, { key: string; label: string; quantity: number; revenue: number; count: number }>()
+    const groomingByWeightBand = new Map<string, { key: string; label: string; quantity: number; revenue: number; count: number }>()
+    const detailRows: any[] = []
+
+    let hotelRevenue = 0
+    let groomingRevenue = 0
+    let hotelDays = 0
+    let groomingQuantity = 0
+    const orderIds = new Set<string>()
+
+    const pushHotelLine = (item: any, line: Record<string, any>, fallbackSubtotal: number) => {
+      const dayType = String(line.dayType ?? item.hotelStay?.lineType ?? 'REGULAR').toUpperCase() === 'HOLIDAY' ? 'HOLIDAY' : 'REGULAR'
+      const quantityDays = toNumber(line.quantityDays ?? item.quantity)
+      const revenue = roundCurrency(toNumber(line.subtotal ?? fallbackSubtotal))
+      const weightBandLabel = String(line.weightBandLabel ?? item.hotelStay?.weightBand?.label ?? 'Chưa rõ hạng cân')
+      const label = String(line.label ?? item.description ?? (dayType === 'HOLIDAY' ? 'Hotel ngày lễ' : 'Hotel ngày thường'))
+
+      hotelRevenue = roundCurrency(hotelRevenue + revenue)
+      hotelDays = roundCurrency(hotelDays + quantityDays)
+      addGroupedAmount(hotelByDayType, dayType, dayType === 'HOLIDAY' ? 'Ngày lễ' : 'Ngày thường', quantityDays, revenue)
+      addGroupedAmount(hotelByWeightBand, weightBandLabel, weightBandLabel, quantityDays, revenue)
+      detailRows.push({
+        type: 'HOTEL',
+        orderNumber: item.order?.orderNumber ?? '',
+        date: item.order?.createdAt ?? item.createdAt,
+        label,
+        packageCode: null,
+        dayType,
+        weightBandLabel,
+        quantity: quantityDays,
+        revenue,
+      })
+    }
+
+    for (const item of items) {
+      const snapshot = safeSnapshot(item.pricingSnapshot)
+      const source = String(snapshot.source ?? '').toUpperCase()
+      const serviceType = String(item.service?.type ?? '').toUpperCase()
+      const subtotal = roundCurrency(toNumber(item.subtotal))
+      const isHotel = Boolean(item.hotelStayId) || source.includes('HOTEL') || serviceType === 'HOTEL'
+      const isGrooming = Boolean(item.groomingSessionId) || source.includes('GROOMING') || source.includes('SPA') || serviceType === 'GROOMING'
+
+      if (!isHotel && !isGrooming) continue
+      if (item.order?.id) orderIds.add(item.order.id)
+
+      if (isHotel) {
+        const chargeLines = Array.isArray(snapshot.chargeLines) ? snapshot.chargeLines : null
+        if (chargeLines && chargeLines.length > 0) {
+          for (const line of chargeLines) {
+            pushHotelLine(item, safeSnapshot(line), toNumber(line?.subtotal))
+          }
+        } else {
+          const chargeLine = safeSnapshot(snapshot.chargeLine)
+          pushHotelLine(item, chargeLine, subtotal)
+        }
+        continue
+      }
+
+      const pricingSnapshot = safeSnapshot(snapshot.pricingSnapshot)
+      const packageCode = String(snapshot.packageCode ?? pricingSnapshot.packageCode ?? item.groomingSession?.packageCode ?? 'OTHER')
+      const weightBandLabel = String(
+        snapshot.weightBandLabel ??
+          pricingSnapshot.weightBandLabel ??
+          item.groomingSession?.weightBand?.label ??
+          'Chưa rõ hạng cân',
+      )
+      const quantity = toNumber(item.quantity)
+
+      groomingRevenue = roundCurrency(groomingRevenue + subtotal)
+      groomingQuantity = roundCurrency(groomingQuantity + quantity)
+      addGroupedAmount(groomingByPackage, packageCode, packageCode, quantity, subtotal)
+      addGroupedAmount(groomingByWeightBand, weightBandLabel, weightBandLabel, quantity, subtotal)
+      detailRows.push({
+        type: 'GROOMING',
+        orderNumber: item.order?.orderNumber ?? '',
+        date: item.order?.createdAt ?? item.createdAt,
+        label: item.description,
+        packageCode,
+        dayType: null,
+        weightBandLabel,
+        quantity,
+        revenue: subtotal,
+      })
+    }
+
+    const sortByRevenue = (left: { revenue: number }, right: { revenue: number }) => right.revenue - left.revenue
+
+    return {
+      success: true,
+      data: {
+        summary: {
+          totalRevenue: roundCurrency(hotelRevenue + groomingRevenue),
+          hotelRevenue,
+          groomingRevenue,
+          hotelDays,
+          groomingQuantity,
+          orderCount: orderIds.size,
+          itemCount: detailRows.length,
+        },
+        hotel: {
+          byDayType: Array.from(hotelByDayType.values()).sort(sortByRevenue),
+          byWeightBand: Array.from(hotelByWeightBand.values()).sort(sortByRevenue),
+        },
+        grooming: {
+          byPackage: Array.from(groomingByPackage.values()).sort(sortByRevenue),
+          byWeightBand: Array.from(groomingByWeightBand.values()).sort(sortByRevenue),
+        },
+        details: detailRows.slice(0, 500),
+      },
+    }
   }
 
   async getPurchaseSummary(user?: BranchScopedUser, requestedBranchId?: string, dateFrom?: string, dateTo?: string) {

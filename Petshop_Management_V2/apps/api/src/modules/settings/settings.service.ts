@@ -9,6 +9,7 @@ export interface CreateBranchDto {
   address?: string
   phone?: string
   isActive?: boolean
+  cashReserveTargetAmount?: number
 }
 
 export interface UpdateBranchDto extends Partial<CreateBranchDto> {}
@@ -153,6 +154,16 @@ export class SettingsService {
   private normalizeBankTransferNotes(value?: string | null) {
     const normalized = String(value ?? '').trim()
     return normalized ? normalized : null
+  }
+
+  private normalizeBranchCashReserveTargetAmount(value?: number | null) {
+    if (value === undefined || value === null) return undefined
+    const normalized = Math.round(Number(value))
+    if (!Number.isFinite(normalized) || normalized < 0) {
+      throw new BadRequestException('Muc ton ket khong hop le')
+    }
+
+    return normalized
   }
 
   private normalizePaymentMethodType(type?: string | null): PaymentMethodType {
@@ -1084,11 +1095,13 @@ export class SettingsService {
     const code = dto.code
       ? await this.ensureUniqueBranchCode(dto.code)
       : await this.suggestUniqueBranchCode(dto.name)
+    const cashReserveTargetAmount = this.normalizeBranchCashReserveTargetAmount(dto.cashReserveTargetAmount)
 
     const branch = await this.db.branch.create({
       data: {
         ...dto,
         code,
+        ...(cashReserveTargetAmount !== undefined ? { cashReserveTargetAmount } : {}),
       } as any,
     })
     return { success: true, data: branch }
@@ -1097,11 +1110,13 @@ export class SettingsService {
   async updateBranch(id: string, dto: UpdateBranchDto) {
     const branch = await this.db.branch.findUnique({ where: { id } })
     if (!branch) throw new NotFoundException('Không tìm thấy chi nhánh')
+    const cashReserveTargetAmount = this.normalizeBranchCashReserveTargetAmount(dto.cashReserveTargetAmount)
     const updated = await this.db.branch.update({
       where: { id },
       data: {
         ...dto,
         ...(dto.code ? { code: await this.ensureUniqueBranchCode(dto.code, id) } : {}),
+        ...(cashReserveTargetAmount !== undefined ? { cashReserveTargetAmount } : {}),
       } as any,
     })
     return { success: true, data: updated }

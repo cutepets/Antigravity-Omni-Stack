@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useCreateOrder } from './_hooks/use-pos-mutations';
 import { useBranches } from './_hooks/use-pos-queries';
 import type { CreateOrderPayload, OrderPaymentIntent } from '@/lib/api/order.api';
-import type { PaymentEntry } from '@petshop/shared';
+import type { CartItem, PaymentEntry } from '@petshop/shared';
 import { settingsApi } from '@/lib/api/settings.api';
 import { filterVisiblePaymentMethods, getPaymentMethodColorClasses } from '@/lib/payment-methods';
 import { ServiceBookingModal } from './components/ServiceBookingModal';
@@ -51,10 +51,113 @@ function buildQuickCashSuggestions(total: number) {
 }
 const moneyRaw = (n: number) => new Intl.NumberFormat('vi-VN').format(n);
 
+function parseCartQuantityInput(value: string) {
+  const normalized = value.replace(/[^\d.,]/g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function getCartQuantityStep(item: { type?: string }) {
+  return item.type === 'hotel' ? 0.5 : 1;
+}
+
+function normalizeServiceText(value?: string) {
+  return value
+    ?.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase() ?? '';
+}
+
+function isHotelService(service: any) {
+  const text = normalizeServiceText(`${service?.name ?? ''} ${service?.sku ?? ''}`);
+  return service?.type === 'hotel' || service?.suggestionKind === 'HOTEL' || text.includes('hotel') || text.includes('luu chuong');
+}
+
+function inferSpaPackageCodeFromService(service: any) {
+  const text = normalizeServiceText(`${service?.name ?? ''} ${service?.sku ?? ''}`);
+  const hasBath = text.includes('tam');
+  const hasClip = text.includes('cao') || text.includes('cat');
+  const hasHygiene = text.includes('ve sinh');
+
+  if (text.includes('spa')) return 'SPA';
+  if (hasBath && hasClip && hasHygiene) return 'BATH_CLIP_HYGIENE';
+  if (hasBath && hasHygiene) return 'BATH_HYGIENE';
+  if (hasClip) return 'CLIP';
+  if (hasBath) return 'BATH';
+  if (hasHygiene) return 'HYGIENE';
+  return undefined;
+}
+
 function buildCartLineId(type: 'product' | 'service' | 'hotel' | 'grooming', ...parts: Array<string | number | null | undefined>) {
   return [type, ...parts.filter((part) => part !== undefined && part !== null && String(part).trim() !== '')]
     .map((part) => String(part).replace(/\s+/g, '-'))
     .join(':');
+}
+
+function buildHotelChargeCartItems(service: any, details: any): CartItem[] {
+  const chargeLines = Array.isArray(details?.pricingPreview?.chargeLines)
+    ? details.pricingPreview.chargeLines
+    : [];
+
+  if (chargeLines.length === 0) {
+    return [
+      {
+        id: buildCartLineId('hotel', service.id, details?.petId, details?.checkIn, details?.checkOut, Date.now()),
+        serviceId: service.id,
+        description: service.name,
+        sku: service.sku,
+        unitPrice: details?.pricingPreview?.totalPrice ?? service.sellingPrice ?? service.price ?? 0,
+        type: 'hotel',
+        image: service.image,
+        unit: 'lan',
+        discountItem: 0,
+        vatRate: 0,
+        quantity: 1,
+        petId: details?.petId,
+        hotelDetails: details,
+      },
+    ];
+  }
+
+  const bookingGroupKey = buildCartLineId(
+    'hotel',
+    service.id,
+    details?.petId,
+    details?.checkIn,
+    details?.checkOut,
+    Date.now(),
+  );
+
+  return chargeLines.map((line: any, index: number) => ({
+    id: buildCartLineId('hotel', bookingGroupKey, index),
+    serviceId: service.id,
+    description: line.label ?? service.name,
+    sku: service.sku,
+    unitPrice: Number(line.unitPrice) || 0,
+    type: 'hotel' as const,
+    image: service.image,
+    unit: 'ngay',
+    discountItem: 0,
+    vatRate: 0,
+    quantity: Number(line.quantityDays) || 0,
+    petId: details?.petId,
+    hotelDetails: {
+      petId: details?.petId,
+      checkIn: details?.checkIn,
+      checkOut: details?.checkOut,
+      lineType: line.dayType ?? details?.lineType ?? 'REGULAR',
+      bookingGroupKey,
+      chargeLineIndex: index,
+      chargeLineLabel: line.label ?? service.name,
+      chargeDayType: line.dayType ?? details?.lineType ?? 'REGULAR',
+      chargeQuantityDays: Number(line.quantityDays) || 0,
+      chargeUnitPrice: Number(line.unitPrice) || 0,
+      chargeSubtotal: Number(line.subtotal) || 0,
+      chargeWeightBandId: line.weightBandId ?? null,
+      chargeWeightBandLabel: String(line.pricingSnapshot?.weightBandLabel ?? ''),
+      pricingPreview: details?.pricingPreview,
+    },
+  }));
 }
 
 function getSellableQuantity(stockSource: any, branchId?: string) {
@@ -133,6 +236,7 @@ function resolveCartItemStockState(item: any, branchId?: string) {
 function PosPageContent() {
   const queryClient = useQueryClient();
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<any>(null);
+  const [preferredBookingPetId, setPreferredBookingPetId] = useState<string | undefined>(undefined);
   const [showHotelCheckout, setShowHotelCheckout] = useState(false);
   const [noteEditingId, setNoteEditingId] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -178,7 +282,7 @@ function PosPageContent() {
     if (!shiftCurrentQuery.isFetched) return
     const shift = shiftCurrentQuery.data
     // Chưa có ca nào hoặc ca hiện tại đã chốt (CLOSED) → mở modal
-    if (!shift || shift.status === 'CLOSED') {
+    if (!shift) {
       setShowShiftClosingModal(true)
     }
   }, [shiftCurrentQuery.isFetched, shiftCurrentQuery.data])
@@ -283,6 +387,15 @@ function PosPageContent() {
                 checkOut: i.hotelDetails.checkOutDate,
                 stayId: i.hotelStayId,
                 lineType: i.hotelDetails.lineType ?? 'REGULAR',
+                bookingGroupKey: i.hotelDetails.bookingGroupKey,
+                chargeLineIndex: i.hotelDetails.chargeLineIndex,
+                chargeLineLabel: i.hotelDetails.chargeLineLabel,
+                chargeDayType: i.hotelDetails.chargeDayType,
+                chargeQuantityDays: i.hotelDetails.chargeQuantityDays,
+                chargeUnitPrice: i.hotelDetails.chargeUnitPrice,
+                chargeSubtotal: i.hotelDetails.chargeSubtotal,
+                chargeWeightBandId: i.hotelDetails.chargeWeightBandId ?? null,
+                chargeWeightBandLabel: i.hotelDetails.chargeWeightBandLabel ?? null,
               }
               : undefined,
             groomingDetails: i.groomingDetails
@@ -292,6 +405,10 @@ function PosPageContent() {
                 startTime: i.groomingDetails.startTime,
                 notes: i.groomingDetails.notes,
                 serviceItems: i.groomingDetails.serviceItems,
+                packageCode: i.groomingDetails.packageCode,
+                weightAtBooking: i.groomingDetails.weightAtBooking,
+                weightBandId: i.groomingDetails.weightBandId,
+                pricingSnapshot: i.groomingDetails.pricingSnapshot,
               }
               : undefined,
           })),
@@ -442,6 +559,35 @@ function PosPageContent() {
   );
 
   // â”€â”€ Checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const handleSelectSuggestedService = useCallback(
+    (service: any, petId: string) => {
+      if (isHotelService(service)) {
+        setPreferredBookingPetId(petId);
+        setSelectedServiceForBooking(service);
+        return;
+      }
+
+      store.addItem({
+        id: buildCartLineId('grooming', service.id, petId, Date.now()),
+        serviceId: service.id,
+        description: service.name,
+        sku: service.sku,
+        unitPrice: service.sellingPrice ?? service.price ?? 0,
+        type: 'service',
+        image: service.image,
+        unit: 'lần',
+        quantity: 1,
+        petId,
+        groomingDetails: {
+          petId,
+          packageCode: inferSpaPackageCodeFromService(service),
+        },
+      });
+      toast.success('Đã thêm dịch vụ vào giỏ');
+    },
+    [store],
+  );
+
   const handleSelectSinglePaymentMethod = useCallback(
     (method: (typeof paymentMethods)[number]) => {
       store.setSinglePayment(method.type as any, cartTotal, {
@@ -507,6 +653,12 @@ function PosPageContent() {
             performerId: ci.groomingDetails.performerId,
             startTime: ci.groomingDetails.startTime,
             notes: ci.groomingDetails.notes,
+            packageCode: ci.groomingDetails.packageCode,
+            weightAtBooking: ci.groomingDetails.weightAtBooking,
+            weightBandId: ci.groomingDetails.weightBandId,
+            weightBandLabel: ci.groomingDetails.weightBandLabel,
+            pricingPrice: ci.groomingDetails.pricingPrice,
+            pricingSnapshot: ci.groomingDetails.pricingSnapshot,
           } : undefined,
           hotelDetails: ci.hotelDetails ? {
             petId: ci.hotelDetails.petId,
@@ -514,6 +666,15 @@ function PosPageContent() {
             checkOutDate: ci.hotelDetails.checkOut,
             branchId: activeTab.branchId,
             lineType: ci.hotelDetails.lineType,
+            bookingGroupKey: ci.hotelDetails.bookingGroupKey,
+            chargeLineIndex: ci.hotelDetails.chargeLineIndex,
+            chargeLineLabel: ci.hotelDetails.chargeLineLabel,
+            chargeDayType: ci.hotelDetails.chargeDayType,
+            chargeQuantityDays: ci.hotelDetails.chargeQuantityDays,
+            chargeUnitPrice: ci.hotelDetails.chargeUnitPrice,
+            chargeSubtotal: ci.hotelDetails.chargeSubtotal,
+            chargeWeightBandId: ci.hotelDetails.chargeWeightBandId ?? undefined,
+            chargeWeightBandLabel: ci.hotelDetails.chargeWeightBandLabel ?? undefined,
           } : undefined,
         })),
         payments: !activeTab.existingOrderId && checkoutPayments ? checkoutPayments : undefined,
@@ -1153,7 +1314,7 @@ function PosPageContent() {
                           <button
                             className={`px-2 h-full transition-colors ${isOverSellableQty ? 'text-red-600 hover:bg-red-100' : 'text-gray-500 hover:bg-gray-100'
                               }`}
-                            onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) - 1)}
+                            onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) - getCartQuantityStep(item))}
                           >
                             <Minus size={14} />
                           </button>
@@ -1161,8 +1322,8 @@ function PosPageContent() {
                             type="text"
                             value={item.quantity ?? 1}
                             onChange={(e) => {
-                              const v = parseInt(e.target.value.replace(/\D/g, ''));
-                              store.updateQuantity(item.id, isNaN(v) ? 1 : v);
+                              const v = parseCartQuantityInput(e.target.value);
+                              store.updateQuantity(item.id, Number.isNaN(v) ? getCartQuantityStep(item) : v);
                             }}
                             className={`w-10 text-center font-bold text-[15px] outline-none border-none h-full ${isOverSellableQty ? 'bg-red-50 text-red-600' : 'bg-white text-gray-900'
                               }`}
@@ -1170,7 +1331,7 @@ function PosPageContent() {
                           <button
                             className={`px-2 h-full transition-colors ${isOverSellableQty ? 'text-red-600 hover:bg-red-100' : 'text-gray-500 hover:bg-gray-100'
                               }`}
-                            onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) + 1)}
+                            onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) + getCartQuantityStep(item))}
                           >
                             <Plus size={14} />
                           </button>
@@ -1284,7 +1445,7 @@ function PosPageContent() {
                           <button
                             className={`px-2.5 h-full flex items-center justify-center transition-colors ${isOverSellableQty ? 'hover:bg-red-100' : 'hover:bg-gray-100'
                               }`}
-                            onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) - 1)}
+                            onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) - getCartQuantityStep(item))}
                           >
                             <Minus size={16} />
                           </button>
@@ -1292,8 +1453,8 @@ function PosPageContent() {
                             type="text"
                             value={item.quantity ?? 1}
                             onChange={(e) => {
-                              const v = parseInt(e.target.value.replace(/\D/g, ''));
-                              store.updateQuantity(item.id, isNaN(v) ? 1 : v);
+                              const v = parseCartQuantityInput(e.target.value);
+                              store.updateQuantity(item.id, Number.isNaN(v) ? getCartQuantityStep(item) : v);
                             }}
                             className={`w-10 text-center font-bold text-[14px] outline-none border-none h-full ${isOverSellableQty ? 'bg-red-50 text-red-600' : 'bg-transparent text-gray-700'
                               }`}
@@ -1301,7 +1462,7 @@ function PosPageContent() {
                           <button
                             className={`px-2.5 h-full flex items-center justify-center transition-colors ${isOverSellableQty ? 'hover:bg-red-100' : 'hover:bg-gray-100'
                               }`}
-                            onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) + 1)}
+                            onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) + getCartQuantityStep(item))}
                           >
                             <Plus size={16} />
                           </button>
@@ -1357,7 +1518,9 @@ function PosPageContent() {
 
         {/* 1. CUSTOMER & PETS (Mobile: 1st, Desktop: Right Col, Row 1) */}
         <div className="order-1 lg:col-start-2 lg:row-start-1 bg-white border-b lg:border-l lg:border-b-0 border-gray-200 z-30 relative">
-          <PosCustomerV1 />
+          <PosCustomerV1
+            onSelectSuggestedService={handleSelectSuggestedService}
+          />
         </div>
 
         {/* 4. CALCULATION AREA (Mobile: 4th, Desktop: Right Col, Row 2) */}
@@ -1594,31 +1757,42 @@ function PosPageContent() {
     <ServiceBookingModal
   isOpen = {!!selectedServiceForBooking
 }
-onClose = {() => setSelectedServiceForBooking(null)}
+onClose = {() => {
+  setPreferredBookingPetId(undefined);
+  setSelectedServiceForBooking(null);
+}}
 service = { selectedServiceForBooking }
 customerId = { activeTab?.customerId }
+initialPetId = { preferredBookingPetId }
 onConfirm = {(details) => {
+  if (details.type === 'hotel') {
+    const cartItems = buildHotelChargeCartItems(selectedServiceForBooking, details.details);
+    cartItems.forEach((item) => store.addItem(item));
+    setPreferredBookingPetId(undefined);
+    setSelectedServiceForBooking(null);
+    return;
+  }
+
   const cartItem = {
     id: buildCartLineId(
-      details.type === 'hotel' ? 'hotel' : 'grooming',
+      'grooming',
       selectedServiceForBooking.id,
       details.details?.petId,
-      details.type === 'hotel' ? details.details?.checkInDate : details.details?.startTime,
-      details.type === 'hotel' ? details.details?.checkOutDate : undefined,
+      details.details?.startTime,
     ),
     serviceId: selectedServiceForBooking.id,
     description: selectedServiceForBooking.name,
     sku: selectedServiceForBooking.sku,
-    unitPrice: selectedServiceForBooking.sellingPrice ?? selectedServiceForBooking.price ?? 0,
+    unitPrice: details.details?.pricingPrice ?? selectedServiceForBooking.sellingPrice ?? selectedServiceForBooking.price ?? 0,
     type: 'service' as const,
     image: selectedServiceForBooking.image,
     unit: 'lần',
     groomingDetails: details.type === 'grooming' ? details.details : undefined,
-    hotelDetails: details.type === 'hotel' ? details.details : undefined,
     quantity: 1,
     petId: details.details?.petId,
   };
   store.addItem(cartItem);
+  setPreferredBookingPetId(undefined);
   setSelectedServiceForBooking(null);
 }}
       />

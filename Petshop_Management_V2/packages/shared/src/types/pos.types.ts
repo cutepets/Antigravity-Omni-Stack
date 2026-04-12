@@ -32,6 +32,12 @@ export interface CartItem {
     startTime?: string
     notes?: string
     serviceItems?: string
+    packageCode?: string
+    weightAtBooking?: number
+    weightBandId?: string
+    weightBandLabel?: string
+    pricingPrice?: number
+    pricingSnapshot?: any
   }
   hotelDetails?: {
     petId: string
@@ -40,6 +46,16 @@ export interface CartItem {
     stayId?: string
     lineType: 'REGULAR' | 'HOLIDAY'
     tableName?: string
+    bookingGroupKey?: string
+    chargeLineIndex?: number
+    chargeLineLabel?: string
+    chargeDayType?: 'REGULAR' | 'HOLIDAY'
+    chargeQuantityDays?: number
+    chargeUnitPrice?: number
+    chargeSubtotal?: number
+    chargeWeightBandId?: string | null
+    chargeWeightBandLabel?: string | null
+    pricingPreview?: any
   }
   itemNotes?: string
   isTempItem?: boolean

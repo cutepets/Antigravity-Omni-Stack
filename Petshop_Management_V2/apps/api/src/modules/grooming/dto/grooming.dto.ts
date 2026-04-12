@@ -17,6 +17,10 @@ export class CreateGroomingDto {
   @IsOptional()
   serviceId?: string
 
+  @IsString()
+  @IsOptional()
+  packageCode?: string
+
   @IsDateString()
   @IsOptional()
   startTime?: string
@@ -24,6 +28,26 @@ export class CreateGroomingDto {
   @IsString()
   @IsOptional()
   notes?: string
+
+  @IsNumber()
+  @IsOptional()
+  price?: number
+}
+
+export class CalculateSpaPriceDto {
+  @IsString()
+  petId!: string
+
+  @IsString()
+  packageCode!: string
+
+  @IsNumber()
+  @IsOptional()
+  weight?: number
+
+  @IsString()
+  @IsOptional()
+  species?: string
 }
 
 export class UpdateGroomingDto {
@@ -38,6 +62,10 @@ export class UpdateGroomingDto {
   @IsString()
   @IsOptional()
   staffId?: string
+
+  @IsString()
+  @IsOptional()
+  packageCode?: string
 
   @IsDateString()
   @IsOptional()

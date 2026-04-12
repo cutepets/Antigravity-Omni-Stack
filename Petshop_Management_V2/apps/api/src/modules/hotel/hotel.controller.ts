@@ -48,7 +48,7 @@ export class HotelController {
 
   @Get('cages')
   @Permissions('hotel.read')
-  findAllCages() {
+  findAllCages(): Promise<any> {
     return this.hotelService.findAllCages()
   }
 
@@ -96,43 +96,43 @@ export class HotelController {
 
   @Post('stays')
   @Permissions('hotel.create', 'hotel.checkin')
-  createStay(@Body() createStayDto: CreateHotelStayDto, @Req() req: AuthenticatedRequest) {
+  createStay(@Body() createStayDto: CreateHotelStayDto, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.hotelService.createStay(createStayDto, req.user, getRequestedBranchId(req))
   }
 
   @Get('stays')
   @Permissions('hotel.read')
-  findAllStays(@Query() query: any, @Req() req: AuthenticatedRequest) {
+  findAllStays(@Query() query: any, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.hotelService.findAllStays(query, req.user, getRequestedBranchId(req))
   }
 
   @Get('stays/:id')
   @Permissions('hotel.read')
-  findStayById(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+  findStayById(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.hotelService.findStayById(id, req.user)
   }
 
   @Patch('stays/:id')
   @Permissions('hotel.update')
-  updateStay(@Param('id') id: string, @Body() updateStayDto: UpdateHotelStayDto, @Req() req: AuthenticatedRequest) {
+  updateStay(@Param('id') id: string, @Body() updateStayDto: UpdateHotelStayDto, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.hotelService.updateStay(id, updateStayDto, req.user, getRequestedBranchId(req))
   }
 
   @Patch('stays/:id/payment')
   @Permissions('hotel.update')
-  updateStayPayment(@Param('id') id: string, @Body('paymentStatus') paymentStatus: PaymentStatus, @Req() req: AuthenticatedRequest) {
+  updateStayPayment(@Param('id') id: string, @Body('paymentStatus') paymentStatus: PaymentStatus, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.hotelService.updateStayPayment(id, paymentStatus, req.user)
   }
 
   @Post('stays/:id/checkout')
   @Permissions('hotel.checkout')
-  checkoutStay(@Param('id') id: string, @Body() checkoutStayDto: CheckoutHotelStayDto, @Req() req: AuthenticatedRequest) {
+  checkoutStay(@Param('id') id: string, @Body() checkoutStayDto: CheckoutHotelStayDto, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.hotelService.checkoutStay(id, checkoutStayDto, req.user)
   }
 
   @Delete('stays/:id')
   @Permissions('hotel.cancel')
-  deleteStay(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+  deleteStay(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.hotelService.deleteStay(id, req.user)
   }
 

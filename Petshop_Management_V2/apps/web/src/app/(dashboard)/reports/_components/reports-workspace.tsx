@@ -17,7 +17,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import * as XLSX from 'xlsx'
+import { exportMultiSheetToExcel } from '@/lib/excel'
 import { PageHeader } from '@/components/layout/PageLayout'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import {
@@ -28,6 +28,7 @@ import {
   type ReportsDebtSummary,
   type ReportsCashbookSummary,
   type RevenuePoint,
+  type ServiceRevenueReport,
   type SupplierAnalyticsItem,
   type SupplierAnalyticsResponse,
   type TopCustomer,
@@ -358,7 +359,7 @@ export function ReportsWorkspace() {
     }
   }, [activeTab, canAccessReports, dateFrom, dateTo, isAuthLoading, isCustomRange, presetRange, resolvedBranchId, searchParams])
 
-  const [dashboardQuery, revenueQuery, customersQuery, productsQuery, cashbookQuery, suppliersQuery, inventoryQuery, customerDebtQuery] = useQueries({
+  const [dashboardQuery, revenueQuery, customersQuery, productsQuery, serviceRevenueQuery, cashbookQuery, suppliersQuery, inventoryQuery, customerDebtQuery] = useQueries({
     queries: [
       {
         queryKey: ['reports', 'dashboard', resolvedBranchId || 'all'],
@@ -381,6 +382,12 @@ export function ReportsWorkspace() {
       {
         queryKey: ['reports', 'top-products', resolvedBranchId || 'all', dateFrom, dateTo],
         queryFn: () => reportsApi.getTopProducts(8, { dateFrom, dateTo }),
+        enabled: canReadSales && !isBranchSyncing,
+        staleTime: 60_000,
+      },
+      {
+        queryKey: ['reports', 'service-revenue', resolvedBranchId || 'all', dateFrom, dateTo],
+        queryFn: () => reportsApi.getServiceRevenue({ dateFrom, dateTo }),
         enabled: canReadSales && !isBranchSyncing,
         staleTime: 60_000,
       },
@@ -420,6 +427,7 @@ export function ReportsWorkspace() {
   const revenuePoints = revenueQuery.data ?? []
   const topCustomers = customersQuery.data ?? []
   const topProducts = productsQuery.data ?? []
+  const serviceRevenue = (serviceRevenueQuery.data as ServiceRevenueReport | undefined) ?? undefined
   const cashbookSummary = cashbookQuery.data
   const supplierAnalytics = (suppliersQuery.data as SupplierAnalyticsResponse | undefined) ?? undefined
   const inventorySuggestions = (inventoryQuery.data as LowStockSuggestion[] | undefined) ?? []
@@ -568,12 +576,9 @@ export function ReportsWorkspace() {
     }
   }, [activeTab, cashbookSummary?.transactions, customerDebtRows, inventorySuggestions, metrics?.monthRevenue, metrics?.todayRevenue, revenuePoints, supplierAnalytics?.data, topCustomers])
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (exportRows.length === 0) return
 
-    const workbook = XLSX.utils.book_new()
-    const worksheet = XLSX.utils.json_to_sheet(exportRows)
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Báo cáo')
     const branchSlug = (currentBranchName || 'chi-nhanh')
       .toLowerCase()
       .normalize('NFD')
@@ -581,7 +586,27 @@ export function ReportsWorkspace() {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
     const fileName = `bao-cao-${activeTab}-${branchSlug || 'chi-nhanh'}-${todayString().replaceAll('-', '')}.xlsx`
-    XLSX.writeFile(workbook, fileName)
+
+    const sheets: Array<{ name: string; rows: Record<string, string | number | boolean | null | undefined>[] }> = [
+      { name: 'Báo cáo', rows: exportRows },
+    ]
+
+    if (activeTab === 'sales' && serviceRevenue?.details?.length) {
+      const serviceRows = serviceRevenue.details.map((item, index) => ({
+        '#': index + 1,
+        'Order': item.orderNumber,
+        'Date': formatShortDate(item.date),
+        'Service group': item.type === 'HOTEL' ? 'Hotel' : 'Grooming/SPA',
+        'Line': item.label,
+        'Package/day type': item.type === 'HOTEL' ? (item.dayType === 'HOLIDAY' ? 'Holiday' : 'Regular') : (item.packageCode ?? ''),
+        'Weight band': item.weightBandLabel,
+        'Qty/days': item.quantity,
+        'Revenue': item.revenue,
+      }))
+      sheets.push({ name: 'Service revenue', rows: serviceRows })
+    }
+
+    await exportMultiSheetToExcel(sheets, fileName)
   }
 
   if (isAuthLoading) {
@@ -718,8 +743,9 @@ export function ReportsWorkspace() {
               metrics={metrics}
               revenuePoints={revenuePoints}
               topProducts={topProducts}
+              serviceRevenue={serviceRevenue}
               kpis={salesKpis}
-              isLoading={dashboardQuery.isLoading || revenueQuery.isLoading || productsQuery.isLoading}
+              isLoading={dashboardQuery.isLoading || revenueQuery.isLoading || productsQuery.isLoading || serviceRevenueQuery.isLoading}
             />
           ) : null}
 
@@ -778,12 +804,14 @@ function SalesTab({
   metrics,
   revenuePoints,
   topProducts,
+  serviceRevenue,
   kpis,
   isLoading,
 }: {
   metrics?: DashboardMetrics
   revenuePoints: RevenuePoint[]
   topProducts: TopProduct[]
+  serviceRevenue?: ServiceRevenueReport
   kpis: Array<{ label: string; value: string; hint: string; tone: 'primary' | 'emerald' | 'amber' | 'blue' }>
   isLoading: boolean
 }) {
@@ -812,6 +840,8 @@ function SalesTab({
           <MetricCard key={item.label} label={item.label} value={item.value} hint={item.hint} tone={item.tone} />
         ))}
       </div>
+
+      <ServiceRevenuePanel report={serviceRevenue} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-3">
@@ -876,6 +906,84 @@ function SalesTab({
             )}
           </SectionCard>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function ServiceRevenuePanel({ report }: { report?: ServiceRevenueReport }) {
+  const summary = report?.summary
+  const hasData = Boolean(summary && summary.totalRevenue > 0)
+
+  return (
+    <SectionCard
+      title="Doanh thu SPA / Hotel theo snapshot"
+      description="Đọc từ order items đã chốt, không tính lại theo bảng giá hiện hành."
+    >
+      {!hasData ? (
+        <EmptyState message="Chưa có doanh thu SPA / Hotel trong kỳ đã chọn." />
+      ) : (
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Tổng SPA / Hotel" value={formatCurrency(summary?.totalRevenue ?? 0)} hint={`${formatNumber(summary?.orderCount ?? 0)} đơn có dịch vụ`} tone="primary" />
+            <MetricCard label="Hotel" value={formatCurrency(summary?.hotelRevenue ?? 0)} hint={`${formatNumber(summary?.hotelDays ?? 0)} ngày tính phí`} tone="blue" />
+            <MetricCard label="Grooming / SPA" value={formatCurrency(summary?.groomingRevenue ?? 0)} hint={`${formatNumber(summary?.groomingQuantity ?? 0)} lượt`} tone="emerald" />
+            <MetricCard label="Dòng snapshot" value={formatNumber(summary?.itemCount ?? 0)} hint="Dùng cho đối soát export" tone="amber" />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <ServiceRevenueGroupList title="Hotel theo ngày thường / ngày lễ" rows={report?.hotel.byDayType ?? []} quantityLabel="ngày" />
+            <ServiceRevenueGroupList title="Hotel theo hạng cân" rows={report?.hotel.byWeightBand ?? []} quantityLabel="ngày" />
+            <ServiceRevenueGroupList title="SPA theo gói" rows={report?.grooming.byPackage ?? []} quantityLabel="lượt" />
+            <ServiceRevenueGroupList title="SPA theo hạng cân" rows={report?.grooming.byWeightBand ?? []} quantityLabel="lượt" />
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
+function ServiceRevenueGroupList({
+  title,
+  rows,
+  quantityLabel,
+}: {
+  title: string
+  rows: Array<{ key: string; label: string; quantity: number; revenue: number; count: number }>
+  quantityLabel: string
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border/60 p-4 text-sm text-foreground-muted">
+        {title}: chưa có dữ liệu.
+      </div>
+    )
+  }
+
+  const maxRevenue = rows.reduce((current, row) => Math.max(current, row.revenue), 0)
+
+  return (
+    <div className="rounded-2xl border border-border/50 bg-background-base p-4">
+      <div className="mb-3 text-sm font-bold text-foreground-base">{title}</div>
+      <div className="space-y-3">
+        {rows.map((row) => {
+          const width = maxRevenue > 0 ? Math.max(6, (row.revenue / maxRevenue) * 100) : 0
+          return (
+            <div key={row.key}>
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-semibold text-foreground-base">{row.label}</span>
+                <span className="font-bold text-primary-500">{formatCurrency(row.revenue)}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-3 text-xs text-foreground-muted">
+                <span>{formatNumber(row.quantity)} {quantityLabel}</span>
+                <span>{formatNumber(row.count)} dòng</span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/5 dark:bg-white/5">
+                <div className="h-full rounded-full bg-primary-500" style={{ width: `${width}%` }} />
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

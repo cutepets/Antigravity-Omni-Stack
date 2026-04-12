@@ -38,6 +38,47 @@ export type TopProduct = {
   totalRevenue: number
 }
 
+export type ServiceRevenueGroup = {
+  key: string
+  label: string
+  quantity: number
+  revenue: number
+  count: number
+}
+
+export type ServiceRevenueDetail = {
+  type: 'HOTEL' | 'GROOMING'
+  orderNumber: string
+  date: string
+  label: string
+  packageCode?: string | null
+  dayType?: 'REGULAR' | 'HOLIDAY' | null
+  weightBandLabel: string
+  quantity: number
+  revenue: number
+}
+
+export type ServiceRevenueReport = {
+  summary: {
+    totalRevenue: number
+    hotelRevenue: number
+    groomingRevenue: number
+    hotelDays: number
+    groomingQuantity: number
+    orderCount: number
+    itemCount: number
+  }
+  hotel: {
+    byDayType: ServiceRevenueGroup[]
+    byWeightBand: ServiceRevenueGroup[]
+  }
+  grooming: {
+    byPackage: ServiceRevenueGroup[]
+    byWeightBand: ServiceRevenueGroup[]
+  }
+  details: ServiceRevenueDetail[]
+}
+
 export type ReportsCashbookSummary = {
   transactions: Array<{
     id: string
@@ -174,6 +215,9 @@ export const reportsApi = {
 
   getTopProducts: (limit = 10, params?: ReportRangeParams) =>
     branchScopedGet<TopProduct[]>('/reports/top-products', { limit, ...params }),
+
+  getServiceRevenue: (params?: ReportRangeParams) =>
+    branchScopedGet<ServiceRevenueReport>('/reports/service-revenue', params),
 
   getCashbookSummary: ({ dateFrom, dateTo, limit = 5 }: CashbookSummaryParams) =>
     branchScopedGet<ReportsCashbookSummary>('/reports/transactions', {

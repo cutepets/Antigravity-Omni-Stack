@@ -430,7 +430,7 @@ export function FinanceWorkspace() {
             canReadCashbook ? (['cashbook', 'Sổ quỹ'] as const) : null,
             canReadBankTransactions ? (['bank-transactions', 'Sổ chuyển khoản'] as const) : null,
             canReadCashbook ? (['cash-shifts', 'Sổ Tiền mặt'] as const) : null,
-            canReadCashbook ? (['cash-vault', 'Thu ket'] as const) : null,
+            canReadCashbook ? (['cash-vault', 'Két tiền'] as const) : null,
           ].filter(Boolean) as ReadonlyArray<readonly [FinanceViewTab, string]>).map(([tabId, label]) => (
             <button
               key={tabId}

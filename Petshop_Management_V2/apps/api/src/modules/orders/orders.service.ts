@@ -23,6 +23,60 @@ type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const PAYMENT_INTENT_TTL_MS = 15 * 60 * 1000;
 
+function normalizeHotelLineType(value?: string | null): 'REGULAR' | 'HOLIDAY' {
+  return value === 'HOLIDAY' ? 'HOLIDAY' : 'REGULAR';
+}
+
+function buildHotelOrderItemPricingSnapshot(item: {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discountItem?: number;
+  hotelDetails?: any;
+}) {
+  if (!item.hotelDetails) return undefined;
+
+  const details = item.hotelDetails;
+  const subtotal = details.chargeSubtotal ?? item.unitPrice * item.quantity - (item.discountItem ?? 0);
+
+  return {
+    source: 'POS_HOTEL_CHARGE_LINE',
+    bookingGroupKey: details.bookingGroupKey ?? null,
+    chargeLine: {
+      index: details.chargeLineIndex ?? null,
+      label: details.chargeLineLabel ?? item.description,
+      dayType: normalizeHotelLineType(details.chargeDayType ?? details.lineType),
+      quantityDays: details.chargeQuantityDays ?? item.quantity,
+      unitPrice: details.chargeUnitPrice ?? item.unitPrice,
+      subtotal,
+      weightBandId: details.chargeWeightBandId || null,
+      weightBandLabel: details.chargeWeightBandLabel ?? null,
+    },
+  };
+}
+
+function buildGroomingOrderItemPricingSnapshot(item: {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discountItem?: number;
+  groomingDetails?: any;
+}) {
+  if (!item.groomingDetails?.packageCode && !item.groomingDetails?.pricingSnapshot) return undefined;
+
+  const details = item.groomingDetails;
+
+  return {
+    source: 'POS_GROOMING_PRICE',
+    packageCode: details.packageCode ?? null,
+    weightAtBooking: details.weightAtBooking ?? null,
+    weightBandId: details.weightBandId ?? null,
+    weightBandLabel: details.weightBandLabel ?? null,
+    price: details.pricingPrice ?? item.unitPrice * item.quantity - (item.discountItem ?? 0),
+    pricingSnapshot: details.pricingSnapshot ?? null,
+  };
+}
+
 type OrderPaymentIntentView = {
   id: string;
   code: string;
@@ -1000,6 +1054,7 @@ export class OrdersService {
       serviceVariantId?: string;
       description: string;
       type: string;
+      quantity: number;
     },
   >(
     tx: Pick<DatabaseService, 'product' | 'productVariant' | 'service' | 'serviceVariant'>,
@@ -1092,6 +1147,15 @@ export class OrdersService {
         throw new BadRequestException(`Muc ${itemLabel} dang la san pham nhung thieu productId`);
       }
 
+      const quantity = Number(item.quantity);
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        throw new BadRequestException(`So luong cua ${itemLabel} khong hop le`);
+      }
+
+      if ((item.type === 'product' || productId) && !Number.isInteger(quantity)) {
+        throw new BadRequestException(`So luong san pham cua ${itemLabel} phai la so nguyen`);
+      }
+
       if (item.type === 'service' && !serviceId) {
         throw new BadRequestException(`Muc ${itemLabel} dang la dich vu nhung thieu serviceId`);
       }
@@ -1122,6 +1186,7 @@ export class OrdersService {
       discountItem: item.discountItem ?? 0,
       vatRate: item.vatRate ?? 0,
       subtotal: item.unitPrice * item.quantity - (item.discountItem ?? 0),
+      pricingSnapshot: (buildHotelOrderItemPricingSnapshot(item) ?? buildGroomingOrderItemPricingSnapshot(item)) as any,
       type: item.type,
       productId: item.productId ?? null,
       productVariantId: item.productVariantId ?? null,
@@ -1176,6 +1241,10 @@ export class OrdersService {
       startTime: details.startTime ? new Date(details.startTime) : null,
       notes: details.notes ?? null,
       price: params.item.unitPrice * params.item.quantity - (params.item.discountItem ?? 0),
+      packageCode: details.packageCode ?? null,
+      weightAtBooking: details.weightAtBooking ?? null,
+      weightBandId: details.weightBandId ?? null,
+      pricingSnapshot: (buildGroomingOrderItemPricingSnapshot(params.item) ?? details.pricingSnapshot) as any,
     };
 
     if (params.existingSessionId) {
@@ -1375,7 +1444,7 @@ export class OrdersService {
   // Auto-classify: QUICK (product only) vs SERVICE (has grooming/hotel)
   // QUICK: deduct stock immediately, status â†’ PAID/PARTIAL
   // SERVICE: reserve stock, status â†’ PENDING, pay later
-  async createOrder(data: CreateOrderDto, staffId: string) {
+  async createOrder(data: CreateOrderDto, staffId: string): Promise<any> {
     const { items, payments = [], discount = 0, shippingFee = 0 } = data;
 
     if (!items || items.length === 0) {
@@ -1409,6 +1478,7 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       const serviceTraceParts: string[] = [];
       const normalizedItems = await this.validateAndNormalizeCreateItems(tx as any, items);
+      const hotelStayGroups = new Map<string, Array<{ item: any; orderItem: any }>>();
 
       // 1. Create order with items and payments
       const order = await tx.order.create({
@@ -1436,6 +1506,7 @@ export class OrdersService {
               discountItem: item.discountItem ?? 0,
               vatRate: item.vatRate ?? 0,
               subtotal: item.unitPrice * item.quantity - (item.discountItem ?? 0),
+              pricingSnapshot: (buildHotelOrderItemPricingSnapshot(item) ?? buildGroomingOrderItemPricingSnapshot(item)) as any,
               type: item.type,
               productId: item.productId ?? null,
               productVariantId: item.productVariantId ?? null,
@@ -1508,6 +1579,10 @@ export class OrdersService {
                 : null,
               notes: item.groomingDetails.notes ?? null,
               price: item.unitPrice * item.quantity,
+              packageCode: item.groomingDetails.packageCode ?? null,
+              weightAtBooking: item.groomingDetails.weightAtBooking ?? null,
+              weightBandId: item.groomingDetails.weightBandId ?? null,
+              pricingSnapshot: buildGroomingOrderItemPricingSnapshot(item) as any,
             },
           });
 
@@ -1531,58 +1606,141 @@ export class OrdersService {
 
         // â”€â”€ Hotel stay creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (item.hotelDetails && orderItem) {
-          const checkInDate = new Date(item.hotelDetails.checkInDate);
-          const checkOutDate = new Date(item.hotelDetails.checkOutDate);
-          const branch = await resolveBranchIdentity(
-            tx as any,
-            item.hotelDetails.branchId ?? data.branchId ?? null,
-          );
-          const stayCode = await this.generateHotelStayCode(tx as any, order.createdAt, branch.code);
-          const totalPrice = item.unitPrice * item.quantity;
+          const groupKey = item.hotelDetails.bookingGroupKey ?? orderItem.id;
+          const group = hotelStayGroups.get(groupKey) ?? [];
+          group.push({ item, orderItem });
+          hotelStayGroups.set(groupKey, group);
+        }
+      }
 
-          const stay = await tx.hotelStay.create({
+      for (const groupItems of hotelStayGroups.values()) {
+        const sortedGroupItems = [...groupItems].sort((left, right) => {
+          const leftIndex = left.item.hotelDetails?.chargeLineIndex;
+          const rightIndex = right.item.hotelDetails?.chargeLineIndex;
+          return (leftIndex ?? 0) - (rightIndex ?? 0);
+        });
+        const first = sortedGroupItems[0]!;
+        const firstDetails = first.item.hotelDetails;
+        const checkInDate = new Date(firstDetails.checkInDate);
+        const checkOutDate = new Date(firstDetails.checkOutDate);
+        const branch = await resolveBranchIdentity(
+          tx as any,
+          firstDetails.branchId ?? data.branchId ?? null,
+        );
+        const stayCode = await this.generateHotelStayCode(tx as any, order.createdAt, branch.code);
+        const totalPrice = sortedGroupItems.reduce(
+          (sum, entry) => sum + entry.item.unitPrice * entry.item.quantity - (entry.item.discountItem ?? 0),
+          0,
+        );
+        const totalDays = sortedGroupItems.reduce(
+          (sum, entry) => sum + Number(entry.item.hotelDetails?.chargeQuantityDays ?? entry.item.quantity ?? 0),
+          0,
+        );
+        const chargeLineTypes = sortedGroupItems.map((entry) =>
+          normalizeHotelLineType(entry.item.hotelDetails?.chargeDayType ?? entry.item.hotelDetails?.lineType),
+        );
+        const displayLineType = chargeLineTypes.length > 0 && chargeLineTypes.every((lineType) => lineType === 'HOLIDAY')
+          ? 'HOLIDAY'
+          : 'REGULAR';
+        const chargeLines = sortedGroupItems.map((entry, index) => {
+          const details = entry.item.hotelDetails;
+          const quantityDays = Number(details.chargeQuantityDays ?? entry.item.quantity ?? 0);
+          const unitPrice = Number(details.chargeUnitPrice ?? entry.item.unitPrice ?? 0);
+          const subtotal = Number(
+            details.chargeSubtotal ?? entry.item.unitPrice * entry.item.quantity - (entry.item.discountItem ?? 0),
+          );
+
+          return {
+            label: details.chargeLineLabel ?? entry.item.description,
+            dayType: normalizeHotelLineType(details.chargeDayType ?? details.lineType),
+            quantityDays,
+            unitPrice,
+            subtotal,
+            sortOrder: details.chargeLineIndex ?? index,
+            weightBandId: details.chargeWeightBandId || null,
+            pricingSnapshot: {
+              source: 'POS_HOTEL_CHARGE_LINE',
+              bookingGroupKey: details.bookingGroupKey ?? null,
+              weightBandLabel: details.chargeWeightBandLabel ?? null,
+              orderItemId: entry.orderItem.id,
+            },
+          };
+        });
+        const pricingSnapshot = {
+          source: 'POS_HOTEL_CHARGE_LINES',
+          bookingGroupKey: firstDetails.bookingGroupKey ?? null,
+          chargeLines: chargeLines.map((line) => ({
+            label: line.label,
+            dayType: line.dayType,
+            quantityDays: line.quantityDays,
+            unitPrice: line.unitPrice,
+            subtotal: line.subtotal,
+            weightBandId: line.weightBandId,
+          })),
+        };
+        const breakdownSnapshot = {
+          totalDays,
+          totalPrice,
+          chargeLines: pricingSnapshot.chargeLines,
+        };
+        const pet = await tx.pet.findUnique({ where: { id: firstDetails.petId } });
+
+        const stay = await tx.hotelStay.create({
+          data: {
+            stayCode,
+            petId: firstDetails.petId,
+            petName: pet?.name ?? '',
+            customerId: data.customerId ?? null,
+            branchId: branch.id,
+            cageId: firstDetails.cageId ?? null,
+            checkIn: checkInDate,
+            estimatedCheckOut: checkOutDate,
+            status: 'BOOKED',
+            lineType: displayLineType as any,
+            price: totalPrice,
+            dailyRate: firstDetails.dailyRate ?? (totalDays > 0 ? totalPrice / totalDays : first.item.unitPrice),
+            depositAmount: firstDetails.depositAmount ?? 0,
+            paymentStatus: 'UNPAID',
+            promotion: firstDetails.promotion ?? 0,
+            surcharge: firstDetails.surcharge ?? 0,
+            totalPrice,
+            rateTableId: firstDetails.rateTableId ?? null,
+            notes: firstDetails.notes ?? null,
+            orderId: order.id,
+            weightBandId: chargeLines.find((line) => line.weightBandId)?.weightBandId ?? null,
+            pricingSnapshot: pricingSnapshot as any,
+            breakdownSnapshot: breakdownSnapshot as any,
+          } as any,
+        });
+
+        if (chargeLines.length > 0) {
+          await tx.hotelStayChargeLine.createMany({
+            data: chargeLines.map((line) => ({
+              hotelStayId: stay.id,
+              weightBandId: line.weightBandId,
+              label: line.label,
+              dayType: line.dayType as any,
+              quantityDays: line.quantityDays,
+              unitPrice: line.unitPrice,
+              subtotal: line.subtotal,
+              sortOrder: line.sortOrder,
+              pricingSnapshot: line.pricingSnapshot as any,
+            })),
+          });
+        }
+
+        for (const entry of sortedGroupItems) {
+          await tx.orderItem.update({
+            where: { id: entry.orderItem.id },
             data: {
-              stayCode,
-              petId: item.hotelDetails.petId,
-              petName: '', // Will be filled from pet lookup
-              customerId: data.customerId ?? null,
-              branchId: branch.id,
-              cageId: item.hotelDetails.cageId ?? null,
-              checkIn: checkInDate,
-              estimatedCheckOut: checkOutDate,
-              status: 'BOOKED',
-              lineType: (item.hotelDetails.lineType as any) ?? 'REGULAR',
-              price: totalPrice,
-              dailyRate: item.hotelDetails.dailyRate ?? item.unitPrice,
-              depositAmount: item.hotelDetails.depositAmount ?? 0,
-              paymentStatus: 'UNPAID',
-              promotion: item.hotelDetails.promotion ?? 0,
-              surcharge: item.hotelDetails.surcharge ?? 0,
-              totalPrice,
-              rateTableId: item.hotelDetails.rateTableId ?? null,
-              notes: item.hotelDetails.notes ?? null,
-              orderId: order.id,
+              hotelStayId: stay.id,
+              pricingSnapshot: buildHotelOrderItemPricingSnapshot(entry.item) as any,
             },
           });
-
-          // Link hotelStayId to order item
-          await tx.orderItem.update({
-            where: { id: orderItem.id },
-            data: { hotelStayId: stay.id },
-          });
-
-          // Fill petName
-          const pet = await tx.pet.findUnique({ where: { id: item.hotelDetails.petId } });
-          if (pet) {
-            await tx.hotelStay.update({
-              where: { id: stay.id },
-              data: { petName: pet.name },
-            });
-          }
-
-          serviceTraceParts.push(`HOTEL_STAY:${stay.id}`);
-          serviceTraceParts.push(`HOTEL_CODE:${stayCode}`);
         }
+
+        serviceTraceParts.push(`HOTEL_STAY:${stay.id}`);
+        serviceTraceParts.push(`HOTEL_CODE:${stayCode}`);
       }
 
       // 3. Create income transaction records
@@ -1640,7 +1798,7 @@ export class OrdersService {
 
   // â”€â”€â”€ payOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Collect additional payment for SERVICE orders (multi-payment support)
-  async updateOrder(id: string, data: UpdateOrderDto, staffId: string, user?: AccessUser) {
+  async updateOrder(id: string, data: UpdateOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
@@ -1677,6 +1835,12 @@ export class OrdersService {
       });
       const existingById = new Map(existingItems.map((item) => [item.id, item]));
       const incomingIds = new Set(normalizedItems.map((item) => item.id).filter(Boolean) as string[]);
+      const incomingHotelStayIds = new Set(
+        normalizedItems
+          .map((item) => (item.id ? existingById.get(item.id)?.hotelStayId : null))
+          .filter((value): value is string => Boolean(value)),
+      );
+      const hotelStayGroups = new Map<string, Array<{ item: any; orderItem: any; existingStayId?: string | null }>>();
 
       for (const currentItem of existingItems) {
         if (incomingIds.has(currentItem.id)) continue;
@@ -1707,7 +1871,7 @@ export class OrdersService {
             discountItem: currentItem.discountItem,
             type: currentItem.type,
           } as any,
-          existingStayId: currentItem.hotelStayId,
+          existingStayId: incomingHotelStayIds.has(currentItem.hotelStayId ?? '') ? null : currentItem.hotelStayId,
         });
         await tx.orderItem.delete({ where: { id: currentItem.id } });
       }
@@ -1732,15 +1896,21 @@ export class OrdersService {
             item,
             existingSessionId: existingItem.groomingSessionId,
           });
-          await this.syncHotelStay(tx as any, {
-            orderId: id,
-            orderItemId: existingItem.id,
-            customerId: data.customerId ?? null,
-            branchId: data.branchId ?? null,
-            orderCreatedAt: order.createdAt,
-            item,
-            existingStayId: existingItem.hotelStayId,
-          });
+          if (item.hotelDetails?.bookingGroupKey) {
+            const group = hotelStayGroups.get(item.hotelDetails.bookingGroupKey) ?? [];
+            group.push({ item, orderItem: existingItem, existingStayId: existingItem.hotelStayId });
+            hotelStayGroups.set(item.hotelDetails.bookingGroupKey, group);
+          } else {
+            await this.syncHotelStay(tx as any, {
+              orderId: id,
+              orderItemId: existingItem.id,
+              customerId: data.customerId ?? null,
+              branchId: data.branchId ?? null,
+              orderCreatedAt: order.createdAt,
+              item,
+              existingStayId: existingItem.hotelStayId,
+            });
+          }
           continue;
         }
 
@@ -1760,14 +1930,156 @@ export class OrdersService {
           orderCreatedAt: order.createdAt,
           item,
         });
-        await this.syncHotelStay(tx as any, {
-          orderId: id,
-          orderItemId: createdItem.id,
-          customerId: data.customerId ?? null,
-          branchId: data.branchId ?? null,
-          orderCreatedAt: order.createdAt,
-          item,
+        if (item.hotelDetails?.bookingGroupKey) {
+          const group = hotelStayGroups.get(item.hotelDetails.bookingGroupKey) ?? [];
+          group.push({ item, orderItem: createdItem, existingStayId: null });
+          hotelStayGroups.set(item.hotelDetails.bookingGroupKey, group);
+        } else {
+          await this.syncHotelStay(tx as any, {
+            orderId: id,
+            orderItemId: createdItem.id,
+            customerId: data.customerId ?? null,
+            branchId: data.branchId ?? null,
+            orderCreatedAt: order.createdAt,
+            item,
+          });
+        }
+      }
+
+      for (const groupItems of hotelStayGroups.values()) {
+        const sortedGroupItems = [...groupItems].sort((left, right) => {
+          const leftIndex = left.item.hotelDetails?.chargeLineIndex;
+          const rightIndex = right.item.hotelDetails?.chargeLineIndex;
+          return (leftIndex ?? 0) - (rightIndex ?? 0);
         });
+        const first = sortedGroupItems[0]!;
+        const firstDetails = first.item.hotelDetails;
+        const existingStayId = sortedGroupItems.find((entry) => entry.existingStayId)?.existingStayId ?? null;
+        const checkInDate = new Date(firstDetails.checkInDate);
+        const checkOutDate = new Date(firstDetails.checkOutDate);
+        const branch = await resolveBranchIdentity(tx as any, firstDetails.branchId ?? data.branchId ?? null);
+        const totalPrice = sortedGroupItems.reduce(
+          (sum, entry) => sum + entry.item.unitPrice * entry.item.quantity - (entry.item.discountItem ?? 0),
+          0,
+        );
+        const totalDays = sortedGroupItems.reduce(
+          (sum, entry) => sum + Number(entry.item.hotelDetails?.chargeQuantityDays ?? entry.item.quantity ?? 0),
+          0,
+        );
+        const chargeLineTypes = sortedGroupItems.map((entry) =>
+          normalizeHotelLineType(entry.item.hotelDetails?.chargeDayType ?? entry.item.hotelDetails?.lineType),
+        );
+        const displayLineType = chargeLineTypes.length > 0 && chargeLineTypes.every((lineType) => lineType === 'HOLIDAY')
+          ? 'HOLIDAY'
+          : 'REGULAR';
+        const chargeLines = sortedGroupItems.map((entry, index) => {
+          const details = entry.item.hotelDetails;
+          const quantityDays = Number(details.chargeQuantityDays ?? entry.item.quantity ?? 0);
+          const unitPrice = Number(details.chargeUnitPrice ?? entry.item.unitPrice ?? 0);
+          const subtotal = Number(
+            details.chargeSubtotal ?? entry.item.unitPrice * entry.item.quantity - (entry.item.discountItem ?? 0),
+          );
+
+          return {
+            label: details.chargeLineLabel ?? entry.item.description,
+            dayType: normalizeHotelLineType(details.chargeDayType ?? details.lineType),
+            quantityDays,
+            unitPrice,
+            subtotal,
+            sortOrder: details.chargeLineIndex ?? index,
+            weightBandId: details.chargeWeightBandId || null,
+            pricingSnapshot: {
+              source: 'POS_HOTEL_CHARGE_LINE',
+              bookingGroupKey: details.bookingGroupKey ?? null,
+              weightBandLabel: details.chargeWeightBandLabel ?? null,
+              orderItemId: entry.orderItem.id,
+            },
+          };
+        });
+        const pricingSnapshot = {
+          source: 'POS_HOTEL_CHARGE_LINES',
+          bookingGroupKey: firstDetails.bookingGroupKey ?? null,
+          chargeLines: chargeLines.map((line) => ({
+            label: line.label,
+            dayType: line.dayType,
+            quantityDays: line.quantityDays,
+            unitPrice: line.unitPrice,
+            subtotal: line.subtotal,
+            weightBandId: line.weightBandId,
+          })),
+        };
+        const breakdownSnapshot = { totalDays, totalPrice, chargeLines: pricingSnapshot.chargeLines };
+        const pet = await tx.pet.findUnique({ where: { id: firstDetails.petId } });
+        const stayPayload = {
+          petId: firstDetails.petId,
+          petName: pet?.name ?? '',
+          customerId: data.customerId ?? null,
+          branchId: branch.id,
+          cageId: firstDetails.cageId ?? null,
+          checkIn: checkInDate,
+          estimatedCheckOut: checkOutDate,
+          lineType: displayLineType as any,
+          price: totalPrice,
+          dailyRate: firstDetails.dailyRate ?? (totalDays > 0 ? totalPrice / totalDays : first.item.unitPrice),
+          depositAmount: firstDetails.depositAmount ?? 0,
+          promotion: firstDetails.promotion ?? 0,
+          surcharge: firstDetails.surcharge ?? 0,
+          totalPrice,
+          rateTableId: firstDetails.rateTableId ?? null,
+          notes: firstDetails.notes ?? null,
+          orderId: id,
+          weightBandId: chargeLines.find((line) => line.weightBandId)?.weightBandId ?? null,
+          pricingSnapshot: pricingSnapshot as any,
+          breakdownSnapshot: breakdownSnapshot as any,
+        };
+
+        if (existingStayId) {
+          const currentStay = await tx.hotelStay.findUnique({ where: { id: existingStayId } });
+          if (currentStay && !['BOOKED', 'CHECKED_IN'].includes(currentStay.status)) {
+            throw new BadRequestException(`LÆ°á»£t lÆ°u trÃº ${currentStay.id} Ä‘Ã£ checkout hoáº·c huá»·, khÃ´ng thá»ƒ cáº­p nháº­t láº¡i tá»« POS.`);
+          }
+        }
+
+        const stay = existingStayId
+          ? await tx.hotelStay.update({
+              where: { id: existingStayId },
+              data: stayPayload as any,
+            })
+          : await tx.hotelStay.create({
+              data: {
+                stayCode: await this.generateHotelStayCode(tx as any, order.createdAt, branch.code),
+                ...stayPayload,
+                status: 'BOOKED',
+                paymentStatus: 'UNPAID',
+              } as any,
+            });
+
+        await tx.hotelStayChargeLine.deleteMany({ where: { hotelStayId: stay.id } });
+        if (chargeLines.length > 0) {
+          await tx.hotelStayChargeLine.createMany({
+            data: chargeLines.map((line) => ({
+              hotelStayId: stay.id,
+              weightBandId: line.weightBandId,
+              label: line.label,
+              dayType: line.dayType as any,
+              quantityDays: line.quantityDays,
+              unitPrice: line.unitPrice,
+              subtotal: line.subtotal,
+              sortOrder: line.sortOrder,
+              pricingSnapshot: line.pricingSnapshot as any,
+            })),
+          });
+        }
+
+        for (const entry of sortedGroupItems) {
+          await tx.orderItem.update({
+            where: { id: entry.orderItem.id },
+            data: {
+              hotelStayId: stay.id,
+              pricingSnapshot: buildHotelOrderItemPricingSnapshot(entry.item) as any,
+            },
+          });
+        }
       }
 
       await tx.order.update({
@@ -2118,7 +2430,7 @@ export class OrdersService {
     };
   }
 
-  async payOrder(id: string, dto: PayOrderDto, staffId: string, user?: AccessUser) {
+  async payOrder(id: string, dto: PayOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
@@ -2173,7 +2485,7 @@ export class OrdersService {
 
   // â”€â”€â”€ completeOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Finalize SERVICE order: validate sessions, deduct stock, update customer
-  async completeOrder(id: string, dto: CompleteOrderDto, staffId: string, user?: AccessUser) {
+  async completeOrder(id: string, dto: CompleteOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
@@ -2364,7 +2676,7 @@ export class OrdersService {
 
   // â”€â”€â”€ cancelOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Cancel order: release reserved stock, cancel sessions
-  async cancelOrder(id: string, dto: CancelOrderDto, staffId: string, user?: AccessUser) {
+  async cancelOrder(id: string, dto: CancelOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: { items: true },
@@ -2430,7 +2742,7 @@ export class OrdersService {
 
   // â”€â”€â”€ removeOrderItem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Remove single item from pending/processing order, recalculate totals
-  async removeOrderItem(orderId: string, itemId: string, user?: AccessUser) {
+  async removeOrderItem(orderId: string, itemId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { items: true },
@@ -2499,7 +2811,7 @@ export class OrdersService {
     limit?: number | undefined;
     dateFrom?: string | undefined;
     dateTo?: string | undefined;
-  }, user?: AccessUser) {
+  }, user?: AccessUser): Promise<any> {
     const page = params?.page || 1;
     const limit = params?.limit || 20;
     const skip = (page - 1) * limit;
@@ -2561,7 +2873,7 @@ export class OrdersService {
   }
 
   // â”€â”€â”€ findOne â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  async findOne(id: string, user?: AccessUser) {
+  async findOne(id: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
@@ -2598,6 +2910,8 @@ export class OrdersService {
       ...order,
       items: order.items.map((item) => {
         const groomingSession = item.groomingSessionId ? groomingById.get(item.groomingSessionId) : null;
+        const itemPricingSnapshot = item.pricingSnapshot as any;
+        const hotelChargeLine = itemPricingSnapshot?.chargeLine;
 
         return {
           ...item,
@@ -2607,6 +2921,10 @@ export class OrdersService {
                 performerId: groomingSession.staffId,
                 startTime: groomingSession.startTime,
                 notes: groomingSession.notes,
+                packageCode: groomingSession.packageCode,
+                weightAtBooking: groomingSession.weightAtBooking,
+                weightBandId: groomingSession.weightBandId,
+                pricingSnapshot: groomingSession.pricingSnapshot,
               }
             : undefined,
           hotelDetails: item.hotelStay
@@ -2623,6 +2941,15 @@ export class OrdersService {
                 promotion: item.hotelStay.promotion,
                 surcharge: item.hotelStay.surcharge,
                 notes: item.hotelStay.notes,
+                bookingGroupKey: itemPricingSnapshot?.bookingGroupKey ?? undefined,
+                chargeLineIndex: hotelChargeLine?.index ?? undefined,
+                chargeLineLabel: hotelChargeLine?.label ?? undefined,
+                chargeDayType: hotelChargeLine?.dayType ?? undefined,
+                chargeQuantityDays: hotelChargeLine?.quantityDays ?? undefined,
+                chargeUnitPrice: hotelChargeLine?.unitPrice ?? undefined,
+                chargeSubtotal: hotelChargeLine?.subtotal ?? undefined,
+                chargeWeightBandId: hotelChargeLine?.weightBandId ?? undefined,
+                chargeWeightBandLabel: hotelChargeLine?.weightBandLabel ?? undefined,
               }
             : undefined,
         };

@@ -56,6 +56,10 @@ export interface HotelStay {
   price: number | null
   dailyRate: number
   depositAmount: number
+  weightAtBooking?: number | null
+  weightBandId?: string | null
+  pricingSnapshot?: Record<string, unknown> | null
+  breakdownSnapshot?: Record<string, unknown> | null
   paymentStatus: HotelPaymentStatus
   notes: string | null
   petNotes: string | null
@@ -101,6 +105,26 @@ export interface HotelStay {
     paidAmount: number
     remainingAmount: number
   } | null
+  weightBand?: {
+    id: string
+    label: string
+    minWeight: number | null
+    maxWeight: number | null
+  } | null
+  chargeLines?: HotelStayChargeLine[]
+}
+
+export interface HotelStayChargeLine {
+  id: string
+  label: string
+  dayType: HotelLineType
+  quantityDays: number
+  unitPrice: number
+  subtotal: number
+  sortOrder: number
+  weightBandId: string | null
+  pricingSnapshot?: Record<string, unknown> | null
+  weightBandLabel?: string | null
 }
 
 export interface HotelStayListResponse {
@@ -164,10 +188,28 @@ export interface CalculateHotelPriceDto {
 }
 
 export interface HotelPricePreview {
-  nights: number
-  ratePerNight: number
+  totalDays: number
   totalPrice: number
-  matchedRate: HotelRateTable
+  averageDailyRate: number
+  lineType: HotelLineType
+  weightBand: {
+    id: string | null
+    label: string
+    minWeight: number | null
+    maxWeight: number | null
+    source: 'RULE' | 'LEGACY'
+  } | null
+  chargeLines: Array<{
+    label: string
+    dayType: HotelLineType
+    quantityDays: number
+    unitPrice: number
+    subtotal: number
+    sortOrder: number
+    weightBandId: string | null
+    pricingSnapshot: Record<string, unknown>
+  }>
+  pricingSnapshot: Record<string, unknown>
 }
 
 export interface CreateHotelRateTableDto {

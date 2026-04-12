@@ -14,6 +14,7 @@ import { StockModule } from './modules/stock/stock.module.js'
 import { ReportsModule } from './modules/reports/reports.module.js'
 import { SettingsModule } from './modules/settings/settings.module.js'
 import { ShiftsModule } from './modules/shifts/shifts.module.js'
+import { PricingModule } from './modules/pricing/pricing.module.js'
 import { HealthController } from './health.controller.js'
 
 @Module({
@@ -42,6 +43,7 @@ import { HealthController } from './health.controller.js'
     ReportsModule,
     SettingsModule,
     ShiftsModule,
+    PricingModule,
   ],
   controllers: [HealthController],
 })

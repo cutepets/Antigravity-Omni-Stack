@@ -52,7 +52,7 @@ export class OrdersController {
 
   @Post()
   @Permissions('order.create')
-  async createOrder(@Body() dto: CreateOrderDto, @Req() req: AuthenticatedRequest) {
+  async createOrder(@Body() dto: CreateOrderDto, @Req() req: AuthenticatedRequest): Promise<any> {
     try {
       return await this.ordersService.createOrder(dto, this.getStaffId(req))
     } catch (error: any) {
@@ -70,7 +70,7 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() dto: UpdateOrderDto,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<any> {
     try {
       return await this.ordersService.updateOrder(id, dto, this.getStaffId(req), req.user)
     } catch (error: any) {
@@ -88,7 +88,7 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() dto: PayOrderDto,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<any> {
     return this.ordersService.payOrder(id, dto, this.getStaffId(req), req.user)
   }
 
@@ -114,7 +114,7 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() dto: CompleteOrderDto,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<any> {
     return this.ordersService.completeOrder(id, dto, this.getStaffId(req), req.user)
   }
 
@@ -124,7 +124,7 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() dto: CancelOrderDto,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<any> {
     return this.ordersService.cancelOrder(id, dto, this.getStaffId(req), req.user)
   }
 
@@ -134,7 +134,7 @@ export class OrdersController {
     @Param('id') id: string,
     @Param('itemId') itemId: string,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<any> {
     return this.ordersService.removeOrderItem(id, itemId, req.user)
   }
 
@@ -150,7 +150,7 @@ export class OrdersController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Req() req?: AuthenticatedRequest,
-  ) {
+  ): Promise<any> {
     return this.ordersService.findAll({
       search,
       paymentStatus,
@@ -165,7 +165,7 @@ export class OrdersController {
 
   @Get(':id')
   @Permissions('order.read.all', 'order.read.assigned')
-  getOrder(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+  getOrder(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.ordersService.findOne(id, req.user)
   }
 }

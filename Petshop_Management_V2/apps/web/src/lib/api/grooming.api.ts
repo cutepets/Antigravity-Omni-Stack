@@ -43,6 +43,10 @@ export interface GroomingSession {
   endTime: string | null;
   notes: string | null;
   price: number | null;
+  packageCode?: string | null;
+  weightAtBooking?: number | null;
+  weightBandId?: string | null;
+  pricingSnapshot?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt?: string;
   pet: GroomingPet;
@@ -65,9 +69,28 @@ export type CreateGroomingPayload = {
   branchId?: string;
   staffId?: string;
   serviceId?: string;
+  packageCode?: string;
   startTime?: string;
   notes?: string;
+  price?: number;
 };
+
+export interface SpaPricePreview {
+  petId: string;
+  petName: string;
+  species: string | null;
+  weight: number;
+  packageCode: string;
+  price: number;
+  durationMinutes?: number | null;
+  weightBand: {
+    id: string;
+    label: string;
+    minWeight: number;
+    maxWeight: number | null;
+  };
+  pricingSnapshot: Record<string, unknown>;
+}
 
 export type UpdateGroomingPayload = Partial<CreateGroomingPayload> & {
   id: string;
@@ -91,6 +114,11 @@ export const groomingApi = {
 
   createSession: async (data: CreateGroomingPayload) => {
     const res = await api.post<ApiResponse<GroomingSession>>("/grooming", data);
+    return res.data.data;
+  },
+
+  calculatePrice: async (data: { petId: string; packageCode: string; weight?: number; species?: string }) => {
+    const res = await api.post<ApiResponse<SpaPricePreview>>("/grooming/calculate", data);
     return res.data.data;
   },
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { LayoutGrid, List, Table } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DataListShell } from '@/components/data-list'
+import { ServicePricingWorkspace } from '@/components/service-pricing/ServicePricingWorkspace'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import StayList from './StayList'
 import CageGrid from './CageGrid'
@@ -70,7 +71,7 @@ export default function HotelWorkspace() {
         <div className="flex-1 min-h-0 bg-background-base rounded-3xl border border-border overflow-y-auto">
           {viewMode === 'kanban' && <div className="p-4"><CageGrid /></div>}
           {viewMode === 'list' && <StayList />}
-          {viewMode === 'pricing' && <div className="p-4 h-full flex items-center justify-center text-foreground-muted font-medium">Bảng giá View (Coming soon)</div>}
+          {viewMode === 'pricing' && <ServicePricingWorkspace mode="HOTEL" />}
         </div>
       </div>
     </DataListShell>

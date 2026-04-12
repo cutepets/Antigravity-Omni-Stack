@@ -22,6 +22,29 @@ export class GroomingDetailsDto {
   @IsString()
   @IsOptional()
   serviceItems?: string; // JSON string of service items
+
+  @IsString()
+  @IsOptional()
+  packageCode?: string;
+
+  @IsNumber()
+  @IsOptional()
+  weightAtBooking?: number;
+
+  @IsString()
+  @IsOptional()
+  weightBandId?: string;
+
+  @IsString()
+  @IsOptional()
+  weightBandLabel?: string;
+
+  @IsNumber()
+  @IsOptional()
+  pricingPrice?: number;
+
+  @IsOptional()
+  pricingSnapshot?: Record<string, unknown>;
 }
 
 // === Hotel Details ===
@@ -77,6 +100,42 @@ export class HotelDetailsDto {
   @IsNumber()
   @IsOptional()
   surcharge?: number;
+
+  @IsString()
+  @IsOptional()
+  bookingGroupKey?: string;
+
+  @IsNumber()
+  @IsOptional()
+  chargeLineIndex?: number;
+
+  @IsString()
+  @IsOptional()
+  chargeLineLabel?: string;
+
+  @IsString()
+  @IsOptional()
+  chargeDayType?: string;
+
+  @IsNumber()
+  @IsOptional()
+  chargeQuantityDays?: number;
+
+  @IsNumber()
+  @IsOptional()
+  chargeUnitPrice?: number;
+
+  @IsNumber()
+  @IsOptional()
+  chargeSubtotal?: number;
+
+  @IsString()
+  @IsOptional()
+  chargeWeightBandId?: string;
+
+  @IsString()
+  @IsOptional()
+  chargeWeightBandLabel?: string;
 }
 
 // === Order Item ===
@@ -106,7 +165,7 @@ export class CreateOrderItemDto {
   description!: string;
 
   @IsNumber()
-  @Min(1)
+  @Min(0.01)
   quantity!: number;
 
   @IsNumber()

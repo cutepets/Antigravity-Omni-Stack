@@ -373,13 +373,23 @@ export class ShiftsService {
       throw new BadRequestException('Nhan vien da co ca trong ngay. Hay chot lai ca hien tai neu co phat sinh them')
     }
 
+    const branch = await (this.db as any).branch.findUnique({
+      where: { id: branchId },
+      select: { id: true, cashReserveTargetAmount: true },
+    })
+    if (!branch) {
+      throw new NotFoundException('Khong tim thay chi nhanh')
+    }
+
+    const reserveTargetAmount = toMoney(branch.cashReserveTargetAmount ?? DEFAULT_TARGET_RESERVE_AMOUNT)
+
     const shift = await (this.db as any).shiftSession.create({
       data: {
         branchId,
         staffId,
         openAmount: toMoney(dto.openAmount),
-        reserveTargetAmount: DEFAULT_TARGET_RESERVE_AMOUNT,
-        reserveShortageAtOpen: Math.max(0, DEFAULT_TARGET_RESERVE_AMOUNT - toMoney(dto.openAmount)),
+        reserveTargetAmount,
+        reserveShortageAtOpen: Math.max(0, reserveTargetAmount - toMoney(dto.openAmount)),
         openDenominations: dto.openDenominations ?? undefined,
         employeeNote: trimNullable(dto.employeeNote),
         notes: trimNullable(dto.notes),
@@ -595,12 +605,12 @@ export class ShiftsService {
       branchWhere.id = scopedBranchIds.length === 1 ? scopedBranchIds[0] : { in: scopedBranchIds }
     }
 
-    const branches = await this.db.branch.findMany({
+    const branches = await (this.db as any).branch.findMany({
       where: branchWhere,
       orderBy: { name: 'asc' },
-      select: { id: true, name: true },
+      select: { id: true, name: true, cashReserveTargetAmount: true },
     })
-    const branchIds = branches.map((branch) => branch.id)
+    const branchIds = branches.map((branch: any) => branch.id)
 
     if (branchIds.length === 0) {
       return {
@@ -655,13 +665,11 @@ export class ShiftsService {
       collectionByBranch.set(item.branchId, item)
     }
 
-    const rows = branches.map((branch) => {
+    const rows = branches.map((branch: any) => {
       const latest = latestByBranch.get(branch.id)
       const collection = collectionByBranch.get(branch.id)
       const cashAfterAmount = latest ? toMoney(latest.cashAfterAmount) : 0
-      const targetReserveAmount = latest?.targetReserveAmount === null || latest?.targetReserveAmount === undefined
-        ? DEFAULT_TARGET_RESERVE_AMOUNT
-        : toMoney(latest.targetReserveAmount)
+      const targetReserveAmount = toMoney(branch.cashReserveTargetAmount ?? DEFAULT_TARGET_RESERVE_AMOUNT)
       return {
         branchId: branch.id,
         branchName: branch.name,
@@ -680,10 +688,10 @@ export class ShiftsService {
       success: true,
       data: {
         branches: rows,
-        totalCurrentCashAmount: rows.reduce((sum, row) => sum + row.currentCashAmount, 0),
-        totalPendingAmount: rows.reduce((sum, row) => sum + row.pendingAmount, 0),
-        totalReserveShortageAmount: rows.reduce((sum, row) => sum + row.reserveShortageAmount, 0),
-        totalCollectedAmount: rows.reduce((sum, row) => sum + row.collectedAmount, 0),
+        totalCurrentCashAmount: rows.reduce((sum: number, row: any) => sum + row.currentCashAmount, 0),
+        totalPendingAmount: rows.reduce((sum: number, row: any) => sum + row.pendingAmount, 0),
+        totalReserveShortageAmount: rows.reduce((sum: number, row: any) => sum + row.reserveShortageAmount, 0),
+        totalCollectedAmount: rows.reduce((sum: number, row: any) => sum + row.collectedAmount, 0),
       },
     }
   }
@@ -793,8 +801,8 @@ export class ShiftsService {
       throw new BadRequestException('So tien thu phai lon hon 0')
     }
 
-    const branch = await this.db.branch.findUnique({ where: { id: branchId }, select: { id: true } })
-    if (!branch) {
+    const branchExists = await (this.db as any).branch.findUnique({ where: { id: branchId }, select: { id: true } })
+    if (!branchExists) {
       throw new NotFoundException('Khong tim thay chi nhanh')
     }
 
@@ -807,12 +815,18 @@ export class ShiftsService {
       throw new BadRequestException('So tien thu khong duoc lon hon tien cho thu cua cac ca')
     }
 
-    const latest = await this.findLatestVaultEntry(branchId)
+    const [latest, branchConfig] = await Promise.all([
+      this.findLatestVaultEntry(branchId),
+      (this.db as any).branch.findUnique({
+        where: { id: branchId },
+        select: { id: true, cashReserveTargetAmount: true },
+      }),
+    ])
     const actualCashBefore = dto.actualCashBefore === undefined || dto.actualCashBefore === null
       ? toMoney(latest?.cashAfterAmount ?? 0)
       : toMoney(dto.actualCashBefore)
     const targetReserveAmount = dto.targetReserveAmount === undefined || dto.targetReserveAmount === null
-      ? toMoney(latest?.targetReserveAmount ?? DEFAULT_TARGET_RESERVE_AMOUNT)
+      ? toMoney(branchConfig?.cashReserveTargetAmount ?? latest?.targetReserveAmount ?? DEFAULT_TARGET_RESERVE_AMOUNT)
       : toMoney(dto.targetReserveAmount)
 
     if (amount > actualCashBefore) {

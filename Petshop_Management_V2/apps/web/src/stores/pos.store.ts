@@ -320,7 +320,9 @@ export const usePosStore = create<PosStore>()(
         updateQuantity: (itemId, qty) =>
           set((state) =>
             updateActiveTab(state, (tab) => ({
-              cart: tab.cart.map((i) => (i.id === itemId ? { ...i, quantity: Math.max(1, qty) } : i)),
+              cart: tab.cart.map((i) =>
+                i.id === itemId ? { ...i, quantity: Math.max(i.type === 'hotel' ? 0.5 : 1, qty) } : i,
+              ),
             })),
           ),
 

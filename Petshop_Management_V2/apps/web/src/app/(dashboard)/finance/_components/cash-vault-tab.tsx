@@ -37,9 +37,9 @@ function parseAmount(value: string) {
 }
 
 function entryTypeLabel(type: CashVaultEntryType) {
-  if (type === 'SHIFT_CLOSE') return 'Chot ca'
-  if (type === 'VAULT_COLLECTION') return 'Thu ket'
-  return 'Dieu chinh'
+  if (type === 'SHIFT_CLOSE') return 'Chốt ca'
+  if (type === 'VAULT_COLLECTION') return 'Thu két'
+  return 'Điều chỉnh'
 }
 
 function entryTypeClass(type: CashVaultEntryType) {
@@ -62,6 +62,7 @@ type VaultCollectionModalProps = {
   isOpen: boolean
   onClose: () => void
 }
+
 
 function VaultCollectionModal({ branch, isOpen, onClose }: VaultCollectionModalProps) {
   const queryClient = useQueryClient()
@@ -92,12 +93,12 @@ function VaultCollectionModal({ branch, isOpen, onClose }: VaultCollectionModalP
       })
     },
     onSuccess: () => {
-      toast.success('Da ghi nhan thu tien ket')
+      toast.success('Đã ghi nhận thu tiền két')
       queryClient.invalidateQueries({ queryKey: ['finance', 'cash-vault'] })
       onClose()
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message ?? 'Khong the thu tien ket')
+      toast.error(error?.response?.data?.message ?? 'Không thể thu tiền két')
     },
   })
 
@@ -115,7 +116,7 @@ function VaultCollectionModal({ branch, isOpen, onClose }: VaultCollectionModalP
       <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/60 bg-background-secondary/70 px-5 py-4">
           <div>
-            <h3 className="text-base font-bold text-foreground">Thu tien ket</h3>
+            <h3 className="text-base font-bold text-foreground">Thu tiền két</h3>
             <p className="text-sm text-foreground-muted">{branch.branchName}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-2 text-foreground-muted hover:bg-white/10 hover:text-foreground">
@@ -126,7 +127,7 @@ function VaultCollectionModal({ branch, isOpen, onClose }: VaultCollectionModalP
         <div className="space-y-4 p-5">
           <div className="grid gap-3 md:grid-cols-2">
             <label className="space-y-1 text-sm">
-              <span className="font-semibold text-foreground-muted">Tien thuc te trong ket</span>
+              <span className="font-semibold text-foreground-muted">Tiền thực tế trong két</span>
               <input
                 value={actualCashBefore ? formatCurrency(parseAmount(actualCashBefore)) : ''}
                 onChange={(event) => setActualCashBefore(event.target.value)}
@@ -134,7 +135,7 @@ function VaultCollectionModal({ branch, isOpen, onClose }: VaultCollectionModalP
               />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-semibold text-foreground-muted">Tien de lai ket</span>
+              <span className="font-semibold text-foreground-muted">Tiền để lại két</span>
               <input
                 value={targetReserveAmount ? formatCurrency(parseAmount(targetReserveAmount)) : ''}
                 onChange={(event) => setTargetReserveAmount(event.target.value)}
@@ -144,7 +145,7 @@ function VaultCollectionModal({ branch, isOpen, onClose }: VaultCollectionModalP
           </div>
 
           <label className="space-y-1 text-sm">
-            <span className="font-semibold text-foreground-muted">So tien thu</span>
+            <span className="font-semibold text-foreground-muted">Số tiền thu</span>
             <input
               value={amount ? formatCurrency(parseAmount(amount)) : ''}
               onChange={(event) => setAmount(event.target.value)}
@@ -154,34 +155,34 @@ function VaultCollectionModal({ branch, isOpen, onClose }: VaultCollectionModalP
 
           <div className="grid gap-2 rounded-2xl border border-border/60 bg-background-secondary/50 p-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-foreground-muted">Tien con lai sau thu</span>
+              <span className="text-foreground-muted">Tiền còn lại sau thu</span>
               <strong className="text-foreground">{formatCurrency(cashAfterAmount)}</strong>
             </div>
             <div className="flex justify-between">
-              <span className="text-foreground-muted">Con cho thu sau thu</span>
+              <span className="text-foreground-muted">Còn chờ thu sau thu</span>
               <strong className="text-emerald-300">{formatCurrency(pendingAfterAmount)}</strong>
             </div>
             <div className="flex justify-between">
-              <span className="text-foreground-muted">Thieu muc de lai</span>
+              <span className="text-foreground-muted">Thiếu mức để lại</span>
               <strong className={shortageAfterAmount > 0 ? 'text-amber-300' : 'text-foreground'}>{formatCurrency(shortageAfterAmount)}</strong>
             </div>
           </div>
 
           <label className="space-y-1 text-sm">
-            <span className="font-semibold text-foreground-muted">Ghi chu</span>
+            <span className="font-semibold text-foreground-muted">Ghi chú</span>
             <textarea
               value={note}
               onChange={(event) => setNote(event.target.value)}
               rows={3}
               className="w-full resize-none rounded-xl border border-border bg-background-secondary px-3 py-2 text-foreground outline-none focus:border-primary-500"
-              placeholder="Vi du: thu gop 3 ngay, de lai 1.500.000 vi ca truoc chi nhieu..."
+              placeholder="Ví dụ: thu gộp 3 ngày, để lại 1.500.000 vì ca trước chi nhiều..."
             />
           </label>
         </div>
 
         <div className="flex justify-end gap-2 border-t border-border/60 bg-background-secondary/40 px-5 py-4">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-semibold text-foreground-muted hover:bg-white/10">
-            Huy
+            Hủy
           </button>
           <button
             type="button"
@@ -190,7 +191,7 @@ function VaultCollectionModal({ branch, isOpen, onClose }: VaultCollectionModalP
             className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-5 py-2 text-sm font-bold text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <ArrowDownToLine size={16} />
-            {collectVault.isPending ? 'Dang luu...' : 'Thu tien ket'}
+            {collectVault.isPending ? 'Đang lưu...' : 'Thu tiền két'}
           </button>
         </div>
       </div>
@@ -246,10 +247,10 @@ export function CashVaultTab() {
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         <div className="grid shrink-0 gap-3 lg:grid-cols-4">
           {[
-            { label: 'Tien trong ket', value: summaryQuery.data?.totalCurrentCashAmount ?? 0, icon: WalletCards, tone: 'text-primary-300' },
-            { label: 'Cho thu', value: summaryQuery.data?.totalPendingAmount ?? 0, icon: Banknote, tone: 'text-emerald-300' },
-            { label: 'Da thu trong ky', value: summaryQuery.data?.totalCollectedAmount ?? 0, icon: ArrowDownToLine, tone: 'text-sky-300' },
-            { label: 'Thieu muc de lai', value: summaryQuery.data?.totalReserveShortageAmount ?? 0, icon: AlertTriangle, tone: 'text-amber-300' },
+            { label: 'Tiền trong két', value: summaryQuery.data?.totalCurrentCashAmount ?? 0, icon: WalletCards, tone: 'text-primary-300' },
+            { label: 'Chờ thu', value: summaryQuery.data?.totalPendingAmount ?? 0, icon: Banknote, tone: 'text-emerald-300' },
+            { label: 'Đã thu trong kỳ', value: summaryQuery.data?.totalCollectedAmount ?? 0, icon: ArrowDownToLine, tone: 'text-sky-300' },
+            { label: 'Thiếu mức để lại', value: summaryQuery.data?.totalReserveShortageAmount ?? 0, icon: AlertTriangle, tone: 'text-amber-300' },
           ].map((card) => {
             const Icon = card.icon
             return (
@@ -267,8 +268,8 @@ export function CashVaultTab() {
         <div className="shrink-0 rounded-2xl border border-border bg-card/95 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="font-bold text-foreground">Chon nhanh chi nhanh</h3>
-              <p className="text-sm text-foreground-muted">Theo doi rieng tung ket va thu tien khi can.</p>
+              <h3 className="font-bold text-foreground">Chọn nhanh chi nhánh</h3>
+              <p className="text-sm text-foreground-muted">Theo dõi riêng từng két và thu tiền khi cần.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -292,7 +293,7 @@ export function CashVaultTab() {
                 className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground-muted hover:text-foreground"
               >
                 <RefreshCw size={16} className={summaryQuery.isFetching || ledgerQuery.isFetching ? 'animate-spin' : ''} />
-                Tai lai
+                Tải lại
               </button>
               {canCollect ? (
                 <button
@@ -302,7 +303,7 @@ export function CashVaultTab() {
                   className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-4 py-2 text-sm font-bold text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <ArrowDownToLine size={16} />
-                  Thu tien ket
+                  Thu tiền két
                 </button>
               ) : null}
             </div>
@@ -326,7 +327,7 @@ export function CashVaultTab() {
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-xs font-black">{getBranchInitials(branch.branchName)}</span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold">{branch.branchName}</p>
-                      <p className="text-xs opacity-80">Cho thu {formatCurrency(branch.pendingAmount)}</p>
+                      <p className="text-xs opacity-80">Chờ thu {formatCurrency(branch.pendingAmount)}</p>
                     </div>
                   </div>
                 </button>
@@ -338,10 +339,10 @@ export function CashVaultTab() {
         {selectedBranch ? (
           <div className="grid shrink-0 gap-3 md:grid-cols-4">
             {[
-              { label: 'Ket hien tai', value: selectedBranch.currentCashAmount, tone: 'text-foreground' },
-              { label: 'Muc de lai', value: selectedBranch.targetReserveAmount, tone: 'text-primary-300' },
-              { label: 'Cho thu', value: selectedBranch.pendingAmount, tone: 'text-emerald-300' },
-              { label: 'Thieu de lai', value: selectedBranch.reserveShortageAmount, tone: selectedBranch.reserveShortageAmount > 0 ? 'text-amber-300' : 'text-foreground' },
+              { label: 'Két hiện tại', value: selectedBranch.currentCashAmount, tone: 'text-foreground' },
+              { label: 'Mức để lại', value: selectedBranch.targetReserveAmount, tone: 'text-primary-300' },
+              { label: 'Chờ thu', value: selectedBranch.pendingAmount, tone: 'text-emerald-300' },
+              { label: 'Thiếu để lại', value: selectedBranch.reserveShortageAmount, tone: selectedBranch.reserveShortageAmount > 0 ? 'text-amber-300' : 'text-foreground' },
             ].map((item) => (
               <div key={item.label} className="rounded-2xl border border-border bg-card/95 p-4">
                 <p className="text-sm text-foreground-muted">{item.label}</p>
@@ -355,29 +356,29 @@ export function CashVaultTab() {
           <table className="w-full min-w-[1320px] text-left text-sm">
             <thead className="sticky top-0 bg-background-secondary text-xs uppercase text-foreground-muted">
               <tr>
-                <th className="px-4 py-3">Thoi gian</th>
-                <th className="px-4 py-3">Loai dong</th>
-                <th className="px-4 py-3">Nguoi thuc hien</th>
-                <th className="px-4 py-3 text-right">Ket truoc</th>
-                <th className="px-4 py-3 text-right">Phat sinh</th>
-                <th className="px-4 py-3 text-right">Ban duoc</th>
-                <th className="px-4 py-3 text-right">Bu ket</th>
-                <th className="px-4 py-3 text-right">Thuc rut</th>
-                <th className="px-4 py-3 text-right">Thu tien</th>
-                <th className="px-4 py-3 text-right">Ket sau</th>
-                <th className="px-4 py-3 text-right">Cho thu</th>
-                <th className="px-4 py-3 text-right">Thieu de lai</th>
-                <th className="px-4 py-3">Ghi chu</th>
+                <th className="px-4 py-3">Thời gian</th>
+                <th className="px-4 py-3">Loại dòng</th>
+                <th className="px-4 py-3">Người thực hiện</th>
+                <th className="px-4 py-3 text-right">Két trước</th>
+                <th className="px-4 py-3 text-right">Phát sinh</th>
+                <th className="px-4 py-3 text-right">Bán được</th>
+                <th className="px-4 py-3 text-right">Bù két</th>
+                <th className="px-4 py-3 text-right">Thực rút</th>
+                <th className="px-4 py-3 text-right">Thu tiền</th>
+                <th className="px-4 py-3 text-right">Két sau</th>
+                <th className="px-4 py-3 text-right">Chờ thu</th>
+                <th className="px-4 py-3 text-right">Thiếu để lại</th>
+                <th className="px-4 py-3">Ghi chú</th>
               </tr>
             </thead>
             <tbody>
               {ledgerQuery.isLoading ? (
                 <tr>
-                  <td colSpan={13} className="px-4 py-12 text-center text-foreground-muted">Dang tai timeline thu ket...</td>
+                  <td colSpan={13} className="px-4 py-12 text-center text-foreground-muted">Đang tải timeline thu két...</td>
                 </tr>
               ) : entries.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-4 py-12 text-center text-foreground-muted">Chua co dong tien ket trong khoang thoi gian nay.</td>
+                  <td colSpan={13} className="px-4 py-12 text-center text-foreground-muted">Chưa có dòng tiền két trong khoảng thời gian này.</td>
                 </tr>
               ) : (
                 entries.map((entry: CashVaultEntry) => (
@@ -407,7 +408,7 @@ export function CashVaultTab() {
                       {formatCurrency(entry.reserveShortageAmount)}
                     </td>
                     <td className="max-w-[260px] px-4 py-3 text-foreground-muted">
-                      <div className="line-clamp-2">{entry.note ?? (entry.entryType === 'SHIFT_CLOSE' ? 'Tu dong ghi nhan khi chot ca' : '-')}</div>
+                      <div className="line-clamp-2">{entry.note ?? (entry.entryType === 'SHIFT_CLOSE' ? 'Tự động ghi nhận khi chốt ca' : '-')}</div>
                     </td>
                   </tr>
                 ))

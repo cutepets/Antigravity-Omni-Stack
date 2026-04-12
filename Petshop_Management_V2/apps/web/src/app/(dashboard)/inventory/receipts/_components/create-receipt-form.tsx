@@ -28,7 +28,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react'
-import * as XLSX from 'xlsx'
+import { exportAoaToExcel } from '@/lib/excel'
 import { ReceiptWorkspace } from './receipt-workspace'
 import { stockApi } from '@/lib/api/stock.api'
 import { inventoryApi } from '@/lib/api/inventory.api'
@@ -2341,7 +2341,6 @@ export function CreateReceiptForm({
 </head>
 <body>
   <h1>PHIẾU NHẬP HÀNG</h1>
-  <div class="meta">
     <span>Mã: <strong>${receiptCode}</strong></span>
     <span>Ngày: ${createdAt}</span>
     <span>Chi nhánh: ${branchName}</span>
@@ -2396,13 +2395,12 @@ export function CreateReceiptForm({
     }
   }
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const receiptCode = receipt?.receiptNumber ?? receipt?.id ?? resolvedReceiptId ?? 'phieu-nhap'
     const supplierName = displaySupplier?.name ?? ''
     const createdAt = receipt?.createdAt ? dayjs(receipt.createdAt).format('DD/MM/YYYY HH:mm') : ''
 
-    // Header info rows
-    const headerRows = [
+    const headerRows: Array<Array<string | number | null>> = [
       ['PHIẾU NHẬP HÀNG'],
       ['Mã phiếu:', receiptCode, '', 'Nhà cung cấp:', supplierName],
       ['Ngày tạo:', createdAt, '', 'Chi nhánh:', currentBranch?.name ?? ''],
@@ -2410,11 +2408,9 @@ export function CreateReceiptForm({
       [],
     ]
 
-    // Column headers
     const colHeaders = ['#', 'Mã SP (SKU)', 'Tên sản phẩm', 'Phiên bản', 'Đơn vị', 'Số lượng', 'Đơn giá nhập', 'Giảm giá', 'Thành tiền']
 
-    // Item rows
-    const itemRows = items.map((item, idx) => [
+    const itemRows: Array<Array<string | number | null>> = items.map((item, idx) => [
       idx + 1,
       item.sku ?? '',
       item.name,
@@ -2426,8 +2422,7 @@ export function CreateReceiptForm({
       item.quantity * item.unitCost,
     ])
 
-    // Summary rows
-    const summaryRows = [
+    const summaryRows: Array<Array<string | number | null>> = [
       [],
       ['', '', '', '', '', '', '', 'Tổng hàng hóa', merchandiseTotal],
       ...(receiptDiscount > 0 ? [['', '', '', '', '', '', '', 'Giảm giá', -discountAmount]] : []),
@@ -2437,16 +2432,8 @@ export function CreateReceiptForm({
     ]
 
     const wsData = [...headerRows, colHeaders, ...itemRows, ...summaryRows]
-    const ws = XLSX.utils.aoa_to_sheet(wsData)
-
-    // Column widths
-    ws['!cols'] = [8, 14, 36, 16, 10, 10, 16, 14, 16].map((w) => ({ wch: w }))
-
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Phiếu nhập')
-
     const fileName = `phieu-nhap-${receiptCode}-${dayjs().format('YYYYMMDD')}.xlsx`
-    XLSX.writeFile(wb, fileName)
+    await exportAoaToExcel(wsData, 'Phiếu nhập', fileName, [8, 14, 36, 16, 10, 10, 16, 14, 16])
     toast.success(`Đã xuất file ${fileName}`)
   }
 

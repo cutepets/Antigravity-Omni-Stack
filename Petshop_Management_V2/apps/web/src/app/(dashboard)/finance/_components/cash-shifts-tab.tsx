@@ -378,21 +378,23 @@ function ShiftReviewModal({ shift, canManage, onClose }: ShiftReviewModalProps) 
 
 export function CashShiftsTab() {
   const queryClient = useQueryClient()
-  const { hasRole, isAdminOrManager } = useAuthorization()
+  const { hasRole, isAdminOrManager, allowedBranches } = useAuthorization()
   const canManage = isAdminOrManager()
   const canDelete = hasRole(['SUPER_ADMIN', 'ADMIN'])
   const [dateFrom, setDateFrom] = useState(firstDayOfMonth())
   const [dateTo, setDateTo] = useState(todayString())
   const [reviewStatus, setReviewStatus] = useState<ShiftReviewStatus | 'ALL'>('ALL')
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL')
   const [selectedShift, setSelectedShift] = useState<CashShift | null>(null)
 
   const query = useQuery({
-    queryKey: ['finance', 'cash-shifts', dateFrom, dateTo, reviewStatus],
+    queryKey: ['finance', 'cash-shifts', dateFrom, dateTo, reviewStatus, selectedBranchId],
     queryFn: () =>
       shiftApi.list({
         dateFrom,
         dateTo,
         reviewStatus,
+        branchId: selectedBranchId === 'ALL' ? undefined : selectedBranchId,
         limit: 100,
       }),
   })
@@ -426,6 +428,37 @@ export function CashShiftsTab() {
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card/95 p-4">
+          {allowedBranches && allowedBranches.length > 0 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setSelectedBranchId('ALL')}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                  selectedBranchId === 'ALL'
+                    ? 'border-primary-500/50 bg-primary-500/12 text-primary-100'
+                    : 'border-border/70 bg-background-secondary text-foreground-muted hover:border-border hover:text-foreground'
+                }`}
+              >
+                Tất cả chi nhánh
+              </button>
+              {allowedBranches.map((branch) => (
+                <button
+                  key={branch.id}
+                  type="button"
+                  onClick={() => setSelectedBranchId(branch.id)}
+                  className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                    selectedBranchId === branch.id
+                      ? 'border-primary-500/50 bg-primary-500/12 text-primary-100'
+                      : 'border-border/70 bg-background-secondary text-foreground-muted hover:border-border hover:text-foreground'
+                  }`}
+                >
+                  {branch.name}
+                </button>
+              ))}
+              <div className="mx-1 hidden h-6 w-px bg-border/50 md:block"></div>
+            </>
+          ) : null}
+
           <input
             type="date"
             value={dateFrom}

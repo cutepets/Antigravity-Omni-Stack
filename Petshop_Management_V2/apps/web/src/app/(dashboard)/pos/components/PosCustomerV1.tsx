@@ -8,8 +8,13 @@ import { api } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { PosAddCustomerModal } from './PosAddCustomerModal';
 import { PosAddPetModal } from './PosAddPetModal';
+import { PosPetProfileModal } from './PosPetProfileModal';
 
-export function PosCustomerV1() {
+export interface PosCustomerV1Props {
+  onSelectSuggestedService?: (service: any, petId: string) => void;
+}
+
+export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) {
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [customerQuery, setCustomerQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -18,6 +23,7 @@ export function PosCustomerV1() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerModalData, setCustomerModalData] = useState<any>(null);
   const [showPetModal, setShowPetModal] = useState(false);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   
   const store = usePosStore();
   const activeTab = useActiveTab();
@@ -61,6 +67,15 @@ export function PosCustomerV1() {
   const handlePetSaved = (savedPet: any) => {
     refetchCustomerDetail();
     setShowPetModal(false);
+  };
+
+  const handleOpenPetProfile = (petId: string) => {
+    setSelectedPetId(petId);
+  };
+
+  const handleSelectServiceFromPet = (service: any, petId: string) => {
+    onSelectSuggestedService?.(service, petId);
+    setSelectedPetId(null);
   };
 
   useEffect(() => {
@@ -169,9 +184,14 @@ export function PosCustomerV1() {
              <div className="text-[12px] font-bold text-[#6a7280] flex items-center gap-1.5 mb-3 uppercase tracking-wider">
                <PawPrint size={14}/> Thú cưng khách hàng
              </div>
-             <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar pr-4">
+               <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar pr-4">
                {customerDetail?.pets?.map((pet: any) => (
-                 <div key={pet.id} className="flex flex-col items-center gap-1.5 min-w-[60px]">
+                 <button
+                   key={pet.id}
+                   type="button"
+                   onClick={() => handleOpenPetProfile(pet.id)}
+                   className="flex min-w-[72px] flex-col items-center gap-1.5 rounded-2xl px-1 py-1.5 transition hover:bg-white/70"
+                 >
                     <div className="w-14 h-14 rounded-full bg-[#eef1f6] text-[#4d5e7a] font-bold text-xl flex items-center justify-center border border-white shadow-sm ring-1 ring-gray-200">
                       {pet.name?.charAt(0)?.toUpperCase()}
                     </div>
@@ -181,7 +201,7 @@ export function PosCustomerV1() {
                         {pet.weight} kg
                       </span>
                     )}
-                 </div>
+                 </button>
                ))}
                
                {/* Add Pet block */}
@@ -276,6 +296,16 @@ export function PosCustomerV1() {
           onSaved={handlePetSaved}
         />
       )}
+
+      {hasCustomer && customerDetail && selectedPetId ? (
+        <PosPetProfileModal
+          isOpen
+          petId={selectedPetId}
+          ownerName={customerDetail.fullName}
+          onClose={() => setSelectedPetId(null)}
+          onSelectService={handleSelectServiceFromPet}
+        />
+      ) : null}
     </div>
   );
 }

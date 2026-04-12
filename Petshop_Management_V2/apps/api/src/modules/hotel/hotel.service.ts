@@ -1,5 +1,5 @@
 ﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { PaymentStatus, Prisma } from '@petshop/database';
+import type { HotelLineType, PaymentStatus, Prisma } from '@petshop/database';
 import { generateHotelStayCode as formatHotelStayCode } from '@petshop/shared';
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js';
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
@@ -8,10 +8,48 @@ import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto } from './dt
 import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateHotelRateTableDto, UpdateHotelStayDto, UpdateCageDto } from './dto/update-hotel.dto.js';
 
 const ACTIVE_STAY_STATUSES = ['BOOKED', 'CHECKED_IN'] as const;
+const HALF_DAY_HOURS = 12;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+type ChargeDayType = 'REGULAR' | 'HOLIDAY';
+
+type PricingWeightBand = {
+  id: string | null;
+  label: string;
+  minWeight: number | null;
+  maxWeight: number | null;
+  source: 'RULE' | 'LEGACY';
+};
+
+type HotelChargeLineDraft = {
+  label: string;
+  dayType: ChargeDayType;
+  quantityDays: number;
+  unitPrice: number;
+  subtotal: number;
+  sortOrder: number;
+  weightBandId: string | null;
+  pricingSnapshot: Record<string, unknown>;
+};
+
+type HotelPricingPreview = {
+  chargeLines: HotelChargeLineDraft[];
+  totalDays: number;
+  totalPrice: number;
+  averageDailyRate: number;
+  lineType: HotelLineType;
+  weightAtPricing: number | null;
+  weightBand: PricingWeightBand | null;
+  pricingSnapshot: Record<string, unknown>;
+};
 
 @Injectable()
 export class HotelService {
   constructor(private readonly prisma: DatabaseService) {}
+
+  private deriveHalfDayPrice(fullDayPrice: number) {
+    return this.roundCurrency(fullDayPrice / 2);
+  }
 
   private readonly stayInclude = {
     pet: {
@@ -41,6 +79,13 @@ export class HotelService {
     },
     cage: true,
     rateTable: true,
+    weightBand: true,
+    chargeLines: {
+      include: {
+        weightBand: true,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    },
     order: {
       select: {
         id: true,
@@ -55,24 +100,60 @@ export class HotelService {
     },
   } satisfies Prisma.HotelStayInclude;
 
-  private calcNights(checkIn: Date, checkOut?: Date | null) {
-    const end = checkOut ?? new Date();
-    const diff = end.getTime() - checkIn.getTime();
-    return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  private getDateKey(date: Date) {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
-  private calcTotalPrice(params: {
-    checkIn: Date;
-    checkOut?: Date | null;
-    dailyRate?: number | null;
-    surcharge?: number | null;
-    promotion?: number | null;
-  }) {
-    const nights = this.calcNights(params.checkIn, params.checkOut);
-    const dailyRate = params.dailyRate ?? 0;
-    const surcharge = params.surcharge ?? 0;
-    const promotion = params.promotion ?? 0;
-    return nights * dailyRate + surcharge - promotion;
+  private startOfDay(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  private addDays(date: Date, days: number) {
+    return new Date(date.getTime() + days * DAY_IN_MS);
+  }
+
+  private toDefaultPricingEnd(checkIn: Date) {
+    return new Date(checkIn.getTime() + DAY_IN_MS);
+  }
+
+  private roundCurrency(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private buildWeightBandLabel(minWeight?: number | null, maxWeight?: number | null) {
+    if (minWeight === null || minWeight === undefined) return 'Theo can nang';
+    if (maxWeight === null || maxWeight === undefined) return `>${minWeight}kg`;
+    return `${minWeight}-${maxWeight}kg`;
+  }
+
+  private resolveDisplayLineType(chargeLines: HotelChargeLineDraft[]): HotelLineType {
+    if (chargeLines.length > 0 && chargeLines.every((line) => line.dayType === 'HOLIDAY')) {
+      return 'HOLIDAY';
+    }
+
+    return 'REGULAR';
+  }
+
+  private buildChargeLineLabel(dayType: ChargeDayType, weightBandLabel: string) {
+    return dayType === 'HOLIDAY' ? `Hotel ngay le ${weightBandLabel}` : `Hotel ${weightBandLabel}`;
+  }
+
+  private getChargeUnitsForSegment(start: Date, end: Date) {
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs <= 0) return 0;
+
+    const hours = diffMs / (1000 * 60 * 60);
+    return hours <= HALF_DAY_HOURS ? 0.5 : 1;
+  }
+
+  private mapStayChargeLine<T extends Record<string, any>>(line: T) {
+    return {
+      ...line,
+      weightBandLabel: line.weightBand?.label ?? line.pricingSnapshot?.weightBandLabel ?? null,
+    };
   }
 
   private mapStay<T extends Record<string, any>>(stay: T) {
@@ -80,6 +161,9 @@ export class HotelService {
       ...stay,
       expectedPickup: stay.estimatedCheckOut ?? null,
       receiver: stay.customer ?? stay.pet?.customer ?? null,
+      chargeLines: Array.isArray(stay.chargeLines)
+        ? stay.chargeLines.map((line: any) => this.mapStayChargeLine(line))
+        : [],
     };
   }
 
@@ -209,6 +293,7 @@ export class HotelService {
       where: { id: stayId },
       select: {
         totalPrice: true,
+        breakdownSnapshot: true,
       },
     });
     if (!stay) return;
@@ -230,6 +315,9 @@ export class HotelService {
         unitPrice: stay.totalPrice,
         quantity: 1,
         subtotal: stay.totalPrice,
+        ...(stay.breakdownSnapshot !== null
+          ? { pricingSnapshot: stay.breakdownSnapshot as Prisma.InputJsonValue }
+          : {}),
       },
     });
 
@@ -377,11 +465,315 @@ export class HotelService {
     });
   }
 
+  private async findConfiguredWeightBand(species: string, weight: number) {
+    const candidates = await this.prisma.serviceWeightBand.findMany({
+      where: {
+        serviceType: 'HOTEL',
+        isActive: true,
+        minWeight: { lte: weight },
+        OR: [
+          { species: null },
+          { species: { equals: species, mode: 'insensitive' } },
+        ],
+      },
+      orderBy: [{ minWeight: 'desc' }, { sortOrder: 'asc' }],
+    });
+
+    const matched = candidates.find((band) => band.maxWeight === null || weight < band.maxWeight);
+    if (!matched) return null;
+
+    return {
+      band: matched,
+      weightBand: {
+        id: matched.id,
+        label: matched.label,
+        minWeight: matched.minWeight,
+        maxWeight: matched.maxWeight,
+        source: 'RULE' as const,
+      },
+    };
+  }
+
+  private async findLegacyRateForSegment(params: {
+    species: string;
+    weight: number;
+    date: Date;
+    dayType: ChargeDayType;
+    rateTableId?: string;
+  }) {
+    const where: Prisma.HotelRateTableWhereInput = params.rateTableId
+      ? { id: params.rateTableId }
+      : {
+          isActive: true,
+          year: params.date.getFullYear(),
+          lineType: params.dayType,
+          OR: [
+            { species: null },
+            { species: { equals: params.species, mode: 'insensitive' } },
+          ],
+          AND: [
+            {
+              OR: [
+                { minWeight: null },
+                { minWeight: { lte: params.weight } },
+              ],
+            },
+            {
+              OR: [
+                { maxWeight: null },
+                { maxWeight: { gt: params.weight } },
+              ],
+            },
+          ],
+        };
+
+    const rate = await this.prisma.hotelRateTable.findFirst({
+      where,
+      orderBy: [{ year: 'desc' }, { minWeight: 'desc' }],
+    });
+
+    if (!rate) return null;
+
+    return {
+      unitPrice: rate.ratePerNight,
+      weightBand: {
+        id: null,
+        label: this.buildWeightBandLabel(rate.minWeight, rate.maxWeight),
+        minWeight: rate.minWeight ?? null,
+        maxWeight: rate.maxWeight ?? null,
+        source: 'LEGACY' as const,
+      },
+      snapshot: {
+        source: 'legacy-rate-table',
+        ruleId: rate.id,
+        year: rate.year,
+        species: rate.species,
+        ratePerNight: rate.ratePerNight,
+        minWeight: rate.minWeight,
+        maxWeight: rate.maxWeight,
+        lineType: rate.lineType,
+      },
+    };
+  }
+
+  private async buildHotelPricingPreview(params: {
+    species: string;
+    weight?: number | null;
+    checkIn: Date;
+    checkOut?: Date | null;
+    rateTableId?: string | null;
+  }): Promise<HotelPricingPreview> {
+    const weight = Number(params.weight ?? 0);
+    if (!Number.isFinite(weight) || weight < 0) {
+      throw new BadRequestException('Can nang thu cung khong hop le');
+    }
+
+    const pricingEnd = params.checkOut ?? this.toDefaultPricingEnd(params.checkIn);
+    if (pricingEnd <= params.checkIn) {
+      throw new BadRequestException('Ngay check-out phai sau check-in');
+    }
+
+    const configuredBand = await this.findConfiguredWeightBand(params.species, weight);
+    const yearKeys = new Set<number>([params.checkIn.getFullYear(), pricingEnd.getFullYear()]);
+    const holidayDates = await this.prisma.holidayCalendarDate.findMany({
+      where: {
+        isActive: true,
+        date: {
+          gte: this.startOfDay(params.checkIn),
+          lte: this.startOfDay(pricingEnd),
+        },
+      },
+      select: { date: true },
+    });
+    const holidayDateKeys = new Set(holidayDates.map((item) => this.getDateKey(item.date)));
+
+    const priceRules = configuredBand
+      ? await this.prisma.hotelPriceRule.findMany({
+          where: {
+            isActive: true,
+            year: { in: [...yearKeys] },
+            weightBandId: configuredBand.band.id,
+            OR: [
+              { species: null },
+              { species: { equals: params.species, mode: 'insensitive' } },
+            ],
+          },
+        })
+      : [];
+
+    const segments: Array<HotelChargeLineDraft & { dateKey: string }> = [];
+    let cursor = this.startOfDay(params.checkIn);
+
+    while (cursor < pricingEnd) {
+      const nextDay = this.addDays(cursor, 1);
+      const segmentStart = params.checkIn > cursor ? params.checkIn : cursor;
+      const segmentEnd = pricingEnd < nextDay ? pricingEnd : nextDay;
+      const quantityDays = this.getChargeUnitsForSegment(segmentStart, segmentEnd);
+
+      if (quantityDays > 0) {
+        const dateKey = this.getDateKey(cursor);
+        const dayType: ChargeDayType = holidayDateKeys.has(dateKey) ? 'HOLIDAY' : 'REGULAR';
+        const matchedRule = configuredBand
+          ? priceRules
+              .filter((rule) => rule.year === cursor.getFullYear() && rule.dayType === dayType)
+              .sort((left, right) => {
+                const leftExact = left.species?.toLowerCase() === params.species.toLowerCase() ? 1 : 0;
+                const rightExact = right.species?.toLowerCase() === params.species.toLowerCase() ? 1 : 0;
+                return rightExact - leftExact;
+              })[0]
+          : null;
+
+        const resolvedRate =
+          matchedRule
+            ? {
+                unitPrice: quantityDays === 0.5
+                  ? this.deriveHalfDayPrice(matchedRule.fullDayPrice)
+                  : matchedRule.fullDayPrice,
+                weightBand: configuredBand!.weightBand,
+                snapshot: {
+                  source: 'hotel-price-rule',
+                  ruleId: matchedRule.id,
+                  year: matchedRule.year,
+                  species: matchedRule.species,
+                  weightBandId: matchedRule.weightBandId,
+                  dayType: matchedRule.dayType,
+                  halfDayPrice: this.deriveHalfDayPrice(matchedRule.fullDayPrice),
+                  fullDayPrice: matchedRule.fullDayPrice,
+                },
+              }
+            : await this.findLegacyRateForSegment({
+                species: params.species,
+                weight,
+                date: cursor,
+                dayType,
+                ...(params.rateTableId ? { rateTableId: params.rateTableId } : {}),
+              });
+
+        if (!resolvedRate) {
+          throw new NotFoundException(`Khong tim thay gia hotel phu hop cho ngay ${dateKey}`);
+        }
+
+        const subtotal = this.roundCurrency(quantityDays * resolvedRate.unitPrice);
+        const weightBandLabel = resolvedRate.weightBand.label;
+
+        segments.push({
+          dateKey,
+          label: this.buildChargeLineLabel(dayType, weightBandLabel),
+          dayType,
+          quantityDays,
+          unitPrice: resolvedRate.unitPrice,
+          subtotal,
+          sortOrder: segments.length,
+          weightBandId: resolvedRate.weightBand.id,
+          pricingSnapshot: {
+            date: dateKey,
+            dayType,
+            quantityDays,
+            weight,
+            weightBandLabel,
+            ...resolvedRate.snapshot,
+          },
+        });
+      }
+
+      cursor = nextDay;
+    }
+
+    const grouped = new Map<string, HotelChargeLineDraft>();
+    for (const segment of segments) {
+      const key = [segment.dayType, segment.weightBandId ?? 'legacy', segment.unitPrice, segment.label].join('|');
+      const existing = grouped.get(key);
+
+      if (existing) {
+        existing.quantityDays = this.roundCurrency(existing.quantityDays + segment.quantityDays);
+        existing.subtotal = this.roundCurrency(existing.subtotal + segment.subtotal);
+        existing.pricingSnapshot = {
+          ...(existing.pricingSnapshot ?? {}),
+          dates: [...(((existing.pricingSnapshot as any)?.dates ?? []) as string[]), segment.dateKey],
+        };
+        continue;
+      }
+
+      grouped.set(key, {
+        label: segment.label,
+        dayType: segment.dayType,
+        quantityDays: segment.quantityDays,
+        unitPrice: segment.unitPrice,
+        subtotal: segment.subtotal,
+        sortOrder: grouped.size,
+        weightBandId: segment.weightBandId,
+        pricingSnapshot: {
+          ...(segment.pricingSnapshot ?? {}),
+          dates: [segment.dateKey],
+        },
+      });
+    }
+
+    const chargeLines = [...grouped.values()].map((line, index) => ({
+      ...line,
+      sortOrder: index,
+    }));
+    const totalDays = this.roundCurrency(chargeLines.reduce((sum, line) => sum + line.quantityDays, 0));
+    const totalPrice = this.roundCurrency(chargeLines.reduce((sum, line) => sum + line.subtotal, 0));
+    const averageDailyRate = totalDays > 0 ? this.roundCurrency(totalPrice / totalDays) : 0;
+    const weightBand =
+      configuredBand?.weightBand ??
+      (chargeLines[0]
+        ? {
+            id: chargeLines[0].weightBandId,
+            label: String((chargeLines[0].pricingSnapshot as any)?.weightBandLabel ?? 'Theo can nang'),
+            minWeight: null,
+            maxWeight: null,
+            source: 'LEGACY' as const,
+          }
+        : null);
+
+    return {
+      chargeLines,
+      totalDays,
+      totalPrice,
+      averageDailyRate,
+      lineType: this.resolveDisplayLineType(chargeLines),
+      weightAtPricing: weight,
+      weightBand,
+      pricingSnapshot: {
+        species: params.species,
+        weight,
+        totalDays,
+        baseTotalPrice: totalPrice,
+        lineType: this.resolveDisplayLineType(chargeLines),
+        weightBand,
+        chargeLines: chargeLines.map((line) => ({
+          label: line.label,
+          dayType: line.dayType,
+          quantityDays: line.quantityDays,
+          unitPrice: line.unitPrice,
+          subtotal: line.subtotal,
+          weightBandId: line.weightBandId,
+          pricingSnapshot: line.pricingSnapshot,
+        })),
+      },
+    };
+  }
+
+  private buildStayBreakdownSnapshot(preview: HotelPricingPreview, promotion: number, surcharge: number, finalTotalPrice: number) {
+    return {
+      ...preview.pricingSnapshot,
+      promotion,
+      surcharge,
+      finalTotalPrice,
+    };
+  }
+
   // ================= STAY =================
   async createStay(data: CreateHotelStayDto, user?: BranchScopedUser, requestedBranchId?: string) {
     const pet = await this.findAccessiblePet(data.petId, user);
     const checkIn = new Date(data.checkIn);
-    const estimatedCheckOut = data.estimatedCheckOut ? new Date(data.estimatedCheckOut) : null;
+    const estimatedCheckOut = data.estimatedCheckOut
+      ? new Date(data.estimatedCheckOut)
+      : data.checkOut
+        ? new Date(data.checkOut)
+        : null;
     const writableBranchId = resolveWritableBranchId(user, data.branchId ?? requestedBranchId);
     const branch = await resolveBranchIdentity(this.prisma, writableBranchId);
     const linkedOrder = data.orderId
@@ -398,44 +790,75 @@ export class HotelService {
       estimatedCheckOut,
     });
 
-    const dailyRate = data.dailyRate ?? data.price ?? 0;
-    const totalPrice =
-      data.totalPrice ??
-      this.calcTotalPrice({
-        checkIn,
-        checkOut: estimatedCheckOut,
-        dailyRate,
-        ...(data.surcharge !== undefined ? { surcharge: data.surcharge } : {}),
-        ...(data.promotion !== undefined ? { promotion: data.promotion } : {}),
-      });
+    const pricingPreview = await this.buildHotelPricingPreview({
+      species: pet.species,
+      weight: pet.weight,
+      checkIn,
+      checkOut: estimatedCheckOut,
+      ...(data.rateTableId ? { rateTableId: data.rateTableId } : {}),
+    });
+    const promotion = data.promotion ?? 0;
+    const surcharge = data.surcharge ?? 0;
+    const totalPrice = data.totalPrice ?? this.roundCurrency(pricingPreview.totalPrice + surcharge - promotion);
+    const dailyRate = data.dailyRate ?? data.price ?? pricingPreview.averageDailyRate;
+    const breakdownSnapshot = this.buildStayBreakdownSnapshot(pricingPreview, promotion, surcharge, totalPrice);
 
     const stayCode = await this.generateStayCode(codeDate, branch.code);
 
-    const created = await this.prisma.hotelStay.create({
-      data: {
-        stayCode,
-        petId: pet.id,
-        petName: data.petName?.trim() || pet.name,
-        customerId: data.customerId ?? pet.customerId,
-        branchId: branch.id,
-        cageId: data.cageId ?? null,
-        checkIn,
-        ...(data.checkOut ? { checkOut: new Date(data.checkOut) } : {}),
-        ...(estimatedCheckOut ? { estimatedCheckOut } : {}),
-        ...(data.lineType ? { lineType: data.lineType } : {}),
-        ...(data.rateTableId ? { rateTableId: data.rateTableId } : {}),
-        ...(data.orderId ? { orderId: data.orderId } : {}),
-        ...(data.notes ? { notes: data.notes } : {}),
-        ...(data.petNotes ? { petNotes: data.petNotes } : {}),
-        ...(data.paymentStatus ? { paymentStatus: data.paymentStatus } : {}),
-        price: data.price ?? dailyRate,
-        dailyRate,
-        depositAmount: data.depositAmount ?? 0,
-        promotion: data.promotion ?? 0,
-        surcharge: data.surcharge ?? 0,
-        totalPrice,
-      },
-      include: this.stayInclude,
+    const stayCreateData: Prisma.HotelStayUncheckedCreateInput = {
+      stayCode,
+      petId: pet.id,
+      petName: data.petName?.trim() || pet.name,
+      customerId: data.customerId ?? pet.customerId,
+      branchId: branch.id,
+      cageId: data.cageId ?? null,
+      checkIn,
+      ...(data.checkOut ? { checkOut: new Date(data.checkOut) } : {}),
+      ...(estimatedCheckOut ? { estimatedCheckOut } : {}),
+      ...(data.rateTableId ? { rateTableId: data.rateTableId } : {}),
+      ...(data.orderId ? { orderId: data.orderId } : {}),
+      ...(data.notes ? { notes: data.notes } : {}),
+      ...(data.petNotes ? { petNotes: data.petNotes } : {}),
+      ...(data.paymentStatus ? { paymentStatus: data.paymentStatus } : {}),
+      lineType: pricingPreview.lineType,
+      price: data.price ?? dailyRate,
+      dailyRate,
+      depositAmount: data.depositAmount ?? 0,
+      promotion,
+      surcharge,
+      totalPrice,
+      weightAtBooking: pricingPreview.weightAtPricing,
+      weightBandId: pricingPreview.weightBand?.id ?? null,
+      pricingSnapshot: pricingPreview.pricingSnapshot as Prisma.InputJsonValue,
+      breakdownSnapshot: breakdownSnapshot as Prisma.InputJsonValue,
+    };
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const stay = await tx.hotelStay.create({
+        data: stayCreateData,
+        include: this.stayInclude,
+      });
+
+      if (pricingPreview.chargeLines.length > 0) {
+        await tx.hotelStayChargeLine.createMany({
+          data: pricingPreview.chargeLines.map((line) => ({
+            hotelStayId: stay.id,
+            weightBandId: line.weightBandId,
+            label: line.label,
+            dayType: line.dayType,
+            quantityDays: line.quantityDays,
+            unitPrice: line.unitPrice,
+            subtotal: line.subtotal,
+            sortOrder: line.sortOrder,
+            pricingSnapshot: line.pricingSnapshot as Prisma.InputJsonValue,
+          })),
+        });
+      }
+
+      return tx.hotelStay.findUniqueOrThrow({
+        where: { id: stay.id },
+        include: this.stayInclude,
+      });
     });
 
     return this.mapStay(created);
@@ -462,14 +885,18 @@ export class HotelService {
     const updateData: Prisma.HotelStayUpdateInput = {};
     const nextPetId = data.petId ?? stay.petId;
     const nextCheckIn = data.checkIn ? new Date(data.checkIn) : stay.checkIn;
+    let nextPet = stay.pet;
     const nextEstimatedCheckOut = data.estimatedCheckOut
       ? new Date(data.estimatedCheckOut)
       : data.estimatedCheckOut === null
         ? null
-        : stay.estimatedCheckOut;
+        : data.checkOut
+          ? new Date(data.checkOut)
+          : stay.estimatedCheckOut;
 
     if (data.petId && data.petId !== stay.petId) {
       const pet = await this.findAccessiblePet(data.petId, user);
+      nextPet = pet;
       updateData.pet = { connect: { id: pet.id } };
       updateData.petName = data.petName?.trim() || pet.name;
       updateData.customer = { connect: { id: data.customerId ?? pet.customerId } };
@@ -523,38 +950,85 @@ export class HotelService {
     if (data.promotion !== undefined) updateData.promotion = data.promotion;
     if (data.surcharge !== undefined) updateData.surcharge = data.surcharge;
 
-    const dailyRate = data.dailyRate ?? stay.dailyRate ?? data.price ?? stay.price ?? 0;
     const promotion = data.promotion ?? stay.promotion;
     const surcharge = data.surcharge ?? stay.surcharge;
-    const checkOutForTotal = data.checkOut
-      ? new Date(data.checkOut)
-      : nextEstimatedCheckOut ?? stay.checkOutActual ?? stay.checkOut;
+    const finalCheckOut = data.status === 'CHECKED_OUT'
+      ? data.checkOut
+        ? new Date(data.checkOut)
+        : new Date()
+      : data.checkOut
+        ? new Date(data.checkOut)
+        : nextEstimatedCheckOut ?? stay.checkOutActual ?? stay.checkOut ?? null;
+    const nextRateTableId = data.rateTableId !== undefined ? data.rateTableId : stay.rateTableId;
+    const pricingPreview = await this.buildHotelPricingPreview({
+      species: nextPet.species,
+      weight: nextPet.weight,
+      checkIn: nextCheckIn,
+      checkOut: finalCheckOut,
+      ...(nextRateTableId ? { rateTableId: nextRateTableId } : {}),
+    });
+    const dailyRate = data.dailyRate ?? data.price ?? pricingPreview.averageDailyRate;
+    const totalPrice = data.totalPrice ?? this.roundCurrency(pricingPreview.totalPrice + surcharge - promotion);
 
-    updateData.totalPrice =
-      data.totalPrice ??
-      this.calcTotalPrice({
-        checkIn: nextCheckIn,
-        checkOut: checkOutForTotal,
-        dailyRate,
-        promotion,
-        surcharge,
-      });
+    updateData.totalPrice = totalPrice;
+    updateData.dailyRate = dailyRate;
+    updateData.lineType = pricingPreview.lineType;
+    updateData.weightAtBooking = pricingPreview.weightAtPricing;
+    updateData.weightBand = pricingPreview.weightBand?.id
+      ? { connect: { id: pricingPreview.weightBand.id } }
+      : { disconnect: true };
+    updateData.pricingSnapshot = pricingPreview.pricingSnapshot as Prisma.InputJsonValue;
+    updateData.breakdownSnapshot = this.buildStayBreakdownSnapshot(
+      pricingPreview,
+      promotion,
+      surcharge,
+      totalPrice,
+    ) as Prisma.InputJsonValue;
 
     if (data.status === 'CHECKED_OUT' && stay.status !== 'CHECKED_OUT') {
-      const finalCheckOut = data.checkOut ? new Date(data.checkOut) : new Date();
-      updateData.checkOut = finalCheckOut;
-      updateData.checkOutActual = finalCheckOut;
+      updateData.checkOut = finalCheckOut ?? new Date();
+      updateData.checkOutActual = finalCheckOut ?? new Date();
     }
 
-    const updated = await this.prisma.hotelStay.update({
-      where: { id },
-      data: updateData,
-      include: this.stayInclude,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.hotelStay.update({
+        where: { id },
+        data: updateData,
+      });
+
+      await tx.hotelStayChargeLine.deleteMany({
+        where: { hotelStayId: id },
+      });
+
+      if (pricingPreview.chargeLines.length > 0) {
+        await tx.hotelStayChargeLine.createMany({
+          data: pricingPreview.chargeLines.map((line) => ({
+            hotelStayId: id,
+            weightBandId: line.weightBandId,
+            label: line.label,
+            dayType: line.dayType,
+            quantityDays: line.quantityDays,
+            unitPrice: line.unitPrice,
+            subtotal: line.subtotal,
+            sortOrder: line.sortOrder,
+            pricingSnapshot: line.pricingSnapshot as Prisma.InputJsonValue,
+          })),
+        });
+      }
+
+      return tx.hotelStay.findUniqueOrThrow({
+        where: { id },
+        include: this.stayInclude,
+      });
     });
 
     if (
       data.totalPrice !== undefined ||
       data.dailyRate !== undefined ||
+      data.checkIn !== undefined ||
+      data.checkOut !== undefined ||
+      data.estimatedCheckOut !== undefined ||
+      data.petId !== undefined ||
       data.surcharge !== undefined ||
       data.promotion !== undefined ||
       data.status === 'CHECKED_OUT'
@@ -704,31 +1178,70 @@ export class HotelService {
 
     assertBranchAccess(stay.branchId, user);
     const checkOutActual = data.checkOutActual ? new Date(data.checkOutActual) : new Date();
-    const dailyRate = data.dailyRate ?? stay.dailyRate ?? stay.price ?? 0;
     const surcharge = data.surcharge ?? stay.surcharge;
     const promotion = data.promotion ?? stay.promotion;
-    const totalPrice = this.calcTotalPrice({
+    const pricingPreview = await this.buildHotelPricingPreview({
+      species: stay.pet.species,
+      weight: stay.pet.weight,
       checkIn: stay.checkIn,
       checkOut: checkOutActual,
-      dailyRate,
-      surcharge,
-      promotion,
+      ...(stay.rateTableId ? { rateTableId: stay.rateTableId } : {}),
     });
+    const dailyRate = data.dailyRate ?? pricingPreview.averageDailyRate;
+    const totalPrice = this.roundCurrency(pricingPreview.totalPrice + surcharge - promotion);
 
-    const updated = await this.prisma.hotelStay.update({
-      where: { id },
-      data: {
-        status: 'CHECKED_OUT',
-        checkOut: checkOutActual,
-        checkOutActual,
-        dailyRate,
-        surcharge,
-        promotion,
-        totalPrice,
-        ...(data.paymentStatus ? { paymentStatus: data.paymentStatus } : {}),
-        ...(data.notes ? { notes: data.notes } : {}),
-      },
-      include: this.stayInclude,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.hotelStay.update({
+        where: { id },
+        data: {
+          status: 'CHECKED_OUT',
+          checkOut: checkOutActual,
+          checkOutActual,
+          lineType: pricingPreview.lineType,
+          dailyRate,
+          surcharge,
+          promotion,
+          totalPrice,
+          weightAtBooking: pricingPreview.weightAtPricing,
+          weightBand: pricingPreview.weightBand?.id
+            ? { connect: { id: pricingPreview.weightBand.id } }
+            : { disconnect: true },
+          pricingSnapshot: pricingPreview.pricingSnapshot as Prisma.InputJsonValue,
+          breakdownSnapshot: this.buildStayBreakdownSnapshot(
+            pricingPreview,
+            promotion,
+            surcharge,
+            totalPrice,
+          ) as Prisma.InputJsonValue,
+          ...(data.paymentStatus ? { paymentStatus: data.paymentStatus } : {}),
+          ...(data.notes ? { notes: data.notes } : {}),
+        },
+      });
+
+      await tx.hotelStayChargeLine.deleteMany({
+        where: { hotelStayId: id },
+      });
+
+      if (pricingPreview.chargeLines.length > 0) {
+        await tx.hotelStayChargeLine.createMany({
+          data: pricingPreview.chargeLines.map((line) => ({
+            hotelStayId: id,
+            weightBandId: line.weightBandId,
+            label: line.label,
+            dayType: line.dayType,
+            quantityDays: line.quantityDays,
+            unitPrice: line.unitPrice,
+            subtotal: line.subtotal,
+            sortOrder: line.sortOrder,
+            pricingSnapshot: line.pricingSnapshot as Prisma.InputJsonValue,
+          })),
+        });
+      }
+
+      return tx.hotelStay.findUniqueOrThrow({
+        where: { id },
+        include: this.stayInclude,
+      });
     });
 
     await this.syncLinkedOrder(updated.id, updated.orderId);
@@ -739,64 +1252,22 @@ export class HotelService {
   async calculatePrice(data: CalculateHotelPriceDto) {
     const checkIn = new Date(data.checkIn);
     const checkOut = new Date(data.checkOut);
-
-    if (checkOut <= checkIn) {
-      throw new BadRequestException('Ngày check-out phải sau check-in');
-    }
-
-    const where: Prisma.HotelRateTableWhereInput = data.rateTableId
-      ? { id: data.rateTableId }
-      : {
-          isActive: true,
-          year: checkIn.getFullYear(),
-          lineType: data.lineType ?? 'REGULAR',
-          OR: [
-            {
-              species: null,
-            },
-            {
-              species: {
-                equals: data.species,
-                mode: 'insensitive',
-              },
-            },
-          ],
-          AND: [
-            {
-              OR: [
-                { minWeight: null },
-                { minWeight: { lte: data.weight } },
-              ],
-            },
-            {
-              OR: [
-                { maxWeight: null },
-                { maxWeight: { gte: data.weight } },
-              ],
-            },
-          ],
-        };
-
-    const rate = await this.prisma.hotelRateTable.findFirst({
-      where,
-      orderBy: [
-        { year: 'desc' },
-        { minWeight: 'desc' },
-      ],
+    const pricingPreview = await this.buildHotelPricingPreview({
+      species: data.species,
+      weight: data.weight,
+      checkIn,
+      checkOut,
+      ...(data.rateTableId ? { rateTableId: data.rateTableId } : {}),
     });
 
-    if (!rate) {
-      throw new NotFoundException('Không tìm thấy mức giá hotel phù hợp');
-    }
-
-    const nights = this.calcNights(checkIn, checkOut);
-    const totalPrice = nights * rate.ratePerNight;
-
     return {
-      nights,
-      ratePerNight: rate.ratePerNight,
-      totalPrice,
-      matchedRate: rate,
+      totalDays: pricingPreview.totalDays,
+      totalPrice: pricingPreview.totalPrice,
+      averageDailyRate: pricingPreview.averageDailyRate,
+      lineType: pricingPreview.lineType,
+      weightBand: pricingPreview.weightBand,
+      chargeLines: pricingPreview.chargeLines,
+      pricingSnapshot: pricingPreview.pricingSnapshot,
     };
   }
 
@@ -821,6 +1292,3 @@ export class HotelService {
     });
   }
 }
-
-
-

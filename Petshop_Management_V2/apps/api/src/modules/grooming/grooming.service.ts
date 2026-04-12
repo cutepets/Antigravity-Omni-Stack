@@ -3,7 +3,7 @@ import { generateGroomingSessionCode as formatGroomingSessionCode } from '@petsh
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js'
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js'
 import { DatabaseService } from '../../database/database.service.js'
-import { CreateGroomingDto, UpdateGroomingDto } from './dto/grooming.dto.js'
+import { CalculateSpaPriceDto, CreateGroomingDto, UpdateGroomingDto } from './dto/grooming.dto.js'
 
 @Injectable()
 export class GroomingService {
@@ -62,11 +62,104 @@ export class GroomingService {
     return pet
   }
 
-  async create(dto: CreateGroomingDto, user?: BranchScopedUser, requestedBranchId?: string) {
+  private normalizeSpecies(value?: string | null) {
+    return value?.trim().toLowerCase() || null
+  }
+
+  private async buildSpaPricingPreview(dto: CalculateSpaPriceDto, user?: BranchScopedUser) {
+    const pet = await this.findAccessiblePet(dto.petId, user)
+    const species = this.normalizeSpecies(dto.species ?? pet.species)
+    const weight = Number(dto.weight ?? pet.weight)
+
+    if (!Number.isFinite(weight)) {
+      throw new BadRequestException('Thu cung can co can nang de tinh gia SPA')
+    }
+
+    const bands = await this.db.serviceWeightBand.findMany({
+      where: {
+        serviceType: 'GROOMING',
+        isActive: true,
+        minWeight: { lte: weight },
+        OR: [{ maxWeight: null }, { maxWeight: { gt: weight } }],
+      },
+      orderBy: [{ sortOrder: 'asc' }, { minWeight: 'asc' }],
+    })
+    const weightBand =
+      bands.find((band) => this.normalizeSpecies(band.species) === species) ??
+      bands.find((band) => !band.species)
+
+    if (!weightBand) {
+      throw new BadRequestException(`Chua cau hinh hang can SPA cho ${weight}kg`)
+    }
+
+    const rules = await this.db.spaPriceRule.findMany({
+      where: {
+        packageCode: dto.packageCode,
+        weightBandId: weightBand.id,
+        isActive: true,
+        OR: [{ species }, { species: null }],
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    const priceRule =
+      rules.find((rule) => this.normalizeSpecies(rule.species) === species) ??
+      rules.find((rule) => !rule.species)
+
+    if (!priceRule) {
+      throw new BadRequestException(`Chua cau hinh gia SPA ${dto.packageCode} cho hang can ${weightBand.label}`)
+    }
+
+    const pricingSnapshot = {
+      source: 'spa-price-rule',
+      packageCode: dto.packageCode,
+      species,
+      weight,
+      weightBandId: weightBand.id,
+      weightBandLabel: weightBand.label,
+      weightBandMin: weightBand.minWeight,
+      weightBandMax: weightBand.maxWeight,
+      priceRuleId: priceRule.id,
+      price: priceRule.price,
+      durationMinutes: priceRule.durationMinutes,
+    }
+
+    return {
+      petId: pet.id,
+      petName: pet.name,
+      species,
+      weight,
+      packageCode: dto.packageCode,
+      price: priceRule.price,
+      durationMinutes: priceRule.durationMinutes,
+      weightBand: {
+        id: weightBand.id,
+        label: weightBand.label,
+        minWeight: weightBand.minWeight,
+        maxWeight: weightBand.maxWeight,
+      },
+      pricingSnapshot,
+    }
+  }
+
+  async calculatePrice(dto: CalculateSpaPriceDto, user?: BranchScopedUser): Promise<any> {
+    const preview = await this.buildSpaPricingPreview(dto, user)
+    return { success: true, data: preview }
+  }
+
+  async create(dto: CreateGroomingDto, user?: BranchScopedUser, requestedBranchId?: string): Promise<any> {
     const pet = await this.findAccessiblePet(dto.petId, user)
     const writableBranchId = resolveWritableBranchId(user, dto.branchId ?? requestedBranchId)
     const branch = await resolveBranchIdentity(this.db, writableBranchId)
     const sessionDate = dto.startTime ? new Date(dto.startTime) : new Date()
+    const pricingPreview = dto.packageCode
+      ? await this.buildSpaPricingPreview(
+          {
+            petId: dto.petId,
+            packageCode: dto.packageCode,
+          },
+          user,
+        )
+      : null
 
     const session = await this.db.groomingSession.create({
       data: {
@@ -77,8 +170,13 @@ export class GroomingService {
         branchId: branch.id,
         staffId: dto.staffId ?? null,
         serviceId: dto.serviceId ?? null,
+        packageCode: dto.packageCode ?? null,
+        weightAtBooking: pricingPreview?.weight ?? pet.weight ?? null,
+        weightBandId: pricingPreview?.weightBand.id ?? null,
+        ...(pricingPreview ? { pricingSnapshot: pricingPreview.pricingSnapshot } : {}),
         startTime: dto.startTime ? new Date(dto.startTime) : null,
         notes: dto.notes ?? null,
+        price: dto.price ?? pricingPreview?.price ?? null,
         status: 'PENDING',
       },
       include: {
@@ -100,7 +198,7 @@ export class GroomingService {
     return { success: true, data: session }
   }
 
-  async findAll(query?: any, user?: BranchScopedUser, requestedBranchId?: string) {
+  async findAll(query?: any, user?: BranchScopedUser, requestedBranchId?: string): Promise<any> {
     const where = this.mergeBranchScope({}, user, requestedBranchId)
 
     if (query?.status) where.status = query.status
@@ -133,7 +231,7 @@ export class GroomingService {
     return { success: true, data: sessions }
   }
 
-  async findOne(id: string, user?: BranchScopedUser) {
+  async findOne(id: string, user?: BranchScopedUser): Promise<any> {
     const session = await this.db.groomingSession.findUnique({
       where: { id },
       include: {
@@ -157,7 +255,7 @@ export class GroomingService {
     return { success: true, data: session }
   }
 
-  async update(id: string, dto: UpdateGroomingDto, user?: BranchScopedUser, requestedBranchId?: string) {
+  async update(id: string, dto: UpdateGroomingDto, user?: BranchScopedUser, requestedBranchId?: string): Promise<any> {
     const session = await this.db.groomingSession.findUnique({ where: { id } })
     if (!session) throw new NotFoundException('Khong tim thay phien grooming')
     assertBranchAccess(session.branchId, user)
@@ -200,7 +298,7 @@ export class GroomingService {
     return { success: true, data: updated }
   }
 
-  async remove(id: string, user?: BranchScopedUser) {
+  async remove(id: string, user?: BranchScopedUser): Promise<any> {
     const session = await this.db.groomingSession.findUnique({ where: { id } })
     if (!session) throw new NotFoundException('Khong tim thay phien grooming')
     assertBranchAccess(session.branchId, user)
