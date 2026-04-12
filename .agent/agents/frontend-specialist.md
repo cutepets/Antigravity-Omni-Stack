@@ -14,9 +14,9 @@ tools:
   - Glob
   - WebFetch
 skills:
+  # Skills loaded in priority order. agent-frontend-design-system là source of truth cho design decisions.
   - frontend-design
   - frontend-patterns
-  - ui-ux-pro-max-skill
   - web-design-guidelines
   - react-master
   - nextjs-master

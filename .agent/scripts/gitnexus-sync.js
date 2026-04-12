@@ -64,3 +64,30 @@ try {
   console.error(`[gitnexus-sync] Analyze failed: ${error.message}`);
   process.exit(1);
 }
+
+// --- Post-analyze cleanup ---
+const claudeDir = path.join(cwd, '.claude');
+const claudeMd = path.join(cwd, 'CLAUDE.md');
+
+if (fs.existsSync(claudeDir)) {
+  fs.rmSync(claudeDir, { recursive: true, force: true });
+  console.log('[gitnexus-sync] Cleaned up: .claude/');
+}
+if (fs.existsSync(claudeMd)) {
+  fs.rmSync(claudeMd, { force: true });
+  console.log('[gitnexus-sync] Cleaned up: CLAUDE.md');
+}
+
+// --- Post-analyze verification ---
+try {
+  const updatedMeta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  const symbols = updatedMeta?.stats?.symbols ?? '?';
+  const relationships = updatedMeta?.stats?.relationships ?? '?';
+  const embeddingsAfter = Number(updatedMeta?.stats?.embeddings ?? 0);
+  console.log('\n[gitnexus-sync] ✅ Done.');
+  console.log(`  Symbols:       ${symbols}`);
+  console.log(`  Relationships: ${relationships}`);
+  console.log(`  Embeddings:    ${embeddingsAfter} (preserved: ${embeddingsAfter > 0})`);
+} catch {
+  console.log('[gitnexus-sync] ✅ Done. (could not read updated meta.json)');
+}

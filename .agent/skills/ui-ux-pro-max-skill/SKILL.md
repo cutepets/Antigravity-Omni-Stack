@@ -1,53 +1,62 @@
 ---
 name: ui-ux-pro-max-skill
-description: Premium design and micro-interactions toolkit.
+description: Premium micro-interactions and motion toolkit for ERP/dashboard surfaces.
 category: design
-version: 4.1.0-fractal
-layer: master-skill
+version: 5.0.0
+layer: execution-skill
 ---
 
-# 🎨 UI/UX Pro Max - Design Intelligence System
-> **Source**: NextLevelBuilder / Magic UI / Framer Motion Patterns
+# UI/UX Pro Max — Dashboard Execution Toolkit
 
-This skill transforms the Agent into a Senior Product Designer & Frontend Architect specializing in ultra-premium, high-conversion interfaces.
+> Context: Petshop Management V2 là ERP dashboard nội bộ. KHÔNG phải landing page.
+> Priority: Data clarity > Wow factor. Consistency > Experimentation.
 
-## 📐 1. Design Principles (NextLevel Standards)
-- **Glassmorphism 2.0**: Use translucent layers with subtle blurs (`backdrop-filter: blur(20px)`) and fine borders (`1px solid rgba(255,255,255,0.1)`).
-- **Golden Ratio Spacing**: Always use a consistent spacing scale (4px, 8px, 16px, 24px, 32px, 48px, 64px).
-- **Dynamic Micro-Interactions**: Every click/hover must have a reaction (scale, opacity, or color shift).
+## 1. Micro-interactions (Mandatory)
 
-## 🪄 2. Magic UI Patterns
-Implement the following "Wow" components using Tailwind CSS & Framer Motion:
-- **Bento Grids**: Highly responsive, asymmetrical grids for feature showcasing.
-- **Marquee Overlays**: Smoothly scrolling logos or testimonials.
-- **Shiny Buttons**: Text backgrounds with moving gradients.
-- **Retro Grids / Beam Effects**: Subtle background animations to add depth.
+- **Hover**: `scale-[1.02]` + `transition-colors duration-150` trên interactive elements
+- **Click/Active**: `scale-[0.98]` (press feel) trong `active:` variant
+- **Loading**: Skeleton placeholders với `animate-pulse` — KHÔNG dùng spinner cho table rows
+- **Error state**: `border-rose-500/60 bg-rose-500/5` — không dùng màu đỏ đậm gây panic
+- **Success toast**: slide-in từ top-right, auto-dismiss 3s
 
-## 🎬 3. Framer Motion Best Practices
-```javascript
-// Example: Staggered Fade-in
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1
-    }
-  }
+## 2. Motion Standards
+
+```js
+// Framer Motion — Standard enter animation
+const fadeUp = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] }
 }
+// Stagger children: 0.05s (KHÔNG dùng 0.1s+ — quá chậm cho dashboard)
 ```
-- **Exit Animations**: Never let elements "vanish"; always use `AnimatePresence`.
-- **Layout Animations**: Use `layout` prop for smooth reshuffling of elements.
 
-## 🚫 4. Anti-Patterns (Design Sins)
-- **Hard Borders**: Avoid pure black (#000) or heavy shadows. Use soft, diffused shadows.
-- **Static Layouts**: Avoid interfaces that feel "dead". Use subtle floating or breathing animations.
-- **Inconsistent Corner Radius**: Ensure `rounded-xl` means the same thing across all components.
+- **prefers-reduced-motion**: MANDATORY. Dùng `useReducedMotion()` hook.
+- **Exit animations**: Dùng `AnimatePresence` cho modal/drawer.
+- **Layout shift**: `layout` prop cho reorder, NOT cho table resize.
 
-## 🎯 5. Product Scenarios
-- **SaaS Dashboards**: Prioritize data clarity with "Visual Hierarchy".
-- **Landing Pages**: Use "Z-Pattern" for eye-scanning and "Hero Section" focal points.
-- **Mobile Apps**: Focus on "Thumb-friendly" touch targets (min 44px).
+## 3. Dashboard-Specific Patterns
+
+- **Table rows**: hover `bg-primary-500/4` — subtle, không distract
+- **Sidebar active**: `bg-primary-500/12 text-primary-500 font-semibold`
+- **Badge**: solid background, KHÔNG dùng outline-only (khó đọc trong table)
+- **Empty state**: Illustrative icon + action button — KHÔNG chỉ text thuần
+- **Number animation**: Count-up cho KPI cards khi data load
+
+## 4. Forbidden in Dashboard Context
+
+- ❌ `backdrop-filter: blur` trên table/form elements — gây blur text
+- ❌ Bento grid cho data tables — dùng proper `<table>`
+- ❌ Parallax effects trong dashboard (gây nausea)
+- ❌ Auto-playing video backgrounds
+- ❌ Purple/violet primary (xem `agent-frontend-design-system`)
+
+## 5. Accessibility (Non-negotiable)
+
+- Focus ring: `focus-visible:ring-2 focus-visible:ring-primary-500`
+- Color contrast: Text trên background tối thiểu 4.5:1
+- Keyboard navigation: Tab order phải logical
+- ARIA: Form labels, table headers, dialog roles
 
 ---
-*Created by Antigravity Orchestrator - Based on Premium Design Frameworks.*
+*v5.0.0 — Dashboard-tuned. Phù hợp ERP context.*

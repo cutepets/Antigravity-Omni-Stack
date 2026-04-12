@@ -1,0 +1,9 @@
+{
+  "project_name": "Petshop Management V2",
+  "workspace": "petshop-v2",
+  "status": "active",
+  "current_milestone": "Pricing Module Hardening",
+  "last_session": "2026-04-12",
+  "phases": [],
+  "notes": "Monorepo: apps/api (NestJS), apps/web (Next.js). Stack: Prisma + PostgreSQL, TanStack Query, Tailwind CSS."
+}

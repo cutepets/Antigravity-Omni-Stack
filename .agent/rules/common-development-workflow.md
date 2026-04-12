@@ -47,3 +47,11 @@ The Feature Implementation Workflow describes the development pipeline: research
    - Resolve any merge conflicts
    - Ensure branch is up to date with target branch
    - Only request review after these checks pass
+
+## GSD Workflow (Petshop)
+
+Với các task UI mới hoặc refactor UI lớn:
+1. Chạy `/gsd-ui-phase` để tạo UI-SPEC.md trước khi code.
+2. Sau khi implement xong, chạy `/gsd-ui-review` để audit 6 pillars.
+3. Nếu score < 18/24, phải fix trước khi merge.
+

@@ -3,10 +3,34 @@ description: Thuần hóa và tích hợp an toàn GitNexus vào kiến trúc An
 ---
 # /gitnexus-update
 
-Workflow này giúp hệ thống chạy `GitNexus Analyze` một cách an toàn mà không sinh ra rác (không tạo thư mục `.claude` hay file dư thừa `CLAUDE.md`). Rất hữu ích khi cần update index code cho AI chạy tác vụ.
+Chạy `GitNexus Analyze` an toàn: không tạo `.claude`, tự giữ embeddings nếu đã có.
 
-1. Khởi động script đồng bộ hóa
-// turbo
-2. Chạy lệnh: `node .agent/scripts/gitnexus-sync.js`
-3. Ghi status thành công vào log
-4. Khởi động lại workflow hoặc chuyển sang task tiếp theo (Done).
+## Bước thực hiện
+
+1. **Kiểm tra trạng thái trước khi chạy** (không bắt buộc nhưng nên làm)
+   // turbo
+   `node .agent/scripts/gitnexus-sync.js --status-only`
+   Sẽ log: số embeddings hiện tại + các file legacy nếu còn sót.
+
+2. **Chạy sync (tự detect embeddings)**
+   // turbo
+   `node .agent/scripts/gitnexus-sync.js`
+   Script sẽ:
+   - Đọc `.gitnexus/meta.json` → nếu `embeddings > 0` thì tự thêm `--embeddings` flag
+   - Chạy `npx gitnexus analyze` (hoặc `--embeddings`)
+   - Xóa `.claude/` và `CLAUDE.md` nếu GitNexus tái tạo chúng
+   - In ra kết quả: Symbols / Relationships / Embeddings preserved
+
+3. **Done.** Output mẫu khi thành công:
+   ```
+   [gitnexus-sync] ✅ Done.
+     Symbols:       10036
+     Relationships: 24830
+     Embeddings:    512 (preserved: true)
+   ```
+
+## Khi nào cần chạy
+
+- Sau khi commit code mới (ít nhất mỗi cuối sprint)
+- Khi GitNexus báo index stale
+- Sau khi thêm file/module mới vào monorepo
