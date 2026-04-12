@@ -242,8 +242,12 @@ export class PetService {
   async findOne(id: string, user?: AccessUser) {
     await this.assertPetScope(id, user)
 
-    const pet = await this.db.pet.findUnique({
-      where: { id },
+    const petScope = this.mergePetScope({
+      OR: [{ id }, { petCode: id }]
+    }, user)
+
+    const pet = await this.db.pet.findFirst({
+      where: petScope,
       include: {
         customer: { select: { id: true, fullName: true, phone: true } },
         weightLogs: { orderBy: { date: 'desc' }, take: 10 },
@@ -283,7 +287,7 @@ export class PetService {
     await this.assertPetScope(id, user)
 
     const pet = await this.db.pet.findFirst({
-      where: this.mergePetScope({ id }, user),
+      where: this.mergePetScope({ OR: [{ id }, { petCode: id }] }, user),
       select: {
         id: true,
         customerId: true,
@@ -324,7 +328,7 @@ export class PetService {
     dataToUpdate.branch = { connect: { id: effectiveBranchId } }
 
     const updated = await this.db.pet.update({
-      where: { id },
+      where: { id: pet.id },
       data: dataToUpdate,
       include: {
         customer: { select: { id: true, fullName: true, phone: true } },
@@ -337,20 +341,24 @@ export class PetService {
   async remove(id: string, user?: AccessUser) {
     await this.assertPetScope(id, user)
 
-    const pet = await this.db.pet.findUnique({ where: { id } })
+    const pet = await this.db.pet.findFirst({
+      where: { OR: [{ id }, { petCode: id }] }
+    })
     if (!pet) throw new NotFoundException('Không tìm thấy thú cưng')
 
-    await this.db.pet.delete({ where: { id } })
+    await this.db.pet.delete({ where: { id: pet.id } })
     return { success: true }
   }
   async updateAvatar(id: string, avatarUrl: string, user?: AccessUser) {
     await this.assertPetScope(id, user)
 
-    const pet = await this.db.pet.findUnique({ where: { id } })
+    const pet = await this.db.pet.findFirst({
+      where: { OR: [{ id }, { petCode: id }] }
+    })
     if (!pet) throw new NotFoundException('Không tìm thấy thú cưng')
 
     const updated = await this.db.pet.update({
-      where: { id },
+      where: { id: pet.id },
       data: { avatar: avatarUrl },
     })
 

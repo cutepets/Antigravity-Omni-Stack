@@ -10,7 +10,6 @@ import type { CreateOrderPayload, OrderPaymentIntent } from '@/lib/api/order.api
 import type { CartItem, PaymentEntry } from '@petshop/shared';
 import { settingsApi } from '@/lib/api/settings.api';
 import { filterVisiblePaymentMethods, getPaymentMethodColorClasses } from '@/lib/payment-methods';
-import { ServiceBookingModal } from './components/ServiceBookingModal';
 import { HotelCheckoutModal } from './components/HotelCheckoutModal';
 import { PosCustomerV1 } from './components/PosCustomerV1';
 import { PosSettingsPanel } from './components/PosSettingsPanel';
@@ -61,6 +60,10 @@ function getCartQuantityStep(item: { type?: string }) {
   return item.type === 'hotel' ? 0.5 : 1;
 }
 
+function getCartItemWeightBandLabel(item: CartItem) {
+  return item.weightBandLabel ?? item.groomingDetails?.weightBandLabel ?? item.hotelDetails?.chargeWeightBandLabel ?? null;
+}
+
 function normalizeServiceText(value?: string) {
   return value
     ?.normalize('NFD')
@@ -70,7 +73,30 @@ function normalizeServiceText(value?: string) {
 
 function isHotelService(service: any) {
   const text = normalizeServiceText(`${service?.name ?? ''} ${service?.sku ?? ''}`);
-  return service?.type === 'hotel' || service?.suggestionKind === 'HOTEL' || text.includes('hotel') || text.includes('luu chuong');
+  const serviceType = String(service?.serviceType ?? service?.type ?? '').toUpperCase();
+  return service?.pricingKind === 'HOTEL' || serviceType === 'HOTEL' || service?.suggestionKind === 'HOTEL' || text.includes('hotel') || text.includes('luu chuong');
+}
+
+function isGroomingService(service: any) {
+  const serviceType = String(service?.serviceType ?? service?.type ?? '').toUpperCase();
+  return service?.pricingKind === 'GROOMING' || serviceType === 'GROOMING' || service?.suggestionKind === 'SPA' || service?.packageCode !== undefined;
+}
+
+function isCatalogService(item: any) {
+  return (
+    isHotelService(item) ||
+    isGroomingService(item) ||
+    item.serviceId !== undefined ||
+    item.serviceVariantId !== undefined ||
+    item.pricingKind !== undefined ||
+    item.suggestionKind !== undefined ||
+    (item.productId === undefined && item.productVariantId === undefined && item.productName === undefined && item.price !== undefined)
+  );
+}
+
+function getOrderServiceId(service: any) {
+  if (service?.serviceId) return service.serviceId;
+  return service?.entryType?.startsWith('pricing-') ? undefined : service?.id;
 }
 
 function inferSpaPackageCodeFromService(service: any) {
@@ -94,70 +120,70 @@ function buildCartLineId(type: 'product' | 'service' | 'hotel' | 'grooming', ...
     .join(':');
 }
 
-function buildHotelChargeCartItems(service: any, details: any): CartItem[] {
-  const chargeLines = Array.isArray(details?.pricingPreview?.chargeLines)
-    ? details.pricingPreview.chargeLines
-    : [];
+function buildDirectServiceCartItem(service: any, petId?: string): CartItem {
+  const itemType = isHotelService(service) ? 'hotel' : 'service';
+  const unitPrice = Number(service?.sellingPrice ?? service?.price ?? 0);
 
-  if (chargeLines.length === 0) {
-    return [
-      {
-        id: buildCartLineId('hotel', service.id, details?.petId, details?.checkIn, details?.checkOut, Date.now()),
-        serviceId: service.id,
-        description: service.name,
-        sku: service.sku,
-        unitPrice: details?.pricingPreview?.totalPrice ?? service.sellingPrice ?? service.price ?? 0,
-        type: 'hotel',
-        image: service.image,
-        unit: 'lan',
-        discountItem: 0,
-        vatRate: 0,
-        quantity: 1,
-        petId: details?.petId,
-        hotelDetails: details,
-      },
-    ];
-  }
-
-  const bookingGroupKey = buildCartLineId(
-    'hotel',
-    service.id,
-    details?.petId,
-    details?.checkIn,
-    details?.checkOut,
-    Date.now(),
-  );
-
-  return chargeLines.map((line: any, index: number) => ({
-    id: buildCartLineId('hotel', bookingGroupKey, index),
-    serviceId: service.id,
-    description: line.label ?? service.name,
+  return {
+    id: buildCartLineId(itemType, service.id, petId, Date.now()),
+    serviceId: getOrderServiceId(service),
+    description: service.name,
     sku: service.sku,
-    unitPrice: Number(line.unitPrice) || 0,
-    type: 'hotel' as const,
+    weightBandLabel: service.weightBandLabel,
+    unitPrice,
+    type: itemType,
     image: service.image,
-    unit: 'ngay',
+    unit: itemType === 'hotel' ? 'ngày' : 'lần',
     discountItem: 0,
     vatRate: 0,
-    quantity: Number(line.quantityDays) || 0,
-    petId: details?.petId,
-    hotelDetails: {
-      petId: details?.petId,
-      checkIn: details?.checkIn,
-      checkOut: details?.checkOut,
-      lineType: line.dayType ?? details?.lineType ?? 'REGULAR',
-      bookingGroupKey,
-      chargeLineIndex: index,
-      chargeLineLabel: line.label ?? service.name,
-      chargeDayType: line.dayType ?? details?.lineType ?? 'REGULAR',
-      chargeQuantityDays: Number(line.quantityDays) || 0,
-      chargeUnitPrice: Number(line.unitPrice) || 0,
-      chargeSubtotal: Number(line.subtotal) || 0,
-      chargeWeightBandId: line.weightBandId ?? null,
-      chargeWeightBandLabel: String(line.pricingSnapshot?.weightBandLabel ?? ''),
-      pricingPreview: details?.pricingPreview,
-    },
-  }));
+    quantity: 1,
+    petId,
+  };
+}
+
+function buildGroomingCartItem(service: any, petId?: string): CartItem {
+  const unitPrice = Number(service?.sellingPrice ?? service?.price ?? 0);
+  const packageCode = service?.packageCode ?? inferSpaPackageCodeFromService(service);
+  const petWeight = Number(service?.petSnapshot?.weight ?? Number.NaN);
+  const pricingSnapshot =
+    service?.pricingSnapshot ??
+    (service?.pricingRuleId || service?.weightBandId
+      ? {
+        pricingRuleId: service?.pricingRuleId,
+        packageCode,
+        weightBandId: service?.weightBandId ?? null,
+        weightBandLabel: service?.weightBandLabel ?? null,
+        price: unitPrice,
+      }
+      : undefined);
+
+  return {
+    id: buildCartLineId('grooming', service.id, petId, Date.now()),
+    serviceId: getOrderServiceId(service),
+    description: service.name,
+    sku: service.sku,
+    weightBandLabel: service.weightBandLabel,
+    unitPrice,
+    type: 'grooming',
+    image: service.image,
+    unit: 'lần',
+    discountItem: 0,
+    vatRate: 0,
+    quantity: 1,
+    petId,
+    groomingDetails: petId
+      ? {
+        petId,
+        packageCode,
+        serviceItems: service?.name,
+        weightAtBooking: Number.isFinite(petWeight) ? petWeight : undefined,
+        weightBandId: service?.weightBandId,
+        weightBandLabel: service?.weightBandLabel,
+        pricingPrice: unitPrice,
+        pricingSnapshot,
+      }
+      : undefined,
+  };
 }
 
 function getSellableQuantity(stockSource: any, branchId?: string) {
@@ -235,8 +261,6 @@ function resolveCartItemStockState(item: any, branchId?: string) {
 
 function PosPageContent() {
   const queryClient = useQueryClient();
-  const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<any>(null);
-  const [preferredBookingPetId, setPreferredBookingPetId] = useState<string | undefined>(undefined);
   const [showHotelCheckout, setShowHotelCheckout] = useState(false);
   const [noteEditingId, setNoteEditingId] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -521,11 +545,24 @@ function PosPageContent() {
   // â”€â”€ Add to cart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleAddItem = useCallback(
     (item: any) => {
-      const isHotel = item.type === 'hotel' || item.name?.toLowerCase().includes('lưu chuồng');
-      const isGrooming = item.type === 'grooming' || item.duration !== undefined;
+      const isHotel = isHotelService(item);
+      const isGrooming = isGroomingService(item);
 
-      if (isHotel || isGrooming) {
-        setSelectedServiceForBooking(item);
+      if (isHotel) {
+        store.addItem(buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id));
+        toast.success('Đã thêm dịch vụ vào giỏ');
+        return;
+      }
+
+      if (isGrooming) {
+        store.addItem(buildGroomingCartItem(item, item.petId ?? item.petSnapshot?.id));
+        toast.success('Đã thêm dịch vụ vào giỏ');
+        return;
+      }
+
+      if (isCatalogService(item)) {
+        store.addItem(buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id));
+        toast.success('Đã thêm dịch vụ vào giỏ');
         return;
       }
 
@@ -562,27 +599,12 @@ function PosPageContent() {
   const handleSelectSuggestedService = useCallback(
     (service: any, petId: string) => {
       if (isHotelService(service)) {
-        setPreferredBookingPetId(petId);
-        setSelectedServiceForBooking(service);
+        store.addItem(buildDirectServiceCartItem(service, petId));
+        toast.success('Đã thêm dịch vụ vào giỏ');
         return;
       }
 
-      store.addItem({
-        id: buildCartLineId('grooming', service.id, petId, Date.now()),
-        serviceId: service.id,
-        description: service.name,
-        sku: service.sku,
-        unitPrice: service.sellingPrice ?? service.price ?? 0,
-        type: 'service',
-        image: service.image,
-        unit: 'lần',
-        quantity: 1,
-        petId,
-        groomingDetails: {
-          petId,
-          packageCode: inferSpaPackageCodeFromService(service),
-        },
-      });
+      store.addItem(buildGroomingCartItem(service, petId));
       toast.success('Đã thêm dịch vụ vào giỏ');
     },
     [store],
@@ -1098,6 +1120,7 @@ function PosPageContent() {
                   sellableQty,
                   isOverSellableQty,
                 } = resolveCartItemStockState(item, activeTab.branchId);
+                const weightBandLabel = getCartItemWeightBandLabel(item);
 
                 return (
                   <div key={item.id} className="flex flex-col border-b border-gray-100 hover:bg-primary-50/30 transition-colors group">
@@ -1127,7 +1150,7 @@ function PosPageContent() {
                               </div>
                             </>
                           ) : (
-                            item.type === 'service' ? <Scissors size={18} /> : <Package size={18} />
+                            item.type === 'service' || item.type === 'grooming' ? <Scissors size={18} /> : <Package size={18} />
                           )}
                         </div>
                       </div>
@@ -1226,6 +1249,11 @@ function PosPageContent() {
 
                         <div className="text-xs flex items-center mt-0.5 mb-1 w-full gap-2 group/note min-h-[20px]">
                           <span className="text-gray-500 shrink-0 font-medium text-[13px]">{item.sku || 'N/A'}</span>
+                          {weightBandLabel ? (
+                            <span className="shrink-0 rounded bg-primary-50 px-1.5 py-0.5 text-[11px] font-semibold text-primary-700">
+                              {weightBandLabel}
+                            </span>
+                          ) : null}
                           {noteEditingId === item.id ? (
                             <input
                               type="text"
@@ -1367,7 +1395,7 @@ function PosPageContent() {
                             </div>
                           </>
                         ) : (
-                          item.type === 'service' ? <Scissors size={24} /> : <Package size={24} />
+                          item.type === 'service' || item.type === 'grooming' ? <Scissors size={24} /> : <Package size={24} />
                         )}
                       </div>
 
@@ -1415,7 +1443,10 @@ function PosPageContent() {
                             </div>
                           )}
                         </div>
-                        <div className="text-[13px] text-gray-500 mb-0.5 uppercase tracking-wide">SKU: {item.sku || 'N/A'}</div>
+                        <div className="text-[13px] text-gray-500 mb-0.5 uppercase tracking-wide">
+                          SKU: {item.sku || 'N/A'}
+                          {weightBandLabel ? ` · Hạng cân: ${weightBandLabel}` : ''}
+                        </div>
                         <div className="text-[15px] font-medium text-gray-800">{moneyRaw(item.unitPrice)}</div>
                         {item.hotelDetails && (
                           <div className="text-[10px] text-primary-600 mt-1 bg-primary-50 w-fit px-1.5 py-0.5 rounded">
@@ -1754,49 +1785,6 @@ function PosPageContent() {
       </main >
 
     {/* â•â•â• MODALS â•â•â• */ }
-    <ServiceBookingModal
-  isOpen = {!!selectedServiceForBooking
-}
-onClose = {() => {
-  setPreferredBookingPetId(undefined);
-  setSelectedServiceForBooking(null);
-}}
-service = { selectedServiceForBooking }
-customerId = { activeTab?.customerId }
-initialPetId = { preferredBookingPetId }
-onConfirm = {(details) => {
-  if (details.type === 'hotel') {
-    const cartItems = buildHotelChargeCartItems(selectedServiceForBooking, details.details);
-    cartItems.forEach((item) => store.addItem(item));
-    setPreferredBookingPetId(undefined);
-    setSelectedServiceForBooking(null);
-    return;
-  }
-
-  const cartItem = {
-    id: buildCartLineId(
-      'grooming',
-      selectedServiceForBooking.id,
-      details.details?.petId,
-      details.details?.startTime,
-    ),
-    serviceId: selectedServiceForBooking.id,
-    description: selectedServiceForBooking.name,
-    sku: selectedServiceForBooking.sku,
-    unitPrice: details.details?.pricingPrice ?? selectedServiceForBooking.sellingPrice ?? selectedServiceForBooking.price ?? 0,
-    type: 'service' as const,
-    image: selectedServiceForBooking.image,
-    unit: 'lần',
-    groomingDetails: details.type === 'grooming' ? details.details : undefined,
-    quantity: 1,
-    petId: details.details?.petId,
-  };
-  store.addItem(cartItem);
-  setPreferredBookingPetId(undefined);
-  setSelectedServiceForBooking(null);
-}}
-      />
-
   <HotelCheckoutModal
 isOpen = { showHotelCheckout }
 onClose = {() => setShowHotelCheckout(false)}
@@ -1866,4 +1854,3 @@ export default function PosPage() {
     </Suspense>
   );
 }
-

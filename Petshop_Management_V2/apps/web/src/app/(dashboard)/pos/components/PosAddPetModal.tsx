@@ -9,10 +9,11 @@ interface PosAddPetModalProps {
   customerId: string;
   customerName: string;
   customerPhone?: string;
+  initialPet?: any;
   onSaved: (pet: any) => void;
 }
 
-export function PosAddPetModal({ isOpen, onClose, customerId, customerName, customerPhone, onSaved }: PosAddPetModalProps) {
+export function PosAddPetModal({ isOpen, onClose, customerId, customerName, customerPhone, initialPet, onSaved }: PosAddPetModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -31,9 +32,32 @@ export function PosAddPetModal({ isOpen, onClose, customerId, customerName, cust
 
   useEffect(() => {
     if (isOpen) {
-      setName(''); setSpecies('Chó'); setGender('MALE'); setDob(''); setWeight(''); setBreed(''); setTrait(''); setNote(''); setError(''); setAltPhone(''); setImagePreview(null); setImageFile(null);
+      if (initialPet) {
+        setName(initialPet.name || '');
+        setSpecies(initialPet.species || 'Chó');
+        setGender(initialPet.gender || 'MALE');
+        setDob(initialPet.dateOfBirth ? initialPet.dateOfBirth.split('T')[0] : '');
+        setWeight(initialPet.weight ? String(initialPet.weight) : '');
+        setBreed(initialPet.breed || '');
+        setTrait(initialPet.traits?.[0] || initialPet.temperament || '');
+        setNote(initialPet.notes || initialPet.note || '');
+        setAltPhone(initialPet.altPhone || '');
+        setError('');
+        // For image, we can just show existing avatar if any
+        if (initialPet.avatar) {
+          const avatarUrl = String(initialPet.avatar).startsWith('http') || String(initialPet.avatar).startsWith('data:') 
+            ? initialPet.avatar 
+            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${initialPet.avatar}`;
+          setImagePreview(avatarUrl);
+        } else {
+          setImagePreview(null);
+        }
+        setImageFile(null);
+      } else {
+        setName(''); setSpecies('Chó'); setGender('MALE'); setDob(''); setWeight(''); setBreed(''); setTrait(''); setNote(''); setError(''); setAltPhone(''); setImagePreview(null); setImageFile(null);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialPet]);
 
   if (!isOpen) return null;
 
@@ -42,7 +66,7 @@ export function PosAddPetModal({ isOpen, onClose, customerId, customerName, cust
     try {
       setLoading(true);
       setError('');
-      const res = await api.post('/pets', {
+      const payload = {
         name,
         species,
         gender,
@@ -50,9 +74,18 @@ export function PosAddPetModal({ isOpen, onClose, customerId, customerName, cust
         weight: weight ? parseFloat(weight) : null,
         breed,
         traits: trait ? [trait] : [],
+        temperament: trait,
         notes: note,
         customerId
-      });
+      };
+
+      let res;
+      if (initialPet?.id) {
+        res = await api.put(`/pets/${initialPet.id}`, payload);
+      } else {
+        res = await api.post('/pets', payload);
+      }
+      
       // TODO: Handle imageFile upload to a server endpoint if available like `/upload`
 
       onSaved(res.data?.data || res.data);
@@ -79,8 +112,8 @@ export function PosAddPetModal({ isOpen, onClose, customerId, customerName, cust
         
         <div className="p-4 border-b border-[#2b303b] flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
-            <PawPrint className="text-purple-400" size={20} />
-            Thêm thú cưng mới
+            <PawPrint className="text-cyan-400" size={20} />
+            {initialPet ? 'Sửa thông tin thú cưng' : 'Thêm thú cưng mới'}
           </h2>
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-full transition-colors">
             <X size={18} />
@@ -191,7 +224,7 @@ export function PosAddPetModal({ isOpen, onClose, customerId, customerName, cust
             Hủy
           </button>
           <button onClick={handleSave} disabled={loading} className="px-8 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white rounded-xl text-sm font-semibold transition-colors flex items-center gap-2">
-            {loading ? 'Đang lưu...' : 'Thêm'}
+            {loading ? 'Đang lưu...' : initialPet ? 'Cập nhật' : 'Thêm'}
           </button>
         </div>
 

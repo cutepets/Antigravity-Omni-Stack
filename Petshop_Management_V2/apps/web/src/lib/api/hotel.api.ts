@@ -30,6 +30,7 @@ export interface Cage {
   name: string
   type: HotelLineType
   description: string | null
+  position?: number
   isActive?: boolean
   status: CageStatus
   createdAt: string
@@ -138,9 +139,14 @@ export interface CreateCageDto {
   name: string
   type?: HotelLineType
   description?: string
+  position?: number
 }
 
-export interface UpdateCageDto extends Partial<CreateCageDto> {}
+export interface UpdateCageDto extends Partial<CreateCageDto> { }
+
+export interface ReorderCagesDto {
+  cageIds: string[]
+}
 
 export interface CreateHotelStayDto {
   petId: string
@@ -243,14 +249,15 @@ export interface GetHotelRateTablesParams {
 }
 
 export const hotelApi = {
-  getCages: () => api.get<Cage[]>('/hotel/cages').then((res) => res.data),
+  getCages: () => api.get<Cage[]>('/hotel/cages', { headers: { 'X-Use-Branch-Scope': 'true' } }).then((res) => res.data),
   createCage: (data: CreateCageDto) => api.post<Cage>('/hotel/cages', data).then((res) => res.data),
   updateCage: (id: string, data: UpdateCageDto) => api.patch<Cage>(`/hotel/cages/${id}`, data).then((res) => res.data),
   deleteCage: (id: string) => api.delete<{ success: boolean; message: string }>(`/hotel/cages/${id}`).then((res) => res.data),
+  reorderCages: (cageIds: string[]) => api.patch<{ success: boolean }>('/hotel/cages/reorder', { cageIds }).then((res) => res.data),
 
-  getStays: () => api.get<HotelStay[]>('/hotel/stays').then((res) => res.data),
+  getStays: () => api.get<HotelStayListResponse>('/hotel/stays', { params: { limit: 200 }, headers: { 'X-Use-Branch-Scope': 'true' } }).then((res) => res.data.items),
   getStayList: (params?: GetHotelStaysParams) =>
-    api.get<HotelStayListResponse>('/hotel/stays', { params: { ...params, withMeta: true } }).then((res) => res.data),
+    api.get<HotelStayListResponse>('/hotel/stays', { params: { ...params, withMeta: true }, headers: { 'X-Use-Branch-Scope': 'true' } }).then((res) => res.data),
   getStay: (id: string) => api.get<HotelStay>(`/hotel/stays/${id}`).then((res) => res.data),
   createStay: (data: CreateHotelStayDto) => api.post<HotelStay>('/hotel/stays', data).then((res) => res.data),
   updateStay: (id: string, data: UpdateHotelStayDto) => api.patch<HotelStay>(`/hotel/stays/${id}`, data).then((res) => res.data),

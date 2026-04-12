@@ -13,6 +13,10 @@ export class CreateCageDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsNumber()
+  @IsOptional()
+  position?: number;
 }
 
 export class CreateHotelStayDto {

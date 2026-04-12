@@ -49,6 +49,11 @@ export const petApi = {
     return res.data.data
   },
 
+  addWeightLog: async (petId: string, payload: { weight: number; note?: string; date?: string }) => {
+    const res = await api.post<ApiResponse<any>>(`/pets/${petId}/weight`, payload)
+    return res.data.data
+  },
+
   uploadAvatar: async (id: string, file: File) => {
     const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null

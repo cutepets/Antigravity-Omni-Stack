@@ -1,47 +1,69 @@
 'use client'
 
 import * as Dialog from '@radix-ui/react-dialog'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthorization } from '@/hooks/useAuthorization'
-import { hotelApi, Cage } from '@/lib/api/hotel.api'
+import { hotelApi, Cage, HotelStay } from '@/lib/api/hotel.api'
 import { format } from 'date-fns'
 
 interface CheckInDialogProps {
   cage: Cage | null
+  bookedStay?: HotelStay | null
   isOpen: boolean
   onClose: () => void
 }
 
-export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogProps) {
+export default function CheckInDialog({ cage, bookedStay, isOpen, onClose }: CheckInDialogProps) {
   const queryClient = useQueryClient()
   const { hasAnyPermission } = useAuthorization()
-  
+
   const [petName, setPetName] = useState('')
-  const [petId, setPetId] = useState('TEMP_ID') // Usually from a selector
+  const petId = bookedStay?.petId || 'TEMP_ID'
   const [lineType, setLineType] = useState<Cage['type']>('REGULAR')
   const [notes, setNotes] = useState('')
   const [estCheckOut, setEstCheckOut] = useState('')
   const canCheckIn = hasAnyPermission(['hotel.create', 'hotel.checkin'])
+
+  // Pre-fill from booked stay
+  useEffect(() => {
+    if (bookedStay) {
+      setPetName(bookedStay.petName || '')
+      setLineType(bookedStay.lineType || 'REGULAR')
+      setNotes(bookedStay.notes || '')
+      if (bookedStay.estimatedCheckOut) {
+        setEstCheckOut(format(new Date(bookedStay.estimatedCheckOut), 'yyyy-MM-dd'))
+      }
+    } else {
+      setPetName('')
+      setLineType('REGULAR')
+      setNotes('')
+      setEstCheckOut('')
+    }
+  }, [bookedStay, isOpen])
 
   const checkInMutation = useMutation({
     mutationFn: hotelApi.createStay,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cages'] })
       queryClient.invalidateQueries({ queryKey: ['stays'] })
+      // Reset form state
+      setPetName('')
+      setNotes('')
+      setEstCheckOut('')
+      setLineType('REGULAR')
       onClose()
-      // reset specific state if needed
     },
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!cage || !canCheckIn) return
+    if (!canCheckIn) return
 
     checkInMutation.mutate({
-      cageId: cage.id,
+      cageId: cage?.id,
       petId,
-      petName,
+      petName: petName || bookedStay?.petName || '',
       lineType,
       checkIn: new Date().toISOString(),
       estimatedCheckOut: estCheckOut ? new Date(estCheckOut).toISOString() : undefined,
@@ -55,34 +77,34 @@ export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogPr
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-white p-6 shadow-lg duration-200 sm:rounded-lg">
+        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background-base p-6 shadow-lg duration-200 sm:rounded-lg">
           <Dialog.Title className="text-lg font-semibold leading-none tracking-tight">
-            Check-in cho lồng: {cage?.name}
+            Check-in cho chuồng: {cage?.name}
           </Dialog.Title>
-          <Dialog.Description className="text-sm text-gray-500">
+          <Dialog.Description className="text-sm text-foreground-muted">
             Điền thông tin thú cưng để bắt đầu gửi tại khách sạn.
           </Dialog.Description>
 
           <form onSubmit={handleSubmit} className="py-4 space-y-4">
             <div className="grid gap-2">
-              <label className="text-sm font-medium leading-none">Tên thú cưng</label>
+              <label className="text-sm font-medium leading-none text-foreground">Tên thú cưng</label>
               <input
                 required
                 value={petName}
                 disabled={!canCheckIn}
                 onChange={(e) => setPetName(e.target.value)}
                 placeholder="Ví dụ: Milu"
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex h-10 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
-            
+
             <div className="grid gap-2">
-              <label className="text-sm font-medium leading-none">Loại gói lưu trú</label>
+              <label className="text-sm font-medium leading-none text-foreground">Loại gói lưu trú</label>
               <select
                 value={lineType}
                 disabled={!canCheckIn}
                 onChange={(e) => setLineType(e.target.value as Cage['type'])}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex h-10 w-full rounded-md border border-border bg-background-base px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="REGULAR">Gói Thường</option>
                 <option value="HOLIDAY">Gói Lễ/Tết</option>
@@ -90,26 +112,26 @@ export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogPr
             </div>
 
             <div className="grid gap-2">
-              <label className="text-sm font-medium leading-none">Ngày dự kiến trả (Tùy chọn)</label>
+              <label className="text-sm font-medium leading-none text-foreground">Ngày dự kiến trả (Tùy chọn)</label>
               <input
                 type="date"
                 value={estCheckOut}
                 disabled={!canCheckIn}
                 onChange={(e) => setEstCheckOut(e.target.value)}
                 min={format(new Date(), 'yyyy-MM-dd')}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex h-10 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
             <div className="grid gap-2">
-              <label className="text-sm font-medium leading-none">Ghi chú thêm</label>
+              <label className="text-sm font-medium leading-none text-foreground">Ghi chú thêm</label>
               <textarea
                 value={notes}
                 disabled={!canCheckIn}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Ví dụ: Ăn hạt nhỏ, sợ tiếng ồn..."
                 rows={3}
-                className="flex w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
@@ -117,14 +139,14 @@ export default function CheckInDialog({ cage, isOpen, onClose }: CheckInDialogPr
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                className="px-4 py-2 border border-border rounded-md text-sm font-medium text-foreground hover:bg-background-secondary transition"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={!canCheckIn || checkInMutation.isPending}
-                className="px-4 py-2 bg-indigo-600 rounded-md text-sm font-medium text-white hover:bg-indigo-700 transition flex items-center justify-center min-w-[120px]"
+                className="px-4 py-2 bg-primary-500 rounded-md text-sm font-medium text-white hover:opacity-90 transition flex items-center justify-center min-w-[120px] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {checkInMutation.isPending ? 'Đang xử lý...' : 'Xác nhận Check-in'}
               </button>

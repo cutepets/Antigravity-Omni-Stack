@@ -11,6 +11,7 @@ export interface CartItem {
   description: string
   sku?: string
   barcode?: string
+  weightBandLabel?: string
   quantity: number
   unitPrice: number
   discountItem: number

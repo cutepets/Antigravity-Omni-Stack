@@ -3,18 +3,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { hotelApi, HotelStay } from '@/lib/api/hotel.api'
 import { format } from 'date-fns'
-import { vi } from 'date-fns/locale'
 import { useState, useMemo } from 'react'
 import {
-  DataListShell,
   DataListToolbar,
   DataListTable,
   DataListPagination,
-  TableCheckbox,
-  useDataListSelection,
 } from '@/components/data-list'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { cn } from '@/lib/utils'
+import StayDetailsDialog from './StayDetailsDialog'
 
 const TABLE_COLUMNS = [
   { id: 'pet', label: 'Mã LH / Thú cưng' },
@@ -25,11 +22,16 @@ const TABLE_COLUMNS = [
   { id: 'actions', label: 'Thao tác', shrink: true },
 ]
 
+// Cage stub for StayDetailsDialog — StayList re-uses the same dialog
+type CageStub = { id: string; name: string; status: 'OCCUPIED' | 'AVAILABLE' | 'MAINTENANCE' }
+
 export default function StayList() {
   const { hasPermission } = useAuthorization()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [search, setSearch] = useState('')
+  const [detailCage, setDetailCage] = useState<CageStub | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
   const canCheckout = hasPermission('hotel.checkout')
 
   const { data: stays, isLoading } = useQuery({
@@ -56,9 +58,15 @@ export default function StayList() {
     return visibleStays.slice(start, start + pageSize)
   }, [visibleStays, page, pageSize])
 
-  const visibleRowIds = useMemo(() => paginatedStays.map((s) => `s:${s.id}`), [paginatedStays])
-  const { selectedRowIds, toggleRowSelection, toggleSelectAllVisible, allVisibleSelected } =
-    useDataListSelection(visibleRowIds)
+  const handleViewDetail = (stay: HotelStay) => {
+    if (!stay.cageId) return
+    setDetailCage({
+      id: stay.cageId,
+      name: stay.cage?.name ?? `Chuồng #${stay.cageId.slice(-4)}`,
+      status: 'OCCUPIED',
+    })
+    setIsDetailOpen(true)
+  }
 
   const getStatusBadge = (status: HotelStay['status']) => {
     switch (status) {
@@ -81,7 +89,7 @@ export default function StayList() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background-base p-4">
+    <div className="flex flex-col h-full p-4">
       <div className="flex-1 min-h-0 flex flex-col gap-4">
         <DataListToolbar
           searchValue={search}
@@ -95,27 +103,13 @@ export default function StayList() {
           isLoading={isLoading}
           isEmpty={paginatedStays.length === 0}
           emptyText="Không có lượt lưu trú nào phù hợp."
-          allSelected={allVisibleSelected}
-          onSelectAll={toggleSelectAllVisible}
         >
           {paginatedStays.map((stay) => {
-            const rowId = `s:${stay.id}`
-            const isSelected = selectedRowIds.has(rowId)
-
             return (
-              <tr 
-                key={stay.id} 
-                className={cn(
-                  'border-b border-border/50 transition-colors hover:bg-background-secondary/40',
-                  isSelected && 'bg-primary-500/5'
-                )}
+              <tr
+                key={stay.id}
+                className="border-b border-border/50 transition-colors hover:bg-background-secondary/40"
               >
-                <td className="w-12 px-3 py-3">
-                  <TableCheckbox 
-                    checked={isSelected} 
-                    onCheckedChange={(_, shiftKey) => toggleRowSelection(rowId, shiftKey)} 
-                  />
-                </td>
                 <td className="px-3 py-3">
                   <div className="text-sm font-semibold text-foreground">
                     {stay.pet?.name || stay.petName}
@@ -157,11 +151,17 @@ export default function StayList() {
                   {getStatusBadge(stay.status)}
                 </td>
                 <td className="px-3 py-3 text-right">
-                  <button className="text-sm font-medium text-primary-500 hover:text-primary-600 transition-colors mr-3">
+                  <button
+                    onClick={() => handleViewDetail(stay)}
+                    className="text-sm font-medium text-primary-500 hover:text-primary-600 transition-colors mr-3"
+                  >
                     Chi tiết
                   </button>
                   {stay.status === 'CHECKED_IN' && canCheckout && (
-                    <button className="text-sm font-medium text-emerald-500 hover:text-emerald-600 transition-colors">
+                    <button
+                      onClick={() => handleViewDetail(stay)}
+                      className="text-sm font-medium text-emerald-500 hover:text-emerald-600 transition-colors"
+                    >
                       Ra chuồng
                     </button>
                   )}
@@ -189,6 +189,15 @@ export default function StayList() {
           }
         />
       </div>
+
+      <StayDetailsDialog
+        cage={detailCage as any}
+        isOpen={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false)
+          setDetailCage(null)
+        }}
+      />
     </div>
   )
 }

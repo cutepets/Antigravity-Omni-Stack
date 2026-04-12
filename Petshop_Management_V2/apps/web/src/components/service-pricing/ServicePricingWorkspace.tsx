@@ -1,12 +1,16 @@
 'use client'
+/* eslint-disable react/no-unescaped-entities */
 
+import * as Popover from '@radix-ui/react-popover'
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Hotel, Plus, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react'
+import { addDays, addMonths, endOfMonth, endOfWeek, isAfter, isBefore, isSameDay, isSameMonth, startOfMonth, startOfWeek } from 'date-fns'
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Pencil, Plus, RefreshCw, Save, X } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { hotelApi } from '@/lib/api/hotel.api'
 import {
   pricingApi,
+  type HolidayCalendarDate,
   type PricingDayType,
   type PricingServiceType,
   type ServiceWeightBand,
@@ -17,10 +21,17 @@ import { cn, formatCurrency } from '@/lib/utils'
 type PricingMode = 'HOTEL' | 'GROOMING'
 
 type BandDraft = {
+  key: string
+  id: string | null
   label: string
   minWeight: string
   maxWeight: string
   sortOrder: string
+}
+
+type SpaServiceColumn = {
+  key: string
+  packageCode: string
 }
 
 type SpaDraft = {
@@ -33,6 +44,15 @@ type HotelDraft = {
   id?: string
   fullDayPrice: string
 }
+
+type HolidayDraft = {
+  startDate: string
+  endDate: string
+  name: string
+  isRecurring: boolean
+}
+
+type HotelPreviewResult = Awaited<ReturnType<typeof hotelApi.calculatePrice>>
 
 const SPECIES_OPTIONS = [
   { value: 'Chó', label: 'Chó' },
@@ -106,6 +126,55 @@ const GROOMING_PROCESS_CARDS = [
   },
 ]
 
+function normalizeSkuText(value?: string | null) {
+  return String(value ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+}
+
+function getWeightBandSkuSuffix(label?: string | null) {
+  const numbers = String(label ?? '').match(/\d+(?:[.,]\d+)?/g)
+  return numbers?.map((value) => value.replace(/[.,]/g, '')).join('') ?? ''
+}
+
+function getSkuInitials(value?: string | null) {
+  return normalizeSkuText(value)
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+}
+
+function getSpaSkuPrefix(packageCode?: string | null) {
+  const code = normalizeSkuText(packageCode).replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  const prefixByCode: Record<string, string> = {
+    BATH: 'T',
+    TAM: 'T',
+    HYGIENE: 'VS',
+    VE_SINH: 'VS',
+    CLIP: 'CL',
+    CUT: 'CL',
+    SHAVE: 'CL',
+    CAO_LONG: 'CL',
+    BATH_CLEAN: 'TVS',
+    BATH_HYGIENE: 'TVS',
+    BATH_SHAVE: 'TCL',
+    BATH_CLIP: 'TCL',
+    BATH_SHAVE_CLEAN: 'TCLVS',
+    BATH_CLIP_HYGIENE: 'TCLVS',
+    SPA: 'SPA',
+  }
+
+  return prefixByCode[code] ?? (getSkuInitials(packageCode) || 'SPA')
+}
+
+function buildServicePricingSku(kind: 'HOTEL' | 'SPA', label: string, weightBandLabel?: string | null) {
+  const prefix = kind === 'HOTEL' ? 'HLT' : getSpaSkuPrefix(label)
+  return `${prefix}${getWeightBandSkuSuffix(weightBandLabel)}`
+}
+
 function formatWeightInput(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return ''
   return Number.isInteger(value) ? String(value) : String(value).replace('.', ',')
@@ -156,8 +225,88 @@ function toDateInputValue(value: Date) {
   return new Date(value.getTime() - offsetMs).toISOString().slice(0, 10)
 }
 
-function getSpaRuleKey(weightBandId: string, packageCode: string) {
-  return `${weightBandId}:${packageCode}`
+function formatHolidayRange(holiday: HolidayCalendarDate) {
+  const start = new Date(holiday.date).toLocaleDateString('vi-VN')
+  const end = holiday.endDate ? new Date(holiday.endDate).toLocaleDateString('vi-VN') : start
+  return start === end ? start : `${start} - ${end}`
+}
+
+function parseDateInputValue(value: string) {
+  const [year, month, day] = String(value ?? '').split('-').map(Number)
+  return new Date(year, Math.max(0, (month ?? 1) - 1), day ?? 1)
+}
+
+function getMonthTitle(date: Date) {
+  return date.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })
+}
+
+function getPreviewDateRangeValue(previewForm: { checkIn: string; checkOut: string }) {
+  return {
+    startDate: previewForm.checkIn.slice(0, 10),
+    endDate: previewForm.checkOut.slice(0, 10),
+  }
+}
+
+function getPreviewTimeValue(value: string, fallback: string) {
+  const time = value.split('T')[1]?.slice(0, 5)
+  return time && /^\d{2}:\d{2}$/.test(time) ? time : fallback
+}
+
+function applyPreviewDateRangeValue(
+  current: { species: string; weight: string; checkIn: string; checkOut: string },
+  patch: Partial<HolidayDraft>,
+) {
+  const nextStartDate = patch.startDate ?? current.checkIn.slice(0, 10)
+  const nextEndDate = patch.endDate ?? current.checkOut.slice(0, 10)
+  const nextCheckInTime = getPreviewTimeValue(current.checkIn, '09:00')
+  const nextCheckOutTime = getPreviewTimeValue(current.checkOut, '18:00')
+  return {
+    ...current,
+    checkIn: `${nextStartDate}T${nextCheckInTime}`,
+    checkOut: `${nextEndDate}T${nextCheckOutTime}`,
+  }
+}
+
+function applyPreviewTimeValue(
+  current: { species: string; weight: string; checkIn: string; checkOut: string },
+  patch: { checkInTime?: string; checkOutTime?: string },
+) {
+  const nextCheckInTime = patch.checkInTime ?? getPreviewTimeValue(current.checkIn, '09:00')
+  const nextCheckOutTime = patch.checkOutTime ?? getPreviewTimeValue(current.checkOut, '18:00')
+  return {
+    ...current,
+    checkIn: `${current.checkIn.slice(0, 10)}T${nextCheckInTime}`,
+    checkOut: `${current.checkOut.slice(0, 10)}T${nextCheckOutTime}`,
+  }
+}
+
+function createHolidayDraft(baseDate = new Date()): HolidayDraft {
+  const normalizedDate = toDateInputValue(baseDate)
+  return {
+    startDate: normalizedDate,
+    endDate: normalizedDate,
+    name: '',
+    isRecurring: true,
+  }
+}
+
+function getHolidayDraftFromCalendarDate(holiday: HolidayCalendarDate): HolidayDraft {
+  const startDate = toDateInputValue(new Date(holiday.date))
+  const endDate = holiday.endDate ? toDateInputValue(new Date(holiday.endDate)) : startDate
+  return {
+    startDate,
+    endDate,
+    name: holiday.name,
+    isRecurring: holiday.isRecurring,
+  }
+}
+
+function createDraftKey(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function getSpaRuleKey(bandKey: string, serviceKey: string) {
+  return `${bandKey}:${serviceKey}`
 }
 
 function getHotelRuleKey(weightBandId: string, dayType: PricingDayType, species = '') {
@@ -170,11 +319,378 @@ function getHotelBandGroupKey(band: Pick<ServiceWeightBand, 'label' | 'minWeight
 
 function buildBandDraft(band: ServiceWeightBand): BandDraft {
   return {
+    key: band.id,
+    id: band.id,
     label: band.label,
     minWeight: formatWeightInput(band.minWeight),
     maxWeight: formatWeightInput(band.maxWeight),
     sortOrder: String(band.sortOrder ?? 0),
   }
+}
+
+function getHotelPreviewWeightBandLabel(
+  line: HotelPreviewResult['chargeLines'][number],
+  preview?: HotelPreviewResult,
+) {
+  const snapshot = line.pricingSnapshot as Record<string, unknown> | undefined
+  return String(snapshot?.weightBandLabel ?? preview?.weightBand?.label ?? 'theo cân nặng')
+}
+
+function aggregateHotelPreviewLines(preview: HotelPreviewResult) {
+  const grouped = new Map<string, {
+    dayType: HotelPreviewResult['chargeLines'][number]['dayType']
+    quantityDays: number
+    subtotal: number
+    sortOrder: number
+    fullDayPrices: number[]
+    holidayNames: string[]
+  }>()
+
+  for (const line of preview.chargeLines) {
+    const snapshot = line.pricingSnapshot as Record<string, unknown> | undefined
+    const key = String(line.dayType ?? 'REGULAR')
+    const existing = grouped.get(key)
+    const fullDayPrice = Number(snapshot?.fullDayPrice)
+    const holidayName = String(snapshot?.holidayName ?? '').trim()
+
+    if (existing) {
+      existing.quantityDays += line.quantityDays
+      existing.subtotal += line.subtotal
+      if (Number.isFinite(fullDayPrice) && !existing.fullDayPrices.includes(fullDayPrice)) {
+        existing.fullDayPrices.push(fullDayPrice)
+      }
+      if (holidayName && !existing.holidayNames.includes(holidayName)) {
+        existing.holidayNames.push(holidayName)
+      }
+      continue
+    }
+
+    grouped.set(key, {
+      dayType: line.dayType,
+      quantityDays: line.quantityDays,
+      subtotal: line.subtotal,
+      sortOrder: line.sortOrder,
+      fullDayPrices: Number.isFinite(fullDayPrice) ? [fullDayPrice] : [],
+      holidayNames: holidayName ? [holidayName] : [],
+    })
+  }
+
+  return Array.from(grouped.values())
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((group) => {
+      const sampleLine = preview.chargeLines.find((line) => line.dayType === group.dayType) ?? preview.chargeLines[0]
+      const weightBandLabel = sampleLine ? getHotelPreviewWeightBandLabel(sampleLine, preview) : preview.weightBand?.label ?? 'theo cân nặng'
+      const label = group.dayType === 'HOLIDAY'
+        ? group.holidayNames.length === 1
+          ? `Hotel lễ ${group.holidayNames[0]} - ${weightBandLabel}`
+          : `Hotel ngày lễ - ${weightBandLabel}`
+        : `Hotel ${weightBandLabel}`
+
+      const unitPriceLabel = group.fullDayPrices.length === 1
+        ? formatCurrency(group.fullDayPrices[0])
+        : group.fullDayPrices.length > 1
+          ? `${formatCurrency(Math.min(...group.fullDayPrices))} - ${formatCurrency(Math.max(...group.fullDayPrices))}`
+          : formatCurrency(sampleLine?.unitPrice ?? 0)
+
+      return {
+        ...group,
+        label,
+        unitPriceLabel,
+        quantityDays: Math.round(group.quantityDays * 10) / 10,
+        subtotal: Math.round(group.subtotal),
+      }
+    })
+}
+
+function buildSpaServiceColumns(packageCodes: string[]): SpaServiceColumn[] {
+  const seen = new Set<string>()
+  const columns: SpaServiceColumn[] = []
+  for (const packageCode of packageCodes) {
+    const normalized = String(packageCode ?? '').trim()
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    columns.push({ key: normalized, packageCode: normalized })
+  }
+  return columns
+}
+
+function HolidayDateRangeField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: { startDate: string; endDate: string }
+  onChange: (patch: { startDate: string; endDate: string }) => void
+  disabled?: boolean
+}) {
+  const startDate = useMemo(() => parseDateInputValue(value.startDate), [value.startDate])
+  const endDate = useMemo(() => parseDateInputValue(value.endDate), [value.endDate])
+  const [open, setOpen] = useState(false)
+  const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(startDate))
+  const weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+
+  useEffect(() => {
+    setVisibleMonth(startOfMonth(startDate))
+  }, [startDate])
+
+  const applyRange = (nextStart: Date, nextEnd: Date) => {
+    onChange({
+      startDate: toDateInputValue(nextStart),
+      endDate: toDateInputValue(nextEnd),
+    })
+  }
+
+  const handlePickDate = (pickedDate: Date) => {
+    const normalizedDate = new Date(pickedDate.getFullYear(), pickedDate.getMonth(), pickedDate.getDate())
+
+    if (!value.startDate || (value.startDate && value.endDate && value.startDate !== value.endDate)) {
+      applyRange(normalizedDate, normalizedDate)
+      return
+    }
+
+    const currentStart = parseDateInputValue(value.startDate)
+    if (normalizedDate < currentStart) {
+      applyRange(normalizedDate, currentStart)
+    } else {
+      applyRange(currentStart, normalizedDate)
+    }
+    setOpen(false)
+  }
+
+  const handlePickToday = () => {
+    const today = new Date()
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    applyRange(normalizedToday, normalizedToday)
+    setVisibleMonth(startOfMonth(normalizedToday))
+  }
+
+  const buildCalendarDays = (month: Date) => {
+    const monthStart = startOfMonth(month)
+    const monthEnd = endOfMonth(month)
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 })
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
+    const days: Date[] = []
+    let cursor = calendarStart
+
+    while (cursor <= calendarEnd) {
+      days.push(cursor)
+      cursor = addDays(cursor, 1)
+    }
+
+    return days
+  }
+
+  const renderMonth = (month: Date) => {
+    const days = buildCalendarDays(month)
+    const hasPendingStart = value.startDate === value.endDate
+
+    return (
+      <div className="w-full max-w-[360px]">
+        <div className="mb-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setVisibleMonth((current) => addMonths(current, -1))}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background-base text-foreground-muted transition-colors hover:text-foreground"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <p className="text-lg font-black text-foreground">{getMonthTitle(month)}</p>
+          <button
+            type="button"
+            onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background-base text-foreground-muted transition-colors hover:text-foreground"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {weekDays.map((day) => (
+            <div key={`${month.toISOString()}-${day}`} className="py-2 text-center text-sm font-semibold text-foreground-muted">
+              {day}
+            </div>
+          ))}
+          {days.map((day) => {
+            const inVisibleMonth = isSameMonth(day, month)
+            const isStart = isSameDay(day, startDate)
+            const isEnd = isSameDay(day, endDate)
+            const inRange = hasPendingStart
+              ? isStart
+              : !isBefore(day, startDate) && !isAfter(day, endDate)
+
+            return (
+              <button
+                key={day.toISOString()}
+                type="button"
+                onClick={() => handlePickDate(day)}
+                className={cn(
+                  'relative h-10 rounded-xl text-sm font-semibold transition-colors',
+                  inVisibleMonth ? 'text-foreground' : 'text-foreground-muted/45',
+                  inRange ? 'bg-primary-500/12 text-primary-500' : 'hover:bg-background-base',
+                  isStart || isEnd ? 'bg-primary-500 text-white hover:bg-primary-500' : '',
+                )}
+              >
+                {day.getDate()}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <div>
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            className="flex h-11 w-full items-center justify-between rounded-xl border border-border bg-background-base px-3 text-left text-sm text-foreground outline-none transition-colors hover:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span className="truncate font-medium text-foreground">{startDate.toLocaleDateString('vi-VN')} - {endDate.toLocaleDateString('vi-VN')}</span>
+            <CalendarDays size={18} className="shrink-0 text-primary-500" />
+          </button>
+        </Popover.Trigger>
+      </div>
+      <Popover.Portal>
+        <Popover.Content
+          sideOffset={10}
+          align="start"
+          className="z-50 w-[min(92vw,420px)] rounded-[28px] border border-border bg-background-secondary p-4 shadow-2xl shadow-black/35"
+        >
+          <div className="flex justify-center">{renderMonth(visibleMonth)}</div>
+          <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={handlePickToday}
+              className="text-sm font-bold text-primary-500 transition-colors hover:text-primary-400"
+            >
+              Hôm nay
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-background-base px-4 text-sm font-bold text-foreground"
+            >
+              Xong
+            </button>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
+function HolidayCalendarPanel({
+  holidays,
+  newHoliday,
+  editingHolidayId,
+  onHolidayDraftChange,
+  onSubmitHoliday,
+  onCancelEdit,
+  onEditHoliday,
+  onDeleteHoliday,
+  isSavingHoliday,
+  canManagePricing,
+  canEditPricing = canManagePricing,
+}: {
+  holidays: HolidayCalendarDate[]
+  newHoliday: HolidayDraft
+  editingHolidayId: string | null
+  onHolidayDraftChange: (patch: Partial<HolidayDraft>) => void
+  onSubmitHoliday: () => void
+  onCancelEdit: () => void
+  onEditHoliday: (holiday: HolidayCalendarDate) => void
+  onDeleteHoliday: (id: string) => void
+  isSavingHoliday: boolean
+  canManagePricing: boolean
+  canEditPricing?: boolean
+}) {
+  return (
+    <div className="rounded-[28px] border border-border bg-background-secondary/70 p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <CalendarDays size={18} className="text-primary-500" />
+        <h3 className="text-base font-black text-foreground">Lịch ngày lễ</h3>
+      </div>
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_220px] md:items-start">
+        <HolidayDateRangeField value={newHoliday} onChange={onHolidayDraftChange} disabled={!canEditPricing} />
+        <label className="flex h-11 items-center gap-2 rounded-xl border border-border bg-background-base px-3 text-sm font-semibold text-foreground-muted">
+          <input
+            type="checkbox"
+            checked={newHoliday.isRecurring}
+            onChange={(event) => onHolidayDraftChange({ isRecurring: event.target.checked })}
+            disabled={!canEditPricing}
+            className="h-4 w-4 accent-primary-500"
+          />
+          Lặp lại năm
+        </label>
+      </div>
+      <div className="mt-2">
+        <input
+          value={newHoliday.name}
+          onChange={(event) => onHolidayDraftChange({ name: event.target.value })}
+          disabled={!canEditPricing}
+          className="h-11 w-full rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+        />
+      </div>
+      {canEditPricing ? <div className="mt-2 flex gap-2">
+        {editingHolidayId ? (
+          <button
+            type="button"
+            onClick={onCancelEdit}
+            disabled={isSavingHoliday}
+            className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border border-border bg-background-base text-sm font-bold text-foreground disabled:opacity-50"
+          >
+            Hủy sửa
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={onSubmitHoliday}
+          disabled={isSavingHoliday}
+          className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-bold text-white disabled:opacity-50"
+        >
+          {editingHolidayId ? <Save size={15} /> : <Plus size={15} />}
+          {editingHolidayId ? 'Lưu kỳ lễ' : 'Thêm kỳ lễ'}
+        </button>
+      </div> : null}
+
+      <div className="custom-scrollbar mt-3 max-h-52 space-y-2 overflow-y-auto">
+        {holidays.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-foreground-muted">Chưa có kỳ lễ nào trong năm.</p>
+        ) : holidays.map((holiday) => (
+          <div key={holiday.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background-base px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-foreground">{holiday.name}</p>
+              <p className="text-xs text-foreground-muted">{formatHolidayRange(holiday)}{holiday.isRecurring ? ' · Hàng năm' : ''}</p>
+            </div>
+            {canEditPricing ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => onEditHoliday(holiday)}
+                  disabled={isSavingHoliday}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground disabled:opacity-50"
+                  title="Sửa kỳ lễ"
+                >
+                  <Pencil size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDeleteHoliday(holiday.id)}
+                  disabled={isSavingHoliday}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
+                  title="Xóa kỳ lễ"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
@@ -185,11 +701,15 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const [species, setSpecies] = useState(SPECIES_OPTIONS[0].value)
   const [year, setYear] = useState(currentYear)
   const [dayType, setDayType] = useState<PricingDayType>('REGULAR')
-  const [bandDrafts, setBandDrafts] = useState<Record<string, BandDraft>>({})
-  const [newBand, setNewBand] = useState<BandDraft>({ label: '', minWeight: '', maxWeight: '', sortOrder: '99' })
+  const [bandDrafts, setBandDrafts] = useState<BandDraft[]>([])
+  const [spaServiceColumns, setSpaServiceColumns] = useState<SpaServiceColumn[]>([])
   const [spaDrafts, setSpaDrafts] = useState<Record<string, SpaDraft>>({})
   const [hotelDrafts, setHotelDrafts] = useState<Record<string, HotelDraft>>({})
-  const [newHoliday, setNewHoliday] = useState({ date: toDateInputValue(new Date()), name: '', notes: '' })
+  const [removedBandIds, setRemovedBandIds] = useState<string[]>([])
+  const [editingBandKey, setEditingBandKey] = useState<string | null>(null)
+  const [editingServiceKey, setEditingServiceKey] = useState<string | null>(null)
+  const [newHoliday, setNewHoliday] = useState<HolidayDraft>(() => createHolidayDraft())
+  const [editingHolidayId, setEditingHolidayId] = useState<string | null>(null)
   const [previewForm, setPreviewForm] = useState({
     species: SPECIES_OPTIONS[0].value,
     weight: '5',
@@ -231,10 +751,10 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     enabled: mode === 'HOTEL',
   })
 
-  const rawBands = bandsQuery.data ?? []
-  const spaRules = spaRulesQuery.data ?? []
-  const hotelRules = hotelRulesQuery.data ?? []
-  const holidays = holidaysQuery.data ?? []
+  const rawBands = useMemo(() => bandsQuery.data ?? [], [bandsQuery.data])
+  const spaRules = useMemo(() => spaRulesQuery.data ?? [], [spaRulesQuery.data])
+  const hotelRules = useMemo(() => hotelRulesQuery.data ?? [], [hotelRulesQuery.data])
+  const holidays = useMemo(() => holidaysQuery.data ?? [], [holidaysQuery.data])
 
   const bands = useMemo(() => {
     if (mode !== 'HOTEL') return rawBands
@@ -276,23 +796,36 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   }, [bands, mode, rawBands])
 
   useEffect(() => {
-    const nextDrafts: Record<string, BandDraft> = {}
-    for (const band of bands) nextDrafts[band.id] = buildBandDraft(band)
-    setBandDrafts(nextDrafts)
+    setBandDrafts(bands.map(band => buildBandDraft(band)))
   }, [bands])
 
   useEffect(() => {
     if (mode !== 'GROOMING') return
+    const sourcePackageCodes = spaRules.length > 0
+      ? spaRules.map((rule) => rule.packageCode)
+      : SPA_PACKAGES.map((pkg) => pkg.code)
+    const columns = buildSpaServiceColumns(sourcePackageCodes)
+    const serviceKeyByCode = new Map(columns.map((column) => [column.packageCode, column.key]))
     const nextDrafts: Record<string, SpaDraft> = {}
     for (const rule of spaRules) {
-      nextDrafts[getSpaRuleKey(rule.weightBandId, rule.packageCode)] = {
+      const serviceKey = serviceKeyByCode.get(rule.packageCode)
+      if (!serviceKey) continue
+      nextDrafts[getSpaRuleKey(rule.weightBandId, serviceKey)] = {
         id: rule.id,
         price: formatCurrencyInput(rule.price),
         durationMinutes: formatIntegerInput(rule.durationMinutes),
       }
     }
+    setSpaServiceColumns(columns)
     setSpaDrafts(nextDrafts)
   }, [mode, spaRules])
+
+  useEffect(() => {
+    if (mode !== 'GROOMING') return
+    setRemovedBandIds([])
+    setEditingBandKey(null)
+    setEditingServiceKey(null)
+  }, [mode, species])
 
   useEffect(() => {
     if (mode !== 'HOTEL') return
@@ -312,31 +845,49 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const invalidSpaCells = useMemo(() => {
     if (mode !== 'GROOMING') return 0
     let count = 0
-    for (const band of bands) {
-      for (const pkg of SPA_PACKAGES) {
-        const draft = spaDrafts[getSpaRuleKey(band.id, pkg.code)]
+    for (const band of bandDrafts) {
+      for (const service of spaServiceColumns) {
+        const draft = spaDrafts[getSpaRuleKey(band.key, service.key)]
         if (!draft?.price) count += 1
       }
     }
     return count
-  }, [bands, mode, spaDrafts])
+  }, [bandDrafts, mode, spaDrafts, spaServiceColumns])
 
   const invalidHotelCells = useMemo(() => {
     if (mode !== 'HOTEL') return 0
     let count = 0
-    for (const band of bands) {
+    for (const band of bandDrafts) {
       for (const option of DAY_TYPE_OPTIONS) {
         for (const speciesOption of HOTEL_SPECIES_COLUMNS) {
-          const draft = hotelDrafts[getHotelRuleKey(band.id, option.value, speciesOption.value)]
+          const draft = hotelDrafts[getHotelRuleKey(band.key, option.value, speciesOption.value)]
           if (!draft?.fullDayPrice) count += 1
         }
       }
     }
     return count
-  }, [bands, hotelDrafts, mode])
+  }, [bandDrafts, hotelDrafts, mode])
 
   const invalidatePricing = () => {
     queryClient.invalidateQueries({ queryKey: ['pricing'] })
+  }
+
+  const resetHolidayDraft = () => {
+    setNewHoliday(createHolidayDraft())
+    setEditingHolidayId(null)
+  }
+
+  const updateHolidayDraft = (patch: Partial<HolidayDraft>) => {
+    setNewHoliday((current) => {
+      const next = { ...current, ...patch }
+      if (next.endDate < next.startDate) next.endDate = next.startDate
+      return next
+    })
+  }
+
+  const handleEditHoliday = (holiday: HolidayCalendarDate) => {
+    setEditingHolidayId(holiday.id)
+    setNewHoliday(getHolidayDraftFromCalendarDate(holiday))
   }
 
   const presetBandsMutation = useMutation({
@@ -348,15 +899,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     onError: (error: any) => toast.error(error?.response?.data?.message || 'Không tạo được hạng cân mẫu'),
   })
 
-  const saveBandMutation = useMutation({
-    mutationFn: (payload: Parameters<typeof pricingApi.upsertWeightBand>[0]) => pricingApi.upsertWeightBand(payload),
-    onSuccess: () => {
-      setNewBand({ label: '', minWeight: '', maxWeight: '', sortOrder: '99' })
-      invalidatePricing()
-      toast.success('Đã lưu hạng cân')
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không lưu được hạng cân'),
-  })
 
   const removeBandMutation = useMutation({
     mutationFn: pricingApi.deactivateWeightBand,
@@ -366,39 +908,35 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     },
     onError: (error: any) => toast.error(error?.response?.data?.message || 'Không tắt được hạng cân'),
   })
-
-  const saveSpaMutation = useMutation({
-    mutationFn: pricingApi.bulkUpsertSpaRules,
-    onSuccess: () => {
-      invalidatePricing()
-      toast.success('Đã lưu bảng giá SPA')
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không lưu được bảng giá SPA'),
-  })
-
-  const saveHotelMutation = useMutation({
-    mutationFn: pricingApi.bulkUpsertHotelRules,
-    onSuccess: () => {
-      invalidatePricing()
-      toast.success('Đã lưu bảng giá Hotel')
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không lưu được bảng giá Hotel'),
-  })
-
   const createHolidayMutation = useMutation({
     mutationFn: pricingApi.createHoliday,
     onSuccess: () => {
-      setNewHoliday({ date: toDateInputValue(new Date()), name: '', notes: '' })
+      const today = toDateInputValue(new Date())
+      setNewHoliday({ startDate: today, endDate: today, name: '', isRecurring: true })
       invalidatePricing()
       toast.success('Đã thêm ngày lễ')
     },
     onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thêm được ngày lễ'),
   })
 
-  const toggleHolidayMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => pricingApi.updateHoliday(id, { isActive }),
-    onSuccess: invalidatePricing,
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không cập nhật được ngày lễ'),
+  const updateHolidayMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: HolidayDraft }) => pricingApi.updateHoliday(id, data),
+    onSuccess: () => {
+      resetHolidayDraft()
+      invalidatePricing()
+      toast.success('Đã cập nhật kỳ lễ')
+    },
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không lưu được kỳ lễ'),
+  })
+
+  const deleteHolidayMutation = useMutation({
+    mutationFn: pricingApi.deactivateHoliday,
+    onSuccess: (_, holidayId) => {
+      if (editingHolidayId === holidayId) resetHolidayDraft()
+      invalidatePricing()
+      toast.success('Đã xóa kỳ lễ')
+    },
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không xóa được kỳ lễ'),
   })
 
   const previewMutation = useMutation({
@@ -415,85 +953,250 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     onError: (error: any) => toast.error(error?.response?.data?.message || error?.message || 'Không preview được giá Hotel'),
   })
 
-  const saveBand = (band?: ServiceWeightBand) => {
+  const [isSavingBands, setIsSavingBands] = useState(false)
+  const [isSavingGrooming, setIsSavingGrooming] = useState(false)
+  const [isSavingHotel, setIsSavingHotel] = useState(false)
+
+  const saveAllBands = async () => {
     if (!ensureCanManagePricing()) return
-    const draft = band ? bandDrafts[band.id] : newBand
-    const minWeight = parseWeightInput(draft.minWeight)
-    const maxWeight = parseWeightInput(draft.maxWeight)
-    const sortOrder = parseIntegerInput(draft.sortOrder) ?? 0
-    if (!draft.label.trim() || minWeight === null) {
-      toast.error('Cần nhập tên hạng cân và min kg')
+    const invalid = bandDrafts.some(b => !b.label.trim() || !b.minWeight)
+    if (invalid) {
+      toast.error('Cần nhập tên hạng cân và min kg cho tất cả các dòng')
       return
     }
-    saveBandMutation.mutate({
-      id: band?.id,
-      serviceType,
-      ...(mode === 'GROOMING' ? { species } : { species: null }),
-      label: draft.label.trim(),
-      minWeight,
-      maxWeight,
-      sortOrder,
-      isActive: true,
-    })
-  }
 
-  const saveSpaRules = () => {
-    if (!ensureCanManagePricing()) return
-    const rules = bands.flatMap((band) =>
-      SPA_PACKAGES.flatMap((pkg) => {
-        const draft = spaDrafts[getSpaRuleKey(band.id, pkg.code)]
-        const price = parseCurrencyInput(draft?.price ?? '')
-        if (price === null) return []
-        return [{
-          id: draft?.id,
-          species,
-          packageCode: pkg.code,
-          weightBandId: band.id,
-          price,
-          durationMinutes: parseIntegerInput(draft?.durationMinutes ?? ''),
+    setIsSavingBands(true)
+    try {
+      for (let i = 0; i < bandDrafts.length; i++) {
+        const draft = bandDrafts[i]
+        await pricingApi.upsertWeightBand({
+          id: draft.id || undefined,
+          serviceType,
+          species: mode === 'GROOMING' ? species : null,
+          label: draft.label.trim(),
+          minWeight: parseWeightInput(draft.minWeight) ?? 0,
+          maxWeight: parseWeightInput(draft.maxWeight),
+          sortOrder: i,
           isActive: true,
-        }]
-      }),
-    )
-
-    if (rules.length === 0) {
-      toast.error('Chưa có giá SPA nào để lưu')
-      return
+        })
+      }
+      invalidatePricing()
+      toast.success('Đã lưu bảng hạng cân')
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Có lỗi khi lưu các hạng cân, có thể bị trùng khoảng min-max.')
+    } finally {
+      setIsSavingBands(false)
     }
-    saveSpaMutation.mutate(rules)
   }
 
-  const saveHotelRules = () => {
+  const addBandRow = () => {
+    const nextKey = createDraftKey('band')
+    setBandDrafts((current) => [
+      ...current,
+      { key: nextKey, id: null, label: '', minWeight: '', maxWeight: '', sortOrder: String(current.length) }
+    ])
+    setEditingBandKey(nextKey)
+  }
+
+  const removeBandRow = (index: number) => {
+    const band = bandDrafts[index]
+    if (!band) return
+    setBandDrafts((current) => current.filter((_, currentIndex) => currentIndex !== index))
+    setEditingBandKey((current) => (current === band.key ? null : current))
+    if (mode === 'GROOMING') {
+      setSpaDrafts((current) =>
+        Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${band.key}:`))),
+      )
+    } else {
+      setHotelDrafts((current) =>
+        Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${band.key}:`))),
+      )
+    }
+    if (band.id) {
+      setRemovedBandIds((current) => (current.includes(band.id!) ? current : [...current, band.id!]))
+    }
+  }
+
+  const updateBandRow = (index: number, patch: Partial<BandDraft>) => {
+    setBandDrafts(current => current.map((b, i) => i === index ? { ...b, ...patch } : b))
+  }
+
+  const addSpaServiceColumn = () => {
+    const nextKey = createDraftKey('service')
+    setSpaServiceColumns((current) => [...current, { key: nextKey, packageCode: '' }])
+    setEditingServiceKey(nextKey)
+  }
+
+  const updateSpaServiceColumn = (serviceKey: string, packageCode: string) => {
+    setSpaServiceColumns((current) =>
+      current.map((column) => (column.key === serviceKey ? { ...column, packageCode } : column)),
+    )
+  }
+
+  const removeSpaServiceColumn = (serviceKey: string) => {
+    setSpaServiceColumns((current) => current.filter((column) => column.key !== serviceKey))
+    setSpaDrafts((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([key]) => {
+          const [, currentServiceKey] = key.split(':')
+          return currentServiceKey !== serviceKey
+        }),
+      ),
+    )
+    setEditingServiceKey((current) => (current === serviceKey ? null : current))
+  }
+
+  const saveGroomingMatrix = async () => {
     if (!ensureCanManagePricing()) return
-    const rules = bands.flatMap((band) =>
-      DAY_TYPE_OPTIONS.flatMap((option) => {
-        return HOTEL_SPECIES_COLUMNS.flatMap((speciesOption) => {
-          const draft = hotelDrafts[getHotelRuleKey(band.id, option.value, speciesOption.value)]
-          const fullDayPrice = parseCurrencyInput(draft?.fullDayPrice ?? '')
-          if (fullDayPrice === null) return []
+    const invalidBand = bandDrafts.some((draft) => !draft.label.trim() || parseWeightInput(draft.minWeight) === null)
+    if (invalidBand) {
+      toast.error('Cần nhập tên hạng cân và min kg cho tất cả các dòng')
+      return
+    }
+
+    const normalizedServices = spaServiceColumns.map((column) => ({
+      ...column,
+      packageCode: column.packageCode.trim(),
+    }))
+    if (normalizedServices.some((column) => !column.packageCode)) {
+      toast.error('Tên dịch vụ không được để trống')
+      return
+    }
+
+    const duplicateServiceNames = new Set<string>()
+    for (const column of normalizedServices) {
+      const normalizedName = column.packageCode.toLocaleLowerCase()
+      if (duplicateServiceNames.has(normalizedName)) {
+        toast.error('Tên dịch vụ đang bị trùng')
+        return
+      }
+      duplicateServiceNames.add(normalizedName)
+    }
+
+    setIsSavingGrooming(true)
+    try {
+      const bandIdByKey = new Map<string, string>()
+      for (let index = 0; index < bandDrafts.length; index += 1) {
+        const draft = bandDrafts[index]
+        const savedBand = await pricingApi.upsertWeightBand({
+          id: draft.id || undefined,
+          serviceType: 'GROOMING',
+          species,
+          label: draft.label.trim(),
+          minWeight: parseWeightInput(draft.minWeight) ?? 0,
+          maxWeight: parseWeightInput(draft.maxWeight),
+          sortOrder: index,
+          isActive: true,
+        })
+        bandIdByKey.set(draft.key, savedBand.id)
+      }
+
+      const rules = bandDrafts.flatMap((band) =>
+        normalizedServices.flatMap((column) => {
+          const weightBandId = bandIdByKey.get(band.key)
+          if (!weightBandId) return []
+          const draft = spaDrafts[getSpaRuleKey(band.key, column.key)]
+          const price = parseCurrencyInput(draft?.price ?? '')
+          if (price === null) return []
           return [{
             id: draft?.id,
-            year,
-            species: speciesOption.value,
-            weightBandId: band.id,
-            dayType: option.value,
-            halfDayPrice: deriveHalfDayPrice(fullDayPrice) ?? undefined,
-            fullDayPrice,
+            species,
+            packageCode: column.packageCode,
+            weightBandId,
+            price,
+            durationMinutes: parseIntegerInput(draft?.durationMinutes ?? ''),
             isActive: true,
           }]
-        })
-      }),
-    )
+        }),
+      )
 
-    if (rules.length === 0) {
-      toast.error('Chưa có giá Hotel nào để lưu')
-      return
+      await pricingApi.bulkUpsertSpaRules({ species, rules })
+
+      for (const bandId of removedBandIds) {
+        await pricingApi.deactivateWeightBand(bandId)
+      }
+
+      setRemovedBandIds([])
+      invalidatePricing()
+      toast.success('Đã lưu bảng giá Grooming')
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Không lưu được bảng giá Grooming')
+    } finally {
+      setIsSavingGrooming(false)
     }
-    saveHotelMutation.mutate(rules)
   }
 
-  const updateSpaDraft = (bandId: string, packageCode: string, patch: Partial<SpaDraft>) => {
-    const key = getSpaRuleKey(bandId, packageCode)
+  const saveHotelMatrix = () => {
+    if (!ensureCanManagePricing()) return
+    const invalidBand = bandDrafts.some((draft) => !draft.label.trim() || parseWeightInput(draft.minWeight) === null)
+    if (invalidBand) {
+      toast.error('Cần nhập tên hạng cân và min kg cho tất cả các dòng')
+      return
+    }
+
+    setIsSavingHotel(true)
+    ;(async () => {
+      try {
+        const bandIdByKey = new Map<string, string>()
+        for (let index = 0; index < bandDrafts.length; index += 1) {
+          const draft = bandDrafts[index]
+          const savedBand = await pricingApi.upsertWeightBand({
+            id: draft.id || undefined,
+            serviceType: 'HOTEL',
+            species: null,
+            label: draft.label.trim(),
+            minWeight: parseWeightInput(draft.minWeight) ?? 0,
+            maxWeight: parseWeightInput(draft.maxWeight),
+            sortOrder: index,
+            isActive: true,
+          })
+          bandIdByKey.set(draft.key, savedBand.id)
+        }
+
+        const rules = bandDrafts.flatMap((band) =>
+          DAY_TYPE_OPTIONS.flatMap((option) =>
+            HOTEL_SPECIES_COLUMNS.flatMap((speciesOption) => {
+              const weightBandId = bandIdByKey.get(band.key)
+              if (!weightBandId) return []
+              const draft = hotelDrafts[getHotelRuleKey(band.key, option.value, speciesOption.value)]
+              const fullDayPrice = parseCurrencyInput(draft?.fullDayPrice ?? '')
+              if (fullDayPrice === null) return []
+              return [{
+                id: draft?.id,
+                year,
+                species: speciesOption.value,
+                weightBandId,
+                dayType: option.value,
+                halfDayPrice: deriveHalfDayPrice(fullDayPrice) ?? undefined,
+                fullDayPrice,
+                isActive: true,
+              }]
+            }),
+          ),
+        )
+
+        if (rules.length === 0) {
+          toast.error('Chưa có giá Hotel nào để lưu')
+          return
+        }
+
+        await pricingApi.bulkUpsertHotelRules(rules)
+        for (const bandId of removedBandIds) {
+          await pricingApi.deactivateWeightBand(bandId)
+        }
+        setRemovedBandIds([])
+        invalidatePricing()
+        toast.success('Đã lưu bảng giá Hotel')
+      } catch (error: any) {
+        toast.error(error?.response?.data?.message || 'Không lưu được bảng giá Hotel')
+      } finally {
+        setIsSavingHotel(false)
+      }
+    })()
+  }
+
+  const updateSpaDraft = (bandKey: string, serviceKey: string, patch: Partial<SpaDraft>) => {
+    const key = getSpaRuleKey(bandKey, serviceKey)
     setSpaDrafts((current) => ({ ...current, [key]: { ...current[key], ...patch } }))
   }
 
@@ -502,185 +1205,95 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     setHotelDrafts((current) => ({ ...current, [key]: { ...current[key], ...patch } }))
   }
 
-  const title = mode === 'HOTEL' ? 'Bảng giá Hotel' : 'Bảng giá Grooming / SPA'
+  const title = mode === 'HOTEL' ? 'Bảng giá Hotel' : 'Spa & Grooming'
   const subtitle =
     mode === 'HOTEL'
       ? 'Tách hạng cân Hotel, giá ngày thường/ngày lễ và lịch ngày lễ để POS/order sinh đúng charge lines.'
-      : 'Tách hạng cân Grooming riêng, cấu hình giá theo gói Tắm, Vệ sinh, Cạo và SPA.'
+      : 'Cấu hình giá theo hạng cân và các gói dịch vụ.'
   const missingCount = mode === 'HOTEL' ? invalidHotelCells : invalidSpaCells
-
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-      <section className="rounded-[28px] border border-border bg-background-secondary/70 px-5 py-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-500/12 text-primary-500">
-                {mode === 'HOTEL' ? <Hotel size={20} /> : <Sparkles size={20} />}
-              </div>
-              <div>
-                <h2 className="text-xl font-black tracking-tight text-foreground">{title}</h2>
-                <p className="mt-1 max-w-3xl text-sm text-foreground-muted">{subtitle}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {mode === 'GROOMING' ? (
-              <div className="inline-flex rounded-2xl border border-border bg-background-base p-1">
-                {SPECIES_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setSpecies(option.value)}
-                    className={cn(
-                      'h-10 rounded-xl px-4 text-sm font-semibold transition-colors',
-                      species === option.value ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground',
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            {mode === 'HOTEL' ? (
-              <input
-                type="number"
-                value={year}
-                onChange={(event) => setYear(Number(event.target.value) || currentYear)}
-                className="h-12 w-28 rounded-2xl border border-border bg-background-base px-4 text-sm font-bold text-foreground outline-none focus:border-primary-500"
-              />
-            ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                bandsQuery.refetch()
-                spaRulesQuery.refetch()
-                hotelRulesQuery.refetch()
-                holidaysQuery.refetch()
-              }}
-              className="inline-flex h-12 items-center gap-2 rounded-2xl border border-border bg-background-base px-4 text-sm font-semibold text-foreground hover:border-primary-500/60"
-            >
-              <RefreshCw size={15} className={bandsQuery.isRefetching ? 'animate-spin' : ''} />
-              Làm mới
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <Metric label="Hạng cân active" value={String(bands.length)} />
-          <Metric label={mode === 'HOTEL' ? 'Ô giá thiếu' : 'Ô gói thiếu'} value={String(missingCount)} tone={missingCount > 0 ? 'warning' : 'success'} />
-          <Metric label={mode === 'HOTEL' ? 'Ngày lễ active' : 'Gói dịch vụ'} value={mode === 'HOTEL' ? String(holidays.length) : String(SPA_PACKAGES.length)} />
-        </div>
+      <section className="hidden">
+        {/* Title area hidden as it is moved to Top Header */}
       </section>
 
-      <section className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="min-h-0 rounded-[28px] border border-border bg-background-secondary/70 p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-[0.16em] text-foreground-muted">Hạng cân</h3>
-              <p className="mt-1 text-xs text-foreground-muted">Tách riêng cho {mode === 'HOTEL' ? 'Hotel' : 'Grooming/SPA'}.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
+
+
+      <section className="grid min-h-0 flex-1 gap-4">
+        {mode === 'GROOMING' ? (
+          <div className="flex flex-col gap-4 min-h-0">
+            <GroomingPricingMatrix
+              bands={bandDrafts}
+              serviceColumns={spaServiceColumns}
+              drafts={spaDrafts}
+              editingBandKey={editingBandKey}
+              editingServiceKey={editingServiceKey}
+              onBandChange={updateBandRow}
+              onBandEdit={setEditingBandKey}
+              onBandRemove={removeBandRow}
+              onAddBand={addBandRow}
+              onServiceChange={updateSpaServiceColumn}
+              onServiceEdit={setEditingServiceKey}
+              onServiceRemove={removeSpaServiceColumn}
+              onAddService={addSpaServiceColumn}
+              onDraftChange={updateSpaDraft}
+              onSave={saveGroomingMatrix}
+              onCreatePresetBands={() => {
                 if (!ensureCanManagePricing()) return
                 presetBandsMutation.mutate()
               }}
-              disabled={!canManagePricing || presetBandsMutation.isPending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-primary-500/25 bg-primary-500/10 px-3 text-xs font-bold text-primary-500 disabled:opacity-50"
-            >
-              <Plus size={14} />
-              Mẫu
-            </button>
+              isSaving={isSavingGrooming}
+              isCreatingPreset={presetBandsMutation.isPending}
+              canManagePricing={canManagePricing}
+              species={species}
+              setSpecies={setSpecies}
+            />
           </div>
-
-          <div className="custom-scrollbar max-h-[520px] space-y-2 overflow-y-auto pr-1">
-            {bands.map((band) => {
-              const draft = bandDrafts[band.id] ?? buildBandDraft(band)
-              return (
-                <div key={band.id} className="rounded-2xl border border-border bg-background-base p-3">
-                  <div className="grid grid-cols-[1fr_72px_72px] gap-2">
-                    <input
-                      value={draft.label}
-                      onChange={(event) => setBandDrafts((current) => ({ ...current, [band.id]: { ...draft, label: event.target.value } }))}
-                      className="h-10 rounded-xl border border-border bg-background-secondary px-3 text-sm font-semibold text-foreground outline-none focus:border-primary-500"
-                    />
-                    <input
-                      value={draft.minWeight}
-                      onChange={(event) => setBandDrafts((current) => ({ ...current, [band.id]: { ...draft, minWeight: event.target.value } }))}
-                      className="h-10 rounded-xl border border-border bg-background-secondary px-3 text-right text-sm font-semibold text-foreground outline-none focus:border-primary-500"
-                      inputMode="decimal"
-                    />
-                    <input
-                      value={draft.maxWeight}
-                      onChange={(event) => setBandDrafts((current) => ({ ...current, [band.id]: { ...draft, maxWeight: event.target.value } }))}
-                      className="h-10 rounded-xl border border-border bg-background-secondary px-3 text-right text-sm font-semibold text-foreground outline-none focus:border-primary-500"
-                      inputMode="decimal"
-                      placeholder="∞"
-                    />
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <input
-                      value={draft.sortOrder}
-                      onChange={(event) => setBandDrafts((current) => ({ ...current, [band.id]: { ...draft, sortOrder: event.target.value } }))}
-                      className="h-9 w-20 rounded-xl border border-border bg-background-secondary px-3 text-right text-xs font-semibold text-foreground outline-none focus:border-primary-500"
-                      inputMode="numeric"
-                    />
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => saveBand(band)} disabled={!canManagePricing} className="inline-flex h-9 items-center gap-1 rounded-xl bg-primary-500 px-3 text-xs font-bold text-white disabled:opacity-50">
-                        <Save size={13} />
-                        Lưu
-                      </button>
-                      <button type="button" onClick={() => removeBandMutation.mutate(band.id)} disabled={!canManagePricing} className="inline-flex h-9 items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 text-rose-400 disabled:opacity-50">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-
-            <div className="rounded-2xl border border-dashed border-primary-500/35 bg-primary-500/5 p-3">
-              <div className="grid grid-cols-[1fr_72px_72px] gap-2">
-                <input value={newBand.label} onChange={(event) => setNewBand((current) => ({ ...current, label: event.target.value }))} placeholder="Tên band" className="h-10 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500" />
-                <input value={newBand.minWeight} onChange={(event) => setNewBand((current) => ({ ...current, minWeight: event.target.value }))} placeholder="Min" className="h-10 rounded-xl border border-border bg-background-base px-3 text-right text-sm text-foreground outline-none focus:border-primary-500" />
-                <input value={newBand.maxWeight} onChange={(event) => setNewBand((current) => ({ ...current, maxWeight: event.target.value }))} placeholder="Max" className="h-10 rounded-xl border border-border bg-background-base px-3 text-right text-sm text-foreground outline-none focus:border-primary-500" />
-              </div>
-              <button type="button" onClick={() => saveBand()} disabled={!canManagePricing} className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-bold text-white disabled:opacity-50">
-                <Plus size={15} />
-                Thêm hạng cân
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {mode === 'GROOMING' ? (
-          <SpaPricingMatrix species={species} bands={bands} drafts={spaDrafts} onDraftChange={updateSpaDraft} onSave={saveSpaRules} isSaving={saveSpaMutation.isPending} canManagePricing={canManagePricing} />
         ) : (
-          <HotelSpeciesPricingPanel
-            bands={bands}
+          <UnifiedHotelPricingPanel
+            bands={bandDrafts}
             drafts={hotelDrafts}
-            dayType={dayType}
-            setDayType={setDayType}
+            editingBandKey={editingBandKey}
+            onBandChange={updateBandRow}
+            onBandEdit={setEditingBandKey}
+            onBandRemove={removeBandRow}
+            onAddBand={addBandRow}
             onDraftChange={updateHotelDraft}
-            onSave={saveHotelRules}
-            isSaving={saveHotelMutation.isPending}
+            onSave={saveHotelMatrix}
+            onCreatePresetBands={() => {
+              if (!ensureCanManagePricing()) return
+              presetBandsMutation.mutate()
+            }}
+            isSaving={isSavingHotel}
+            isCreatingPreset={presetBandsMutation.isPending}
             holidays={holidays}
             newHoliday={newHoliday}
-            setNewHoliday={setNewHoliday}
-            onCreateHoliday={() => {
+            editingHolidayId={editingHolidayId}
+            onHolidayDraftChange={updateHolidayDraft}
+            onSubmitHoliday={() => {
               if (!ensureCanManagePricing()) return
-              if (!newHoliday.date || !newHoliday.name.trim()) {
-                toast.error('Cần nhập ngày và tên ngày lễ')
+              if (!newHoliday.startDate || !newHoliday.endDate || !newHoliday.name.trim()) {
+                toast.error('Cần nhập khoảng ngày và tên ngày lễ')
                 return
               }
-              createHolidayMutation.mutate(newHoliday)
+              if (newHoliday.endDate < newHoliday.startDate) {
+                toast.error('Ngày kết thúc phải sau hoặc bằng ngày bắt đầu')
+                return
+              }
+              const holidayPayload = { ...newHoliday, name: newHoliday.name.trim() }
+              if (editingHolidayId) {
+                updateHolidayMutation.mutate({ id: editingHolidayId, data: holidayPayload })
+                return
+              }
+              createHolidayMutation.mutate(holidayPayload)
             }}
-            onToggleHoliday={(id, isActive) => {
+            onCancelHolidayEdit={resetHolidayDraft}
+            onEditHoliday={handleEditHoliday}
+            onDeleteHoliday={(id) => {
               if (!ensureCanManagePricing()) return
-              toggleHolidayMutation.mutate({ id, isActive })
+              deleteHolidayMutation.mutate(id)
             }}
+            isSavingHoliday={createHolidayMutation.isPending || updateHolidayMutation.isPending || deleteHolidayMutation.isPending}
             previewForm={previewForm}
             setPreviewForm={setPreviewForm}
             onPreview={() => previewMutation.mutate()}
@@ -695,19 +1308,28 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   )
 }
 
-function HotelSpeciesPricingPanel({
+function UnifiedHotelPricingPanel({
   bands,
   drafts,
-  dayType,
-  setDayType,
+  editingBandKey,
+  onBandChange,
+  onBandEdit,
+  onBandRemove,
+  onAddBand,
   onDraftChange,
   onSave,
+  onCreatePresetBands,
   isSaving,
+  isCreatingPreset,
   holidays,
   newHoliday,
-  setNewHoliday,
-  onCreateHoliday,
-  onToggleHoliday,
+  editingHolidayId,
+  onHolidayDraftChange,
+  onSubmitHoliday,
+  onCancelHolidayEdit,
+  onEditHoliday,
+  onDeleteHoliday,
+  isSavingHoliday,
   previewForm,
   setPreviewForm,
   onPreview,
@@ -716,18 +1338,27 @@ function HotelSpeciesPricingPanel({
   canManagePricing,
   permissionHint,
 }: {
-  bands: ServiceWeightBand[]
+  bands: BandDraft[]
   drafts: Record<string, HotelDraft>
-  dayType: PricingDayType
-  setDayType: (value: PricingDayType) => void
+  editingBandKey: string | null
+  onBandChange: (index: number, patch: Partial<BandDraft>) => void
+  onBandEdit: (key: string | null) => void
+  onBandRemove: (index: number) => void
+  onAddBand: () => void
   onDraftChange: (bandId: string, dayType: PricingDayType, species: string, patch: Partial<HotelDraft>) => void
   onSave: () => void
+  onCreatePresetBands: () => void
   isSaving: boolean
-  holidays: Array<{ id: string; date: string; name: string; notes?: string | null; isActive: boolean }>
-  newHoliday: { date: string; name: string; notes: string }
-  setNewHoliday: (value: { date: string; name: string; notes: string }) => void
-  onCreateHoliday: () => void
-  onToggleHoliday: (id: string, isActive: boolean) => void
+  isCreatingPreset: boolean
+  holidays: HolidayCalendarDate[]
+  newHoliday: HolidayDraft
+  editingHolidayId: string | null
+  onHolidayDraftChange: (patch: Partial<HolidayDraft>) => void
+  onSubmitHoliday: () => void
+  onCancelHolidayEdit: () => void
+  onEditHoliday: (holiday: HolidayCalendarDate) => void
+  onDeleteHoliday: (id: string) => void
+  isSavingHoliday: boolean
   previewForm: { species: string; weight: string; checkIn: string; checkOut: string }
   setPreviewForm: (value: { species: string; weight: string; checkIn: string; checkOut: string }) => void
   onPreview: () => void
@@ -736,72 +1367,197 @@ function HotelSpeciesPricingPanel({
   canManagePricing: boolean
   permissionHint: string
 }) {
-  return (
-    <div className="grid min-h-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
-      <div className="min-h-0 rounded-[28px] border border-border bg-background-secondary/70 p-4">
-        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h3 className="text-lg font-black text-foreground">Bảng giá Hotel</h3>
-            <p className="mt-1 text-sm text-foreground-muted">Nhập giá theo ngày. Thanh toán sẽ lấy số ngày x đơn giá/ngày.</p>
-          </div>
-          <button type="button" onClick={onSave} disabled={!canManagePricing || isSaving || bands.length === 0} className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white disabled:opacity-50">
-            <Save size={16} />
-            Lưu bảng giá Hotel
-          </button>
-        </div>
-        {!canManagePricing ? <p className="mb-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-300">{permissionHint}</p> : null}
+  const [isEditMode, setIsEditMode] = useState(false)
+  const totalColumns = 1 + HOTEL_SPECIES_COLUMNS.length * DAY_TYPE_OPTIONS.length
+  const canEditHotelPricing = canManagePricing && isEditMode
+  const aggregatedPreviewLines = preview ? aggregateHotelPreviewLines(preview) : []
 
-        <div className="mb-3 inline-flex rounded-2xl border border-border bg-background-base p-1">
-          {DAY_TYPE_OPTIONS.map((option) => (
+  const handleExitEditMode = () => {
+    onBandEdit(null)
+    onCancelHolidayEdit()
+    setIsEditMode(false)
+  }
+
+  return (
+    <div className="grid min-h-0 gap-4 2xl:grid-cols-[65fr_35fr]">
+      <div className="min-h-0 rounded-[28px] border border-border bg-background-secondary/70 p-4">
+        <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-center gap-3">
             <button
-              key={option.value}
               type="button"
-              onClick={() => setDayType(option.value)}
-              className={cn(
-                'h-10 rounded-xl px-4 text-sm font-semibold transition-colors',
-                dayType === option.value ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground',
-              )}
-              title={option.hint}
+              onClick={() => window.dispatchEvent(new CustomEvent('closeHotelSettings'))}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background-base text-foreground transition-colors hover:bg-background-secondary"
             >
-              {option.label}
+              <ArrowLeft size={16} />
             </button>
-          ))}
+            <h3 className="text-lg font-black text-foreground">Bảng giá Hotel</h3>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {canEditHotelPricing ? (
+              <button
+                type="button"
+                onClick={onAddBand}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-dashed border-primary-500/35 bg-primary-500/5 px-4 text-sm font-bold text-primary-500 transition-colors hover:bg-primary-500/10"
+              >
+                <Plus size={15} />
+                + Hạng cân
+              </button>
+            ) : null}
+
+            {canManagePricing ? (
+              isEditMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleExitEditMode}
+                    className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border bg-background-base px-5 text-sm font-bold text-foreground transition-colors hover:bg-background-tertiary"
+                  >
+                    Xem
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSave}
+                    disabled={isSaving}
+                    className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                    Lưu bảng giá
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsEditMode(true)}
+                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white"
+                >
+                  <Pencil size={16} />
+                  Sửa bảng giá
+                </button>
+              )
+            ) : null}
+          </div>
         </div>
+
+        {!canManagePricing ? (
+          <p className="mb-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-300">
+            {permissionHint}
+          </p>
+        ) : null}
 
         <div className="custom-scrollbar overflow-auto rounded-2xl border border-border bg-background-base">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-sm">
             <thead className="sticky top-0 z-10 bg-background-secondary">
-              <tr className="border-b border-border">
-                <th className="w-40 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">Hạng cân</th>
-                {HOTEL_SPECIES_COLUMNS.map((speciesOption) => (
-                  <th key={speciesOption.value} className="px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">
-                    {speciesOption.label} / ngày
+              <tr>
+                <th rowSpan={2} className="w-[300px] border-b border-r border-border bg-background-secondary px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">
+                  Hạng cân
+                </th>
+                {HOTEL_SPECIES_COLUMNS.map((speciesOption, idx) => (
+                  <th key={speciesOption.value} colSpan={DAY_TYPE_OPTIONS.length} className={cn('border-b border-border px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted', idx > 0 ? 'border-l' : '')}>
+                    {speciesOption.label}
                   </th>
                 ))}
+              </tr>
+              <tr>
+                {HOTEL_SPECIES_COLUMNS.flatMap((speciesOption, speciesIdx) =>
+                  DAY_TYPE_OPTIONS.map((option, dayIdx) => (
+                    <th key={`${speciesOption.value}:${option.value}`} className={cn('w-[150px] border-b border-border px-3 py-2 text-center text-[11px] font-black uppercase tracking-[0.14em] text-foreground-muted', speciesIdx > 0 && dayIdx === 0 ? 'border-l' : '')}>
+                      {option.label}
+                    </th>
+                  )),
+                )}
               </tr>
             </thead>
             <tbody>
               {bands.length === 0 ? (
                 <tr>
-                  <td colSpan={HOTEL_SPECIES_COLUMNS.length + 1} className="px-4 py-12 text-center text-sm text-foreground-muted">
-                    Chưa có hạng cân. Bấm "Mẫu" để tạo bộ hạng cân Hotel.
+                  <td colSpan={totalColumns} className="px-4 py-12 text-center text-sm text-foreground-muted">
+                    Chưa có hạng cân. Bấm "+ Hạng cân" để bắt đầu.
                   </td>
                 </tr>
-              ) : bands.map((band) => (
-                <tr key={band.id} className="border-b border-border/50 last:border-b-0">
-                  <td className="bg-background-secondary/60 px-4 py-3 font-black text-foreground">{band.label}</td>
-                  {HOTEL_SPECIES_COLUMNS.map((speciesOption) => {
-                    const draft = drafts[getHotelRuleKey(band.id, dayType, speciesOption.value)] ?? { fullDayPrice: '' }
-                    return (
-                      <td key={speciesOption.value} className="px-3 py-3">
-                        <PriceInput
-                          value={draft.fullDayPrice}
-                          onChange={(value) => onDraftChange(band.id, dayType, speciesOption.value, { fullDayPrice: value })}
-                          placeholder="0 / ngày"
-                        />
-                      </td>
-                    )
-                  })}
+              ) : bands.map((band, index) => (
+                <tr key={band.key} className="border-b border-border/50 last:border-b-0">
+                  <td className="border-b border-r border-border bg-background-secondary/60 px-4 py-3 align-middle">
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        {editingBandKey === band.key && canEditHotelPricing ? (
+                          <input
+                            value={band.label}
+                            onChange={(event) => onBandChange(index, { label: event.target.value })}
+                            onBlur={() => onBandEdit(null)}
+                            autoFocus
+                            disabled={!canEditHotelPricing}
+                            placeholder="Tên hạng cân"
+                            className="h-10 w-full rounded-xl border border-border bg-background-base px-3 text-sm font-bold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                          />
+                        ) : (
+                          <p className="truncate text-sm font-black text-foreground">{band.label || 'Hạng cân mới'}</p>
+                        )}
+                        <p className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-primary-500">
+                          {buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label)}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Từ</span>
+                          <input
+                            value={band.minWeight}
+                            onChange={(event) => onBandChange(index, { minWeight: event.target.value })}
+                            disabled={!canEditHotelPricing}
+                            inputMode="decimal"
+                            className="h-9 w-14 rounded-xl border border-border bg-background-base px-2 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Đến</span>
+                          <input
+                            value={band.maxWeight}
+                            onChange={(event) => onBandChange(index, { maxWeight: event.target.value })}
+                            disabled={!canEditHotelPricing}
+                            inputMode="decimal"
+                            placeholder="∞"
+                            className="h-9 w-14 rounded-xl border border-border bg-background-base px-2 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                          />
+                        </div>
+                      </div>
+
+                      {canEditHotelPricing ? (
+                        <div className="ml-2 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onBandEdit(band.key)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onBandRemove(index)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </td>
+
+                  {HOTEL_SPECIES_COLUMNS.flatMap((speciesOption, speciesIdx) =>
+                    DAY_TYPE_OPTIONS.map((option, dayIdx) => {
+                      const draft = drafts[getHotelRuleKey(band.key, option.value, speciesOption.value)] ?? { fullDayPrice: '' }
+                      return (
+                        <td key={`${band.key}:${speciesOption.value}:${option.value}`} className={cn('border-b border-border px-3 py-3 align-top', speciesIdx > 0 && dayIdx === 0 ? 'border-l' : '')}>
+                          <PriceInput
+                            value={draft.fullDayPrice}
+                            onChange={(value) => onDraftChange(band.key, option.value, speciesOption.value, { fullDayPrice: value })}
+                            placeholder="0 / ngày"
+                            disabled={!canEditHotelPricing}
+                          />
+                        </td>
+                      )
+                    }),
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -811,168 +1567,417 @@ function HotelSpeciesPricingPanel({
 
       <div className="flex min-h-0 flex-col gap-4">
         <div className="rounded-[28px] border border-border bg-background-secondary/70 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <CalendarDays size={18} className="text-primary-500" />
-            <h3 className="text-base font-black text-foreground">Lịch ngày lễ</h3>
-          </div>
-          <div className="grid grid-cols-[140px_1fr] gap-2">
-            <input type="date" value={newHoliday.date} onChange={(event) => setNewHoliday({ ...newHoliday, date: event.target.value })} disabled={!canManagePricing} className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500 disabled:opacity-60" />
-            <input value={newHoliday.name} onChange={(event) => setNewHoliday({ ...newHoliday, name: event.target.value })} disabled={!canManagePricing} placeholder="Tên ngày lễ" className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500 disabled:opacity-60" />
-          </div>
-          <input value={newHoliday.notes} onChange={(event) => setNewHoliday({ ...newHoliday, notes: event.target.value })} disabled={!canManagePricing} placeholder="Ghi chú" className="mt-2 h-11 w-full rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500 disabled:opacity-60" />
-          <button type="button" onClick={onCreateHoliday} disabled={!canManagePricing} className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-bold text-white disabled:opacity-50">
-            <Plus size={15} />
-            Thêm ngày lễ
-          </button>
-
-          <div className="custom-scrollbar mt-3 max-h-52 space-y-2 overflow-y-auto">
-            {holidays.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-foreground-muted">Chưa có ngày lễ active trong năm.</p>
-            ) : holidays.map((holiday) => (
-              <div key={holiday.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background-base px-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-foreground">{holiday.name}</p>
-                  <p className="text-xs text-foreground-muted">{new Date(holiday.date).toLocaleDateString('vi-VN')}</p>
-                </div>
-                <button type="button" onClick={() => onToggleHoliday(holiday.id, !holiday.isActive)} disabled={!canManagePricing} className="rounded-xl border border-border px-3 py-1.5 text-xs font-bold text-foreground-muted hover:text-foreground disabled:opacity-50">
-                  {holiday.isActive ? 'Tắt' : 'Bật'}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[28px] border border-border bg-background-secondary/70 p-4">
-          <h3 className="text-base font-black text-foreground">Preview charge lines</h3>
-          <p className="mt-1 text-sm text-foreground-muted">Kiểm tra nhanh ca có cả ngày thường và ngày lễ.</p>
-          <div className="mt-3 grid gap-2">
-            <div className="inline-flex rounded-2xl border border-border bg-background-base p-1">
-              {HOTEL_SPECIES_COLUMNS.map((speciesOption) => (
-                <button
-                  key={speciesOption.value}
-                  type="button"
-                  onClick={() => setPreviewForm({ ...previewForm, species: speciesOption.value })}
-                  className={cn(
-                    'h-10 rounded-xl px-4 text-sm font-semibold transition-colors',
-                    previewForm.species === speciesOption.value ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground',
-                  )}
-                >
-                  {speciesOption.label}
-                </button>
-              ))}
-            </div>
-            <input value={previewForm.weight} onChange={(event) => setPreviewForm({ ...previewForm, weight: event.target.value })} placeholder="Cân nặng" className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500" />
-            <input type="datetime-local" value={previewForm.checkIn} onChange={(event) => setPreviewForm({ ...previewForm, checkIn: event.target.value })} className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500" />
-            <input type="datetime-local" value={previewForm.checkOut} onChange={(event) => setPreviewForm({ ...previewForm, checkOut: event.target.value })} className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500" />
-            <button type="button" onClick={onPreview} disabled={isPreviewing} className="h-11 rounded-xl bg-primary-500 text-sm font-bold text-white disabled:opacity-50">
-              Preview
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-base font-black text-foreground">Tính tiền hotel nhanh</h3>
+            <button type="button" onClick={onPreview} disabled={isPreviewing} className="h-11 rounded-xl bg-primary-500 px-4 text-sm font-bold text-white disabled:opacity-50 sm:min-w-[110px]">
+              Tính
             </button>
           </div>
+          <div className="mt-3 flex flex-col gap-3">
+            <div className="flex flex-wrap gap-3">
+              <label className="grid min-w-[200px] flex-1 gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">Khoảng ngày</span>
+                <HolidayDateRangeField
+                  value={getPreviewDateRangeValue(previewForm)}
+                  onChange={(patch) => setPreviewForm(applyPreviewDateRangeValue(previewForm, patch))}
+                  disabled={isPreviewing}
+                />
+              </label>
+              <label className="grid w-[120px] shrink-0 gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">Giờ check-in</span>
+                <input
+                  type="time"
+                  value={getPreviewTimeValue(previewForm.checkIn, '09:00')}
+                  onChange={(event) => setPreviewForm(applyPreviewTimeValue(previewForm, { checkInTime: event.target.value }))}
+                  disabled={isPreviewing}
+                  className="h-11 rounded-xl border border-border bg-background-base px-2 text-sm text-foreground outline-none focus:border-primary-500 disabled:opacity-50"
+                />
+              </label>
+              <label className="grid w-[120px] shrink-0 gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">Giờ check-out</span>
+                <input
+                  type="time"
+                  value={getPreviewTimeValue(previewForm.checkOut, '18:00')}
+                  onChange={(event) => setPreviewForm(applyPreviewTimeValue(previewForm, { checkOutTime: event.target.value }))}
+                  disabled={isPreviewing}
+                  className="h-11 rounded-xl border border-border bg-background-base px-2 text-sm text-foreground outline-none focus:border-primary-500 disabled:opacity-50"
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <label className="grid min-w-[180px] flex-1 gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">Loài</span>
+                <div className="flex rounded-2xl border border-border bg-background-base p-1">
+                  {HOTEL_SPECIES_COLUMNS.map((speciesOption) => (
+                    <button
+                      key={`preview-top-${speciesOption.value}`}
+                      type="button"
+                      onClick={() => setPreviewForm({ ...previewForm, species: speciesOption.value })}
+                      className={cn(
+                        'h-10 min-w-0 flex-1 truncate rounded-xl px-2 text-sm font-semibold transition-colors',
+                        previewForm.species === speciesOption.value ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground',
+                      )}
+                    >
+                      {speciesOption.label}
+                    </button>
+                  ))}
+                </div>
+              </label>
+              <label className="grid min-w-[100px] flex-1 gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">Cân nặng</span>
+                <input
+                  value={previewForm.weight}
+                  onChange={(event) => setPreviewForm({ ...previewForm, weight: event.target.value })}
+                  placeholder="Kg"
+                  className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500"
+                />
+              </label>
+            </div>
+          </div>
           {preview ? (
-            <div className="mt-3 space-y-2">
-              {preview.chargeLines.map((line, index) => (
-                <div key={`${line.label}-${index}`} className="rounded-2xl border border-border bg-background-base p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-bold text-foreground">{line.label}</p>
-                    <p className="text-sm font-black text-primary-500">{formatCurrency(line.subtotal)}</p>
-                  </div>
-                  <p className="mt-1 text-xs text-foreground-muted">{line.quantityDays} ngày x {formatCurrency(line.unitPrice)}</p>
+            <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-background-base">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-3 border-b border-border bg-background-secondary/60 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.05em] text-foreground-muted">
+                <span className="truncate">Dịch vụ</span>
+                <span className="shrink-0 text-right">Ngày</span>
+                <span className="shrink-0 text-right">Đơn giá</span>
+                <span className="shrink-0 text-right">Thành tiền</span>
+              </div>
+              {aggregatedPreviewLines.map((line, index) => (
+                <div key={`preview-top-row-${line.dayType}-${index}`} className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border/70 px-3 py-2.5 text-[11px] last:border-b-0">
+                  <span className="truncate font-semibold text-foreground" title={line.label}>{line.label}</span>
+                  <span className="shrink-0 text-right tabular-nums text-foreground-muted">{line.quantityDays}</span>
+                  <span className="shrink-0 text-right tabular-nums text-foreground-muted">{line.unitPriceLabel}</span>
+                  <span className="shrink-0 text-right font-black tabular-nums text-primary-500">{formatCurrency(line.subtotal)}</span>
                 </div>
               ))}
-              <div className="flex items-center justify-between rounded-2xl bg-primary-500/10 px-3 py-2 text-sm font-black text-primary-500">
+              <div className="flex items-center justify-between bg-primary-500/10 px-4 py-3 text-sm font-black text-primary-500">
                 <span>Tổng</span>
                 <span>{formatCurrency(preview.totalPrice)}</span>
               </div>
             </div>
           ) : null}
         </div>
+
+        <HolidayCalendarPanel
+          holidays={holidays}
+          newHoliday={newHoliday}
+          editingHolidayId={editingHolidayId}
+          onHolidayDraftChange={onHolidayDraftChange}
+          onSubmitHoliday={onSubmitHoliday}
+          onCancelEdit={onCancelHolidayEdit}
+          onEditHoliday={onEditHoliday}
+          onDeleteHoliday={onDeleteHoliday}
+          isSavingHoliday={isSavingHoliday}
+          canManagePricing={canManagePricing}
+          canEditPricing={canEditHotelPricing}
+        />
       </div>
     </div>
   )
 }
-
-function Metric({ label, value, tone }: { label: string; value: string; tone?: 'success' | 'warning' }) {
-  return (
-    <div className="rounded-2xl border border-border bg-background-base px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">{label}</p>
-      <p className={cn('mt-1 text-2xl font-black text-foreground', tone === 'success' ? 'text-emerald-400' : tone === 'warning' ? 'text-amber-400' : '')}>{value}</p>
-    </div>
-  )
-}
-
-function PriceInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder?: string }) {
+function PriceInput({ value, onChange, placeholder, disabled = false }: { value: string; onChange: (value: string) => void; placeholder?: string; disabled?: boolean }) {
   return (
     <input
       value={value}
       onChange={(event) => onChange(normalizeCurrencyInput(event.target.value))}
       placeholder={placeholder ?? '0'}
       inputMode="numeric"
+      disabled={disabled}
       className={cn(
-        'h-11 w-full min-w-[112px] rounded-xl border bg-background-base px-3 text-right text-sm font-bold tabular-nums text-foreground outline-none transition-colors focus:border-primary-500',
+        'h-11 w-full min-w-[70px] rounded-xl border bg-background-base px-3 text-right text-sm font-bold tabular-nums text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-70',
         value ? 'border-border' : 'border-amber-500/35 bg-amber-500/5',
       )}
     />
   )
 }
 
-function SpaPricingMatrix({
-  species,
+function GroomingPricingMatrix({
   bands,
+  serviceColumns,
   drafts,
+  editingBandKey,
+  editingServiceKey,
+  onBandChange,
+  onBandEdit,
+  onBandRemove,
+  onAddBand,
+  onServiceChange,
+  onServiceEdit,
+  onServiceRemove,
+  onAddService,
   onDraftChange,
   onSave,
+  onCreatePresetBands,
   isSaving,
+  isCreatingPreset,
   canManagePricing,
+  species,
+  setSpecies,
 }: {
-  species: string
-  bands: ServiceWeightBand[]
+  bands: BandDraft[]
+  serviceColumns: SpaServiceColumn[]
   drafts: Record<string, SpaDraft>
-  onDraftChange: (bandId: string, packageCode: string, patch: Partial<SpaDraft>) => void
+  editingBandKey: string | null
+  editingServiceKey: string | null
+  onBandChange: (index: number, patch: Partial<BandDraft>) => void
+  onBandEdit: (key: string | null) => void
+  onBandRemove: (index: number) => void
+  onAddBand: () => void
+  onServiceChange: (serviceKey: string, packageCode: string) => void
+  onServiceEdit: (key: string | null) => void
+  onServiceRemove: (serviceKey: string) => void
+  onAddService: () => void
+  onDraftChange: (bandKey: string, serviceKey: string, patch: Partial<SpaDraft>) => void
   onSave: () => void
+  onCreatePresetBands: () => void
   isSaving: boolean
+  isCreatingPreset: boolean
   canManagePricing: boolean
+  species: string
+  setSpecies: (value: string) => void
 }) {
+  const [isEditMode, setIsEditMode] = useState(false)
+  const totalColumns = Math.max(1, serviceColumns.length * 2 + 1)
+  const canEditPricing = canManagePricing && isEditMode
+
+  const handleExitEditMode = () => {
+    onBandEdit(null)
+    onServiceEdit(null)
+    setIsEditMode(false)
+  }
+
   return (
     <div className="min-h-0 rounded-[28px] border border-border bg-background-secondary/70 p-4">
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h3 className="text-lg font-black text-foreground">Ma trận giá SPA</h3>
-          <p className="mt-1 text-sm text-foreground-muted">Mỗi ô là một rule theo hạng cân và gói dịch vụ.</p>
+      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('openGroomingSettings'))}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-border bg-background-base text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div className="inline-flex rounded-2xl border border-border bg-background-base p-1">
+            {SPECIES_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setSpecies(option.value)}
+                className={cn(
+                  'h-10 rounded-xl px-6 text-sm font-semibold transition-colors',
+                  species === option.value ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground',
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <button type="button" onClick={onSave} disabled={!canManagePricing || isSaving || bands.length === 0} className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white disabled:opacity-50">
-          <Save size={16} />
-          Lưu bảng giá SPA
-        </button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {canEditPricing ? (
+            <>
+              <button
+                type="button"
+                onClick={onAddBand}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-dashed border-primary-500/35 bg-primary-500/5 px-4 text-sm font-bold text-primary-500 transition-colors hover:bg-primary-500/10"
+              >
+                <Plus size={15} />
+                + Hạng cân
+              </button>
+              <button
+                type="button"
+                onClick={onAddService}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-dashed border-primary-500/35 bg-primary-500/5 px-4 text-sm font-bold text-primary-500 transition-colors hover:bg-primary-500/10"
+              >
+                <Plus size={15} />
+                + Dịch vụ
+              </button>
+            </>
+          ) : null}
+          {canManagePricing ? (
+            isEditMode ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleExitEditMode}
+                  className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border bg-background-base px-5 text-sm font-bold text-foreground transition-colors hover:bg-background-tertiary"
+                >
+                  Xem
+                </button>
+                <button
+                  type="button"
+                  onClick={onSave}
+                  disabled={isSaving}
+                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white disabled:opacity-50"
+                >
+                  {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                  Lưu bảng giá
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsEditMode(true)}
+                className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white"
+              >
+                <Pencil size={16} />
+                Sửa bảng giá
+              </button>
+            )
+          ) : null}
+        </div>
       </div>
 
       <div className="custom-scrollbar overflow-auto rounded-2xl border border-border bg-background-base">
-        <table className="w-full min-w-[960px] text-left text-sm">
+        <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-sm">
           <thead className="sticky top-0 z-10 bg-background-secondary">
-            <tr className="border-b border-border">
-              <th className="w-36 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">Hạng cân</th>
-              {SPA_PACKAGES.map((pkg) => (
-                <th key={pkg.code} className="px-3 py-3 text-center text-xs font-black uppercase tracking-[0.08em] text-foreground-muted">{pkg.label}</th>
+            <tr>
+              <th className="w-auto min-w-[280px] border-b border-r border-border bg-background-secondary px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">
+                Hạng cân
+              </th>
+              {serviceColumns.length === 0 ? (
+                <th className="border-b border-border px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">
+                  Dịch vụ
+                </th>
+              ) : serviceColumns.map((column) => (
+                <th key={column.key} className="border-b border-r border-border px-3 py-3">
+                  <div className="flex items-center justify-center gap-2">
+                    {editingServiceKey === column.key && canEditPricing ? (
+                      <input
+                        value={column.packageCode}
+                        onChange={(event) => onServiceChange(column.key, event.target.value)}
+                        onBlur={() => onServiceEdit(null)}
+                        autoFocus
+                        disabled={!canEditPricing}
+                        placeholder="Tên dịch vụ"
+                        className="h-9 w-full min-w-[120px] rounded-xl border border-border bg-background-base px-3 text-sm font-bold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                      />
+                    ) : (
+                      <span className="truncate text-sm font-black text-foreground">{column.packageCode || 'Dịch vụ mới'}</span>
+                    )}
+                    <div className="shrink-0 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onServiceEdit(column.key)}
+                        disabled={!canEditPricing}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground disabled:opacity-50"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onServiceRemove(column.key)}
+                        disabled={!canEditPricing}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {bands.length === 0 ? (
-              <tr><td colSpan={SPA_PACKAGES.length + 1} className="px-4 py-12 text-center text-sm text-foreground-muted">Chưa có hạng cân. Bấm “Mẫu” để tạo bộ hạng cân Grooming.</td></tr>
-            ) : bands.map((band) => (
-              <tr key={band.id} className="border-b border-border/50 last:border-b-0">
-                <td className="bg-background-secondary/60 px-4 py-3 font-black text-foreground">{band.label}</td>
-                {SPA_PACKAGES.map((pkg) => {
-                  const draft = drafts[getSpaRuleKey(band.id, pkg.code)] ?? { price: '', durationMinutes: '' }
-                  return (
-                    <td key={pkg.code} className="px-3 py-3 align-top">
-                      <PriceInput value={draft.price} onChange={(value) => onDraftChange(band.id, pkg.code, { price: value })} />
+              <tr>
+                <td colSpan={totalColumns} className="px-4 py-12 text-center text-sm text-foreground-muted">
+                  Chưa có hạng cân. Bấm "+ Hạng cân" để bắt đầu.
+                </td>
+              </tr>
+            ) : bands.map((band, index) => (
+              <tr key={band.key} className="border-b border-border/50 last:border-b-0">
+                <td className="border-b border-r border-border bg-background-secondary/60 px-4 py-3 align-middle">
+                  <div className="flex items-center gap-2">
+                    {editingBandKey === band.key && canEditPricing ? (
                       <input
-                        value={draft.durationMinutes}
-                        onChange={(event) => onDraftChange(band.id, pkg.code, { durationMinutes: event.target.value })}
-                        placeholder="phút"
-                        inputMode="numeric"
-                        className="mt-2 h-9 w-full rounded-xl border border-border bg-background-secondary px-3 text-right text-xs font-semibold text-foreground outline-none focus:border-primary-500"
+                        value={band.label}
+                        onChange={(event) => onBandChange(index, { label: event.target.value })}
+                        onBlur={() => onBandEdit(null)}
+                        autoFocus
+                        disabled={!canEditPricing}
+                        placeholder="Tên..."
+                        className="h-10 w-[120px] shrink-0 rounded-xl border border-border bg-background-base px-3 text-sm font-bold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
                       />
+                    ) : (
+                      <p className="w-[120px] truncate text-sm font-black text-foreground">{band.label || 'Hạng cân mới'}</p>
+                    )}
+
+                    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Từ</span>
+                      <input
+                        value={band.minWeight}
+                        onChange={(event) => onBandChange(index, { minWeight: event.target.value })}
+                        disabled={!canEditPricing}
+                        inputMode="decimal"
+                        className="h-9 w-[46px] rounded-xl border border-border bg-background-base px-1 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                      />
+                      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">-</span>
+                      <input
+                        value={band.maxWeight}
+                        onChange={(event) => onBandChange(index, { maxWeight: event.target.value })}
+                        disabled={!canEditPricing}
+                        inputMode="decimal"
+                        placeholder="∞"
+                        className="h-9 w-[46px] rounded-xl border border-border bg-background-base px-1 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                      />
+                      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">kg</span>
+                    </div>
+
+                    <div className="ml-1 flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onBandEdit(band.key)}
+                        disabled={!canEditPricing}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground disabled:opacity-50"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onBandRemove(index)}
+                        disabled={!canEditPricing}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </td>
+
+                {serviceColumns.length === 0 ? (
+                  <td className="border-b border-border px-4 py-3 text-sm text-foreground-muted">Chưa có dịch vụ nào cho ma trận này.</td>
+                ) : serviceColumns.flatMap((column) => {
+                  const draft = drafts[getSpaRuleKey(band.key, column.key)] ?? { price: '', durationMinutes: '' }
+                  const sku = buildServicePricingSku('SPA', column.packageCode, band.label)
+                  return (
+                    <td key={`${band.key}:${column.key}`} className="border-b border-r border-border px-2 py-2 align-middle">
+                      <div className="mb-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500">
+                        {sku}
+                      </div>
+                      <div className="flex items-center justify-center gap-1.5 md:gap-3">
+                        <div className="w-[100px] shrink-0">
+                          <PriceInput
+                            value={draft.price}
+                            onChange={(value) => onDraftChange(band.key, column.key, { price: value })}
+                            placeholder="0"
+                            disabled={!canEditPricing}
+                          />
+                        </div>
+                        <span className="text-[10px] text-foreground-muted sm:text-xs">/</span>
+                        <div className="relative w-[64px] shrink-0">
+                          <input
+                            value={draft.durationMinutes}
+                            onChange={(event) => onDraftChange(band.key, column.key, { durationMinutes: event.target.value })}
+                            placeholder=""
+                            inputMode="numeric"
+                            disabled={!canEditPricing}
+                            className="block h-11 w-full rounded-xl border border-border bg-background-secondary pl-1.5 pr-7 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-70"
+                          />
+                          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-foreground-muted">phút</span>
+                        </div>
+                      </div>
                     </td>
                   )
                 })}
@@ -980,174 +1985,6 @@ function SpaPricingMatrix({
             ))}
           </tbody>
         </table>
-      </div>
-    </div>
-  )
-}
-
-function HotelPricingPanel({
-  bands,
-  drafts,
-  dayType,
-  setDayType,
-  onDraftChange,
-  onSave,
-  isSaving,
-  holidays,
-  newHoliday,
-  setNewHoliday,
-  onCreateHoliday,
-  onToggleHoliday,
-  previewForm,
-  setPreviewForm,
-  onPreview,
-  preview,
-  isPreviewing,
-}: {
-  bands: ServiceWeightBand[]
-  drafts: Record<string, HotelDraft>
-  dayType: PricingDayType
-  setDayType: (value: PricingDayType) => void
-  onDraftChange: (...args: any[]) => void
-  onSave: () => void
-  isSaving: boolean
-  holidays: Array<{ id: string; date: string; name: string; notes?: string | null; isActive: boolean }>
-  newHoliday: { date: string; name: string; notes: string }
-  setNewHoliday: (value: { date: string; name: string; notes: string }) => void
-  onCreateHoliday: () => void
-  onToggleHoliday: (id: string, isActive: boolean) => void
-  previewForm: { species: string; weight: string; checkIn: string; checkOut: string }
-  setPreviewForm: (value: { species: string; weight: string; checkIn: string; checkOut: string }) => void
-  onPreview: () => void
-  preview?: Awaited<ReturnType<typeof hotelApi.calculatePrice>>
-  isPreviewing: boolean
-}) {
-  return (
-    <div className="grid min-h-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
-      <div className="min-h-0 rounded-[28px] border border-border bg-background-secondary/70 p-4">
-        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h3 className="text-lg font-black text-foreground">Ma trận giá Hotel</h3>
-            <p className="mt-1 text-sm text-foreground-muted">Một band có hai bộ giá: ngày thường và ngày lễ.</p>
-          </div>
-          <button type="button" onClick={onSave} disabled={isSaving || bands.length === 0} className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white disabled:opacity-50">
-            <Save size={16} />
-            Lưu bảng giá Hotel
-          </button>
-        </div>
-
-        <div className="mb-3 inline-flex rounded-2xl border border-border bg-background-base p-1">
-          {DAY_TYPE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setDayType(option.value)}
-              className={cn(
-                'h-10 rounded-xl px-4 text-sm font-semibold transition-colors',
-                dayType === option.value ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground',
-              )}
-              title={option.hint}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="custom-scrollbar overflow-auto rounded-2xl border border-border bg-background-base">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="sticky top-0 z-10 bg-background-secondary">
-              <tr className="border-b border-border">
-                <th className="w-40 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">Hạng cân</th>
-                <th className="px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">Nửa ngày</th>
-                <th className="px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">Một ngày</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bands.length === 0 ? (
-                <tr><td colSpan={3} className="px-4 py-12 text-center text-sm text-foreground-muted">Chưa có hạng cân. Bấm “Mẫu” để tạo bộ hạng cân Hotel.</td></tr>
-              ) : bands.map((band) => {
-                const draft = drafts[getHotelRuleKey(band.id, dayType)] ?? { fullDayPrice: '' }
-                const halfDayPrice = deriveHalfDayPrice(parseCurrencyInput(draft.fullDayPrice))
-                return (
-                  <tr key={band.id} className="border-b border-border/50 last:border-b-0">
-                    <td className="bg-background-secondary/60 px-4 py-3 font-black text-foreground">{band.label}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex h-11 items-center justify-end rounded-xl border border-border bg-background-secondary px-3 text-right text-sm font-bold tabular-nums text-foreground">
-                        {halfDayPrice === null ? '-' : formatCurrency(halfDayPrice)}
-                      </div>
-                      <p className="mt-1 text-right text-[11px] text-foreground-muted">Tự suy ra từ giá 1 ngày</p>
-                    </td>
-                    <td className="px-3 py-3"><PriceInput value={draft.fullDayPrice} onChange={(value) => onDraftChange(band.id, dayType, { fullDayPrice: value })} /></td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="flex min-h-0 flex-col gap-4">
-        <div className="rounded-[28px] border border-border bg-background-secondary/70 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <CalendarDays size={18} className="text-primary-500" />
-            <h3 className="text-base font-black text-foreground">Lịch ngày lễ</h3>
-          </div>
-          <div className="grid grid-cols-[140px_1fr] gap-2">
-            <input type="date" value={newHoliday.date} onChange={(event) => setNewHoliday({ ...newHoliday, date: event.target.value })} className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500" />
-            <input value={newHoliday.name} onChange={(event) => setNewHoliday({ ...newHoliday, name: event.target.value })} placeholder="Tên ngày lễ" className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500" />
-          </div>
-          <input value={newHoliday.notes} onChange={(event) => setNewHoliday({ ...newHoliday, notes: event.target.value })} placeholder="Ghi chú" className="mt-2 h-11 w-full rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500" />
-          <button type="button" onClick={onCreateHoliday} className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-bold text-white">
-            <Plus size={15} />
-            Thêm ngày lễ
-          </button>
-
-          <div className="custom-scrollbar mt-3 max-h-52 space-y-2 overflow-y-auto">
-            {holidays.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-foreground-muted">Chưa có ngày lễ active trong năm.</p>
-            ) : holidays.map((holiday) => (
-              <div key={holiday.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background-base px-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-foreground">{holiday.name}</p>
-                  <p className="text-xs text-foreground-muted">{new Date(holiday.date).toLocaleDateString('vi-VN')}</p>
-                </div>
-                <button type="button" onClick={() => onToggleHoliday(holiday.id, !holiday.isActive)} className="rounded-xl border border-border px-3 py-1.5 text-xs font-bold text-foreground-muted hover:text-foreground">
-                  {holiday.isActive ? 'Tắt' : 'Bật'}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[28px] border border-border bg-background-secondary/70 p-4">
-          <h3 className="text-base font-black text-foreground">Preview charge lines</h3>
-          <p className="mt-1 text-sm text-foreground-muted">Kiểm tra nhanh ca có cả ngày thường và ngày lễ.</p>
-          <div className="mt-3 grid gap-2">
-            <input value={previewForm.weight} onChange={(event) => setPreviewForm({ ...previewForm, weight: event.target.value })} placeholder="Cân nặng" className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500" />
-            <input type="datetime-local" value={previewForm.checkIn} onChange={(event) => setPreviewForm({ ...previewForm, checkIn: event.target.value })} className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500" />
-            <input type="datetime-local" value={previewForm.checkOut} onChange={(event) => setPreviewForm({ ...previewForm, checkOut: event.target.value })} className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500" />
-            <button type="button" onClick={onPreview} disabled={isPreviewing} className="h-11 rounded-xl bg-primary-500 text-sm font-bold text-white disabled:opacity-50">
-              Preview
-            </button>
-          </div>
-          {preview ? (
-            <div className="mt-3 space-y-2">
-              {preview.chargeLines.map((line, index) => (
-                <div key={`${line.label}-${index}`} className="rounded-2xl border border-border bg-background-base p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-bold text-foreground">{line.label}</p>
-                    <p className="text-sm font-black text-primary-500">{formatCurrency(line.subtotal)}</p>
-                  </div>
-                  <p className="mt-1 text-xs text-foreground-muted">{line.quantityDays} ngày x {formatCurrency(line.unitPrice)}</p>
-                </div>
-              ))}
-              <div className="flex items-center justify-between rounded-2xl bg-primary-500/10 px-3 py-2 text-sm font-black text-primary-500">
-                <span>Tổng</span>
-                <span>{formatCurrency(preview.totalPrice)}</span>
-              </div>
-            </div>
-          ) : null}
-        </div>
       </div>
     </div>
   )

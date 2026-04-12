@@ -8,8 +8,9 @@ import { toast } from 'sonner'
 import { petApi } from '@/lib/api/pet.api'
 import { PetFormModal } from './pet-form-modal'
 import { PetSettingsModal } from './pet-settings-modal'
+import { PetDetailModal } from './pet-detail-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import {
   DataListShell,
   DataListToolbar,
@@ -62,6 +63,10 @@ function getEmoji(s?: string) {
 
 export function PetList() {
   const router = useRouter()
+  const params = useParams()
+  const initialCode = params?.code as string | undefined
+  const [viewingPetCode, setViewingPetCode] = useState<string | null>(initialCode || null)
+
   const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
   const canReadPets   = hasPermission('pet.read')
   const canCreatePet  = hasPermission('pet.create')
@@ -316,7 +321,10 @@ export function PetList() {
           return (
             <tr
               key={p.id}
-              onClick={() => router.push(`/pets/${p.id}`)}
+              onClick={() => {
+                window.history.pushState(null, '', `/pet/${p.petCode}`)
+                setViewingPetCode(p.petCode)
+              }}
               className="group cursor-pointer hover:bg-background-tertiary/60 transition-colors"
             >
               <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -481,6 +489,17 @@ export function PetList() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           initialData={editingPet}
+        />
+      )}
+
+      {viewingPetCode && (
+        <PetDetailModal
+          petId={viewingPetCode} // Wait, PetDetailModal expects petId but we pass petCode! The backend supports it now.
+          isOpen={true}
+          onClose={() => {
+            window.history.pushState(null, '', `/pets`)
+            setViewingPetCode(null)
+          }}
         />
       )}
     </DataListShell>

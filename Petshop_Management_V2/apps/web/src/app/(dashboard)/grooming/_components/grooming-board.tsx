@@ -38,7 +38,7 @@ import {
 type ViewMode = 'kanban' | 'list' | 'pricing'
 
 const TABLE_COLUMNS = [
-  { id: 'session', label: 'Phiên', width: 'w-28' },
+  { id: 'session', label: 'Mã SPA', width: 'w-28' },
   { id: 'pet', label: 'Thú cưng', minWidth: 'min-w-[180px]' },
   { id: 'customer', label: 'Khách hàng', minWidth: 'min-w-[170px]' },
   { id: 'staff', label: 'Nhân viên', minWidth: 'min-w-[150px]' },
@@ -46,7 +46,6 @@ const TABLE_COLUMNS = [
   { id: 'start', label: 'Bắt đầu', width: 'w-36' },
   { id: 'price', label: 'Giá', width: 'w-28' },
   { id: 'created', label: 'Tạo lúc', width: 'w-40' },
-  { id: 'actions', label: 'Thao tác', width: 'w-24' },
 ] as const
 
 function getDateKey(value?: string | null) {
@@ -167,6 +166,12 @@ export function GroomingBoard() {
     }
   }, [canReadGrooming, isAuthLoading, router])
 
+  useEffect(() => {
+    const handleOpenSettings = () => setViewMode(prev => prev === 'pricing' ? 'kanban' : 'pricing')
+    window.addEventListener('openGroomingSettings', handleOpenSettings)
+    return () => window.removeEventListener('openGroomingSettings', handleOpenSettings)
+  }, [])
+
   const sessionsQuery = useQuery({
     queryKey: ['grooming-sessions'],
     queryFn: () => groomingApi.getSessions(),
@@ -274,48 +279,48 @@ export function GroomingBoard() {
   return (
     <DataListShell className="min-h-0">
       <div className="flex flex-col flex-1 min-h-0 gap-4">
-        <DataListToolbar
-          searchValue={search}
-          onSearchChange={(value) => { setSearch(value); setPage(1) }}
-          searchPlaceholder="Tìm theo thú cưng, khách, SĐT, mã phiên..."
-          showColumnToggle={false}
-          filterSlot={
-            <>
-              <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as GroomingStatus | ''); setPage(1) }} className={toolbarSelectClass}>
-                <option value="">Tất cả trạng thái</option>
-                {GROOMING_STATUS_ORDER.map((status) => <option key={status} value={status}>{GROOMING_STATUS_META[status].label}</option>)}
-              </select>
-              <select value={staffFilter} onChange={(event) => { setStaffFilter(event.target.value); setPage(1) }} className={toolbarSelectClass}>
-                <option value="">Tất cả nhân viên</option>
-                {staffOptions.map((staff) => <option key={staff.id} value={staff.id}>{staff.fullName}</option>)}
-              </select>
-              <input type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1) }} className={toolbarSelectClass} />
-            </>
-          }
-          extraActions={
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center p-1 border rounded-2xl border-border bg-background-secondary">
-                <button type="button" onClick={() => setViewMode('kanban')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'kanban' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><LayoutGrid size={15} />Kanban</button>
-                <button type="button" onClick={() => setViewMode('list')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'list' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><List size={15} />Danh sách</button>
-                <button type="button" onClick={() => setViewMode('pricing')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'pricing' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><Table size={15} />Bảng giá</button>
-              </div>
-              <button type="button" onClick={() => sessionsQuery.refetch()} className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 text-sm font-medium text-foreground transition-colors hover:border-primary-500/60"><RefreshCw size={15} className={sessionsQuery.isRefetching ? 'animate-spin' : ''} />Làm mới</button>
-              <button type="button" onClick={() => setIsCreateModalOpen(true)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"><Plus size={15} />Thêm phiên</button>
-            </div>
-          }
-        />
-
-        <DataListFilterPanel onClearAll={clearFilters}>
-          <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><Tag size={14} className="text-primary-500" />Trạng thái</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as GroomingStatus | ''); setPage(1) }} className={filterSelectClass}><option value="">Tất cả trạng thái</option>{GROOMING_STATUS_ORDER.map((status) => <option key={status} value={status}>{GROOMING_STATUS_META[status].label}</option>)}</select></label>
-          <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><UserRound size={14} className="text-primary-500" />Nhân viên</span><select value={staffFilter} onChange={(event) => { setStaffFilter(event.target.value); setPage(1) }} className={filterSelectClass}><option value="">Tất cả nhân viên</option>{staffOptions.map((staff) => <option key={staff.id} value={staff.id}>{staff.fullName}</option>)}</select></label>
-          <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><CalendarDays size={14} className="text-primary-500" />Ngày tạo</span><input type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1) }} className={filterInputClass} /></label>
-        </DataListFilterPanel>
-
-        <p className="px-1 text-xs text-foreground-muted">Tổng <strong className="text-foreground">{filteredSessions.length}</strong> phiên{activeFilterCount > 0 ? <span> · {activeFilterCount} bộ lọc đang hoạt động</span> : null}{search ? <span> · tìm kiếm “{search}”</span> : null}</p>
-
         {viewMode === 'pricing' ? (
-          <ServicePricingWorkspace mode="GROOMING" />
-        ) : viewMode === 'kanban' ? (
+          <div className="flex flex-col flex-1 min-h-0">
+            <ServicePricingWorkspace mode="GROOMING" />
+          </div>
+        ) : (
+          <>
+            <DataListToolbar
+              searchValue={search}
+              onSearchChange={(value) => { setSearch(value); setPage(1) }}
+              searchPlaceholder="Tìm theo thú cưng, khách, SĐT, mã phiên..."
+              showColumnToggle={false}
+              filterSlot={
+                <>
+                  <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as GroomingStatus | ''); setPage(1) }} className={toolbarSelectClass}>
+                    <option value="">Tất cả trạng thái</option>
+                    {GROOMING_STATUS_ORDER.map((status) => <option key={status} value={status}>{GROOMING_STATUS_META[status].label}</option>)}
+                  </select>
+                  <select value={staffFilter} onChange={(event) => { setStaffFilter(event.target.value); setPage(1) }} className={toolbarSelectClass}>
+                    <option value="">Tất cả nhân viên</option>
+                    {staffOptions.map((staff) => <option key={staff.id} value={staff.id}>{staff.fullName}</option>)}
+                  </select>
+                  <input type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1) }} className={toolbarSelectClass} />
+                </>
+              }
+              extraActions={
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-center p-1 border rounded-2xl border-border bg-background-secondary">
+                    <button type="button" onClick={() => setViewMode('kanban')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'kanban' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><LayoutGrid size={15} />Kanban</button>
+                    <button type="button" onClick={() => setViewMode('list')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'list' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><List size={15} />Danh sách</button>
+                  </div>
+                  <button type="button" onClick={() => setIsCreateModalOpen(true)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"><Plus size={15} />Thêm SPA</button>
+                </div>
+              }
+            />
+
+            <DataListFilterPanel onClearAll={clearFilters}>
+              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><Tag size={14} className="text-primary-500" />Trạng thái</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as GroomingStatus | ''); setPage(1) }} className={filterSelectClass}><option value="">Tất cả trạng thái</option>{GROOMING_STATUS_ORDER.map((status) => <option key={status} value={status}>{GROOMING_STATUS_META[status].label}</option>)}</select></label>
+              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><UserRound size={14} className="text-primary-500" />Nhân viên</span><select value={staffFilter} onChange={(event) => { setStaffFilter(event.target.value); setPage(1) }} className={filterSelectClass}><option value="">Tất cả nhân viên</option>{staffOptions.map((staff) => <option key={staff.id} value={staff.id}>{staff.fullName}</option>)}</select></label>
+              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><CalendarDays size={14} className="text-primary-500" />Ngày tạo</span><input type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1) }} className={filterInputClass} /></label>
+            </DataListFilterPanel>
+
+            {viewMode === 'kanban' ? (
           <div className="custom-scrollbar flex min-h-0 flex-1 gap-4 overflow-x-auto pb-2">
             {GROOMING_STATUS_ORDER.map((status) => {
               const meta = GROOMING_STATUS_META[status]
@@ -352,9 +357,9 @@ export function GroomingBoard() {
                 const rowId = `g:${session.id}`
                 const isSelected = selectedRowIds.has(rowId)
                 return (
-                  <tr key={session.id} className={cn('border-b border-border/50 transition-colors hover:bg-background-secondary/40', isSelected ? 'bg-primary-500/5' : '')}>
-                    <td className="w-12 px-3 py-3"><TableCheckbox checked={isSelected} onCheckedChange={(_, shiftKey) => { if (!canManageSessions) return; toggleRowSelection(rowId, shiftKey) }} /></td>
-                    <td className="px-3 py-3"><button type="button" onClick={() => setSelectedSession(session)} className="inline-flex items-center gap-1 rounded-lg bg-primary-500/10 px-2 py-1 font-mono text-xs font-semibold text-primary-500 transition-colors hover:bg-primary-500/15">{session.id.slice(-6).toUpperCase()}<Pencil size={12} /></button></td>
+                  <tr key={session.id} onClick={() => setSelectedSession(session)} className={cn('border-b border-border/50 transition-colors hover:bg-background-secondary/40 cursor-pointer', isSelected ? 'bg-primary-500/5' : '')}>
+                    <td className="w-12 px-3 py-3" onClick={(e) => e.stopPropagation()}><TableCheckbox checked={isSelected} onCheckedChange={(_, shiftKey) => { if (!canManageSessions) return; toggleRowSelection(rowId, shiftKey) }} /></td>
+                    <td className="px-3 py-3"><span className="font-mono text-xs font-semibold text-primary-500">{session.id.slice(-6).toUpperCase()}</span></td>
                     <td className="px-3 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-sm font-black uppercase text-primary-500">{session.petName?.charAt(0) || 'P'}</div><div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{session.petName}</p><p className="truncate text-xs text-foreground-muted">{session.pet?.breed || session.pet?.species || 'Không rõ giống'}</p></div></div></td>
                     <td className="px-3 py-3"><p className="text-sm font-medium text-foreground">{session.pet?.customer?.fullName || 'Khách lẻ'}</p><p className="mt-1 text-xs text-foreground-muted">{session.pet?.customer?.phone || '—'}</p></td>
                     <td className="px-3 py-3 text-sm text-foreground">{session.staff?.fullName || 'Chưa phân công'}</td>
@@ -362,12 +367,13 @@ export function GroomingBoard() {
                     <td className="px-3 py-3 text-sm text-foreground-muted">{session.startTime ? formatGroomingDateTime(session.startTime) : '—'}</td>
                     <td className="px-3 py-3 text-sm font-semibold text-primary-500">{formatGroomingMoney(session.price)}</td>
                     <td className="px-3 py-3 text-xs text-foreground-muted">{formatGroomingDateTime(session.createdAt)}</td>
-                    <td className="px-3 py-3"><button type="button" onClick={() => setSelectedSession(session)} className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:border-primary-500/60">Mở</button></td>
                   </tr>
                 )
               })}
             </DataListTable>
             <DataListPagination page={page} totalPages={totalPages} pageSize={pageSize} total={filteredSessions.length} rangeStart={rangeStart} rangeEnd={rangeEnd} onPageChange={setPage} onPageSizeChange={setPageSize} pageSizeOptions={[12, 24, 48]} />
+          </>
+        )}
           </>
         )}
 

@@ -380,7 +380,7 @@ importers:
   packages/database:
     dependencies:
       '@prisma/client':
-        specifier: ^6.5.0
+        specifier: 6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
       bcryptjs:
         specifier: ^2.4.3
@@ -389,8 +389,11 @@ importers:
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       prisma:
-        specifier: ^6.5.0
+        specifier: 6.19.3
         version: 6.19.3(typescript@5.9.3)
       tsx:
         specifier: ^4.19.3

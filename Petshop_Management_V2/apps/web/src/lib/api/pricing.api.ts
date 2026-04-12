@@ -42,8 +42,10 @@ export interface HotelPriceRule {
 export interface HolidayCalendarDate {
   id: string
   date: string
+  endDate: string | null
   name: string
   year: number
+  isRecurring: boolean
   isActive: boolean
   notes: string | null
 }
@@ -96,8 +98,8 @@ export const pricingApi = {
   getSpaRules: (params: { species?: string; isActive?: boolean }) =>
     api.get<SpaPriceRule[]>('/pricing/spa-rules', { params }).then((res) => res.data),
 
-  bulkUpsertSpaRules: (rules: SpaRulePayload[]) =>
-    api.put<SpaPriceRule[]>('/pricing/spa-rules/bulk', { rules }).then((res) => res.data),
+  bulkUpsertSpaRules: (data: { species?: string | null; rules: SpaRulePayload[] }) =>
+    api.put<SpaPriceRule[]>('/pricing/spa-rules/bulk', data).then((res) => res.data),
 
   getHotelRules: (params: { species?: string; year?: number; dayType?: PricingDayType; isActive?: boolean }) =>
     api.get<HotelPriceRule[]>('/pricing/hotel-rules', { params }).then((res) => res.data),
@@ -108,10 +110,10 @@ export const pricingApi = {
   getHolidays: (params: { year?: number; isActive?: boolean }) =>
     api.get<HolidayCalendarDate[]>('/pricing/holidays', { params }).then((res) => res.data),
 
-  createHoliday: (data: { date: string; name: string; notes?: string | null; isActive?: boolean }) =>
+  createHoliday: (data: { startDate: string; endDate: string; name: string; isRecurring?: boolean; isActive?: boolean }) =>
     api.post<HolidayCalendarDate>('/pricing/holidays', data).then((res) => res.data),
 
-  updateHoliday: (id: string, data: Partial<{ date: string; name: string; notes: string | null; isActive: boolean }>) =>
+  updateHoliday: (id: string, data: Partial<{ startDate: string; endDate: string; name: string; isRecurring: boolean; isActive: boolean }>) =>
     api.patch<HolidayCalendarDate>(`/pricing/holidays/${id}`, data).then((res) => res.data),
 
   deactivateHoliday: (id: string) =>

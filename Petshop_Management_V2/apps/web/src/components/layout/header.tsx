@@ -44,6 +44,8 @@ function resolveHeaderTitle(pathname: string) {
   if (pathname.startsWith('/inventory/receipts')) return 'Phiếu nhập'
   if (pathname.startsWith('/pos')) return 'Tạo đơn hàng'
   if (pathname.startsWith('/dashboard')) return 'Tổng quan'
+  if (pathname.startsWith('/grooming')) return 'Spa & Grooming'
+  if (pathname.startsWith('/hotel')) return 'Pet Hotel'
   return ''
 }
 
@@ -70,6 +72,7 @@ export function Header() {
     hasPermission('product.update') ||
     hasPermission('product.delete') ||
     hasPermission('settings.pricing_policy.manage')
+  const canManageGroomingSettings = hasPermission('grooming.update')
 
   const { data: branches } = useQuery({
     queryKey: ['settings', 'branches'],
@@ -167,6 +170,24 @@ export function Header() {
                 onClick={() => setShowInventorySettingsDrawer(true)} 
                 className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
                 title="Cấu hình kho"
+              >
+                <Settings size={18} />
+              </button>
+            )}
+            {pathname.startsWith('/grooming') && canManageGroomingSettings && (
+              <button 
+                onClick={() => window.dispatchEvent(new Event('openGroomingSettings'))} 
+                className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
+                title="Cài đặt bảng giá Spa & Grooming"
+              >
+                <Settings size={18} />
+              </button>
+            )}
+            {pathname.startsWith('/hotel') && hasPermission('hotel.update') && (
+              <button 
+                onClick={() => window.dispatchEvent(new Event('openHotelSettings'))} 
+                className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
+                title="Cài đặt bảng giá Hotel"
               >
                 <Settings size={18} />
               </button>

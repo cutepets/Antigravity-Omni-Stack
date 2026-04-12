@@ -14,7 +14,7 @@ interface ManageCagesDialogProps {
 export default function ManageCagesDialog({ isOpen, onClose }: ManageCagesDialogProps) {
   const queryClient = useQueryClient()
   const { hasAnyPermission } = useAuthorization()
-  
+
   const [name, setName] = useState('')
   const [lineType, setLineType] = useState<Cage['type']>('REGULAR')
   const [description, setDescription] = useState('')
@@ -26,6 +26,7 @@ export default function ManageCagesDialog({ isOpen, onClose }: ManageCagesDialog
       queryClient.invalidateQueries({ queryKey: ['cages'] })
       setName('')
       setDescription('')
+      setLineType('REGULAR')
       onClose()
     },
   })
@@ -46,49 +47,49 @@ export default function ManageCagesDialog({ isOpen, onClose }: ManageCagesDialog
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-white p-6 shadow-lg duration-200 sm:rounded-lg">
+        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background-base p-6 shadow-lg duration-200 sm:rounded-lg">
           <Dialog.Title className="text-lg font-semibold leading-none tracking-tight">
             Thêm chuồng mới
           </Dialog.Title>
-          <Dialog.Description className="text-sm text-gray-500">
+          <Dialog.Description className="text-sm text-foreground-muted">
             Khởi tạo một chuồng (lồng/phòng) mới để nuôi gửi thú cưng.
           </Dialog.Description>
 
           <form onSubmit={handleSubmit} className="py-4 space-y-4">
             <div className="grid gap-2">
-              <label className="text-sm font-medium leading-none">Tên chuồng (Số phòng)</label>
+              <label className="text-sm font-medium leading-none text-foreground">Tên chuồng (Số phòng)</label>
               <input
                 required
                 value={name}
                 disabled={!canManageCages}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ví dụ: P-01, V-02..."
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex h-10 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
-            
+
             <div className="grid gap-2">
-              <label className="text-sm font-medium leading-none">Phân loại</label>
+              <label className="text-sm font-medium leading-none text-foreground">Phân loại</label>
               <select
                 value={lineType}
                 disabled={!canManageCages}
                 onChange={(e) => setLineType(e.target.value as Cage['type'])}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex h-10 w-full rounded-md border border-border bg-background-base px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="REGULAR">Chuồng Thường</option>
-                <option value="HOLIDAY">Chuồng VIP - Lễ/Tết</option>
+                <option value="HOLIDAY">Chuồng VIP – Lễ/Tết</option>
               </select>
             </div>
 
             <div className="grid gap-2">
-              <label className="text-sm font-medium leading-none">Mô tả (Tùy chọn)</label>
+              <label className="text-sm font-medium leading-none text-foreground">Mô tả (Tùy chọn)</label>
               <textarea
                 value={description}
                 disabled={!canManageCages}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Kích thước, vị trí..."
                 rows={3}
-                className="flex w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
@@ -96,14 +97,14 @@ export default function ManageCagesDialog({ isOpen, onClose }: ManageCagesDialog
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                className="px-4 py-2 border border-border rounded-md text-sm font-medium text-foreground hover:bg-background-secondary transition"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={!canManageCages || createCageMutation.isPending}
-                className="px-4 py-2 bg-indigo-600 rounded-md text-sm font-medium text-white hover:bg-indigo-700 transition flex items-center justify-center min-w-[120px]"
+                className="px-4 py-2 bg-primary-500 rounded-md text-sm font-medium text-white hover:opacity-90 transition flex items-center justify-center min-w-[120px] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {createCageMutation.isPending ? 'Đang tạo...' : 'Lưu thông tin'}
               </button>

@@ -90,6 +90,10 @@ export class SpaRuleInputDto {
 }
 
 export class BulkUpsertSpaRulesDto {
+  @IsString()
+  @IsOptional()
+  species?: string | null
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SpaRuleInputDto)
@@ -135,14 +139,23 @@ export class BulkUpsertHotelRulesDto {
 
 export class CreateHolidayDto {
   @IsDateString()
-  date!: string
+  @IsOptional()
+  date?: string
+
+  @IsDateString()
+  @IsOptional()
+  startDate?: string
+
+  @IsDateString()
+  @IsOptional()
+  endDate?: string
 
   @IsString()
   name!: string
 
-  @IsString()
+  @IsBoolean()
   @IsOptional()
-  notes?: string | null
+  isRecurring?: boolean
 
   @IsBoolean()
   @IsOptional()
@@ -154,13 +167,21 @@ export class UpdateHolidayDto {
   @IsOptional()
   date?: string
 
+  @IsDateString()
+  @IsOptional()
+  startDate?: string
+
+  @IsDateString()
+  @IsOptional()
+  endDate?: string
+
   @IsString()
   @IsOptional()
   name?: string
 
-  @IsString()
+  @IsBoolean()
   @IsOptional()
-  notes?: string | null
+  isRecurring?: boolean
 
   @IsBoolean()
   @IsOptional()

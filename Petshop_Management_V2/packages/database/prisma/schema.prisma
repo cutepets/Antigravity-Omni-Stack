@@ -540,6 +540,7 @@ model Cage {
   name        String        @unique
   type        HotelLineType @default(REGULAR)
   description String?
+  position    Int           @default(0)
   isActive    Boolean       @default(true)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -586,8 +587,10 @@ model SpaPriceRule {
 model HolidayCalendarDate {
   id        String   @id @default(cuid())
   date      DateTime
+  endDate   DateTime?
   name      String
   year      Int
+  isRecurring Boolean @default(false)
   isActive  Boolean  @default(true)
   notes     String?
   createdAt DateTime @default(now())
@@ -595,6 +598,8 @@ model HolidayCalendarDate {
 
   @@unique([date])
   @@index([year, isActive])
+  @@index([isRecurring, isActive])
+  @@index([date, endDate])
   @@map("holiday_calendar_dates")
 }
 

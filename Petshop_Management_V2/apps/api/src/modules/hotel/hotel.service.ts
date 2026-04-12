@@ -1,4 +1,4 @@
-﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { HotelLineType, PaymentStatus, Prisma } from '@petshop/database';
 import { generateHotelStayCode as formatHotelStayCode } from '@petshop/shared';
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js';
@@ -9,6 +9,7 @@ import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateHotelRateTableDto, 
 
 const ACTIVE_STAY_STATUSES = ['BOOKED', 'CHECKED_IN'] as const;
 const HALF_DAY_HOURS = 12;
+const SHORT_STAY_FULL_DAY_THRESHOLD_HOURS = 3;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 type ChargeDayType = 'REGULAR' | 'HOLIDAY';
@@ -45,7 +46,7 @@ type HotelPricingPreview = {
 
 @Injectable()
 export class HotelService {
-  constructor(private readonly prisma: DatabaseService) {}
+  constructor(private readonly prisma: DatabaseService) { }
 
   private deriveHalfDayPrice(fullDayPrice: number) {
     return this.roundCurrency(fullDayPrice / 2);
@@ -115,6 +116,17 @@ export class HotelService {
     return new Date(date.getTime() + days * DAY_IN_MS);
   }
 
+  private shiftRecurringHolidayToYear(startDate: Date, endDate: Date | null, year: number) {
+    const normalizedEndDate = endDate ?? startDate;
+    const durationDays = Math.max(
+      0,
+      Math.round((this.startOfDay(normalizedEndDate).getTime() - this.startOfDay(startDate).getTime()) / DAY_IN_MS),
+    );
+    const shiftedStartDate = new Date(year, startDate.getMonth(), startDate.getDate());
+    const shiftedEndDate = this.addDays(shiftedStartDate, durationDays);
+    return { date: shiftedStartDate, endDate: shiftedEndDate };
+  }
+
   private toDefaultPricingEnd(checkIn: Date) {
     return new Date(checkIn.getTime() + DAY_IN_MS);
   }
@@ -137,8 +149,9 @@ export class HotelService {
     return 'REGULAR';
   }
 
-  private buildChargeLineLabel(dayType: ChargeDayType, weightBandLabel: string) {
-    return dayType === 'HOLIDAY' ? `Hotel ngay le ${weightBandLabel}` : `Hotel ${weightBandLabel}`;
+  private buildChargeLineLabel(dayType: ChargeDayType, weightBandLabel: string, holidayName?: string | null) {
+    if (dayType !== 'HOLIDAY') return `Hotel ${weightBandLabel}`;
+    return holidayName ? `Hotel lễ ${holidayName} - ${weightBandLabel}` : `Hotel ngày lễ ${weightBandLabel}`;
   }
 
   private getChargeUnitsForSegment(start: Date, end: Date) {
@@ -147,6 +160,14 @@ export class HotelService {
 
     const hours = diffMs / (1000 * 60 * 60);
     return hours <= HALF_DAY_HOURS ? 0.5 : 1;
+  }
+
+  private getChargeUnitsForShortStay(start: Date, end: Date) {
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs <= 0) return 0;
+
+    const hours = diffMs / (1000 * 60 * 60);
+    return hours < SHORT_STAY_FULL_DAY_THRESHOLD_HOURS ? 0.5 : 1;
   }
 
   private mapStayChargeLine<T extends Record<string, any>>(line: T) {
@@ -201,8 +222,8 @@ export class HotelService {
   }
 
   private async getPetOrThrow(petId: string) {
-    const pet = await this.prisma.pet.findUnique({
-      where: { id: petId },
+    const pet = await this.prisma.pet.findFirst({
+      where: { OR: [{ id: petId }, { petCode: petId }] },
       include: {
         customer: {
           select: {
@@ -226,16 +247,20 @@ export class HotelService {
 
     const pet = await this.prisma.pet.findFirst({
       where: {
-        id: petId,
-        OR: [
-          { branchId: { in: scopedBranchIds } },
+        OR: [{ id: petId }, { petCode: petId }],
+        AND: [
           {
-            AND: [
-              { branchId: null },
-              { customer: { is: { branchId: { in: scopedBranchIds } } } },
+            OR: [
+              { branchId: { in: scopedBranchIds } },
+              {
+                AND: [
+                  { branchId: null },
+                  { customer: { is: { branchId: { in: scopedBranchIds } } } },
+                ],
+              },
             ],
-          },
-        ],
+          }
+        ]
       },
       include: {
         customer: {
@@ -294,6 +319,10 @@ export class HotelService {
       select: {
         totalPrice: true,
         breakdownSnapshot: true,
+        chargeLines: {
+          select: { label: true },
+          orderBy: { sortOrder: 'asc' },
+        },
       },
     });
     if (!stay) return;
@@ -308,10 +337,14 @@ export class HotelService {
       },
     });
     if (!orderItem) return;
+    const description = stay.chargeLines.length > 0
+      ? stay.chargeLines.map((line) => line.label).join(' + ')
+      : null;
 
     await this.prisma.orderItem.update({
       where: { id: orderItem.id },
       data: {
+        ...(description ? { description } : {}),
         unitPrice: stay.totalPrice,
         quantity: 1,
         subtotal: stay.totalPrice,
@@ -377,10 +410,24 @@ export class HotelService {
           orderBy: { checkIn: 'asc' },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy: { position: 'asc' },
     });
 
     return cages.map((cage) => this.mapCage(cage));
+  }
+
+  async reorderCages(cageIds: string[]) {
+    if (!Array.isArray(cageIds) || cageIds.length === 0) return { success: true }
+
+    const updates = cageIds.map((id, index) =>
+      this.prisma.cage.update({
+        where: { id },
+        data: { position: index },
+      })
+    )
+
+    await this.prisma.$transaction(updates)
+    return { success: true }
   }
 
   async updateCage(id: string, data: UpdateCageDto) {
@@ -504,28 +551,28 @@ export class HotelService {
     const where: Prisma.HotelRateTableWhereInput = params.rateTableId
       ? { id: params.rateTableId }
       : {
-          isActive: true,
-          year: params.date.getFullYear(),
-          lineType: params.dayType,
-          OR: [
-            { species: null },
-            { species: { equals: params.species, mode: 'insensitive' } },
-          ],
-          AND: [
-            {
-              OR: [
-                { minWeight: null },
-                { minWeight: { lte: params.weight } },
-              ],
-            },
-            {
-              OR: [
-                { maxWeight: null },
-                { maxWeight: { gt: params.weight } },
-              ],
-            },
-          ],
-        };
+        isActive: true,
+        year: params.date.getFullYear(),
+        lineType: params.dayType,
+        OR: [
+          { species: null },
+          { species: { equals: params.species, mode: 'insensitive' } },
+        ],
+        AND: [
+          {
+            OR: [
+              { minWeight: null },
+              { minWeight: { lte: params.weight } },
+            ],
+          },
+          {
+            OR: [
+              { maxWeight: null },
+              { maxWeight: { gt: params.weight } },
+            ],
+          },
+        ],
+      };
 
     const rate = await this.prisma.hotelRateTable.findFirst({
       where,
@@ -574,80 +621,122 @@ export class HotelService {
     }
 
     const configuredBand = await this.findConfiguredWeightBand(params.species, weight);
+    const pricingStartDay = this.startOfDay(params.checkIn);
+    const pricingEndDay = this.startOfDay(pricingEnd);
     const yearKeys = new Set<number>([params.checkIn.getFullYear(), pricingEnd.getFullYear()]);
+    for (let year = params.checkIn.getFullYear(); year <= pricingEnd.getFullYear(); year += 1) {
+      yearKeys.add(year);
+    }
     const holidayDates = await this.prisma.holidayCalendarDate.findMany({
       where: {
         isActive: true,
-        date: {
-          gte: this.startOfDay(params.checkIn),
-          lte: this.startOfDay(pricingEnd),
-        },
+        OR: [
+          { isRecurring: true },
+          {
+            date: { lte: pricingEndDay },
+            OR: [
+              { endDate: null, date: { gte: pricingStartDay } },
+              { endDate: { gte: pricingStartDay } },
+            ],
+          },
+        ],
       },
-      select: { date: true },
+      select: { date: true, endDate: true, name: true, isRecurring: true },
+      orderBy: [{ date: 'asc' }, { endDate: 'asc' }],
     });
-    const holidayDateKeys = new Set(holidayDates.map((item) => this.getDateKey(item.date)));
+    const holidaysByDateKey = new Map<string, string>();
+    for (const holiday of holidayDates) {
+      const ranges = holiday.isRecurring
+        ? [...yearKeys].map((year) => this.shiftRecurringHolidayToYear(holiday.date, holiday.endDate, year))
+        : [{ date: holiday.date, endDate: holiday.endDate ?? holiday.date }];
+
+      for (const range of ranges) {
+        let holidayCursor = this.startOfDay(range.date);
+        const holidayEnd = this.startOfDay(range.endDate ?? range.date);
+        while (holidayCursor <= holidayEnd) {
+          const dateKey = this.getDateKey(holidayCursor);
+          if (!holidaysByDateKey.has(dateKey)) holidaysByDateKey.set(dateKey, holiday.name);
+          holidayCursor = this.addDays(holidayCursor, 1);
+        }
+      }
+    }
 
     const priceRules = configuredBand
       ? await this.prisma.hotelPriceRule.findMany({
-          where: {
-            isActive: true,
-            year: { in: [...yearKeys] },
-            weightBandId: configuredBand.band.id,
-            OR: [
-              { species: null },
-              { species: { equals: params.species, mode: 'insensitive' } },
-            ],
-          },
-        })
+        where: {
+          isActive: true,
+          year: { in: [...yearKeys] },
+          weightBandId: configuredBand.band.id,
+          OR: [
+            { species: null },
+            { species: { equals: params.species, mode: 'insensitive' } },
+          ],
+        },
+      })
       : [];
 
-    const segments: Array<HotelChargeLineDraft & { dateKey: string }> = [];
-    let cursor = this.startOfDay(params.checkIn);
+    const segments: Array<HotelChargeLineDraft & { dateKey: string; holidayName?: string | null }> = [];
+    const totalDurationMs = pricingEnd.getTime() - params.checkIn.getTime();
+    const windows: Array<{ cursor: Date; quantityDays: number }> = [];
 
-    while (cursor < pricingEnd) {
-      const nextDay = this.addDays(cursor, 1);
-      const segmentStart = params.checkIn > cursor ? params.checkIn : cursor;
-      const segmentEnd = pricingEnd < nextDay ? pricingEnd : nextDay;
-      const quantityDays = this.getChargeUnitsForSegment(segmentStart, segmentEnd);
+    if (totalDurationMs < DAY_IN_MS) {
+      windows.push({
+        cursor: this.startOfDay(params.checkIn),
+        quantityDays: this.getChargeUnitsForShortStay(params.checkIn, pricingEnd),
+      });
+    } else {
+      let cursor = this.startOfDay(params.checkIn);
+      while (cursor < pricingEnd) {
+        const nextDay = this.addDays(cursor, 1);
+        const segmentStart = params.checkIn > cursor ? params.checkIn : cursor;
+        const segmentEnd = pricingEnd < nextDay ? pricingEnd : nextDay;
+        windows.push({
+          cursor,
+          quantityDays: this.getChargeUnitsForSegment(segmentStart, segmentEnd),
+        });
+        cursor = nextDay;
+      }
+    }
 
+    for (const window of windows) {
+      const { cursor, quantityDays } = window;
       if (quantityDays > 0) {
         const dateKey = this.getDateKey(cursor);
-        const dayType: ChargeDayType = holidayDateKeys.has(dateKey) ? 'HOLIDAY' : 'REGULAR';
+        const holidayName = holidaysByDateKey.get(dateKey) ?? null;
+        const dayType: ChargeDayType = holidayName ? 'HOLIDAY' : 'REGULAR';
         const matchedRule = configuredBand
           ? priceRules
-              .filter((rule) => rule.year === cursor.getFullYear() && rule.dayType === dayType)
-              .sort((left, right) => {
-                const leftExact = left.species?.toLowerCase() === params.species.toLowerCase() ? 1 : 0;
-                const rightExact = right.species?.toLowerCase() === params.species.toLowerCase() ? 1 : 0;
-                return rightExact - leftExact;
-              })[0]
+            .filter((rule) => rule.year === cursor.getFullYear() && rule.dayType === dayType)
+            .sort((left, right) => {
+              const leftExact = left.species?.toLowerCase() === params.species.toLowerCase() ? 1 : 0;
+              const rightExact = right.species?.toLowerCase() === params.species.toLowerCase() ? 1 : 0;
+              return rightExact - leftExact;
+            })[0]
           : null;
 
         const resolvedRate =
           matchedRule
             ? {
-                unitPrice: quantityDays === 0.5
-                  ? this.deriveHalfDayPrice(matchedRule.fullDayPrice)
-                  : matchedRule.fullDayPrice,
-                weightBand: configuredBand!.weightBand,
-                snapshot: {
-                  source: 'hotel-price-rule',
-                  ruleId: matchedRule.id,
-                  year: matchedRule.year,
-                  species: matchedRule.species,
-                  weightBandId: matchedRule.weightBandId,
-                  dayType: matchedRule.dayType,
-                  halfDayPrice: this.deriveHalfDayPrice(matchedRule.fullDayPrice),
-                  fullDayPrice: matchedRule.fullDayPrice,
-                },
-              }
+              unitPrice: matchedRule.fullDayPrice,
+              weightBand: configuredBand!.weightBand,
+              snapshot: {
+                source: 'hotel-price-rule',
+                ruleId: matchedRule.id,
+                year: matchedRule.year,
+                species: matchedRule.species,
+                weightBandId: matchedRule.weightBandId,
+                dayType: matchedRule.dayType,
+                halfDayPrice: this.deriveHalfDayPrice(matchedRule.fullDayPrice),
+                fullDayPrice: matchedRule.fullDayPrice,
+              },
+            }
             : await this.findLegacyRateForSegment({
-                species: params.species,
-                weight,
-                date: cursor,
-                dayType,
-                ...(params.rateTableId ? { rateTableId: params.rateTableId } : {}),
-              });
+              species: params.species,
+              weight,
+              date: cursor,
+              dayType,
+              ...(params.rateTableId ? { rateTableId: params.rateTableId } : {}),
+            });
 
         if (!resolvedRate) {
           throw new NotFoundException(`Khong tim thay gia hotel phu hop cho ngay ${dateKey}`);
@@ -658,7 +747,8 @@ export class HotelService {
 
         segments.push({
           dateKey,
-          label: this.buildChargeLineLabel(dayType, weightBandLabel),
+          holidayName,
+          label: this.buildChargeLineLabel(dayType, weightBandLabel, holidayName),
           dayType,
           quantityDays,
           unitPrice: resolvedRate.unitPrice,
@@ -668,6 +758,7 @@ export class HotelService {
           pricingSnapshot: {
             date: dateKey,
             dayType,
+            holidayName,
             quantityDays,
             weight,
             weightBandLabel,
@@ -676,7 +767,6 @@ export class HotelService {
         });
       }
 
-      cursor = nextDay;
     }
 
     const grouped = new Map<string, HotelChargeLineDraft>();
@@ -720,12 +810,12 @@ export class HotelService {
       configuredBand?.weightBand ??
       (chargeLines[0]
         ? {
-            id: chargeLines[0].weightBandId,
-            label: String((chargeLines[0].pricingSnapshot as any)?.weightBandLabel ?? 'Theo can nang'),
-            minWeight: null,
-            maxWeight: null,
-            source: 'LEGACY' as const,
-          }
+          id: chargeLines[0].weightBandId,
+          label: String((chargeLines[0].pricingSnapshot as any)?.weightBandLabel ?? 'Theo can nang'),
+          minWeight: null,
+          maxWeight: null,
+          source: 'LEGACY' as const,
+        }
         : null);
 
     return {
@@ -778,9 +868,9 @@ export class HotelService {
     const branch = await resolveBranchIdentity(this.prisma, writableBranchId);
     const linkedOrder = data.orderId
       ? await this.prisma.order.findUnique({
-          where: { id: data.orderId },
-          select: { createdAt: true },
-        })
+        where: { id: data.orderId },
+        select: { createdAt: true },
+      })
       : null;
     const codeDate = linkedOrder?.createdAt ?? new Date();
 
@@ -860,6 +950,10 @@ export class HotelService {
         include: this.stayInclude,
       });
     });
+
+    if (created.orderId) {
+      await this.syncLinkedOrder(created.id, created.orderId);
+    }
 
     return this.mapStay(created);
   }

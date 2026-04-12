@@ -11,8 +11,6 @@ import {
   UpsertWeightBandDto,
 } from './dto/pricing.dto.js'
 
-const GROOMING_PACKAGES = ['BATH', 'BATH_CLEAN', 'SHAVE', 'BATH_SHAVE_CLEAN', 'SPA'] as const
-
 const PRESET_BANDS: Record<PricingServiceType, Array<{ label: string; minWeight: number; maxWeight: number | null }>> = {
   GROOMING: [
     { label: '1-3kg', minWeight: 1, maxWeight: 3 },
@@ -38,6 +36,12 @@ const PRESET_BANDS: Record<PricingServiceType, Array<{ label: string; minWeight:
     { label: '40-50kg', minWeight: 40, maxWeight: 50 },
     { label: '>50kg', minWeight: 50, maxWeight: null },
   ],
+}
+
+function getPrismaErrorCode(error: unknown) {
+  if (!error || typeof error !== 'object' || !('code' in error)) return undefined
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' ? code : undefined
 }
 
 @Injectable()
@@ -91,10 +95,10 @@ export class PricingService {
     return this.normalizeNumber(value, label, min)
   }
 
-  private parseHolidayDate(value: string) {
-    const normalized = this.normalizeText(value, 'Ngày lễ')
+  private parseHolidayDate(value: string, label = 'Ngày lễ') {
+    const normalized = this.normalizeText(value, label)
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized)
-    if (!match) throw new BadRequestException('Ngày lễ phải có định dạng YYYY-MM-DD')
+    if (!match) throw new BadRequestException(`${label} phải có định dạng YYYY-MM-DD`)
 
     const [, year, month, day] = match
     const yearValue = Number(year)
@@ -107,9 +111,33 @@ export class PricingService {
       date.getUTCMonth() !== monthIndex ||
       date.getUTCDate() !== dayValue
     ) {
-      throw new BadRequestException('Ngày lễ không hợp lệ')
+      throw new BadRequestException(`${label} không hợp lệ`)
     }
     return date
+  }
+
+  private resolveHolidayRange(dto: { date?: string; startDate?: string; endDate?: string }) {
+    const startInput = dto.startDate ?? dto.date
+    if (!startInput) throw new BadRequestException('Cần nhập ngày bắt đầu ngày lễ')
+
+    const startDate = this.parseHolidayDate(startInput, 'Ngày bắt đầu')
+    const endDate = this.parseHolidayDate(dto.endDate ?? startInput, 'Ngày kết thúc')
+    if (endDate < startDate) {
+      throw new BadRequestException('Ngày kết thúc phải sau hoặc bằng ngày bắt đầu')
+    }
+
+    return { startDate, endDate }
+  }
+
+  private shiftRecurringHolidayToYear(startDate: Date, endDate: Date | null, year: number) {
+    const normalizedEndDate = endDate ?? startDate
+    const durationDays = Math.max(
+      0,
+      Math.round((normalizedEndDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)),
+    )
+    const shiftedStartDate = new Date(Date.UTC(year, startDate.getUTCMonth(), startDate.getUTCDate()))
+    const shiftedEndDate = new Date(shiftedStartDate.getTime() + durationDays * 24 * 60 * 60 * 1000)
+    return { date: shiftedStartDate, endDate: shiftedEndDate }
   }
 
   private async assertWeightBandScope(weightBandId: string, serviceType: PricingServiceType) {
@@ -233,41 +261,88 @@ export class PricingService {
       where: {
         ...(species !== null ? { species } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
+        ...(isActive !== false ? { weightBand: { is: { isActive: true } } } : {}),
       } as any,
       include: { weightBand: true },
-      orderBy: [{ weightBand: { sortOrder: 'asc' } }, { packageCode: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ weightBand: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
     })
   }
 
   async bulkUpsertSpaRules(dto: BulkUpsertSpaRulesDto) {
+    const species = this.normalizeSpecies(dto.species ?? dto.rules?.[0]?.species)
+    const normalizedRules: Array<{
+      id?: string | undefined
+      species: string | null
+      packageCode: string
+      weightBandId: string
+      price: number
+      durationMinutes: number | null
+      isActive: boolean
+    }> = []
+
     for (const rule of dto.rules ?? []) {
-      if (!GROOMING_PACKAGES.includes(rule.packageCode as any)) {
-        throw new BadRequestException('Gói SPA không hợp lệ')
-      }
       await this.assertWeightBandScope(rule.weightBandId, 'GROOMING')
+      normalizedRules.push({
+        id: rule.id,
+        species,
+        packageCode: this.normalizeText(rule.packageCode, 'Gói SPA'),
+        weightBandId: rule.weightBandId,
+        price: this.normalizeNumber(rule.price, 'Giá SPA'),
+        durationMinutes: this.normalizeOptionalNumber(rule.durationMinutes, 'Thời lượng', 1),
+        isActive: rule.isActive ?? true,
+      })
     }
 
     return this.db.$transaction(async (tx) => {
+      const existingRules = await tx.spaPriceRule.findMany({
+        where: { species, isActive: true } as any,
+        include: { weightBand: true },
+        orderBy: [{ weightBand: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
+      })
+      const existingByCombo = new Map(existingRules.map((rule) => [`${rule.weightBandId}:${rule.packageCode}`, rule]))
+      const retainedIds = new Set<string>()
       const results = []
-      for (const rule of dto.rules ?? []) {
+
+      for (const rule of normalizedRules) {
         const data = {
-          species: this.normalizeSpecies(rule.species),
-          packageCode: this.normalizeText(rule.packageCode, 'Gói SPA'),
+          species: rule.species,
+          packageCode: rule.packageCode,
           weightBandId: rule.weightBandId,
-          price: this.normalizeNumber(rule.price, 'Giá SPA'),
-          durationMinutes: this.normalizeOptionalNumber(rule.durationMinutes, 'Thời lượng', 1),
-          isActive: rule.isActive ?? true,
+          price: rule.price,
+          durationMinutes: rule.durationMinutes,
+          isActive: rule.isActive,
         }
 
         if (rule.id) {
           const current = await tx.spaPriceRule.findUnique({ where: { id: rule.id } })
           if (!current) throw new NotFoundException('Không tìm thấy dòng giá SPA')
-          results.push(await tx.spaPriceRule.update({ where: { id: rule.id }, data, include: { weightBand: true } }))
+          retainedIds.add(current.id)
+          results.push(await tx.spaPriceRule.update({ where: { id: current.id }, data, include: { weightBand: true } }))
         } else {
-          results.push(await tx.spaPriceRule.create({ data, include: { weightBand: true } }))
+          const comboKey = `${rule.weightBandId}:${rule.packageCode}`
+          const current = existingByCombo.get(comboKey)
+          if (current) {
+            retainedIds.add(current.id)
+            results.push(await tx.spaPriceRule.update({ where: { id: current.id }, data, include: { weightBand: true } }))
+          } else {
+            results.push(await tx.spaPriceRule.create({ data, include: { weightBand: true } }))
+          }
         }
       }
-      return results
+
+      const idsToDeactivate = existingRules.filter((rule) => !retainedIds.has(rule.id)).map((rule) => rule.id)
+      if (idsToDeactivate.length > 0) {
+        await tx.spaPriceRule.updateMany({
+          where: { id: { in: idsToDeactivate } },
+          data: { isActive: false },
+        })
+      }
+
+      return results.sort((left, right) => {
+        const bandOrder = (left.weightBand?.sortOrder ?? 0) - (right.weightBand?.sortOrder ?? 0)
+        if (bandOrder !== 0) return bandOrder
+        return left.createdAt.getTime() - right.createdAt.getTime()
+      })
     })
   }
 
@@ -328,44 +403,96 @@ export class PricingService {
   async listHolidays(query: { year?: string | number; isActive?: string }) {
     const year = Math.floor(Number(query.year ?? new Date().getFullYear()))
     const isActive = query.isActive === undefined ? undefined : String(query.isActive) !== 'false'
-    return this.db.holidayCalendarDate.findMany({
+    const yearStart = new Date(Date.UTC(year, 0, 1))
+    const yearEnd = new Date(Date.UTC(year, 11, 31))
+    const holidays = await this.db.holidayCalendarDate.findMany({
       where: {
-        year,
+        OR: [
+          { isRecurring: true },
+          {
+            date: { lte: yearEnd },
+            OR: [
+              { endDate: null, date: { gte: yearStart } },
+              { endDate: { gte: yearStart } },
+            ],
+          },
+        ],
         ...(isActive !== undefined ? { isActive } : {}),
       },
-      orderBy: [{ date: 'asc' }],
+      orderBy: [{ date: 'asc' }, { endDate: 'asc' }],
+    })
+    return holidays.map((holiday) => {
+      if (!holiday.isRecurring) return holiday
+      return {
+        ...holiday,
+        ...this.shiftRecurringHolidayToYear(holiday.date, holiday.endDate, year),
+      }
     })
   }
 
   async createHoliday(dto: CreateHolidayDto) {
-    const date = this.parseHolidayDate(dto.date)
+    const { startDate, endDate } = this.resolveHolidayRange(dto)
     const data = {
-      date,
-      year: date.getUTCFullYear(),
+      date: startDate,
+      endDate,
+      year: startDate.getUTCFullYear(),
       name: this.normalizeText(dto.name, 'Tên ngày lễ'),
-      notes: this.normalizeOptionalText(dto.notes),
+      notes: null,
+      isRecurring: dto.isRecurring ?? true,
       isActive: dto.isActive ?? true,
     }
 
-    return this.db.holidayCalendarDate.upsert({
-      where: { date },
-      create: data,
-      update: data,
-    })
+    try {
+      const existingHoliday = await this.db.holidayCalendarDate.findUnique({
+        where: { date: startDate },
+      })
+
+      if (existingHoliday) {
+        return this.db.holidayCalendarDate.update({
+          where: { id: existingHoliday.id },
+          data,
+        })
+      }
+
+      return this.db.holidayCalendarDate.create({ data })
+    } catch (error) {
+      const errorCode = getPrismaErrorCode(error)
+      if (errorCode === 'P2002') {
+        throw new BadRequestException('Ngày bắt đầu này đã tồn tại trong lịch ngày lễ')
+      }
+      if (errorCode === 'P2022') {
+        throw new BadRequestException('Cơ sở dữ liệu chưa cập nhật cấu trúc ngày lễ mới. Hãy chạy migrate deploy')
+      }
+      throw error
+    }
   }
 
   async updateHoliday(id: string, dto: UpdateHolidayDto) {
     const current = await this.db.holidayCalendarDate.findUnique({ where: { id } })
     if (!current) throw new NotFoundException('Không tìm thấy ngày lễ')
-    const date = dto.date ? this.parseHolidayDate(dto.date) : current.date
+    const dateChanged = dto.date !== undefined || dto.startDate !== undefined
+    const endDateChanged = dto.endDate !== undefined
+    const date = dateChanged
+      ? this.parseHolidayDate(dto.startDate ?? dto.date!, 'Ngày bắt đầu')
+      : current.date
+    const endDate = endDateChanged
+      ? this.parseHolidayDate(dto.endDate!, 'Ngày kết thúc')
+      : dateChanged
+        ? date
+        : current.endDate ?? current.date
+    if (endDate < date) {
+      throw new BadRequestException('Ngày kết thúc phải sau hoặc bằng ngày bắt đầu')
+    }
 
     return this.db.holidayCalendarDate.update({
       where: { id },
       data: {
         date,
+        endDate,
         year: date.getUTCFullYear(),
         name: dto.name !== undefined ? this.normalizeText(dto.name, 'Tên ngày lễ') : current.name,
-        notes: dto.notes !== undefined ? this.normalizeOptionalText(dto.notes) : current.notes,
+        notes: null,
+        isRecurring: dto.isRecurring ?? current.isRecurring,
         isActive: dto.isActive ?? current.isActive,
       },
     })

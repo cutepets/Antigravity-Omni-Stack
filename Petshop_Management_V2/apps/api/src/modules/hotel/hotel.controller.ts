@@ -38,7 +38,7 @@ interface AuthenticatedRequest extends Request {
 @Controller('hotel')
 @UseGuards(JwtGuard, PermissionsGuard)
 export class HotelController {
-  constructor(private readonly hotelService: HotelService) {}
+  constructor(private readonly hotelService: HotelService) { }
 
   @Post('cages')
   @Permissions('hotel.create')
@@ -50,6 +50,12 @@ export class HotelController {
   @Permissions('hotel.read')
   findAllCages(): Promise<any> {
     return this.hotelService.findAllCages()
+  }
+
+  @Patch('cages/reorder')
+  @Permissions('hotel.update')
+  reorderCages(@Body('cageIds') cageIds: string[]) {
+    return this.hotelService.reorderCages(cageIds)
   }
 
   @Patch('cages/:id')

@@ -5,38 +5,46 @@ import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { useAuthorization } from '@/hooks/useAuthorization'
-import { hotelApi, Cage } from '@/lib/api/hotel.api'
+import { hotelApi, Cage, HotelStay } from '@/lib/api/hotel.api'
+import { formatCurrency } from '@/lib/utils'
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('vi-VN').format(value) + 'd'
+interface ChargeLine {
+  id?: string
+  label?: string
+  quantityDays?: number
+  unitPrice?: number
+  subtotal?: number
+}
 
-const getBreakdownChargeLines = (stay: any) => {
+interface BreakdownSnapshot {
+  chargeLines?: ChargeLine[]
+  totalDays?: number
+}
+
+const getBreakdownChargeLines = (stay: { chargeLines?: ChargeLine[]; breakdownSnapshot?: BreakdownSnapshot | null }): ChargeLine[] => {
   if (Array.isArray(stay?.chargeLines) && stay.chargeLines.length > 0) {
     return stay.chargeLines
   }
-
-  const snapshot = stay?.breakdownSnapshot as
-    | { chargeLines?: Array<Record<string, unknown>> }
-    | null
-    | undefined
-
+  const snapshot = stay?.breakdownSnapshot
   return Array.isArray(snapshot?.chargeLines) ? snapshot.chargeLines : []
 }
 
-const getSnapshotNumber = (source: unknown, key: string) => {
-  if (!source || typeof source !== 'object') return null
-  const value = (source as Record<string, unknown>)[key]
+const getSnapshotNumber = (source: BreakdownSnapshot | null | undefined, key: keyof BreakdownSnapshot): number | null => {
+  if (!source) return null
+  const value = source[key]
   return typeof value === 'number' ? value : null
 }
 
 interface StayDetailsDialogProps {
   cage: Cage | null
+  stay?: HotelStay | null
   isOpen: boolean
   onClose: () => void
 }
 
 export default function StayDetailsDialog({
   cage,
+  stay,
   isOpen,
   onClose,
 }: StayDetailsDialogProps) {
@@ -45,14 +53,16 @@ export default function StayDetailsDialog({
   const canCheckout = hasPermission('hotel.checkout')
   const canReadOrders = hasAnyPermission(['order.read.all', 'order.read.assigned'])
 
-  const { data: stays, isLoading } = useQuery({
+  const { data: staysResponse, isLoading } = useQuery({
     queryKey: ['stays'],
-    queryFn: hotelApi.getStays,
-    enabled: isOpen && !!cage && cage.status === 'OCCUPIED',
+    queryFn: () => hotelApi.getStayList(),
+    enabled: isOpen && !!cage && cage.status === 'OCCUPIED' && !stay,
   })
 
-  const currentStay = stays?.find(
-    (stay) => stay.cageId === cage?.id && stay.status === 'CHECKED_IN',
+  const staysArray = Array.isArray(staysResponse) ? staysResponse : (staysResponse?.items || [])
+
+  const currentStay = stay ?? staysArray.find(
+    (s) => s.cageId === cage?.id && s.status === 'CHECKED_IN',
   )
 
   const checkoutMutation = useMutation({
@@ -72,8 +82,8 @@ export default function StayDetailsDialog({
       <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-          <Dialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-sm translate-x-[-50%] translate-y-[-50%] rounded-lg bg-white p-6 shadow-lg">
-            <p className="text-center text-gray-500">Dang tai chi tiet luu tru...</p>
+          <Dialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-sm translate-x-[-50%] translate-y-[-50%] rounded-lg bg-background-base p-6 shadow-lg">
+            <p className="text-center text-foreground-muted">Đang tải chi tiết lưu trú...</p>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -82,73 +92,73 @@ export default function StayDetailsDialog({
 
   const chargeLines = currentStay ? getBreakdownChargeLines(currentStay) : []
   const snapshotTotalDays = currentStay
-    ? getSnapshotNumber(currentStay.breakdownSnapshot, 'totalDays')
+    ? getSnapshotNumber(currentStay.breakdownSnapshot as BreakdownSnapshot | null, 'totalDays')
     : null
   const totalDays =
     snapshotTotalDays ??
-    chargeLines.reduce((sum: number, line: any) => sum + Number(line.quantityDays ?? 0), 0)
+    chargeLines.reduce((sum: number, line: ChargeLine) => sum + Number(line.quantityDays ?? 0), 0)
   const serviceLabel =
     chargeLines.length > 1
-      ? 'Hotel tach dong ngay thuong va ngay le'
+      ? 'Hotel (ngày thường + ngày lễ)'
       : currentStay?.lineType === 'HOLIDAY'
-        ? 'Hotel ngay le'
-        : 'Hotel ngay thuong'
+        ? 'Hotel ngày lễ'
+        : 'Hotel ngày thường'
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-white p-6 shadow-lg duration-200 sm:rounded-lg">
+        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid max-h-[90vh] w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-background-base p-6 shadow-lg duration-200 sm:rounded-lg">
           <Dialog.Title className="text-lg font-semibold leading-none tracking-tight">
-            Chi tiet luu tru - {cage?.name}
+            Chi tiết lưu trú – {cage?.name}
           </Dialog.Title>
-          <Dialog.Description className="text-sm text-gray-500">
-            Thong tin stay, bang tinh gia va lien ket POS cua chuong nay.
+          <Dialog.Description className="text-sm text-foreground-muted">
+            Thông tin lưu trú, bảng tính giá và liên kết POS của chuồng này.
           </Dialog.Description>
 
           {!currentStay ? (
             <div className="rounded-lg bg-amber-50 py-6 text-center text-amber-600">
-              Khong tim thay du lieu luu tru. Co the da xay ra loi dong bo.
+              Không tìm thấy dữ liệu lưu trú. Có thể đã xảy ra lỗi đồng bộ.
             </div>
           ) : (
             <div className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="rounded-md bg-gray-50 p-3">
-                  <span className="mb-1 block text-gray-500">Ma luu tru:</span>
+                  <span className="mb-1 block text-foreground-muted">Mã lưu trú:</span>
                   <span className="font-semibold text-gray-900">
                     {currentStay.stayCode || '---'}
                   </span>
                 </div>
                 <div className="rounded-md bg-gray-50 p-3">
-                  <span className="mb-1 block text-gray-500">Thu cung:</span>
+                  <span className="mb-1 block text-foreground-muted">Thú cưng:</span>
                   <span className="font-semibold text-gray-900">
                     {currentStay.petName || currentStay.pet?.name || '---'}
                   </span>
                 </div>
                 <div className="rounded-md bg-gray-50 p-3">
-                  <span className="mb-1 block text-gray-500">Dich vu:</span>
+                  <span className="mb-1 block text-foreground-muted">Dịch vụ:</span>
                   <span className="font-semibold text-gray-900">{serviceLabel}</span>
                 </div>
                 <div className="rounded-md bg-gray-50 p-3">
-                  <span className="mb-1 block text-gray-500">Hang can:</span>
+                  <span className="mb-1 block text-foreground-muted">Hạng cân:</span>
                   <span className="font-semibold text-gray-900">
                     {currentStay.weightBand?.label || 'Chua xac dinh'}
                   </span>
                 </div>
                 <div className="rounded-md bg-gray-50 p-3">
-                  <span className="mb-1 block text-gray-500">Check-in luc:</span>
+                  <span className="mb-1 block text-foreground-muted">Check-in lúc:</span>
                   <span className="font-semibold text-gray-900">
                     {format(new Date(currentStay.checkIn), 'dd/MM/yyyy HH:mm')}
                   </span>
                 </div>
                 <div className="rounded-md bg-gray-50 p-3">
-                  <span className="mb-1 block text-gray-500">Du kien tra:</span>
+                  <span className="mb-1 block text-foreground-muted">Dự kiến trả:</span>
                   <span className="font-semibold text-gray-900">
                     {currentStay.estimatedCheckOut
                       ? format(
-                          new Date(currentStay.estimatedCheckOut),
-                          'dd/MM/yyyy HH:mm',
-                        )
+                        new Date(currentStay.estimatedCheckOut),
+                        'dd/MM/yyyy HH:mm',
+                      )
                       : '---'}
                   </span>
                 </div>
@@ -158,23 +168,23 @@ export default function StayDetailsDialog({
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        Breakdown hotel
+                      <p className="text-sm font-semibold text-foreground">
+                        Chi tiết tính giá
                       </p>
-                      <p className="text-xs text-slate-500">
-                        Tong ngay tinh tien: {totalDays}
+                      <p className="text-xs text-foreground-muted">
+                        Tổng ngày tính tiền: {totalDays}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-slate-500">Tam tinh hien tai</p>
-                      <p className="text-lg font-bold text-slate-900">
+                      <p className="text-xs text-foreground-muted">Tạm tính hiện tại</p>
+                      <p className="text-lg font-bold text-foreground">
                         {formatCurrency(currentStay.totalPrice)}
                       </p>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    {chargeLines.map((line: any, index: number) => (
+                    {chargeLines.map((line: ChargeLine, index: number) => (
                       <div
                         key={`${line.id ?? line.label}-${index}`}
                         className="flex items-center justify-between rounded-lg bg-white px-3 py-2"
@@ -200,19 +210,19 @@ export default function StayDetailsDialog({
               {(currentStay.surcharge || currentStay.promotion || currentStay.depositAmount) ? (
                 <div className="grid grid-cols-3 gap-3 text-sm">
                   <div className="rounded-md border border-gray-200 p-3">
-                    <span className="mb-1 block text-gray-500">Phu thu</span>
+                    <span className="mb-1 block text-foreground-muted">Phụ thu</span>
                     <span className="font-semibold text-gray-900">
                       {formatCurrency(currentStay.surcharge ?? 0)}
                     </span>
                   </div>
                   <div className="rounded-md border border-gray-200 p-3">
-                    <span className="mb-1 block text-gray-500">Khuyen mai</span>
+                    <span className="mb-1 block text-foreground-muted">Khuyến mãi</span>
                     <span className="font-semibold text-gray-900">
                       {formatCurrency(currentStay.promotion ?? 0)}
                     </span>
                   </div>
                   <div className="rounded-md border border-gray-200 p-3">
-                    <span className="mb-1 block text-gray-500">Dat coc</span>
+                    <span className="mb-1 block text-foreground-muted">Đặt cọc</span>
                     <span className="font-semibold text-gray-900">
                       {formatCurrency(currentStay.depositAmount ?? 0)}
                     </span>
@@ -223,7 +233,7 @@ export default function StayDetailsDialog({
               {currentStay.notes ? (
                 <div className="rounded-md border border-blue-100 bg-blue-50 p-3">
                   <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-blue-700">
-                    Ghi chu
+                    Ghi chú
                   </span>
                   <p className="text-sm text-blue-900">{currentStay.notes}</p>
                 </div>
@@ -232,7 +242,7 @@ export default function StayDetailsDialog({
               {currentStay.order ? (
                 <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3">
                   <span className="block text-xs font-bold uppercase tracking-wider text-emerald-700">
-                    Lien ket POS
+                    Liên kết POS
                   </span>
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <div>
@@ -240,8 +250,8 @@ export default function StayDetailsDialog({
                         {currentStay.order.orderNumber}
                       </p>
                       <p className="text-xs text-emerald-700">
-                        Con phai thu:{' '}
-                        {(currentStay.order.remainingAmount ?? 0).toLocaleString('vi-VN')}d
+                        Còn phải thu:{' '}
+                        {formatCurrency(currentStay.order.remainingAmount ?? 0)}
                       </p>
                     </div>
                     {canReadOrders ? (
@@ -249,7 +259,7 @@ export default function StayDetailsDialog({
                         href={`/orders/${currentStay.order.id}`}
                         className="inline-flex items-center rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
                       >
-                        Mo don
+                        Mở đơn
                       </Link>
                     ) : null}
                   </div>
@@ -262,7 +272,7 @@ export default function StayDetailsDialog({
                   onClick={onClose}
                   className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                 >
-                  Dong
+                  Đóng
                 </button>
                 <button
                   type="button"
@@ -270,7 +280,7 @@ export default function StayDetailsDialog({
                   disabled={!canCheckout || checkoutMutation.isPending}
                   className="flex min-w-[120px] items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {checkoutMutation.isPending ? 'Dang xu ly...' : 'Checkout ngay'}
+                  {checkoutMutation.isPending ? 'Đang xử lý...' : 'Checkout ngay'}
                 </button>
               </div>
             </div>

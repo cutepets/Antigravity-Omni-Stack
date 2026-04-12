@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = 'apps/web/src/app/(dashboard)/orders/_components/order-list.tsx';
 let content = fs.readFileSync(path, 'utf8');
 
