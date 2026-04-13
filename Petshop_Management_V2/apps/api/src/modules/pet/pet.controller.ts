@@ -29,6 +29,7 @@ import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { FindPetsDto } from './dto/find-pets.dto.js'
 import { CreatePetDto } from './dto/create-pet.dto.js'
 import { UpdatePetDto } from './dto/update-pet.dto.js'
+import { AddWeightLogDto } from './dto/add-weight-log.dto.js'
 import { PetService } from './pet.service.js'
 
 interface AuthenticatedRequest extends Request {
@@ -62,6 +63,12 @@ export class PetController {
   @Permissions('pet.update')
   update(@Param('id') id: string, @Body() updatePetDto: UpdatePetDto, @Req() req: AuthenticatedRequest) {
     return this.petService.update(id, updatePetDto, req.user, getRequestedBranchId(req))
+  }
+
+  @Post(':id/weight')
+  @Permissions('pet.update')
+  addWeightLog(@Param('id') id: string, @Body() addWeightLogDto: AddWeightLogDto, @Req() req: AuthenticatedRequest) {
+    return this.petService.addWeightLog(id, addWeightLogDto, req.user)
   }
 
   @Post(':id/avatar')

@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, Edit2, Trash2, AlertCircle, Scale,
+  Edit2, Trash2, AlertCircle, Scale,
   Syringe, History, StickyNote, Phone,
-  ChevronRight, Plus, Scissors, Hotel, BadgeCheck,
+  ChevronRight, Scissors, Hotel, BadgeCheck,
   BarChart2, Cpu, Palette, X, Check
 } from 'lucide-react'
 import {
@@ -17,8 +17,7 @@ import { petApi } from '@/lib/api/pet.api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { PetFormModal } from '../_components/pet-form-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
-import { loadTempsFromDB, TemperEntry, getTemperStyle } from '../_components/pet-settings-modal'
-import { useEffect } from 'react'
+import { loadTempsFromDB, getTemperStyle } from '../_components/pet-settings-modal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (d?: string | null) =>
@@ -113,6 +112,16 @@ export function PetDetailModal({ petId, isOpen, onClose }: { petId: string | nul
     queryKey: ['pet', petId],
     queryFn: () => petApi.getPet(petId as string),
     enabled: !!petId && isOpen,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+
+  const { data: temperConfig = [] } = useQuery({
+    queryKey: ['pet-settings', 'tempers'],
+    queryFn: loadTempsFromDB,
+    enabled: isOpen,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   })
 
   const deleteMutation = useMutation({
@@ -130,19 +139,18 @@ export function PetDetailModal({ petId, isOpen, onClose }: { petId: string | nul
     onSuccess: () => {
       toast.success('Cập nhật cân nặng thành công')
       queryClient.invalidateQueries({ queryKey: ['pet', petId] })
+      queryClient.invalidateQueries({ queryKey: ['pets'] })
       setIsEditingWeight(false)
     },
     onError: () => toast.error('Có lỗi xảy ra khi lưu cân nặng')
   })
 
   // ── Loading / Error states ──
-  const [temperConfig, setTemperConfig] = useState<TemperEntry[]>([])
   useEffect(() => {
     if (isOpen) {
-      loadTempsFromDB().then(setTemperConfig).catch(() => {})
       setActiveTab('services')
     }
-  }, [isOpen])
+  }, [isOpen, petId])
 
   if (!isOpen || !petId) return null
 

@@ -5,6 +5,7 @@ import type { JwtPayload } from '@petshop/shared'
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js'
 import { getNextSequentialCode } from '../../common/utils/sequential-code.util.js'
 import { DatabaseService } from '../../database/database.service.js'
+import { AddWeightLogDto } from './dto/add-weight-log.dto.js'
 import { CreatePetDto } from './dto/create-pet.dto.js'
 import { FindPetsDto } from './dto/find-pets.dto.js'
 import { UpdatePetDto } from './dto/update-pet.dto.js'
@@ -112,17 +113,23 @@ export class PetService {
     return { AND: [where, scope] }
   }
 
-  private async assertPetScope(id: string, user?: AccessUser) {
-    if (!this.shouldRestrictToPetBranches(user)) return
+  private buildPetIdentityWhere(id: string): Prisma.PetWhereInput {
+    return { OR: [{ id }, { petCode: id }] }
+  }
 
-    const accessiblePet = await this.db.pet.findFirst({
-      where: this.mergePetScope({ id }, user),
-      select: { id: true },
-    })
+  private async throwPetAccessError(id: string, user?: AccessUser): Promise<never> {
+    if (this.shouldRestrictToPetBranches(user)) {
+      const existingPet = await this.db.pet.findFirst({
+        where: this.buildPetIdentityWhere(id),
+        select: { id: true },
+      })
 
-    if (!accessiblePet) {
-      throw new ForbiddenException('Bạn chỉ được truy cập dữ liệu thuộc chi nhánh được phân quyền')
+      if (existingPet) {
+        throw new ForbiddenException('Bạn chỉ được truy cập dữ liệu thuộc chi nhánh được phân quyền')
+      }
     }
+
+    throw new NotFoundException('Không tìm thấy thú cưng')
   }
 
   private async resolveWriteBranchId(user?: AccessUser, requestedBranchId?: string | null): Promise<string> {
@@ -240,18 +247,14 @@ export class PetService {
   }
 
   async findOne(id: string, user?: AccessUser) {
-    await this.assertPetScope(id, user)
-
-    const petScope = this.mergePetScope({
-      OR: [{ id }, { petCode: id }]
-    }, user)
+    const petScope = this.mergePetScope(this.buildPetIdentityWhere(id), user)
 
     const pet = await this.db.pet.findFirst({
       where: petScope,
       include: {
         customer: { select: { id: true, fullName: true, phone: true } },
         weightLogs: { orderBy: { date: 'desc' }, take: 10 },
-        vaccinations: { orderBy: { date: 'desc' } },
+        vaccinations: { orderBy: { date: 'desc' }, take: 20 },
         groomingSessions: {
           orderBy: { createdAt: 'desc' },
           take: 20,
@@ -279,15 +282,13 @@ export class PetService {
       },
     })
 
-    if (!pet) throw new NotFoundException('Không tìm thấy thú cưng')
+    if (!pet) return this.throwPetAccessError(id, user)
     return { success: true, data: pet }
   }
 
   async update(id: string, updatePetDto: UpdatePetDto, user?: AccessUser, requestedBranchId?: string) {
-    await this.assertPetScope(id, user)
-
     const pet = await this.db.pet.findFirst({
-      where: this.mergePetScope({ OR: [{ id }, { petCode: id }] }, user),
+      where: this.mergePetScope(this.buildPetIdentityWhere(id), user),
       select: {
         id: true,
         customerId: true,
@@ -296,7 +297,7 @@ export class PetService {
       },
     })
 
-    if (!pet) throw new NotFoundException('Không tìm thấy thú cưng')
+    if (!pet) return this.throwPetAccessError(id, user)
 
     let effectiveBranchId = pet.branchId ?? pet.customer.branchId ?? null
     const { customerId, dateOfBirth, ...restData } = updatePetDto
@@ -338,24 +339,47 @@ export class PetService {
     return { success: true, data: updated }
   }
 
-  async remove(id: string, user?: AccessUser) {
-    await this.assertPetScope(id, user)
-
+  async addWeightLog(id: string, addWeightLogDto: AddWeightLogDto, user?: AccessUser) {
     const pet = await this.db.pet.findFirst({
-      where: { OR: [{ id }, { petCode: id }] }
+      where: this.mergePetScope(this.buildPetIdentityWhere(id), user),
+      select: { id: true },
     })
-    if (!pet) throw new NotFoundException('Không tìm thấy thú cưng')
+
+    if (!pet) return this.throwPetAccessError(id, user)
+
+    const weightLog = await this.db.petWeightLog.create({
+      data: {
+        petId: pet.id,
+        weight: addWeightLogDto.weight,
+        ...(addWeightLogDto.notes ? { notes: addWeightLogDto.notes } : {}),
+        ...(addWeightLogDto.date ? { date: new Date(addWeightLogDto.date) } : {}),
+      },
+    })
+
+    await this.db.pet.update({
+      where: { id: pet.id },
+      data: { weight: addWeightLogDto.weight },
+    })
+
+    return { success: true, data: weightLog }
+  }
+
+  async remove(id: string, user?: AccessUser) {
+    const pet = await this.db.pet.findFirst({
+      where: this.mergePetScope(this.buildPetIdentityWhere(id), user),
+      select: { id: true },
+    })
+    if (!pet) return this.throwPetAccessError(id, user)
 
     await this.db.pet.delete({ where: { id: pet.id } })
     return { success: true }
   }
   async updateAvatar(id: string, avatarUrl: string, user?: AccessUser) {
-    await this.assertPetScope(id, user)
-
     const pet = await this.db.pet.findFirst({
-      where: { OR: [{ id }, { petCode: id }] }
+      where: this.mergePetScope(this.buildPetIdentityWhere(id), user),
+      select: { id: true },
     })
-    if (!pet) throw new NotFoundException('Không tìm thấy thú cưng')
+    if (!pet) return this.throwPetAccessError(id, user)
 
     const updated = await this.db.pet.update({
       where: { id: pet.id },

@@ -43,7 +43,7 @@ type SpaDraft = {
 
 type HotelDraft = {
   id?: string
-  sku?: string
+  sku: string
   fullDayPrice: string
 }
 
@@ -1065,7 +1065,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       if (!ruleSpecies) continue
       nextDrafts[getHotelRuleKey(representativeBandId, rule.dayType, ruleSpecies)] = {
         id: rule.id,
-        sku: rule.sku ?? undefined,
+        sku: rule.sku ?? '',
         fullDayPrice: formatCurrencyInput(rule.fullDayPrice),
       }
     }
@@ -1400,7 +1400,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
                   species: speciesOption.value,
                   weightBandId,
                   dayType: option.value,
-                  sku: draft?.sku ?? hotelDrafts[getHotelRuleKey(band.key, 'REGULAR', speciesOption.value)]?.sku,
+                  sku: hotelDrafts[getHotelRuleKey(band.key, 'REGULAR', speciesOption.value)]?.sku || draft?.sku || null,
                   halfDayPrice: deriveHalfDayPrice(fullDayPrice) ?? undefined,
                   fullDayPrice,
                   isActive: true,
@@ -1439,14 +1439,14 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const updateHotelDraft = (bandId: string, nextDayType: PricingDayType, nextSpecies: string, patch: Partial<HotelDraft>) => {
     setHotelDrafts((current) => {
       const updates = { ...current }
-      if (patch.sku !== undefined) {
+      if ('sku' in patch) {
         const regularKey = getHotelRuleKey(bandId, 'REGULAR', nextSpecies)
         const holidayKey = getHotelRuleKey(bandId, 'HOLIDAY', nextSpecies)
-        if (updates[regularKey]) updates[regularKey] = { ...updates[regularKey], sku: patch.sku }
-        if (updates[holidayKey]) updates[holidayKey] = { ...updates[holidayKey], sku: patch.sku }
+        updates[regularKey] = { ...(updates[regularKey] || { fullDayPrice: '' }), sku: patch.sku ?? '' }
+        updates[holidayKey] = { ...(updates[holidayKey] || { fullDayPrice: '' }), sku: patch.sku ?? '' }
       }
       const key = getHotelRuleKey(bandId, nextDayType, nextSpecies)
-      updates[key] = { ...(updates[key] || {}), ...patch }
+      updates[key] = { ...(updates[key] || { fullDayPrice: '' }), ...patch }
       return updates
     })
   }
@@ -1727,15 +1727,12 @@ function UnifiedHotelPricingPanel({
                   <td className="border-b border-r border-border bg-background-secondary/60 px-4 py-3 align-middle">
                     <div className="flex items-center gap-3">
                       <div className="min-w-0 flex-1">
-                        {editingBandKey === band.key && canEditHotelPricing ? (
+                        {canEditHotelPricing ? (
                           <input
                             value={band.label}
                             onChange={(event) => onBandChange(index, { label: event.target.value })}
-                            onBlur={() => onBandEdit(null)}
-                            autoFocus
-                            disabled={!canEditHotelPricing}
                             placeholder="Tên hạng cân"
-                            className="h-10 w-full rounded-xl border border-border bg-background-base px-3 text-sm font-bold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                            className="h-10 w-full rounded-xl border border-border bg-background-base px-3 text-sm font-bold text-foreground outline-none focus:border-primary-500"
                           />
                         ) : (
                           <p className="truncate text-sm font-black text-foreground">{band.label || 'Hạng cân mới'}</p>
@@ -1767,17 +1764,11 @@ function UnifiedHotelPricingPanel({
                       </div>
 
                       {canEditHotelPricing ? (
-                        <div className="ml-2 flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => onBandEdit(band.key)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground"
-                          >
-                            <Pencil size={14} />
-                          </button>
+                        <div className="ml-2 flex flex-col items-center justify-center">
                           <button
                             type="button"
                             onClick={() => onBandRemove(index)}
+                            title="Xoá hạng cân"
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10"
                           >
                             <X size={14} />
@@ -1788,19 +1779,22 @@ function UnifiedHotelPricingPanel({
                   </td>
 
                   {HOTEL_SPECIES_COLUMNS.flatMap((speciesOption, speciesIdx) => {
-                    const skuDraft = drafts[getHotelRuleKey(band.key, 'REGULAR', speciesOption.value)]
+                    const regularKey = getHotelRuleKey(band.key, 'REGULAR', speciesOption.value)
+                    const holidayKey = getHotelRuleKey(band.key, 'HOLIDAY', speciesOption.value)
+                    const skuDraft = drafts[regularKey] ?? drafts[holidayKey]
+                    const skuValue = skuDraft?.sku ?? ''
                     return [
                       <td key={`${band.key}:${speciesOption.value}:sku`} className={cn('border-b border-border px-3 py-3 align-middle text-center', speciesIdx > 0 ? 'border-l' : '')}>
                         {canEditHotelPricing ? (
                           <input
-                            value={skuDraft?.sku ?? ''}
+                            value={skuValue}
                             onChange={(e) => onDraftChange(band.key, 'REGULAR', speciesOption.value, { sku: e.target.value })}
                             placeholder={buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label, speciesOption.value)}
-                            className="w-[80px] bg-transparent text-center text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 placeholder:text-primary-500/50 outline-none"
+                            className="w-[100%] max-w-[80px] rounded border border-border bg-background-base py-1 text-center text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 placeholder:text-primary-500/30 outline-none transition-colors hover:border-primary-500 focus:border-primary-500"
                           />
                         ) : (
                           <span className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 whitespace-nowrap">
-                            {skuDraft?.sku || buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label, speciesOption.value)}
+                            {skuValue || buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label, speciesOption.value)}
                           </span>
                         )}
                       </td>,
@@ -2125,59 +2119,51 @@ function GroomingPricingMatrix({
               <tr key={band.key} className="border-b border-border/50 last:border-b-0">
                 <td className="border-b border-r border-border bg-background-secondary/60 px-4 py-3 align-middle">
                   <div className="flex items-center gap-2">
-                    {editingBandKey === band.key && canEditPricing ? (
+                    {canEditPricing ? (
                       <input
                         value={band.label}
                         onChange={(event) => onBandChange(index, { label: event.target.value })}
-                        onBlur={() => onBandEdit(null)}
-                        autoFocus
-                        disabled={!canEditPricing}
-                        placeholder="Tên..."
-                        className="h-10 w-[120px] shrink-0 rounded-xl border border-border bg-background-base px-3 text-sm font-bold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                        placeholder="Tên hạng cân"
+                        className="h-10 w-[140px] rounded-xl border border-border bg-background-base px-3 text-sm font-bold text-foreground outline-none focus:border-primary-500"
                       />
                     ) : (
-                      <p className="w-[120px] truncate text-sm font-black text-foreground">{band.label || 'Hạng cân mới'}</p>
+                      <p className="min-w-[140px] truncate text-sm font-black text-foreground" title={band.label || 'Hạng cân mới'}>
+                        {band.label || 'Hạng cân mới'}
+                      </p>
                     )}
-
-                    <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Từ</span>
+                    <div className="flex shrink-0 items-center gap-1.5 ml-2">
+                      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">từ</span>
                       <input
                         value={band.minWeight}
                         onChange={(event) => onBandChange(index, { minWeight: event.target.value })}
                         disabled={!canEditPricing}
                         inputMode="decimal"
-                        className="h-9 w-[46px] rounded-xl border border-border bg-background-base px-1 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                        className="h-9 w-12 rounded-xl border border-border bg-background-base px-1 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
                       />
-                      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">-</span>
+                      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">đến</span>
                       <input
                         value={band.maxWeight}
                         onChange={(event) => onBandChange(index, { maxWeight: event.target.value })}
                         disabled={!canEditPricing}
                         inputMode="decimal"
                         placeholder="∞"
-                        className="h-9 w-[46px] rounded-xl border border-border bg-background-base px-1 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                        className="h-9 w-12 rounded-xl border border-border bg-background-base px-1 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
                       />
                       <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">kg</span>
                     </div>
 
-                    <div className="ml-1 flex shrink-0 items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onBandEdit(band.key)}
-                        disabled={!canEditPricing}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground disabled:opacity-50"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onBandRemove(index)}
-                        disabled={!canEditPricing}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
+                    {canEditPricing ? (
+                      <div className="ml-1 flex shrink-0 items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => onBandRemove(index)}
+                          title="Xoá hạng cân"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </td>
 

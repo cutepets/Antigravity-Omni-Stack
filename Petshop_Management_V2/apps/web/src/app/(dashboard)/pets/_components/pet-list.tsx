@@ -1,16 +1,15 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Pin, PinOff, PawPrint, Settings, Trash2 } from 'lucide-react'
+import { Plus, Pin, PinOff, PawPrint, Trash2 } from 'lucide-react'
 import { loadTempsFromDB, TemperEntry, getTemperStyle } from './pet-settings-modal'
 import { toast } from 'sonner'
 import { petApi } from '@/lib/api/pet.api'
 import { PetFormModal } from './pet-form-modal'
-import { PetSettingsModal } from './pet-settings-modal'
-import { PetDetailModal } from './pet-detail-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import {
   DataListShell,
   DataListToolbar,
@@ -25,6 +24,11 @@ import {
   useDataListCore,
   useDataListSelection,
 } from '@/components/data-list'
+
+const PetDetailModal = dynamic(
+  () => import('./pet-detail-modal').then((mod) => mod.PetDetailModal),
+  { ssr: false }
+)
 
 type SpeciesFilter = '' | 'Chó' | 'Mèo' | 'Chim' | 'Khác'
 type DisplayColumnId = 'avatar' | 'pet' | 'breed' | 'color' | 'owner' | 'weight' | 'dob' | 'allergies' | 'status' | 'petCode'
@@ -61,16 +65,25 @@ function getEmoji(s?: string) {
   return '🐾'
 }
 
+function getPetIdFromLocation() {
+  if (typeof window === 'undefined') return null
+
+  const params = new URLSearchParams(window.location.search)
+  const queryPetId = params.get('petId')
+  if (queryPetId) return queryPetId
+
+  const legacyMatch = window.location.pathname.match(/^\/pet\/([^/?#]+)/)
+  return legacyMatch ? decodeURIComponent(legacyMatch[1]) : null
+}
+
 export function PetList() {
   const router = useRouter()
-  const params = useParams()
-  const initialCode = params?.code as string | undefined
-  const [viewingPetCode, setViewingPetCode] = useState<string | null>(initialCode || null)
+  const queryClient = useQueryClient()
+  const [viewingPetCode, setViewingPetCode] = useState<string | null>(() => getPetIdFromLocation())
 
   const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
   const canReadPets   = hasPermission('pet.read')
   const canCreatePet  = hasPermission('pet.create')
-  const canUpdatePet  = hasPermission('pet.update')
   const canDeletePet  = hasPermission('pet.delete')
 
   const [q, setQ]             = useState('')
@@ -84,10 +97,7 @@ export function PetList() {
   }, [q, species])
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false) // Keeping hook to avoid errors but unused here
   const [editingPet, setEditingPet] = useState<any>(null)
-
-  const queryClient = useQueryClient()
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((c) => c.id),
@@ -102,9 +112,24 @@ export function PetList() {
     if (!canReadPets) router.replace('/dashboard')
   }, [canReadPets, isAuthLoading, router])
 
+  useEffect(() => {
+    const syncPetFromUrl = () => setViewingPetCode(getPetIdFromLocation())
+
+    syncPetFromUrl()
+    window.addEventListener('popstate', syncPetFromUrl)
+    return () => window.removeEventListener('popstate', syncPetFromUrl)
+  }, [])
+
   const { data, isLoading } = useQuery({
     queryKey: ['pets', q, species, page, pageSize],
     queryFn: () => petApi.getPets({ q, species, page, limit: pageSize }),
+  })
+
+  const { data: temperConfig = [] } = useQuery<TemperEntry[]>({
+    queryKey: ['pet-settings', 'tempers'],
+    queryFn: loadTempsFromDB,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   })
 
   const rawPets = data?.data ?? []
@@ -132,11 +157,6 @@ export function PetList() {
       return cmp * dir
     })
   }, [rawPets, columnSort])
-
-  const [temperConfig, setTemperConfig] = useState<TemperEntry[]>([])
-  useEffect(() => {
-    loadTempsFromDB().then(setTemperConfig).catch(() => {})
-  }, [])
 
   const total = meta?.total ?? 0
   const totalPages = meta?.totalPages ?? 1
@@ -181,6 +201,16 @@ export function PetList() {
     setSpecies('')
     setQ('')
     setPage(1)
+  }
+
+  const openPetDetail = (petKey: string) => {
+    window.history.pushState(null, '', `/pets?petId=${encodeURIComponent(petKey)}`)
+    setViewingPetCode(petKey)
+    void queryClient.prefetchQuery({
+      queryKey: ['pet', petKey],
+      queryFn: () => petApi.getPet(petKey),
+      staleTime: 30 * 1000,
+    })
   }
 
   const tableColumns = orderedVisibleColumns.map((colId) => {
@@ -321,10 +351,7 @@ export function PetList() {
           return (
             <tr
               key={p.id}
-              onClick={() => {
-                window.history.pushState(null, '', `/pet/${p.petCode}`)
-                setViewingPetCode(p.petCode)
-              }}
+              onClick={() => openPetDetail(p.petCode || p.id)}
               className="group cursor-pointer hover:bg-background-tertiary/60 transition-colors"
             >
               <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -494,7 +521,7 @@ export function PetList() {
 
       {viewingPetCode && (
         <PetDetailModal
-          petId={viewingPetCode} // Wait, PetDetailModal expects petId but we pass petCode! The backend supports it now.
+          petId={viewingPetCode}
           isOpen={true}
           onClose={() => {
             window.history.pushState(null, '', `/pets`)

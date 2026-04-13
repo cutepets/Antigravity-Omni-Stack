@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 
-export default function RedirectToModal({ params }: { params: { id: string } }) {
-  redirect(`/pets?petId=${params.id}`)
+export default async function RedirectToModal({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  redirect(`/pets?petId=${encodeURIComponent(id)}`)
 }

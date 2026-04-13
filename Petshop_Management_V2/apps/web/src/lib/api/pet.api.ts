@@ -49,7 +49,7 @@ export const petApi = {
     return res.data.data
   },
 
-  addWeightLog: async (petId: string, payload: { weight: number; note?: string; date?: string }) => {
+  addWeightLog: async (petId: string, payload: { weight: number; notes?: string; date?: string }) => {
     const res = await api.post<ApiResponse<any>>(`/pets/${petId}/weight`, payload)
     return res.data.data
   },
