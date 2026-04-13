@@ -94,7 +94,7 @@ export interface CreateSupplierDto {
   isActive?: boolean
 }
 
-export interface UpdateSupplierDto extends Partial<CreateSupplierDto> {}
+export interface UpdateSupplierDto extends Partial<CreateSupplierDto> { }
 
 export interface ReturnItemDto {
   receiptItemId?: string
@@ -212,12 +212,12 @@ function tokenizeSearch(value?: string | null) {
 function buildProductSearchHaystack(product: Record<string, any>) {
   const variantText = Array.isArray(product.variants)
     ? product.variants
-        .map((variant: Record<string, any>) =>
-          [variant.name, variant.sku, variant.barcode, variant.conversions, variant.pricePolicies, variant.priceBookPrices]
-            .filter(Boolean)
-            .join(' '),
-        )
-        .join(' ')
+      .map((variant: Record<string, any>) =>
+        [variant.name, variant.sku, variant.barcode, variant.conversions, variant.pricePolicies, variant.priceBookPrices]
+          .filter(Boolean)
+          .join(' '),
+      )
+      .join(' ')
     : ''
 
   return normalizeSearchValue(
@@ -231,6 +231,33 @@ function buildProductSearchHaystack(product: Record<string, any>) {
       product.tags,
       product.description,
       variantText,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  )
+}
+
+function buildInventoryEntityKey(productId: string, productVariantId?: string | null) {
+  return productVariantId ? `variant:${productVariantId}` : `product:${productId}`
+}
+
+function buildInventoryEntitySearchHaystack(product: Record<string, any>, variant?: Record<string, any> | null) {
+  return normalizeSearchValue(
+    [
+      product.name,
+      product.sku,
+      product.barcode,
+      product.category,
+      product.brand,
+      product.importName,
+      product.tags,
+      product.description,
+      variant?.name,
+      variant?.sku,
+      variant?.barcode,
+      variant?.conversions,
+      variant?.pricePolicies,
+      variant?.priceBookPrices,
     ]
       .filter(Boolean)
       .join(' '),
@@ -320,7 +347,7 @@ function buildPaymentStatus(payableAmount: number, paidAmount: number): PaymentS
 
 @Injectable()
 export class StockService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   private createNumber(prefix: string) {
     const now = new Date()
@@ -608,6 +635,7 @@ export class StockService {
     await tx.stockTransaction.create({
       data: {
         productId: params.productId,
+        productVariantId: params.productVariantId ?? null,
         type: params.quantityDelta > 0 ? 'IN' : 'OUT',
         quantity: Math.abs(params.quantityDelta),
         reason: params.reason,
@@ -868,11 +896,11 @@ export class StockService {
         ...allocation,
         payment: allocation.payment
           ? {
-              ...allocation.payment,
-              transactionVoucherNumber: allocation.payment.transactionId
-                ? voucherMap.get(allocation.payment.transactionId) ?? null
-                : null,
-            }
+            ...allocation.payment,
+            transactionVoucherNumber: allocation.payment.transactionId
+              ? voucherMap.get(allocation.payment.transactionId) ?? null
+              : null,
+          }
           : allocation.payment,
       })),
     }
@@ -1305,11 +1333,11 @@ export class StockService {
       dto.items?.length
         ? dto.items
         : receipt.items.map((item: any) => ({
-            receiptItemId: item.id,
-            productId: item.productId,
-            productVariantId: item.productVariantId ?? null,
-            quantity: Math.max(0, toInt(item.quantity) - toInt(item.receivedQuantity) - toInt(item.closedQuantity)),
-          }))
+          receiptItemId: item.id,
+          productId: item.productId,
+          productVariantId: item.productVariantId ?? null,
+          quantity: Math.max(0, toInt(item.quantity) - toInt(item.receivedQuantity) - toInt(item.closedQuantity)),
+        }))
 
     const receiveItems = requestedReceiveItems
       .map((item) => {
@@ -1639,13 +1667,8 @@ export class StockService {
     return { success: true, data: refund }
   }
 
-  private getInventorySourceRows(product: any, branchId?: string | null) {
-    const variantRows = Array.isArray(product.variants)
-      ? product.variants.flatMap((variant: any) => (Array.isArray(variant.branchStocks) ? variant.branchStocks : []))
-      : []
-    const productRows = Array.isArray(product.branchStocks) ? product.branchStocks : []
-    const sourceRows = variantRows.length > 0 ? variantRows : productRows
-
+  private getInventorySourceRows(entity: { branchStocks?: any[] } | null | undefined, branchId?: string | null) {
+    const sourceRows = Array.isArray(entity?.branchStocks) ? entity.branchStocks : []
     return branchId ? sourceRows.filter((row: any) => row.branchId === branchId) : sourceRows
   }
 
@@ -1758,8 +1781,21 @@ export class StockService {
     }
   }
 
-  private async buildSellThroughMap(productIds: string[], branchId?: string | null) {
-    const uniqueProductIds = [...new Set(productIds.filter(Boolean))]
+  private async buildSellThroughMap(
+    inventoryItems: Array<{ productId: string; productVariantId?: string | null }>,
+    branchId?: string | null,
+  ) {
+    const entityMap = new Map<string, { productId: string; productVariantId: string | null }>()
+    for (const item of inventoryItems) {
+      if (!item.productId) continue
+      const productVariantId = item.productVariantId ?? null
+      entityMap.set(buildInventoryEntityKey(item.productId, productVariantId), {
+        productId: item.productId,
+        productVariantId,
+      })
+    }
+
+    const uniqueProductIds = [...new Set([...entityMap.values()].map((item) => item.productId).filter(Boolean))]
     const result = new Map<
       string,
       {
@@ -1770,7 +1806,7 @@ export class StockService {
       }
     >()
 
-    if (uniqueProductIds.length === 0) return result
+    if (entityMap.size === 0 || uniqueProductIds.length === 0) return result
 
     const now = new Date()
     const analyticsStart = shiftMonth(startOfMonth(now), -12)
@@ -1786,6 +1822,7 @@ export class StockService {
         },
         select: {
           productId: true,
+          productVariantId: true,
           quantity: true,
           receive: {
             select: {
@@ -1803,6 +1840,7 @@ export class StockService {
         },
         select: {
           productId: true,
+          productVariantId: true,
           date: true,
           quantitySold: true,
         },
@@ -1810,30 +1848,32 @@ export class StockService {
       } as any),
     ])
 
-    const receivesByProduct = new Map<string, Array<{ receivedAt: Date; quantity: number }>>()
+    const receivesByEntity = new Map<string, Array<{ receivedAt: Date; quantity: number }>>()
     for (const row of receiveItems) {
-      const values = receivesByProduct.get(row.productId) ?? []
+      const key = buildInventoryEntityKey(row.productId, (row as any).productVariantId ?? null)
+      const values = receivesByEntity.get(key) ?? []
       values.push({
         receivedAt: new Date((row as any).receive.receivedAt),
         quantity: toInt(row.quantity),
       })
-      receivesByProduct.set(row.productId, values)
+      receivesByEntity.set(key, values)
     }
 
-    const salesByProduct = new Map<string, Array<{ soldAt: Date; quantity: number }>>()
+    const salesByEntity = new Map<string, Array<{ soldAt: Date; quantity: number }>>()
     for (const row of salesRows) {
-      const values = salesByProduct.get(row.productId) ?? []
+      const key = buildInventoryEntityKey(row.productId, (row as any).productVariantId ?? null)
+      const values = salesByEntity.get(key) ?? []
       values.push({
         soldAt: new Date(row.date),
         quantity: toInt(row.quantitySold),
       })
-      salesByProduct.set(row.productId, values)
+      salesByEntity.set(key, values)
     }
 
-    for (const productId of uniqueProductIds) {
+    for (const [key] of entityMap.entries()) {
       result.set(
-        productId,
-        this.calculateSellThroughMetrics(receivesByProduct.get(productId) ?? [], salesByProduct.get(productId) ?? [], now),
+        key,
+        this.calculateSellThroughMetrics(receivesByEntity.get(key) ?? [], salesByEntity.get(key) ?? [], now),
       )
     }
 
@@ -1868,38 +1908,100 @@ export class StockService {
       },
     } as any)
 
-    const searchedProducts =
-      searchTokens.length > 0
-        ? products.filter((product) => {
-            const haystack = buildProductSearchHaystack(product)
-            return searchTokens.some((token) => haystack.includes(token))
+    const rawRows = products.flatMap((product) => {
+      const variants = Array.isArray(product.variants)
+        ? product.variants.filter((variant: any) => !variant?.deletedAt)
+        : []
+
+      if (variants.length > 0) {
+        return variants
+          .filter((variant: any) => !branchId || this.getInventorySourceRows(variant, branchId).length > 0)
+          .map((variant: any) => {
+            const variantLabel = `${variant?.name ?? ''}`.trim() || `${variant?.sku ?? ''}`.trim() || 'Phien ban'
+
+            return {
+              id: variant.id,
+              productId: product.id,
+              productVariantId: variant.id,
+              inventoryItemType: 'VARIANT' as const,
+              name: product.name,
+              variantName: variant.name ?? null,
+              displayName: `${product.name} - ${variantLabel}`,
+              sku: variant.sku || product.sku,
+              image: variant.image || product.image,
+              unit: product.unit,
+              category: product.category,
+              brand: product.brand,
+              minStockFallback: toInt(product.minStock),
+              source: variant,
+              searchHaystack: buildInventoryEntitySearchHaystack(product, variant),
+            }
           })
-        : products
+      }
+
+      return [
+        {
+          id: product.id,
+          productId: product.id,
+          productVariantId: null,
+          inventoryItemType: 'PRODUCT' as const,
+          name: product.name,
+          variantName: null,
+          displayName: product.name,
+          sku: product.sku,
+          image: product.image,
+          unit: product.unit,
+          category: product.category,
+          brand: product.brand,
+          minStockFallback: toInt(product.minStock),
+          source: {
+            branchStocks: Array.isArray(product.branchStocks)
+              ? product.branchStocks.filter((row: any) => !row?.productVariantId)
+              : [],
+          },
+          searchHaystack: buildInventoryEntitySearchHaystack(product, null),
+          lastCountShift: product.lastCountShift ?? null,
+        },
+      ]
+    })
+
+    const searchedRows =
+      searchTokens.length > 0
+        ? rawRows.filter((row) => searchTokens.some((token) => row.searchHaystack.includes(token)))
+        : rawRows
 
     const sellThroughMap = await this.buildSellThroughMap(
-      searchedProducts.map((product) => product.id),
+      searchedRows.map((row) => ({
+        productId: row.productId,
+        productVariantId: row.productVariantId,
+      })),
       branchId || undefined,
     )
 
-    const mappedRows = searchedProducts.map((product) => {
-      const sourceRows = this.getInventorySourceRows(product, branchId || undefined)
-      const currentStock = sourceRows.reduce((sum: number, row: any) => sum + toInt(row.stock), 0)
-      const reservedStock = sourceRows.reduce((sum: number, row: any) => sum + toInt(row.reservedStock), 0)
+    const mappedRows = searchedRows.map((row) => {
+      const sourceRows = this.getInventorySourceRows(row.source, branchId || undefined)
+      const currentStock = sourceRows.reduce((sum: number, item: any) => sum + toInt(item.stock), 0)
+      const reservedStock = sourceRows.reduce((sum: number, item: any) => sum + toInt(item.reservedStock), 0)
       const minStock =
         sourceRows.length > 0
-          ? sourceRows.reduce((sum: number, row: any) => sum + toInt(row.minStock), 0)
-          : toInt(product.minStock)
+          ? sourceRows.reduce((sum: number, item: any) => sum + toInt(item.minStock), 0)
+          : row.minStockFallback
       const sellableStock = Math.max(0, currentStock - reservedStock)
-      const analytics = sellThroughMap.get(product.id)
+      const analytics = sellThroughMap.get(buildInventoryEntityKey(row.productId, row.productVariantId))
 
       return {
-        id: product.id,
-        name: product.name,
-        sku: product.sku,
-        image: product.image,
-        unit: product.unit,
-        category: product.category,
-        brand: product.brand,
+        id: row.id,
+        productId: row.productId,
+        productVariantId: row.productVariantId,
+        inventoryItemType: row.inventoryItemType,
+        name: row.name,
+        variantName: row.variantName,
+        displayName: row.displayName,
+        sku: row.sku,
+        image: row.image,
+        unit: row.unit,
+        category: row.category,
+        brand: row.brand,
         currentStock,
         reservedStock,
         sellableStock,
@@ -1909,6 +2011,7 @@ export class StockService {
         analyticsWindowMonths: analytics?.analyticsWindowMonths ?? 6,
         completedBatchCount: analytics?.completedBatchCount ?? 0,
         lastSoldOutAt: analytics?.lastSoldOutAt ?? null,
+        lastCountShift: row.lastCountShift ?? null,
       }
     })
 
@@ -1922,29 +2025,29 @@ export class StockService {
     const sortedRows =
       sortBy.length > 0
         ? [...filteredRows].sort((left, right) => {
-            const factor = sortOrder === 'asc' ? 1 : -1
+          const factor = sortOrder === 'asc' ? 1 : -1
 
-            switch (sortBy) {
-              case 'code':
-                return compareText(left.sku, right.sku) * factor
-              case 'name':
-                return compareText(left.name, right.name) * factor
-              case 'minStock':
-                return (left.minStock - right.minStock) * factor
-              case 'stock':
-                return (left.currentStock - right.currentStock) * factor
-              case 'sellable':
-                return (left.sellableStock - right.sellableStock) * factor
-              case 'monthlySellThrough':
-                return ((left.monthlySellThrough ?? -1) - (right.monthlySellThrough ?? -1)) * factor
-              case 'status': {
-                const rank = { OUT_OF_STOCK: 0, LOW_STOCK: 1, NORMAL: 2 }
-                return ((rank[left.status as keyof typeof rank] ?? 99) - (rank[right.status as keyof typeof rank] ?? 99)) * factor
-              }
-              default:
-                return 0
+          switch (sortBy) {
+            case 'code':
+              return compareText(left.sku, right.sku) * factor
+            case 'name':
+              return compareText(left.displayName, right.displayName) * factor
+            case 'minStock':
+              return (left.minStock - right.minStock) * factor
+            case 'stock':
+              return (left.currentStock - right.currentStock) * factor
+            case 'sellable':
+              return (left.sellableStock - right.sellableStock) * factor
+            case 'monthlySellThrough':
+              return ((left.monthlySellThrough ?? -1) - (right.monthlySellThrough ?? -1)) * factor
+            case 'status': {
+              const rank = { OUT_OF_STOCK: 0, LOW_STOCK: 1, NORMAL: 2 }
+              return ((rank[left.status as keyof typeof rank] ?? 99) - (rank[right.status as keyof typeof rank] ?? 99)) * factor
             }
-          })
+            default:
+              return 0
+          }
+        })
         : filteredRows
 
     const total = sortedRows.length
@@ -1960,12 +2063,15 @@ export class StockService {
     }
   }
 
-  async getTransactionsByProduct(productId: string) {
+  async getTransactionsByProduct(productId: string, productVariantId?: string | null) {
     const product = await this.db.product.findUnique({ where: { id: productId } })
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
 
     const transactions = await this.db.stockTransaction.findMany({
-      where: { productId },
+      where: {
+        productId,
+        productVariantId: productVariantId?.trim() || null,
+      },
       orderBy: { createdAt: 'desc' },
     })
 

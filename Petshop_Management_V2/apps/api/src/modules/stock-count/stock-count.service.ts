@@ -284,6 +284,15 @@ export class StockCountService {
         })
 
         createdShifts.push(shiftSession)
+
+        // Update lastCountShift on products
+        const productIds = assignment.items.map((item) => item.productId).filter(Boolean)
+        if (productIds.length > 0) {
+          await tx.product.updateMany({
+            where: { id: { in: productIds } },
+            data: { lastCountShift: assignment.shift as any },
+          })
+        }
       }
 
       // Update session total

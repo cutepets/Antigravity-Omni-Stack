@@ -1,27 +1,9 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Dev2** (8799 symbols, 22086 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Dev2** (8916 symbols, 22360 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
-
-## 🚀 Cách dùng GitNexus (cho người mới)
-
-**GitNexus là gì?** — Công cụ AI phân tích code tự động, giúp bạn:
-- ✅ Hiểu code map mà KHÔNG cần tự tìm tay
-- ✅ Biết trước sửa code nào sẽ ảnh hưởng gì (blast radius)
-- ✅ Trace execution flow từ A → Z
-- ✅ Rename/extract code an toàn multi-file
-
-**3 lệnh hay dùng nhất:**
-
-| Khi nào | Lệnh | Ví dụ |
-|---------|------|-------|
-| "Code này hoạt động sao?" | `gitnexus_context` | `gitnexus_context({name: "receiveReceipt"})` |
-| "Sửa hàm này có vỡ gì không?" | `gitnexus_impact` | `gitnexus_impact({target: "adjustBranchStock", direction: "upstream"})` |
-| "Tìm code liên quan đến X" | `gitnexus_query` | `gitnexus_query({query: "stock inventory counting"})` |
-
-**Mẹo:** Đọc skill files trong `.claude/skills/gitnexus/` để biết chi tiết từng tác vụ.
 
 ## Always Do
 

@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, Download, PackageCheck, Pin, PinOff } from 'lucide-react'
-import { stockApi } from '@/lib/api/stock.api'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { stockApi } from '@/lib/api/stock.api'
 import {
   DataListShell,
   DataListToolbar,
@@ -20,12 +20,31 @@ import {
   useDataListSelection,
 } from '@/components/data-list'
 
-type DisplayColumnId = 'code' | 'name' | 'sellable' | 'monthlySellThrough' | 'minStock' | 'stock' | 'status' | 'actions'
+// Shift label helper
+const SHIFT_LABELS: Record<string, string> = {
+  MON_A: 'T2 | A', MON_B: 'T2 | B', MON_C: 'T2 | C', MON_D: 'T2 | D',
+  TUE_A: 'T3 | A', TUE_B: 'T3 | B', TUE_C: 'T3 | C', TUE_D: 'T3 | D',
+  WED_A: 'T4 | A', WED_B: 'T4 | B', WED_C: 'T4 | C', WED_D: 'T4 | D',
+  THU_A: 'T5 | A', THU_B: 'T5 | B', THU_C: 'T5 | C', THU_D: 'T5 | D',
+  FRI_A: 'T6 | A', FRI_B: 'T6 | B', FRI_C: 'T6 | C', FRI_D: 'T6 | D',
+  SAT_A: 'T7 | A', SAT_B: 'T7 | B', SAT_C: 'T7 | C', SAT_D: 'T7 | D',
+}
+
+function formatShiftLabel(shift: string): string {
+  return SHIFT_LABELS[shift] ?? shift
+}
+
+type DisplayColumnId = 'code' | 'name' | 'sellable' | 'monthlySellThrough' | 'minStock' | 'stock' | 'status' | 'countShift'
 type PinFilterId = 'type'
 
 type StockRow = {
   id: string
+  productId: string
+  productVariantId?: string | null
+  inventoryItemType: 'PRODUCT' | 'VARIANT'
   name: string
+  variantName?: string | null
+  displayName: string
   sku?: string | null
   image?: string | null
   unit?: string | null
@@ -35,31 +54,21 @@ type StockRow = {
   monthlySellThrough?: number | null
   status: 'NORMAL' | 'LOW_STOCK' | 'OUT_OF_STOCK'
   completedBatchCount?: number
+  lastCountShift?: string | null
 }
 
-const NEXT_COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
-  { id: 'code', label: 'Ma SP', sortable: true, width: 'w-24' },
-  { id: 'name', label: 'San pham', sortable: true, minWidth: 'min-w-[240px]' },
+const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
+  { id: 'code', label: 'Ma SP', sortable: true, width: 'w-28' },
+  { id: 'name', label: 'San pham / phien ban', sortable: true, minWidth: 'min-w-[260px]' },
   { id: 'sellable', label: 'Co the ban', sortable: true, width: 'w-32' },
   { id: 'monthlySellThrough', label: 'Hieu suat ban thang', sortable: true, width: 'w-40' },
   { id: 'minStock', label: 'Dinh muc toi thieu', sortable: true, width: 'w-32' },
   { id: 'stock', label: 'Ton kho hien tai', sortable: true, width: 'w-32' },
+  { id: 'countShift', label: 'Ca làm', sortable: false, width: 'w-32' },
   { id: 'status', label: 'Trang thai', sortable: true, width: 'w-32' },
 ]
 
-/* legacy inventory columns retained from the old table config
-  { id: 'code', label: 'Mã SP', sortable: true, width: 'w-24' },
-  { id: 'name', label: 'Sản phẩm', sortable: true, minWidth: 'min-w-[180px]' },
-  { id: 'minStock', label: 'Định mức tối thiểu', sortable: true, width: 'w-32' },
-  { id: 'stock', label: 'Tồn kho hiện tại', sortable: true, width: 'w-32' },
-  { id: 'status', label: 'Trạng thái', width: 'w-32' },
-  { id: 'actions', label: 'Thao tác', width: 'w-28' },
-]
-*/
-
-const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
-  NEXT_COLUMN_OPTIONS.filter((c) => c.sortable).map((c) => c.id)
-)
+const SORTABLE_COLUMNS = new Set<DisplayColumnId>(COLUMN_OPTIONS.filter((column) => column.sortable).map((column) => column.id))
 
 function renderStatusBadge(status: StockRow['status']) {
   if (status === 'OUT_OF_STOCK') {
@@ -81,23 +90,28 @@ function renderStatusBadge(status: StockRow['status']) {
   return <span className="badge badge-success">Binh thuong</span>
 }
 
+function buildStockDetailHref(row: StockRow) {
+  if (!row.productVariantId) return `/inventory/stock/${row.productId}`
+  return `/inventory/stock/${row.productId}?${new URLSearchParams({ variantId: row.productVariantId }).toString()}`
+}
+
 export function StockList() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
-  const [filterType, setFilterType] = useState('ALL') // ALL, LOW_STOCK
+  const [filterType, setFilterType] = useState('ALL')
   const [page, setPage] = useState(1)
-
   const [pageSize, setPageSize] = useState(20)
+
   const reportSource = searchParams.get('from')
   const scopedBranchId = searchParams.get('branchId')?.trim() || ''
   const scopedDateFrom = searchParams.get('dateFrom')?.trim() || ''
   const scopedDateTo = searchParams.get('dateTo')?.trim() || ''
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
-    initialColumnOrder: NEXT_COLUMN_OPTIONS.map((column) => column.id),
+    initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
     initialVisibleColumns: ['code', 'name', 'sellable', 'monthlySellThrough', 'minStock', 'stock', 'status'],
-    initialTopFilterVisibility: { type: true }
+    initialTopFilterVisibility: { type: true },
   })
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 
@@ -139,43 +153,36 @@ export function StockList() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['inventory-stock-products', search, filterType, scopedBranchId || 'all', page, pageSize, columnSort.columnId, columnSort.direction],
-    queryFn: () => stockApi.getProducts({
-      search,
-      branchId: scopedBranchId || undefined,
-      filterType,
-      page,
-      limit: pageSize,
-      sortBy: columnSort.columnId || undefined,
-      sortOrder: (columnSort.direction as 'asc' | 'desc') || undefined,
-    }),
+    queryFn: () =>
+      stockApi.getProducts({
+        search,
+        branchId: scopedBranchId || undefined,
+        filterType,
+        page,
+        limit: pageSize,
+        sortBy: columnSort.columnId || undefined,
+        sortOrder: (columnSort.direction as 'asc' | 'desc') || undefined,
+      }),
   })
 
-  const products = Array.isArray((data as any)?.data) ? ((data as any).data as StockRow[]) : []
+  const rows = Array.isArray((data as any)?.data) ? ((data as any).data as StockRow[]) : []
   const totalPages = (data as any)?.totalPages ?? 1
-  const total = (data as any)?.total ?? products.length
+  const total = (data as any)?.total ?? rows.length
 
-  const visibleRowIds = useMemo(
-    () => products.map((p: any) => `p:${p.id}`),
-    [products]
+  const visibleRowIds = useMemo(() => rows.map((row) => `stock:${row.id}`), [rows])
+  const { selectedRowIds, toggleRowSelection, toggleSelectAllVisible, clearSelection, allVisibleSelected } = useDataListSelection(visibleRowIds)
+
+  const activeColumns = useMemo(
+    () =>
+      orderedVisibleColumns.map((id) => {
+        const column = COLUMN_OPTIONS.find((item) => item.id === id)!
+        return { ...column, id: id as DisplayColumnId }
+      }),
+    [orderedVisibleColumns],
   )
 
-  const {
-    selectedRowIds,
-    toggleRowSelection,
-    toggleSelectAllVisible,
-    clearSelection,
-    allVisibleSelected,
-  } = useDataListSelection(visibleRowIds)
-
-  const activeColumns = useMemo(() => {
-    return orderedVisibleColumns.map((id) => {
-      const col = NEXT_COLUMN_OPTIONS.find((c) => c.id === id)!
-      return { ...col, id: id as DisplayColumnId }
-    })
-  }, [orderedVisibleColumns])
-
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
-  const rangeEnd   = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + products.length)
+  const rangeEnd = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rows.length)
 
   const clearFilters = () => {
     setFilterType('ALL')
@@ -205,27 +212,31 @@ export function StockList() {
 
       <DataListToolbar
         searchValue={search}
-        onSearchChange={(v) => { setSearch(v); setPage(1) }}
-        searchPlaceholder="Tìm tên sản phẩm, SKU..."
+        onSearchChange={(value) => {
+          setSearch(value)
+          setPage(1)
+        }}
+        searchPlaceholder="Tim ten san pham, phien ban, SKU..."
         showColumnToggle={true}
         showFilterToggle={true}
         filterSlot={
-          <>
-            {topFilterVisibility.type && (
-              <select
-                value={filterType}
-                onChange={e => { setFilterType(e.target.value); setPage(1) }}
-                className={toolbarSelectClass}
-              >
-                <option value="ALL">Tất cả sản phẩm</option>
-                <option value="LOW_STOCK">Sắp hết hàng</option>
-              </select>
-            )}
-          </>
+          topFilterVisibility.type ? (
+            <select
+              value={filterType}
+              onChange={(event) => {
+                setFilterType(event.target.value)
+                setPage(1)
+              }}
+              className={toolbarSelectClass}
+            >
+              <option value="ALL">Tat ca mat hang</option>
+              <option value="LOW_STOCK">Sap het hang</option>
+            </select>
+          ) : null
         }
         columnPanelContent={
           <DataListColumnPanel
-            columns={NEXT_COLUMN_OPTIONS}
+            columns={COLUMN_OPTIONS}
             columnOrder={columnOrder}
             visibleColumns={visibleColumns}
             sortInfo={columnSort}
@@ -241,7 +252,7 @@ export function StockList() {
         extraActions={
           <div className="flex items-center gap-2">
             <button className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 text-sm font-medium text-foreground transition-colors hover:border-primary-500/60">
-              <Download size={15} /> Xuất kho
+              <Download size={15} /> Xuat kho
             </button>
           </div>
         }
@@ -251,25 +262,27 @@ export function StockList() {
         <label className="space-y-2">
           <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
             <span className="inline-flex items-center gap-2">
-              <PackageCheck size={14} className="text-primary-500" /> Loại tồn kho
+              <PackageCheck size={14} className="text-primary-500" /> Loai ton kho
             </span>
             <button
               type="button"
               onClick={() => dataListState.toggleTopFilterVisibility('type')}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                topFilterVisibility.type ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-              }`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.type ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                }`}
             >
               {topFilterVisibility.type ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
           </span>
           <select
             value={filterType}
-            onChange={e => { setFilterType(e.target.value); setPage(1) }}
+            onChange={(event) => {
+              setFilterType(event.target.value)
+              setPage(1)
+            }}
             className={filterSelectClass}
           >
-            <option value="ALL">Tất cả sản phẩm</option>
-            <option value="LOW_STOCK">Sắp hết hàng</option>
+            <option value="ALL">Tat ca mat hang</option>
+            <option value="LOW_STOCK">Sap het hang</option>
           </select>
         </label>
       </DataListFilterPanel>
@@ -277,130 +290,141 @@ export function StockList() {
       <DataListTable
         columns={activeColumns}
         isLoading={isLoading}
-        isEmpty={!isLoading && products.length === 0}
-        emptyText="Không có dữ liệu tồn kho."
+        isEmpty={!isLoading && rows.length === 0}
+        emptyText="Khong co du lieu ton kho."
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
         bulkBar={
           selectedRowIds.size > 0 ? (
-            <DataListBulkBar
-              selectedCount={selectedRowIds.size}
-              onClear={clearSelection}
-            >
+            <DataListBulkBar selectedCount={selectedRowIds.size} onClear={clearSelection}>
               <button
                 type="button"
                 className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
               >
-                <Download size={13} /> Khác
+                <Download size={13} /> Khac
               </button>
             </DataListBulkBar>
           ) : undefined
         }
       >
-        {products.map((p: StockRow) => {
-          const isLowStock = p.status === 'LOW_STOCK' || p.status === 'OUT_OF_STOCK'
-          const stockTone = p.status === 'OUT_OF_STOCK' ? 'text-error' : isLowStock ? 'text-warning' : 'text-emerald-500'
-          const rowId = `p:${p.id}`
-          const isSelected = selectedRowIds.has(rowId)
+        {rows.map((row) => {
+          const rowSelectionId = `stock:${row.id}`
+          const isSelected = selectedRowIds.has(rowSelectionId)
+          const isLowStock = row.status === 'LOW_STOCK' || row.status === 'OUT_OF_STOCK'
+          const stockTone = row.status === 'OUT_OF_STOCK' ? 'text-error' : isLowStock ? 'text-warning' : 'text-emerald-500'
+          const detailHref = buildStockDetailHref(row)
 
           return (
-            <tr 
-              key={p.id} 
+            <tr
+              key={row.id}
               className={`border-b border-border/50 transition-colors hover:bg-background-secondary/40 ${isSelected ? 'bg-primary-500/5' : ''}`}
             >
               <td className="w-10 px-3 py-3">
-                <TableCheckbox 
-                  checked={isSelected}
-                  onCheckedChange={(checked, shiftKey) => toggleRowSelection(rowId, shiftKey)}
-                />
+                <TableCheckbox checked={isSelected} onCheckedChange={(_, shiftKey) => toggleRowSelection(rowSelectionId, shiftKey)} />
               </td>
-              {orderedVisibleColumns.map(columnId => {
-                switch(columnId) {
-                  case 'code': return (
-                    <td key={columnId} className="px-3 py-3 w-24">
-                      {p.sku && <span className="font-mono text-xs font-semibold text-primary-500 bg-primary-500/10 px-2 py-0.5 rounded-md w-fit">{p.sku}</span>}
-                    </td>
-                  );
-                  case 'name': return (
-                    <td key={columnId} className="px-3 py-3 min-w-[240px]">
-                      <div className="flex items-center gap-3">
-                        {p.image ? (
-                          <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-background-secondary border border-border">
-                            <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                          </div>
+
+              {orderedVisibleColumns.map((columnId) => {
+                switch (columnId) {
+                  case 'code':
+                    return (
+                      <td key={columnId} className="w-28 px-3 py-3">
+                        {row.sku ? (
+                          <span className="w-fit rounded-md bg-primary-500/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary-500">
+                            {row.sku}
+                          </span>
                         ) : (
-                          <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-background-secondary border border-border text-foreground-muted">
-                            <PackageCheck size={18} />
-                          </div>
+                          <span className="text-xs text-foreground-muted">-</span>
                         )}
-                        <div className="min-w-0">
-                          <button
-                            type="button"
-                            onClick={() => router.push(`/inventory/stock/${p.id}`)}
-                            title={p.name}
-                            className="block truncate text-left font-semibold text-foreground transition-colors hover:text-primary-500"
-                          >
-                            {p.name}
-                          </button>
-                          <div className="text-xs text-foreground-muted">
-                            {p.unit ?? 'cai'}
-                            {p.completedBatchCount ? ` · ${p.completedBatchCount} lo da ban het` : ' · Chua du du lieu chu ky'}
+                      </td>
+                    )
+
+                  case 'name':
+                    return (
+                      <td key={columnId} className="min-w-[260px] px-3 py-3">
+                        <div className="flex items-center gap-3">
+                          {row.image ? (
+                            <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg border border-border bg-background-secondary">
+                              <img src={row.image} alt={row.displayName} className="h-full w-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background-secondary text-foreground-muted">
+                              <PackageCheck size={18} />
+                            </div>
+                          )}
+
+                          <div className="min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => router.push(detailHref)}
+                              title={row.displayName}
+                              className="block truncate text-left font-semibold text-foreground transition-colors hover:text-primary-500"
+                            >
+                              {row.displayName}
+                            </button>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-foreground-muted">
+                              <span>{row.unit ?? 'cai'}</span>
+                              {row.variantName ? <span className="rounded-full bg-background-secondary px-2 py-0.5">Phien ban</span> : null}
+                              <span>{row.completedBatchCount ? `${row.completedBatchCount} lo da ban het` : 'Chua du du lieu chu ky'}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                  );
-                  case 'sellable': return (
-                    <td key={columnId} className="px-3 py-3 text-right font-semibold text-primary-500 w-32">
-                      {p.sellableStock ?? 0}
-                    </td>
-                  );
-                  case 'monthlySellThrough': return (
-                    <td key={columnId} className="px-3 py-3 text-right text-sm w-40">
-                      {p.monthlySellThrough != null ? (
-                        <span className="font-semibold text-foreground">
-                          {Math.round(p.monthlySellThrough).toLocaleString('vi-VN')}
-                        </span>
-                      ) : (
-                        <span className="text-foreground-muted">Chua du du lieu</span>
-                      )}
-                    </td>
-                  );
-                  case 'minStock': return (
-                    <td key={columnId} className="px-3 py-3 text-right text-sm text-foreground-muted w-32">{p.minStock ?? 0}</td>
-                  );
-                  case 'stock': return (
-                    <td key={columnId} className={`px-3 py-3 text-right font-bold text-lg w-32 ${stockTone}`}>
-                      {p.currentStock ?? 0}
-                    </td>
-                  );
-                  case 'status': return (
-                    <td key={columnId} className="px-3 py-3 w-32">
-                      {renderStatusBadge(p.status)}{/*
-                         <span className="badge badge-error"><AlertCircle size={11} /> Sắp hết</span>
-                      ) : (
-                         <span className="badge badge-success">Bình thường</span>
-                      )}
-                    */}</td>
-                  );
-                  case 'actions': return (
-                    <td key={columnId} className="px-3 py-3 w-28">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => router.push(`/inventory/stock/${p.id}`)}
-                          className="text-xs font-medium bg-background-tertiary hover:bg-border px-3 py-1.5 rounded-lg border border-border"
-                        >
-                          Lịch sử
-                        </button>
-                        <button
-                          onClick={() => router.push(`/inventory/receipts/new?productId=${p.id}`)}
-                          className="text-xs font-medium bg-background-tertiary hover:bg-border px-3 py-1.5 rounded-lg border border-border text-primary-600"
-                        >
-                          Nhập
-                        </button>
-                      </div>
-                    </td>
-                  );
+                      </td>
+                    )
+
+                  case 'sellable':
+                    return (
+                      <td key={columnId} className="w-32 px-3 py-3 text-right font-semibold text-primary-500">
+                        {row.sellableStock ?? 0}
+                      </td>
+                    )
+
+                  case 'monthlySellThrough':
+                    return (
+                      <td key={columnId} className="w-40 px-3 py-3 text-right text-sm">
+                        {row.monthlySellThrough != null ? (
+                          <span className="font-semibold text-foreground">{Math.round(row.monthlySellThrough).toLocaleString('vi-VN')}</span>
+                        ) : (
+                          <span className="text-foreground-muted">Chua du du lieu</span>
+                        )}
+                      </td>
+                    )
+
+                  case 'minStock':
+                    return (
+                      <td key={columnId} className="w-32 px-3 py-3 text-right text-sm text-foreground-muted">
+                        {row.minStock ?? 0}
+                      </td>
+                    )
+
+                  case 'stock':
+                    return (
+                      <td key={columnId} className={`w-32 px-3 py-3 text-right text-lg font-bold ${stockTone}`}>
+                        {row.currentStock ?? 0}
+                      </td>
+                    )
+
+                  case 'status':
+                    return (
+                      <td key={columnId} className="w-32 px-3 py-3">
+                        {renderStatusBadge(row.status)}
+                      </td>
+                    )
+
+                  case 'countShift':
+                    return (
+                      <td key={columnId} className="w-32 px-3 py-3">
+                        {row.lastCountShift ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary-500/10 px-2.5 py-1 text-xs font-medium text-primary-600">
+                            {formatShiftLabel(row.lastCountShift)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-foreground-muted">—</span>
+                        )}
+                      </td>
+                    )
+
+                  default:
+                    return null
                 }
               })}
             </tr>
@@ -422,7 +446,7 @@ export function StockList() {
             pageSizeOptions={[20, 50, 100]}
             totalItemText={
               <span className="text-xs">
-                Tổng <strong className="text-foreground">{total}</strong> sản phẩm
+                Tong <strong className="text-foreground">{total}</strong> mat hang
               </span>
             }
           />

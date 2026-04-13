@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { stockCountApi } from '@/lib/api/stock-count.api'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useAuthStore } from '@/stores/auth.store'
 import {
   DataListShell,
   DataListToolbar,
@@ -67,8 +68,11 @@ export function CountingDashboard() {
   const [page, setPage] = useState(1)
   const pageSize = 10
 
+  const activeBranchId = useAuthStore((s) => s.activeBranchId)
+  const allowedBranches = useAuthStore((s) => s.allowedBranches)
+
   const scopedBranchId = searchParams.get('branchId')?.trim() || ''
-  const [selectedBranchId, setSelectedBranchId] = useState(scopedBranchId)
+  const selectedBranchId = scopedBranchId || activeBranchId || ''
 
   const currentWeek = getWeekNumber(new Date())
   const currentYear = new Date().getFullYear()
@@ -76,7 +80,7 @@ export function CountingDashboard() {
   const { data: sessionsData, isLoading } = useQuery({
     queryKey: ['stock-count-sessions', selectedBranchId, page, pageSize],
     queryFn: () => stockCountApi.getSessions({
-      branchId: selectedBranchId || 'default',
+      branchId: selectedBranchId,
       page,
       limit: pageSize,
     }),
@@ -122,10 +126,17 @@ export function CountingDashboard() {
       {/* Current Week Progress Card */}
       {selectedBranchId && (
         <div className="mb-6 rounded-2xl border border-border bg-card p-5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <CalendarDays size={16} className="text-primary-500" />
-            Tuần {currentWeek}/{currentYear} ({formatDate(getWeekDates(new Date()).start)} →{' '}
-            {formatDate(getWeekDates(new Date()).end)})
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <CalendarDays size={16} className="text-primary-500" />
+              Tuần {currentWeek}/{currentYear} ({formatDate(getWeekDates(new Date()).start)} →{' '}
+              {formatDate(getWeekDates(new Date()).end)})
+            </div>
+            <div className="text-xs text-foreground-muted">
+              Chi nhánh: <span className="font-semibold text-foreground">
+                {allowedBranches.find((b) => b.id === selectedBranchId)?.name ?? selectedBranchId}
+              </span>
+            </div>
           </div>
           <div className="mt-3 flex items-center gap-4">
             <div className="flex-1">
@@ -152,25 +163,18 @@ export function CountingDashboard() {
         </div>
       )}
 
-      {/* Branch Selector */}
+      {/* No branch warning */}
       {!selectedBranchId && (
-        <div className="mb-4 flex items-center gap-3">
-          <select
-            value={selectedBranchId}
-            onChange={(e) => setSelectedBranchId(e.target.value)}
-            className="rounded-xl border border-border bg-background px-4 py-2.5 text-sm"
-          >
-            <option value="">-- Chọn chi nhánh --</option>
-            {/* TODO: Load branches from API */}
-            <option value="default">Chi nhánh mặc định</option>
-          </select>
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <AlertTriangle size={16} className="inline mr-2" />
+          Chưa chọn chi nhánh. Vui lòng chọn chi nhánh ở menu bên trái để bắt đầu kiểm kho.
         </div>
       )}
 
       {/* Toolbar */}
       <DataListToolbar
         searchValue=""
-        onSearchChange={() => {}}
+        onSearchChange={() => { }}
         searchPlaceholder="Tìm phiếu kiểm..."
         showColumnToggle={false}
         showFilterToggle={false}
@@ -247,7 +251,7 @@ export function CountingDashboard() {
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
             onPageChange={setPage}
-            onPageSizeChange={() => {}}
+            onPageSizeChange={() => { }}
             pageSizeOptions={[10, 20, 50]}
             totalItemText={
               <span className="text-xs">
