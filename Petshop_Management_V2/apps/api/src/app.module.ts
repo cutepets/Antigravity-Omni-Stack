@@ -11,6 +11,7 @@ import { HotelModule } from './modules/hotel/hotel.module.js'
 import { OrdersModule } from './modules/orders/orders.module.js'
 import { InventoryModule } from './modules/inventory/inventory.module.js'
 import { StockModule } from './modules/stock/stock.module.js'
+import { StockCountModule } from './modules/stock-count/stock-count.module.js'
 import { ReportsModule } from './modules/reports/reports.module.js'
 import { SettingsModule } from './modules/settings/settings.module.js'
 import { ShiftsModule } from './modules/shifts/shifts.module.js'
@@ -40,6 +41,7 @@ import { HealthController } from './health.controller.js'
     // Phase 1 — New modules
     InventoryModule,
     StockModule,
+    StockCountModule,
     ReportsModule,
     SettingsModule,
     ShiftsModule,
@@ -47,4 +49,4 @@ import { HealthController } from './health.controller.js'
   ],
   controllers: [HealthController],
 })
-export class AppModule {}
+export class AppModule { }

@@ -5,6 +5,24 @@ This project is indexed by GitNexus as **Dev2** (8799 symbols, 22086 relationshi
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
+## 🚀 Cách dùng GitNexus (cho người mới)
+
+**GitNexus là gì?** — Công cụ AI phân tích code tự động, giúp bạn:
+- ✅ Hiểu code map mà KHÔNG cần tự tìm tay
+- ✅ Biết trước sửa code nào sẽ ảnh hưởng gì (blast radius)
+- ✅ Trace execution flow từ A → Z
+- ✅ Rename/extract code an toàn multi-file
+
+**3 lệnh hay dùng nhất:**
+
+| Khi nào | Lệnh | Ví dụ |
+|---------|------|-------|
+| "Code này hoạt động sao?" | `gitnexus_context` | `gitnexus_context({name: "receiveReceipt"})` |
+| "Sửa hàm này có vỡ gì không?" | `gitnexus_impact` | `gitnexus_impact({target: "adjustBranchStock", direction: "upstream"})` |
+| "Tìm code liên quan đến X" | `gitnexus_query` | `gitnexus_query({query: "stock inventory counting"})` |
+
+**Mẹo:** Đọc skill files trong `.claude/skills/gitnexus/` để biết chi tiết từng tác vụ.
+
 ## Always Do
 
 - **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.

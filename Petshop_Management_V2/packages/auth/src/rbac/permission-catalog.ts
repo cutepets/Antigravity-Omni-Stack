@@ -95,6 +95,18 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'stock_count',
+    label: 'Kiểm kho theo Ca',
+    permissions: [
+      { code: 'stock_count.read', label: 'Xem phiếu kiểm kho' },
+      { code: 'stock_count.create', label: 'Tạo phiếu kiểm kho' },
+      { code: 'stock_count.update', label: 'Sửa phiếu kiểm kho' },
+      { code: 'stock_count.count', label: 'Thực hiện kiểm kho' },
+      { code: 'stock_count.approve', label: 'Duyệt phiếu kiểm kho' },
+      { code: 'stock_count.export', label: 'Xuất file kiểm kho' },
+    ],
+  },
+  {
     key: 'cost_adjustment',
     label: 'Điều chỉnh giá vốn',
     permissions: [

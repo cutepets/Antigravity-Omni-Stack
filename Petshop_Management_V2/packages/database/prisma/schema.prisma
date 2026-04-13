@@ -53,6 +53,7 @@ model Branch {
   transactions          Transaction[]
   users                 User[]
   authorizedUsers       User[]                 @relation("UserAuthorizedBranches")
+  stockCountSessions    StockCountSession[]
 
   @@map("branches")
 }
@@ -99,6 +100,9 @@ model User {
   role                  Role?                  @relation(fields: [roleId], references: [id])
   authorizedBranches    Branch[]               @relation("UserAuthorizedBranches")
   documents             EmployeeDocument[]
+  stockCountSessions    StockCountSession[]    @relation("StockCountSessionCreatedBy")
+  approvedStockCountSessions StockCountSession[] @relation("StockCountSessionApprovedBy")
+  stockCountShiftSessions StockCountShiftSession[] @relation("StockCountShiftCountedBy")
 
   @@map("users")
 }
@@ -320,6 +324,7 @@ model Product {
   salesDaily          ProductSalesDaily[]
   stockTransactions   StockTransaction[]
   supplierReturnItems SupplierReturnItem[]
+  stockCountItems     StockCountItem[]
 
   @@index([sku])
   @@index([category])
@@ -348,6 +353,7 @@ model ProductVariant {
   receiveItems        StockReceiptReceiveItem[]
   salesDaily          ProductSalesDaily[]
   supplierReturnItems SupplierReturnItem[]
+  stockCountItems     StockCountItem[]
   product             Product                   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
@@ -1576,4 +1582,121 @@ enum PetGender {
   MALE
   FEMALE
   UNKNOWN
+}
+
+// =============================================================================
+// Stock Counting / Kiểm kho theo Ca
+// =============================================================================
+
+enum StockCountSessionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum StockCountShift {
+  MON_A
+  MON_B
+  MON_C
+  MON_D
+  TUE_A
+  TUE_B
+  TUE_C
+  TUE_D
+  WED_A
+  WED_B
+  WED_C
+  WED_D
+  THU_A
+  THU_B
+  THU_C
+  THU_D
+  FRI_A
+  FRI_B
+  FRI_C
+  FRI_D
+  SAT_A
+  SAT_B
+  SAT_C
+  SAT_D
+}
+
+enum StockCountCategory {
+  PRODUCT
+  SERVICE
+  RAW_MATERIAL
+  PACKAGING
+}
+
+model StockCountSession {
+  id              String                  @id @default(cuid())
+  branchId        String
+  weekNumber      Int
+  year            Int
+  startDate       DateTime
+  endDate         DateTime
+  status          StockCountSessionStatus @default(DRAFT)
+  totalProducts   Int                     @default(0)
+  countedProducts Int                     @default(0)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  createdBy       String
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  branch          Branch                  @relation(fields: [branchId], references: [id])
+  creator         User                    @relation("StockCountSessionCreatedBy", fields: [createdBy], references: [id])
+  approver        User?                   @relation("StockCountSessionApprovedBy", fields: [approvedBy], references: [id])
+  shifts          StockCountShiftSession[]
+
+  @@unique([branchId, weekNumber, year])
+  @@index([branchId])
+  @@index([weekNumber, year])
+  @@map("stock_count_sessions")
+}
+
+model StockCountShiftSession {
+  id              String                  @id @default(cuid())
+  sessionId       String
+  shift           StockCountShift
+  countDate       DateTime
+  status          StockCountSessionStatus @default(DRAFT)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  countedBy       String
+  notes           String?
+  totalItems      Int                     @default(0)
+  countedItems    Int                     @default(0)
+
+  session         StockCountSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  counter         User                    @relation("StockCountShiftCountedBy", fields: [countedBy], references: [id])
+  items           StockCountItem[]
+
+  @@index([sessionId])
+  @@index([shift])
+  @@index([countDate])
+  @@map("stock_count_shift_sessions")
+}
+
+model StockCountItem {
+  id               String               @id @default(cuid())
+  shiftSessionId   String
+  productId        String?
+  productVariantId String?
+  categoryId       StockCountCategory   @default(PRODUCT)
+  systemQuantity   Int                  @default(0)
+  countedQuantity  Int?
+  variance         Int?
+  notes            String?
+
+  shiftSession     StockCountShiftSession @relation(fields: [shiftSessionId], references: [id], onDelete: Cascade)
+  product          Product?               @relation(fields: [productId], references: [id])
+  variant          ProductVariant?        @relation(fields: [productVariantId], references: [id])
+
+  @@index([shiftSessionId])
+  @@index([productId])
+  @@index([productVariantId])
+  @@map("stock_count_items")
 }
