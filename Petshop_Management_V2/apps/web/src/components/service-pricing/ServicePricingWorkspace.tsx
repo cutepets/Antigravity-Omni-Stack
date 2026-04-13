@@ -5,7 +5,7 @@ import * as Popover from '@radix-ui/react-popover'
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, addMonths, endOfMonth, endOfWeek, isAfter, isBefore, isSameDay, isSameMonth, startOfMonth, startOfWeek } from 'date-fns'
-import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Pencil, Plus, RefreshCw, Save, X } from 'lucide-react'
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, ChevronDown, Pencil, Plus, RefreshCw, Save, X } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { hotelApi } from '@/lib/api/hotel.api'
 import {
@@ -36,12 +36,14 @@ type SpaServiceColumn = {
 
 type SpaDraft = {
   id?: string
+  sku?: string
   price: string
   durationMinutes: string
 }
 
 type HotelDraft = {
   id?: string
+  sku?: string
   fullDayPrice: string
 }
 
@@ -585,6 +587,224 @@ function HolidayDateRangeField({
   )
 }
 
+function HotelPreviewDateTimeRangeField({
+  checkIn,
+  checkOut,
+  onChange,
+  disabled,
+}: {
+  checkIn: string
+  checkOut: string
+  onChange: (patch: { checkIn: string; checkOut: string }) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+
+  const [draft, setDraft] = useState({ checkIn, checkOut })
+
+  useEffect(() => {
+    if (open) {
+      setDraft({ checkIn, checkOut })
+    }
+  }, [open, checkIn, checkOut])
+
+  const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(parseDateInputValue(checkIn.slice(0, 10))))
+  const weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+
+  const applyRange = (nextStart: Date, nextEnd: Date) => {
+    setDraft((prev) => ({
+      ...prev,
+      checkIn: `${toDateInputValue(nextStart)}T${getPreviewTimeValue(prev.checkIn, '09:00')}`,
+      checkOut: `${toDateInputValue(nextEnd)}T${getPreviewTimeValue(prev.checkOut, '18:00')}`,
+    }))
+  }
+
+  const handlePickDate = (pickedDate: Date) => {
+    const normalizedDate = new Date(pickedDate.getFullYear(), pickedDate.getMonth(), pickedDate.getDate())
+    const currentStartDate = draft.checkIn.slice(0, 10)
+    const currentEndDate = draft.checkOut.slice(0, 10)
+
+    if (!currentStartDate || (currentStartDate && currentEndDate && currentStartDate !== currentEndDate)) {
+      applyRange(normalizedDate, normalizedDate)
+      return
+    }
+
+    const currentStart = parseDateInputValue(currentStartDate)
+    if (normalizedDate < currentStart) {
+      applyRange(normalizedDate, currentStart)
+    } else {
+      applyRange(currentStart, normalizedDate)
+    }
+  }
+
+  const handlePickToday = () => {
+    const today = new Date()
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    applyRange(normalizedToday, normalizedToday)
+    setVisibleMonth(startOfMonth(normalizedToday))
+  }
+
+  const startDate = parseDateInputValue(draft.checkIn.slice(0, 10))
+  const endDate = parseDateInputValue(draft.checkOut.slice(0, 10))
+
+  const buildCalendarDays = (month: Date) => {
+    const monthStart = startOfMonth(month)
+    const monthEnd = endOfMonth(month)
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 })
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
+    const days: Date[] = []
+    let cursor = calendarStart
+
+    while (cursor <= calendarEnd) {
+      days.push(cursor)
+      cursor = addDays(cursor, 1)
+    }
+
+    return days
+  }
+
+  const renderMonth = (month: Date) => {
+    const days = buildCalendarDays(month)
+    const hasPendingStart = draft.checkIn.slice(0, 10) === draft.checkOut.slice(0, 10)
+
+    return (
+      <div className="w-full sm:w-[320px]">
+        <div className="mb-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setVisibleMonth((current) => addMonths(current, -1))}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background-base text-foreground-muted transition-colors hover:text-foreground"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <p className="text-base font-black text-foreground">{getMonthTitle(month)}</p>
+          <button
+            type="button"
+            onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background-base text-foreground-muted transition-colors hover:text-foreground"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {weekDays.map((day) => (
+            <div key={`${month.toISOString()}-${day}`} className="py-2 text-center text-xs font-semibold text-foreground-muted">
+              {day}
+            </div>
+          ))}
+          {days.map((day) => {
+            const inVisibleMonth = isSameMonth(day, month)
+            const isStart = isSameDay(day, startDate)
+            const isEnd = isSameDay(day, endDate)
+            const inRange = hasPendingStart
+              ? isStart
+              : !isBefore(day, startDate) && !isAfter(day, endDate)
+
+            return (
+              <button
+                key={day.toISOString()}
+                type="button"
+                onClick={() => handlePickDate(day)}
+                className={cn(
+                  'relative h-9 rounded-xl text-sm font-semibold transition-colors',
+                  inVisibleMonth ? 'text-foreground' : 'text-foreground-muted/45',
+                  inRange ? 'bg-primary-500/12 text-primary-500' : 'hover:bg-background-base',
+                  isStart || isEnd ? 'bg-primary-500 text-white hover:bg-primary-500' : '',
+                )}
+              >
+                {day.getDate()}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  const formatDisplay = (checkInStr: string, checkOutStr: string) => {
+    try {
+      const inParts = checkInStr.split('T')
+      const inDate = inParts[0].split('-').reverse().join('/')
+      const inTime = inParts[1].slice(0, 5)
+
+      const outParts = checkOutStr.split('T')
+      const outDate = outParts[0].split('-').reverse().join('/')
+      const outTime = outParts[1].slice(0, 5)
+
+      return `${inTime} ${inDate} - ${outTime} ${outDate}`
+    } catch {
+      return ''
+    }
+  }
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <div>
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            className="flex min-w-0 h-11 w-full items-center justify-between gap-2 rounded-xl border border-border bg-background-base px-3 text-left text-sm text-foreground outline-none transition-colors hover:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span className="truncate font-semibold text-foreground">{formatDisplay(checkIn, checkOut)}</span>
+            <CalendarDays size={18} className="shrink-0 text-primary-500" />
+          </button>
+        </Popover.Trigger>
+      </div>
+      <Popover.Portal>
+        <Popover.Content
+          sideOffset={10}
+          align="start"
+          className="z-50 w-[min(92vw,500px)] rounded-[28px] border border-border bg-background-secondary p-4 shadow-2xl shadow-black/35"
+        >
+          <div className="flex flex-col sm:flex-row gap-5">
+            {renderMonth(visibleMonth)}
+            <div className="flex w-full sm:w-[140px] shrink-0 flex-col gap-4 border-t border-border pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+              <label className="grid gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Check-in</span>
+                <input
+                  type="time"
+                  value={getPreviewTimeValue(draft.checkIn, '09:00')}
+                  onChange={(e) => setDraft((p) => ({ ...p, checkIn: `${p.checkIn.split('T')[0]}T${e.target.value}` }))}
+                  className="h-10 w-full rounded-xl border border-border bg-background-base px-2 text-sm text-foreground outline-none focus:border-primary-500"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Check-out</span>
+                <input
+                  type="time"
+                  value={getPreviewTimeValue(draft.checkOut, '18:00')}
+                  onChange={(e) => setDraft((p) => ({ ...p, checkOut: `${p.checkOut.split('T')[0]}T${e.target.value}` }))}
+                  className="h-10 w-full rounded-xl border border-border bg-background-base px-2 text-sm text-foreground outline-none focus:border-primary-500"
+                />
+              </label>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={handlePickToday}
+              className="text-sm font-bold text-primary-500 transition-colors hover:text-primary-400"
+            >
+              Hôm nay
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(draft)
+                setOpen(false)
+              }}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-primary-500 px-5 text-sm font-bold text-white transition-colors hover:bg-primary-600"
+            >
+              Xong
+            </button>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
 function HolidayCalendarPanel({
   holidays,
   newHoliday,
@@ -616,48 +836,52 @@ function HolidayCalendarPanel({
         <CalendarDays size={18} className="text-primary-500" />
         <h3 className="text-base font-black text-foreground">Lịch ngày lễ</h3>
       </div>
-      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_220px] md:items-start">
-        <HolidayDateRangeField value={newHoliday} onChange={onHolidayDraftChange} disabled={!canEditPricing} />
-        <label className="flex h-11 items-center gap-2 rounded-xl border border-border bg-background-base px-3 text-sm font-semibold text-foreground-muted">
-          <input
-            type="checkbox"
-            checked={newHoliday.isRecurring}
-            onChange={(event) => onHolidayDraftChange({ isRecurring: event.target.checked })}
-            disabled={!canEditPricing}
-            className="h-4 w-4 accent-primary-500"
-          />
-          Lặp lại năm
-        </label>
-      </div>
-      <div className="mt-2">
-        <input
-          value={newHoliday.name}
-          onChange={(event) => onHolidayDraftChange({ name: event.target.value })}
-          disabled={!canEditPricing}
-          className="h-11 w-full rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
-        />
-      </div>
-      {canEditPricing ? <div className="mt-2 flex gap-2">
-        {editingHolidayId ? (
-          <button
-            type="button"
-            onClick={onCancelEdit}
-            disabled={isSavingHoliday}
-            className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border border-border bg-background-base text-sm font-bold text-foreground disabled:opacity-50"
-          >
-            Hủy sửa
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={onSubmitHoliday}
-          disabled={isSavingHoliday}
-          className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-bold text-white disabled:opacity-50"
-        >
-          {editingHolidayId ? <Save size={15} /> : <Plus size={15} />}
-          {editingHolidayId ? 'Lưu kỳ lễ' : 'Thêm kỳ lễ'}
-        </button>
-      </div> : null}
+      {canEditPricing ? (
+        <>
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_220px] md:items-start">
+            <HolidayDateRangeField value={newHoliday} onChange={onHolidayDraftChange} disabled={!canEditPricing} />
+            <label className="flex h-11 items-center gap-2 rounded-xl border border-border bg-background-base px-3 text-sm font-semibold text-foreground-muted">
+              <input
+                type="checkbox"
+                checked={newHoliday.isRecurring}
+                onChange={(event) => onHolidayDraftChange({ isRecurring: event.target.checked })}
+                disabled={!canEditPricing}
+                className="h-4 w-4 accent-primary-500"
+              />
+              Lặp lại năm
+            </label>
+          </div>
+          <div className="mt-2">
+            <input
+              value={newHoliday.name}
+              onChange={(event) => onHolidayDraftChange({ name: event.target.value })}
+              disabled={!canEditPricing}
+              className="h-11 w-full rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+            />
+          </div>
+          <div className="mt-2 flex gap-2">
+            {editingHolidayId ? (
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                disabled={isSavingHoliday}
+                className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border border-border bg-background-base text-sm font-bold text-foreground disabled:opacity-50"
+              >
+                Hủy sửa
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onSubmitHoliday}
+              disabled={isSavingHoliday}
+              className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {editingHolidayId ? <Save size={15} /> : <Plus size={15} />}
+              {editingHolidayId ? 'Lưu kỳ lễ' : 'Thêm kỳ lễ'}
+            </button>
+          </div>
+        </>
+      ) : null}
 
       <div className="custom-scrollbar mt-3 max-h-52 space-y-2 overflow-y-auto">
         {holidays.length === 0 ? (
@@ -816,6 +1040,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       if (!serviceKey) continue
       nextDrafts[getSpaRuleKey(rule.weightBandId, serviceKey)] = {
         id: rule.id,
+        sku: rule.sku ?? undefined,
         price: formatCurrencyInput(rule.price),
         durationMinutes: formatIntegerInput(rule.durationMinutes),
       }
@@ -840,6 +1065,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       if (!ruleSpecies) continue
       nextDrafts[getHotelRuleKey(representativeBandId, rule.dayType, ruleSpecies)] = {
         id: rule.id,
+        sku: rule.sku ?? undefined,
         fullDayPrice: formatCurrencyInput(rule.fullDayPrice),
       }
     }
@@ -1101,12 +1327,13 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
           if (!weightBandId) return []
           const draft = spaDrafts[getSpaRuleKey(band.key, column.key)]
           const price = parseCurrencyInput(draft?.price ?? '')
-          if (price === null) return []
+          if (price === null || price === 0) return []
           return [{
             id: draft?.id,
             species,
             packageCode: column.packageCode,
             weightBandId,
+            sku: draft?.sku,
             price,
             durationMinutes: parseIntegerInput(draft?.durationMinutes ?? ''),
             isActive: true,
@@ -1123,8 +1350,10 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       setRemovedBandIds([])
       invalidatePricing()
       toast.success('Đã lưu bảng giá Grooming')
+      return true
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Không lưu được bảng giá Grooming')
+      return false
     } finally {
       setIsSavingGrooming(false)
     }
@@ -1139,64 +1368,67 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     }
 
     setIsSavingHotel(true)
-    ;(async () => {
-      try {
-        const bandIdByKey = new Map<string, string>()
-        for (let index = 0; index < bandDrafts.length; index += 1) {
-          const draft = bandDrafts[index]
-          const savedBand = await pricingApi.upsertWeightBand({
-            id: draft.id || undefined,
-            serviceType: 'HOTEL',
-            species: null,
-            label: draft.label.trim(),
-            minWeight: parseWeightInput(draft.minWeight) ?? 0,
-            maxWeight: parseWeightInput(draft.maxWeight),
-            sortOrder: index,
-            isActive: true,
-          })
-          bandIdByKey.set(draft.key, savedBand.id)
-        }
+    return (async () => {
+        try {
+          const bandIdByKey = new Map<string, string>()
+          for (let index = 0; index < bandDrafts.length; index += 1) {
+            const draft = bandDrafts[index]
+            const savedBand = await pricingApi.upsertWeightBand({
+              id: draft.id || undefined,
+              serviceType: 'HOTEL',
+              species: null,
+              label: draft.label.trim(),
+              minWeight: parseWeightInput(draft.minWeight) ?? 0,
+              maxWeight: parseWeightInput(draft.maxWeight),
+              sortOrder: index,
+              isActive: true,
+            })
+            bandIdByKey.set(draft.key, savedBand.id)
+          }
 
-        const rules = bandDrafts.flatMap((band) =>
-          DAY_TYPE_OPTIONS.flatMap((option) =>
-            HOTEL_SPECIES_COLUMNS.flatMap((speciesOption) => {
-              const weightBandId = bandIdByKey.get(band.key)
-              if (!weightBandId) return []
-              const draft = hotelDrafts[getHotelRuleKey(band.key, option.value, speciesOption.value)]
-              const fullDayPrice = parseCurrencyInput(draft?.fullDayPrice ?? '')
-              if (fullDayPrice === null) return []
-              return [{
-                id: draft?.id,
-                year,
-                species: speciesOption.value,
-                weightBandId,
-                dayType: option.value,
-                halfDayPrice: deriveHalfDayPrice(fullDayPrice) ?? undefined,
-                fullDayPrice,
-                isActive: true,
-              }]
-            }),
-          ),
-        )
+          const rules = bandDrafts.flatMap((band) =>
+            DAY_TYPE_OPTIONS.flatMap((option) =>
+              HOTEL_SPECIES_COLUMNS.flatMap((speciesOption) => {
+                const weightBandId = bandIdByKey.get(band.key)
+                if (!weightBandId) return []
+                const draft = hotelDrafts[getHotelRuleKey(band.key, option.value, speciesOption.value)]
+                const fullDayPrice = parseCurrencyInput(draft?.fullDayPrice ?? '')
+                if (fullDayPrice === null || fullDayPrice === 0) return []
+                return [{
+                  id: draft?.id,
+                  year,
+                  species: speciesOption.value,
+                  weightBandId,
+                  dayType: option.value,
+                  sku: draft?.sku ?? hotelDrafts[getHotelRuleKey(band.key, 'REGULAR', speciesOption.value)]?.sku,
+                  halfDayPrice: deriveHalfDayPrice(fullDayPrice) ?? undefined,
+                  fullDayPrice,
+                  isActive: true,
+                }]
+              }),
+            ),
+          )
 
-        if (rules.length === 0) {
-          toast.error('Chưa có giá Hotel nào để lưu')
-          return
-        }
+          if (rules.length === 0) {
+            toast.error('Chưa có giá Hotel nào để lưu')
+            return false
+          }
 
-        await pricingApi.bulkUpsertHotelRules(rules)
-        for (const bandId of removedBandIds) {
-          await pricingApi.deactivateWeightBand(bandId)
+          await pricingApi.bulkUpsertHotelRules(rules)
+          for (const bandId of removedBandIds) {
+            await pricingApi.deactivateWeightBand(bandId)
+          }
+          setRemovedBandIds([])
+          invalidatePricing()
+          toast.success('Đã lưu bảng giá Hotel')
+          return true
+        } catch (error: any) {
+          toast.error(error?.response?.data?.message || 'Không lưu được bảng giá Hotel')
+          return false
+        } finally {
+          setIsSavingHotel(false)
         }
-        setRemovedBandIds([])
-        invalidatePricing()
-        toast.success('Đã lưu bảng giá Hotel')
-      } catch (error: any) {
-        toast.error(error?.response?.data?.message || 'Không lưu được bảng giá Hotel')
-      } finally {
-        setIsSavingHotel(false)
-      }
-    })()
+      })()
   }
 
   const updateSpaDraft = (bandKey: string, serviceKey: string, patch: Partial<SpaDraft>) => {
@@ -1205,8 +1437,18 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   }
 
   const updateHotelDraft = (bandId: string, nextDayType: PricingDayType, nextSpecies: string, patch: Partial<HotelDraft>) => {
-    const key = getHotelRuleKey(bandId, nextDayType, nextSpecies)
-    setHotelDrafts((current) => ({ ...current, [key]: { ...current[key], ...patch } }))
+    setHotelDrafts((current) => {
+      const updates = { ...current }
+      if (patch.sku !== undefined) {
+        const regularKey = getHotelRuleKey(bandId, 'REGULAR', nextSpecies)
+        const holidayKey = getHotelRuleKey(bandId, 'HOLIDAY', nextSpecies)
+        if (updates[regularKey]) updates[regularKey] = { ...updates[regularKey], sku: patch.sku }
+        if (updates[holidayKey]) updates[holidayKey] = { ...updates[holidayKey], sku: patch.sku }
+      }
+      const key = getHotelRuleKey(bandId, nextDayType, nextSpecies)
+      updates[key] = { ...(updates[key] || {}), ...patch }
+      return updates
+    })
   }
 
   const title = mode === 'HOTEL' ? 'Bảng giá Hotel' : 'Spa & Grooming'
@@ -1350,7 +1592,7 @@ function UnifiedHotelPricingPanel({
   onBandRemove: (index: number) => void
   onAddBand: () => void
   onDraftChange: (bandId: string, dayType: PricingDayType, species: string, patch: Partial<HotelDraft>) => void
-  onSave: () => void
+  onSave: () => Promise<boolean | undefined> | boolean | undefined
   onCreatePresetBands: () => void
   isSaving: boolean
   isCreatingPreset: boolean
@@ -1414,14 +1656,12 @@ function UnifiedHotelPricingPanel({
                 <>
                   <button
                     type="button"
-                    onClick={handleExitEditMode}
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border bg-background-base px-5 text-sm font-bold text-foreground transition-colors hover:bg-background-tertiary"
-                  >
-                    Xem
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onSave}
+                    onClick={async () => {
+                      const success = await onSave()
+                      if (success) {
+                        handleExitEditMode()
+                      }
+                    }}
                     disabled={isSaving}
                     className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white disabled:opacity-50"
                   >
@@ -1547,12 +1787,23 @@ function UnifiedHotelPricingPanel({
                     </div>
                   </td>
 
-                  {HOTEL_SPECIES_COLUMNS.flatMap((speciesOption, speciesIdx) => [
-                    <td key={`${band.key}:${speciesOption.value}:sku`} className={cn('border-b border-border px-3 py-3 align-middle text-center', speciesIdx > 0 ? 'border-l' : '')}>
-                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 whitespace-nowrap">
-                        {buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label, speciesOption.value)}
-                      </span>
-                    </td>,
+                  {HOTEL_SPECIES_COLUMNS.flatMap((speciesOption, speciesIdx) => {
+                    const skuDraft = drafts[getHotelRuleKey(band.key, 'REGULAR', speciesOption.value)]
+                    return [
+                      <td key={`${band.key}:${speciesOption.value}:sku`} className={cn('border-b border-border px-3 py-3 align-middle text-center', speciesIdx > 0 ? 'border-l' : '')}>
+                        {canEditHotelPricing ? (
+                          <input
+                            value={skuDraft?.sku ?? ''}
+                            onChange={(e) => onDraftChange(band.key, 'REGULAR', speciesOption.value, { sku: e.target.value })}
+                            placeholder={buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label, speciesOption.value)}
+                            className="w-[80px] bg-transparent text-center text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 placeholder:text-primary-500/50 outline-none"
+                          />
+                        ) : (
+                          <span className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 whitespace-nowrap">
+                            {skuDraft?.sku || buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label, speciesOption.value)}
+                          </span>
+                        )}
+                      </td>,
                     ...DAY_TYPE_OPTIONS.map((option, dayIdx) => {
                       const draft = drafts[getHotelRuleKey(band.key, option.value, speciesOption.value)] ?? { fullDayPrice: '' }
                       return (
@@ -1560,13 +1811,13 @@ function UnifiedHotelPricingPanel({
                           <PriceInput
                             value={draft.fullDayPrice}
                             onChange={(value) => onDraftChange(band.key, option.value, speciesOption.value, { fullDayPrice: value })}
-                            placeholder="0 / ngày"
+                            placeholder=""
                             disabled={!canEditHotelPricing}
                           />
                         </td>
                       )
                     })
-                  ])}
+                  ]})}
                 </tr>
               ))}
             </tbody>
@@ -1582,77 +1833,56 @@ function UnifiedHotelPricingPanel({
               Tính
             </button>
           </div>
-          <div className="mt-3 flex flex-col gap-3">
-            <div className="flex flex-wrap gap-3">
-              <label className="grid min-w-[200px] flex-1 gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">Khoảng ngày</span>
-                <HolidayDateRangeField
-                  value={getPreviewDateRangeValue(previewForm)}
-                  onChange={(patch) => setPreviewForm(applyPreviewDateRangeValue(previewForm, patch))}
-                  disabled={isPreviewing}
-                />
-              </label>
-              <label className="grid w-[120px] shrink-0 gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">Giờ check-in</span>
-                <input
-                  type="time"
-                  value={getPreviewTimeValue(previewForm.checkIn, '09:00')}
-                  onChange={(event) => setPreviewForm(applyPreviewTimeValue(previewForm, { checkInTime: event.target.value }))}
-                  disabled={isPreviewing}
-                  className="h-11 rounded-xl border border-border bg-background-base px-2 text-sm text-foreground outline-none focus:border-primary-500 disabled:opacity-50"
-                />
-              </label>
-              <label className="grid w-[120px] shrink-0 gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">Giờ check-out</span>
-                <input
-                  type="time"
-                  value={getPreviewTimeValue(previewForm.checkOut, '18:00')}
-                  onChange={(event) => setPreviewForm(applyPreviewTimeValue(previewForm, { checkOutTime: event.target.value }))}
-                  disabled={isPreviewing}
-                  className="h-11 rounded-xl border border-border bg-background-base px-2 text-sm text-foreground outline-none focus:border-primary-500 disabled:opacity-50"
-                />
-              </label>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <label className="grid min-w-[180px] flex-1 gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">Loài</span>
-                <div className="flex rounded-2xl border border-border bg-background-base p-1">
-                  {HOTEL_SPECIES_COLUMNS.map((speciesOption) => (
-                    <button
-                      key={`preview-top-${speciesOption.value}`}
-                      type="button"
-                      onClick={() => setPreviewForm({ ...previewForm, species: speciesOption.value })}
-                      className={cn(
-                        'h-10 min-w-0 flex-1 truncate rounded-xl px-2 text-sm font-semibold transition-colors',
-                        previewForm.species === speciesOption.value ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground',
-                      )}
-                    >
-                      {speciesOption.label}
-                    </button>
-                  ))}
-                </div>
-              </label>
-              <label className="grid min-w-[100px] flex-1 gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">Cân nặng</span>
-                <input
-                  value={previewForm.weight}
-                  onChange={(event) => setPreviewForm({ ...previewForm, weight: event.target.value })}
-                  placeholder="Kg"
-                  className="h-11 rounded-xl border border-border bg-background-base px-3 text-sm text-foreground outline-none focus:border-primary-500"
-                />
-              </label>
-            </div>
+          <div className="mt-3 flex gap-3">
+            <label className="grid min-w-0 flex-1 gap-2">
+              <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Thời gian</span>
+              <HotelPreviewDateTimeRangeField
+                checkIn={previewForm.checkIn}
+                checkOut={previewForm.checkOut}
+                onChange={(patch) => setPreviewForm({ ...previewForm, ...patch })}
+                disabled={isPreviewing}
+              />
+            </label>
+            <label className="grid w-[60px] shrink-0 gap-2">
+              <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Kg</span>
+              <input
+                value={previewForm.weight}
+                onChange={(event) => setPreviewForm({ ...previewForm, weight: event.target.value })}
+                placeholder="0"
+                disabled={isPreviewing}
+                className="h-11 w-full min-w-0 rounded-xl border border-border bg-background-base px-1 text-center text-sm font-bold text-foreground outline-none transition-colors hover:border-primary-500 focus:border-primary-500 disabled:opacity-50"
+              />
+            </label>
+            <label className="grid w-[120px] shrink-0 gap-2">
+              <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Loài</span>
+              <div className="flex h-11 rounded-2xl border border-border bg-background-base p-1">
+                {HOTEL_SPECIES_COLUMNS.map((speciesOption) => (
+                  <button
+                    key={`preview-top-${speciesOption.value}`}
+                    type="button"
+                    disabled={isPreviewing}
+                    onClick={() => setPreviewForm({ ...previewForm, species: speciesOption.value })}
+                    className={cn(
+                      'min-w-0 flex-1 truncate rounded-xl px-2 text-[13px] font-bold transition-all disabled:opacity-50',
+                      previewForm.species === speciesOption.value ? 'bg-primary-500 text-white shadow-sm' : 'text-foreground-muted hover:text-foreground hover:bg-background-secondary',
+                    )}
+                  >
+                    {speciesOption.label}
+                  </button>
+                ))}
+              </div>
+            </label>
           </div>
           {preview ? (
             <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-background-base">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-3 border-b border-border bg-background-secondary/60 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.05em] text-foreground-muted">
+              <div className="grid grid-cols-[minmax(0,1fr)_40px_80px_90px] gap-3 border-b border-border bg-background-secondary/60 px-3 py-2.5 text-[11px] font-black uppercase tracking-[0.05em] text-foreground-muted">
                 <span className="truncate">Dịch vụ</span>
                 <span className="shrink-0 text-right">Ngày</span>
                 <span className="shrink-0 text-right">Đơn giá</span>
                 <span className="shrink-0 text-right">Thành tiền</span>
               </div>
               {aggregatedPreviewLines.map((line, index) => (
-                <div key={`preview-top-row-${line.dayType}-${index}`} className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border/70 px-3 py-2.5 text-[11px] last:border-b-0">
+                <div key={`preview-top-row-${line.dayType}-${index}`} className="grid grid-cols-[minmax(0,1fr)_40px_80px_90px] items-center gap-3 border-b border-border/70 px-3 py-2.5 text-[12px] last:border-b-0">
                   <span className="truncate font-semibold text-foreground" title={line.label}>{line.label}</span>
                   <span className="shrink-0 text-right tabular-nums text-foreground-muted">{line.quantityDays}</span>
                   <span className="shrink-0 text-right tabular-nums text-foreground-muted">{line.unitPriceLabel}</span>
@@ -1737,7 +1967,7 @@ function GroomingPricingMatrix({
   onServiceRemove: (serviceKey: string) => void
   onAddService: () => void
   onDraftChange: (bandKey: string, serviceKey: string, patch: Partial<SpaDraft>) => void
-  onSave: () => void
+  onSave: () => Promise<boolean | undefined> | boolean | undefined
   onCreatePresetBands: () => void
   isSaving: boolean
   isCreatingPreset: boolean
@@ -1809,14 +2039,10 @@ function GroomingPricingMatrix({
               <>
                 <button
                   type="button"
-                  onClick={handleExitEditMode}
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border bg-background-base px-5 text-sm font-bold text-foreground transition-colors hover:bg-background-tertiary"
-                >
-                  Xem
-                </button>
-                <button
-                  type="button"
-                  onClick={onSave}
+                  onClick={async () => {
+                    const success = await onSave();
+                    if (success) handleExitEditMode();
+                  }}
                   disabled={isSaving}
                   className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white disabled:opacity-50"
                 >
@@ -1962,15 +2188,26 @@ function GroomingPricingMatrix({
                   const sku = buildServicePricingSku('SPA', column.packageCode, band.label)
                   return (
                     <td key={`${band.key}:${column.key}`} className="border-b border-r border-border px-2 py-2 align-middle">
-                      <div className="mb-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500">
-                        {sku}
+                      <div className="mb-1 text-center">
+                        {canEditPricing ? (
+                          <input
+                            value={draft.sku ?? ''}
+                            onChange={(e) => onDraftChange(band.key, column.key, { sku: e.target.value })}
+                            placeholder={sku}
+                            className="w-[80px] bg-transparent text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500 placeholder:text-primary-500/50 outline-none"
+                          />
+                        ) : (
+                          <span className="text-[10px] font-black uppercase tracking-[0.12em] text-primary-500">
+                            {draft.sku || sku}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center justify-center gap-1.5 md:gap-3">
                         <div className="w-[100px] shrink-0">
                           <PriceInput
                             value={draft.price}
                             onChange={(value) => onDraftChange(band.key, column.key, { price: value })}
-                            placeholder="0"
+                            placeholder=""
                             disabled={!canEditPricing}
                           />
                         </div>

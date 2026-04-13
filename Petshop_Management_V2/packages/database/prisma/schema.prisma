@@ -551,6 +551,7 @@ model Cage {
 
 model HotelPriceRule {
   id            String            @id @default(cuid())
+  sku           String?           // Editable SKU
   year          Int
   species       String?
   weightBandId  String
@@ -569,6 +570,7 @@ model HotelPriceRule {
 
 model SpaPriceRule {
   id              String            @id @default(cuid())
+  sku             String?           // Editable SKU
   species         String?
   packageCode     String
   weightBandId    String

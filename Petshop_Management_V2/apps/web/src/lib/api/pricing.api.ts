@@ -21,6 +21,7 @@ export interface SpaPriceRule {
   species: string | null
   packageCode: string
   weightBandId: string
+  sku?: string | null
   price: number
   durationMinutes: number | null
   isActive: boolean
@@ -33,6 +34,7 @@ export interface HotelPriceRule {
   species: string | null
   weightBandId: string
   dayType: PricingDayType
+  sku?: string | null
   halfDayPrice: number
   fullDayPrice: number
   isActive: boolean
@@ -66,6 +68,7 @@ export interface SpaRulePayload {
   species?: string | null
   packageCode: string
   weightBandId: string
+  sku?: string | null
   price: number
   durationMinutes?: number | null
   isActive?: boolean
@@ -77,6 +80,7 @@ export interface HotelRulePayload {
   species?: string | null
   weightBandId: string
   dayType: PricingDayType
+  sku?: string | null
   halfDayPrice?: number
   fullDayPrice: number
   isActive?: boolean

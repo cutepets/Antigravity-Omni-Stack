@@ -69,6 +69,10 @@ export class SpaRuleInputDto {
 
   @IsString()
   @IsOptional()
+  sku?: string | null
+
+  @IsString()
+  @IsOptional()
   species?: string | null
 
   @IsString()
@@ -104,6 +108,10 @@ export class HotelRuleInputDto {
   @IsString()
   @IsOptional()
   id?: string
+
+  @IsString()
+  @IsOptional()
+  sku?: string | null
 
   @IsNumber()
   year!: number

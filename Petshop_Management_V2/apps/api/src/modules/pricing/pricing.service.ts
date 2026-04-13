@@ -275,6 +275,7 @@ export class PricingService {
       species: string | null
       packageCode: string
       weightBandId: string
+      sku?: string | null
       price: number
       durationMinutes: number | null
       isActive: boolean
@@ -287,6 +288,7 @@ export class PricingService {
         species,
         packageCode: this.normalizeText(rule.packageCode, 'Gói SPA'),
         weightBandId: rule.weightBandId,
+        sku: rule.sku ?? null,
         price: this.normalizeNumber(rule.price, 'Giá SPA'),
         durationMinutes: this.normalizeOptionalNumber(rule.durationMinutes, 'Thời lượng', 1),
         isActive: rule.isActive ?? true,
@@ -308,6 +310,7 @@ export class PricingService {
           species: rule.species,
           packageCode: rule.packageCode,
           weightBandId: rule.weightBandId,
+          sku: rule.sku ?? null,
           price: rule.price,
           durationMinutes: rule.durationMinutes,
           isActive: rule.isActive,
@@ -383,6 +386,7 @@ export class PricingService {
           species: this.normalizeSpecies(rule.species),
           weightBandId: rule.weightBandId,
           dayType: this.normalizeDayType(rule.dayType) ?? 'REGULAR',
+          sku: rule.sku ?? null,
           halfDayPrice: this.deriveHalfDayPrice(fullDayPrice),
           fullDayPrice,
           isActive: rule.isActive ?? true,
