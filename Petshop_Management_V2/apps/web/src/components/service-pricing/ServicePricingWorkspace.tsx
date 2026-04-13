@@ -170,8 +170,12 @@ function getSpaSkuPrefix(packageCode?: string | null) {
   return prefixByCode[code] ?? (getSkuInitials(packageCode) || 'SPA')
 }
 
-function buildServicePricingSku(kind: 'HOTEL' | 'SPA', label: string, weightBandLabel?: string | null) {
-  const prefix = kind === 'HOTEL' ? 'HLT' : getSpaSkuPrefix(label)
+function buildServicePricingSku(kind: 'HOTEL' | 'SPA', label: string, weightBandLabel?: string | null, species?: string | null) {
+  if (kind === 'HOTEL') {
+    const speciesPrefix = species === 'Chó' ? 'C' : species === 'Mèo' ? 'M' : ''
+    return `HLT${speciesPrefix}${getWeightBandSkuSuffix(weightBandLabel)}`
+  }
+  const prefix = getSpaSkuPrefix(label)
   return `${prefix}${getWeightBandSkuSuffix(weightBandLabel)}`
 }
 
@@ -1453,19 +1457,22 @@ function UnifiedHotelPricingPanel({
                   Hạng cân
                 </th>
                 {HOTEL_SPECIES_COLUMNS.map((speciesOption, idx) => (
-                  <th key={speciesOption.value} colSpan={DAY_TYPE_OPTIONS.length} className={cn('border-b border-border px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted', idx > 0 ? 'border-l' : '')}>
+                  <th key={speciesOption.value} colSpan={DAY_TYPE_OPTIONS.length + 1} className={cn('border-b border-border px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted', idx > 0 ? 'border-l' : '')}>
                     {speciesOption.label}
                   </th>
                 ))}
               </tr>
               <tr>
-                {HOTEL_SPECIES_COLUMNS.flatMap((speciesOption, speciesIdx) =>
-                  DAY_TYPE_OPTIONS.map((option, dayIdx) => (
-                    <th key={`${speciesOption.value}:${option.value}`} className={cn('w-[150px] border-b border-border px-3 py-2 text-center text-[11px] font-black uppercase tracking-[0.14em] text-foreground-muted', speciesIdx > 0 && dayIdx === 0 ? 'border-l' : '')}>
+                {HOTEL_SPECIES_COLUMNS.flatMap((speciesOption, speciesIdx) => [
+                  <th key={`${speciesOption.value}:sku`} className={cn('w-[70px] border-b border-border px-3 py-2 text-center text-[11px] font-black uppercase tracking-[0.14em] text-foreground-muted', speciesIdx > 0 ? 'border-l' : '')}>
+                    SKU
+                  </th>,
+                  ...DAY_TYPE_OPTIONS.map((option, dayIdx) => (
+                    <th key={`${speciesOption.value}:${option.value}`} className="w-[110px] border-b border-border px-3 py-2 text-center text-[11px] font-black uppercase tracking-[0.14em] text-foreground-muted">
                       {option.label}
                     </th>
-                  )),
-                )}
+                  ))
+                ])}
               </tr>
             </thead>
             <tbody>
@@ -1493,9 +1500,6 @@ function UnifiedHotelPricingPanel({
                         ) : (
                           <p className="truncate text-sm font-black text-foreground">{band.label || 'Hạng cân mới'}</p>
                         )}
-                        <p className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-primary-500">
-                          {buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label)}
-                        </p>
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -1543,11 +1547,16 @@ function UnifiedHotelPricingPanel({
                     </div>
                   </td>
 
-                  {HOTEL_SPECIES_COLUMNS.flatMap((speciesOption, speciesIdx) =>
-                    DAY_TYPE_OPTIONS.map((option, dayIdx) => {
+                  {HOTEL_SPECIES_COLUMNS.flatMap((speciesOption, speciesIdx) => [
+                    <td key={`${band.key}:${speciesOption.value}:sku`} className={cn('border-b border-border px-3 py-3 align-middle text-center', speciesIdx > 0 ? 'border-l' : '')}>
+                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 whitespace-nowrap">
+                        {buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label, speciesOption.value)}
+                      </span>
+                    </td>,
+                    ...DAY_TYPE_OPTIONS.map((option, dayIdx) => {
                       const draft = drafts[getHotelRuleKey(band.key, option.value, speciesOption.value)] ?? { fullDayPrice: '' }
                       return (
-                        <td key={`${band.key}:${speciesOption.value}:${option.value}`} className={cn('border-b border-border px-3 py-3 align-top', speciesIdx > 0 && dayIdx === 0 ? 'border-l' : '')}>
+                        <td key={`${band.key}:${speciesOption.value}:${option.value}`} className="border-b border-border px-3 py-3 align-top">
                           <PriceInput
                             value={draft.fullDayPrice}
                             onChange={(value) => onDraftChange(band.key, option.value, speciesOption.value, { fullDayPrice: value })}
@@ -1556,8 +1565,8 @@ function UnifiedHotelPricingPanel({
                           />
                         </td>
                       )
-                    }),
-                  )}
+                    })
+                  ])}
                 </tr>
               ))}
             </tbody>
