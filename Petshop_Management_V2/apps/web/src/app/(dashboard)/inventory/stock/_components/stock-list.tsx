@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, AlertCircle, PackageCheck, Download, Pin, PinOff } from 'lucide-react'
-import { inventoryApi } from '@/lib/api/inventory.api'
+import { AlertCircle, Download, PackageCheck, Pin, PinOff } from 'lucide-react'
+import { stockApi } from '@/lib/api/stock.api'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   DataListShell,
@@ -20,10 +20,34 @@ import {
   useDataListSelection,
 } from '@/components/data-list'
 
-type DisplayColumnId = 'code' | 'name' | 'minStock' | 'stock' | 'status' | 'actions'
+type DisplayColumnId = 'code' | 'name' | 'sellable' | 'monthlySellThrough' | 'minStock' | 'stock' | 'status' | 'actions'
 type PinFilterId = 'type'
 
-const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
+type StockRow = {
+  id: string
+  name: string
+  sku?: string | null
+  image?: string | null
+  unit?: string | null
+  currentStock: number
+  sellableStock: number
+  minStock: number
+  monthlySellThrough?: number | null
+  status: 'NORMAL' | 'LOW_STOCK' | 'OUT_OF_STOCK'
+  completedBatchCount?: number
+}
+
+const NEXT_COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
+  { id: 'code', label: 'Ma SP', sortable: true, width: 'w-24' },
+  { id: 'name', label: 'San pham', sortable: true, minWidth: 'min-w-[240px]' },
+  { id: 'sellable', label: 'Co the ban', sortable: true, width: 'w-32' },
+  { id: 'monthlySellThrough', label: 'Hieu suat ban thang', sortable: true, width: 'w-40' },
+  { id: 'minStock', label: 'Dinh muc toi thieu', sortable: true, width: 'w-32' },
+  { id: 'stock', label: 'Ton kho hien tai', sortable: true, width: 'w-32' },
+  { id: 'status', label: 'Trang thai', sortable: true, width: 'w-32' },
+]
+
+/* legacy inventory columns retained from the old table config
   { id: 'code', label: 'Mã SP', sortable: true, width: 'w-24' },
   { id: 'name', label: 'Sản phẩm', sortable: true, minWidth: 'min-w-[180px]' },
   { id: 'minStock', label: 'Định mức tối thiểu', sortable: true, width: 'w-32' },
@@ -31,10 +55,31 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'status', label: 'Trạng thái', width: 'w-32' },
   { id: 'actions', label: 'Thao tác', width: 'w-28' },
 ]
+*/
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
-  COLUMN_OPTIONS.filter((c) => c.sortable).map((c) => c.id)
+  NEXT_COLUMN_OPTIONS.filter((c) => c.sortable).map((c) => c.id)
 )
+
+function renderStatusBadge(status: StockRow['status']) {
+  if (status === 'OUT_OF_STOCK') {
+    return (
+      <span className="badge badge-error">
+        <AlertCircle size={11} /> Het hang
+      </span>
+    )
+  }
+
+  if (status === 'LOW_STOCK') {
+    return (
+      <span className="badge badge-warning">
+        <AlertCircle size={11} /> Sap het
+      </span>
+    )
+  }
+
+  return <span className="badge badge-success">Binh thuong</span>
+}
 
 export function StockList() {
   const router = useRouter()
@@ -50,8 +95,8 @@ export function StockList() {
   const scopedDateTo = searchParams.get('dateTo')?.trim() || ''
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
-    initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialVisibleColumns: ['code', 'name', 'minStock', 'stock', 'status', 'actions'],
+    initialColumnOrder: NEXT_COLUMN_OPTIONS.map((column) => column.id),
+    initialVisibleColumns: ['code', 'name', 'sellable', 'monthlySellThrough', 'minStock', 'stock', 'status'],
     initialTopFilterVisibility: { type: true }
   })
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
@@ -93,10 +138,11 @@ export function StockList() {
   }, [filterType, page, pageSize, router, search, searchParams])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['products-stock', search, filterType, scopedBranchId || 'all', page, pageSize, columnSort.columnId, columnSort.direction],
-    queryFn: () => inventoryApi.getProducts({
+    queryKey: ['inventory-stock-products', search, filterType, scopedBranchId || 'all', page, pageSize, columnSort.columnId, columnSort.direction],
+    queryFn: () => stockApi.getProducts({
       search,
       branchId: scopedBranchId || undefined,
+      filterType,
       page,
       limit: pageSize,
       sortBy: columnSort.columnId || undefined,
@@ -104,25 +150,7 @@ export function StockList() {
     }),
   })
 
-  const rawProducts = Array.isArray((data as any)?.data) ? (data as any).data : []
-  const products = useMemo(() => {
-    const scopedProducts = scopedBranchId
-      ? rawProducts
-          .filter((product: any) => Array.isArray(product.branchStocks) && product.branchStocks.some((stock: any) => stock.branchId === scopedBranchId))
-          .map((product: any) => {
-            const branchStock = product.branchStocks.find((stock: any) => stock.branchId === scopedBranchId)
-            return {
-              ...product,
-              displayStock: Number(branchStock?.stock ?? 0),
-            }
-          })
-      : rawProducts.map((product: any) => ({ ...product, displayStock: Number(product.stock ?? 0) }))
-
-    return filterType === 'LOW_STOCK'
-      ? scopedProducts.filter((product: any) => Number(product.displayStock ?? 0) <= Number(product.minStock ?? 0))
-      : scopedProducts
-  }, [filterType, rawProducts, scopedBranchId])
-
+  const products = Array.isArray((data as any)?.data) ? ((data as any).data as StockRow[]) : []
   const totalPages = (data as any)?.totalPages ?? 1
   const total = (data as any)?.total ?? products.length
 
@@ -141,13 +169,13 @@ export function StockList() {
 
   const activeColumns = useMemo(() => {
     return orderedVisibleColumns.map((id) => {
-      const col = COLUMN_OPTIONS.find((c) => c.id === id)!
+      const col = NEXT_COLUMN_OPTIONS.find((c) => c.id === id)!
       return { ...col, id: id as DisplayColumnId }
     })
   }, [orderedVisibleColumns])
 
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
-  const rangeEnd   = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rawProducts.length)
+  const rangeEnd   = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + products.length)
 
   const clearFilters = () => {
     setFilterType('ALL')
@@ -197,7 +225,7 @@ export function StockList() {
         }
         columnPanelContent={
           <DataListColumnPanel
-            columns={COLUMN_OPTIONS}
+            columns={NEXT_COLUMN_OPTIONS}
             columnOrder={columnOrder}
             visibleColumns={visibleColumns}
             sortInfo={columnSort}
@@ -269,8 +297,9 @@ export function StockList() {
           ) : undefined
         }
       >
-        {products.map((p: any) => {
-          const isLowStock = p.stock <= p.minStock
+        {products.map((p: StockRow) => {
+          const isLowStock = p.status === 'LOW_STOCK' || p.status === 'OUT_OF_STOCK'
+          const stockTone = p.status === 'OUT_OF_STOCK' ? 'text-error' : isLowStock ? 'text-warning' : 'text-emerald-500'
           const rowId = `p:${p.id}`
           const isSelected = selectedRowIds.has(rowId)
 
@@ -293,7 +322,7 @@ export function StockList() {
                     </td>
                   );
                   case 'name': return (
-                    <td key={columnId} className="px-3 py-3 min-w-[180px]">
+                    <td key={columnId} className="px-3 py-3 min-w-[240px]">
                       <div className="flex items-center gap-3">
                         {p.image ? (
                           <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-background-secondary border border-border">
@@ -304,28 +333,55 @@ export function StockList() {
                             <PackageCheck size={18} />
                           </div>
                         )}
-                        <div>
-                          <div className="font-semibold text-foreground">{p.name}</div>
+                        <div className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/inventory/stock/${p.id}`)}
+                            title={p.name}
+                            className="block truncate text-left font-semibold text-foreground transition-colors hover:text-primary-500"
+                          >
+                            {p.name}
+                          </button>
+                          <div className="text-xs text-foreground-muted">
+                            {p.unit ?? 'cai'}
+                            {p.completedBatchCount ? ` · ${p.completedBatchCount} lo da ban het` : ' · Chua du du lieu chu ky'}
+                          </div>
                         </div>
                       </div>
+                    </td>
+                  );
+                  case 'sellable': return (
+                    <td key={columnId} className="px-3 py-3 text-right font-semibold text-primary-500 w-32">
+                      {p.sellableStock ?? 0}
+                    </td>
+                  );
+                  case 'monthlySellThrough': return (
+                    <td key={columnId} className="px-3 py-3 text-right text-sm w-40">
+                      {p.monthlySellThrough != null ? (
+                        <span className="font-semibold text-foreground">
+                          {Math.round(p.monthlySellThrough).toLocaleString('vi-VN')}
+                        </span>
+                      ) : (
+                        <span className="text-foreground-muted">Chua du du lieu</span>
+                      )}
                     </td>
                   );
                   case 'minStock': return (
                     <td key={columnId} className="px-3 py-3 text-right text-sm text-foreground-muted w-32">{p.minStock ?? 0}</td>
                   );
                   case 'stock': return (
-                    <td key={columnId} className={`px-3 py-3 text-right font-bold text-lg w-32 ${isLowStock ? 'text-error' : 'text-emerald-500'}`}>
-                      {p.displayStock ?? 0}
+                    <td key={columnId} className={`px-3 py-3 text-right font-bold text-lg w-32 ${stockTone}`}>
+                      {p.currentStock ?? 0}
                     </td>
                   );
                   case 'status': return (
                     <td key={columnId} className="px-3 py-3 w-32">
-                      {isLowStock ? (
+                      {renderStatusBadge(p.status)}{/*
                          <span className="badge badge-error"><AlertCircle size={11} /> Sắp hết</span>
                       ) : (
                          <span className="badge badge-success">Bình thường</span>
                       )}
-                    </td>
+                    */}</td>
                   );
                   case 'actions': return (
                     <td key={columnId} className="px-3 py-3 w-28">

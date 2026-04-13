@@ -1014,6 +1014,7 @@ export class OrdersService {
       );
     }
 
+    /*
     if (!branchStock) {
       throw new BadRequestException(`Sản phẩm ${params.productId} chưa có tồn kho tại chi nhánh ${branch.name}`);
     }
@@ -1023,6 +1024,7 @@ export class OrdersService {
         `Tồn kho không đủ cho sản phẩm ${params.productId} tại chi nhánh ${branch.name}. Còn ${branchStock.stock}, cần ${params.quantity}.`,
       );
     }
+    */
 
     await tx.branchStock.update({
       where: { id: branchStock.id },

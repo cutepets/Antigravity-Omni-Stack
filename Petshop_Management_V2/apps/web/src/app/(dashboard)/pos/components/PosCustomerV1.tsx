@@ -8,10 +8,10 @@ import { api } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { PosAddCustomerModal } from './PosAddCustomerModal';
 import { PosAddPetModal } from './PosAddPetModal';
-import { PosPetProfileModal } from './PosPetProfileModal';
+import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile';
 
 export interface PosCustomerV1Props {
-  onSelectSuggestedService?: (service: any, petId: string) => void;
+  onSelectSuggestedService?: (service: any, petId: string, petName?: string) => void;
 }
 
 export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) {
@@ -73,9 +73,9 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
     setSelectedPetId(petId);
   };
 
-  const handleSelectServiceFromPet = (service: any, petId: string) => {
-    onSelectSuggestedService?.(service, petId);
-    setSelectedPetId(null);
+  const handleSelectServiceFromPet = (service: any, petId: string, petName?: string) => {
+    onSelectSuggestedService?.(service, petId, petName);
+    // keep profile open to see checkmark
   };
 
   useEffect(() => {
@@ -192,8 +192,14 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
                    onClick={() => handleOpenPetProfile(pet.id)}
                    className="flex min-w-[72px] flex-col items-center gap-1.5 rounded-2xl px-1 py-1.5 transition hover:bg-white/70"
                  >
-                    <div className="w-14 h-14 rounded-full bg-[#eef1f6] text-[#4d5e7a] font-bold text-xl flex items-center justify-center border border-white shadow-sm ring-1 ring-gray-200">
-                      {pet.name?.charAt(0)?.toUpperCase()}
+                    <div className="w-14 h-14 rounded-full overflow-hidden bg-[#eef1f6] border border-white shadow-sm ring-1 ring-gray-200">
+                      {pet.avatar ? (
+                        <img src={String(pet.avatar).startsWith('http') ? pet.avatar : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${pet.avatar}`} alt={pet.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[#4d5e7a] font-bold text-xl flex items-center justify-center w-full h-full">
+                          {pet.name?.charAt(0)?.toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <span className="font-bold text-[#2a3042] text-[13px] whitespace-nowrap">{pet.name}</span>
                     {pet.weight && (
@@ -298,12 +304,13 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
       )}
 
       {hasCustomer && customerDetail && selectedPetId ? (
-        <PosPetProfileModal
+        <UnifiedPetProfile
           isOpen
           petId={selectedPetId}
           ownerName={customerDetail.fullName}
           onClose={() => setSelectedPetId(null)}
           onSelectService={handleSelectServiceFromPet}
+          mode="pos"
         />
       ) : null}
     </div>

@@ -25,10 +25,7 @@ import {
   useDataListSelection,
 } from '@/components/data-list'
 
-const PetDetailModal = dynamic(
-  () => import('./pet-detail-modal').then((mod) => mod.PetDetailModal),
-  { ssr: false }
-)
+import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile'
 
 type SpeciesFilter = '' | 'Chó' | 'Mèo' | 'Chim' | 'Khác'
 type DisplayColumnId = 'avatar' | 'pet' | 'breed' | 'color' | 'owner' | 'weight' | 'dob' | 'allergies' | 'status' | 'petCode'
@@ -520,9 +517,10 @@ export function PetList() {
       )}
 
       {viewingPetCode && (
-        <PetDetailModal
+        <UnifiedPetProfile
           petId={viewingPetCode}
           isOpen={true}
+          hideSuggestions={true}
           onClose={() => {
             window.history.pushState(null, '', `/pets`)
             setViewingPetCode(null)

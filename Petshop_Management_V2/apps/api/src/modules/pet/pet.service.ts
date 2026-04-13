@@ -5,6 +5,7 @@ import type { JwtPayload } from '@petshop/shared'
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js'
 import { getNextSequentialCode } from '../../common/utils/sequential-code.util.js'
 import { DatabaseService } from '../../database/database.service.js'
+import { AddVaccinationDto } from './dto/add-vaccination.dto.js'
 import { AddWeightLogDto } from './dto/add-weight-log.dto.js'
 import { CreatePetDto } from './dto/create-pet.dto.js'
 import { FindPetsDto } from './dto/find-pets.dto.js'
@@ -364,6 +365,28 @@ export class PetService {
     return { success: true, data: weightLog }
   }
 
+  async addVaccination(id: string, addVaccinationDto: AddVaccinationDto, user?: AccessUser) {
+    const pet = await this.db.pet.findFirst({
+      where: this.mergePetScope(this.buildPetIdentityWhere(id), user),
+      select: { id: true },
+    })
+
+    if (!pet) return this.throwPetAccessError(id, user)
+
+    const vaccination = await this.db.petVaccination.create({
+      data: {
+        petId: pet.id,
+        vaccineName: addVaccinationDto.vaccineName,
+        date: new Date(addVaccinationDto.date),
+        ...(addVaccinationDto.nextDueDate ? { nextDueDate: new Date(addVaccinationDto.nextDueDate) } : {}),
+        ...(addVaccinationDto.notes ? { notes: addVaccinationDto.notes } : {}),
+        ...(addVaccinationDto.photoUrl ? { photoUrl: addVaccinationDto.photoUrl } : {}),
+      },
+    })
+
+    return { success: true, data: vaccination }
+  }
+
   async remove(id: string, user?: AccessUser) {
     const pet = await this.db.pet.findFirst({
       where: this.mergePetScope(this.buildPetIdentityWhere(id), user),
@@ -387,5 +410,23 @@ export class PetService {
     })
 
     return { success: true, data: updated }
+  }
+
+  async getActivePetServices(petId: string) {
+    const [groomingSessions, hotelStays] = await Promise.all([
+      this.db.groomingSession.findMany({
+        where: { petId, status: { in: ['PENDING', 'IN_PROGRESS'] } },
+        select: { id: true, sessionCode: true, status: true, orderId: true },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      this.db.hotelStay.findMany({
+        where: { petId, status: { in: ['BOOKED', 'CHECKED_IN'] } },
+        select: { id: true, stayCode: true, status: true, orderId: true, checkIn: true, estimatedCheckOut: true },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+    ])
+    return { groomingSessions, hotelStays }
   }
 }

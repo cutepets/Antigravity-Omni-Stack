@@ -125,9 +125,11 @@ function buildDirectServiceCartItem(service: any, petId?: string): CartItem {
   const unitPrice = Number(service?.sellingPrice ?? service?.price ?? 0);
 
   return {
-    id: buildCartLineId(itemType, service.id, petId, Date.now()),
+    id: buildCartLineId(itemType, service.id, petId),
     serviceId: getOrderServiceId(service),
-    description: service.name,
+    description: isHotelService(service)
+      ? `Lưu trú${service.weightBandLabel ? ` - ${service.weightBandLabel}` : ''}`
+      : service.name,
     sku: service.sku,
     weightBandLabel: service.weightBandLabel,
     unitPrice,
@@ -158,7 +160,7 @@ function buildGroomingCartItem(service: any, petId?: string): CartItem {
       : undefined);
 
   return {
-    id: buildCartLineId('grooming', service.id, petId, Date.now()),
+    id: buildCartLineId('grooming', service.id, petId),
     serviceId: getOrderServiceId(service),
     description: service.name,
     sku: service.sku,
@@ -597,14 +599,28 @@ function PosPageContent() {
 
   // â”€â”€ Checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleSelectSuggestedService = useCallback(
-    (service: any, petId: string) => {
+    (service: any, petId: string, petName?: string) => {
+      const cart = store.tabs.find((t) => t.id === store.activeTabId)?.cart ?? [];
+      const itemType = isHotelService(service) ? 'hotel' : 'grooming';
+      const isDuplicate = cart.some(
+        (item) => item.petId === petId && (item.serviceId === service.id || item.description === service.name)
+      );
+      if (isDuplicate) {
+        toast.warning(`Dịch vụ "${service.name}" đã có trong giỏ hàng.`);
+        return;
+      }
+
       if (isHotelService(service)) {
-        store.addItem(buildDirectServiceCartItem(service, petId));
+        const item = buildDirectServiceCartItem(service, petId);
+        if (petName) item.itemNotes = `Thú cưng: ${petName}`;
+        store.addItem(item);
         toast.success('Đã thêm dịch vụ vào giỏ');
         return;
       }
 
-      store.addItem(buildGroomingCartItem(service, petId));
+      const item = buildGroomingCartItem(service, petId);
+      if (petName) item.itemNotes = `Thú cưng: ${petName}`;
+      store.addItem(item);
       toast.success('Đã thêm dịch vụ vào giỏ');
     },
     [store],
@@ -1284,7 +1300,7 @@ function PosPageContent() {
                             >
                               {item.itemNotes ? (
                                 <span className="text-[11px] text-amber-600 font-medium italic truncate max-w-[200px] flex items-center gap-1">
-                                  <span>ðŸ“</span>
+                                  <FileText size={12} className="shrink-0 text-amber-500" />
                                   {item.itemNotes}
                                 </span>
                               ) : (

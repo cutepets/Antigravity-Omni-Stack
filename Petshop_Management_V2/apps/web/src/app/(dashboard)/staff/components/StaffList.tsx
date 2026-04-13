@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Clock, MapPin, Phone, UserX, User, Settings, Filter, ShieldAlert, Pin, PinOff } from 'lucide-react'
+import { CheckCircle2, Clock, MapPin, Phone, Filter, ShieldAlert, Pin, PinOff, XCircle } from 'lucide-react'
 import dayjs from 'dayjs'
 import { Staff } from '@/lib/api/staff.api'
 import {
@@ -29,7 +29,7 @@ interface StaffListProps {
   onDeactivate: (id: string, name: string) => void
 }
 
-type DisplayColumnId = 'avatar' | 'code' | 'staff' | 'role' | 'contact' | 'branch' | 'status' | 'actions'
+type DisplayColumnId = 'avatar' | 'code' | 'staff' | 'role' | 'contact' | 'branch' | 'status'
 type PinFilterId = 'role' | 'status'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
@@ -40,7 +40,6 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'contact', label: 'Liên hệ', minWidth: 'min-w-[140px]' },
   { id: 'branch', label: 'Chi nhánh', minWidth: 'min-w-[120px]' },
   { id: 'status', label: 'Trạng thái', sortable: true, width: 'w-32' },
-  { id: 'actions', label: 'Thao tác', width: 'w-24' },
 ]
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
@@ -52,8 +51,8 @@ const STATUS_CONFIG: Record<string, { label: string; badgeClass: string; icon: a
   PROBATION: { label: 'Thử việc', badgeClass: 'badge-info', icon: Clock },
   LEAVE: { label: 'Nghỉ phép', badgeClass: 'badge-warning', icon: Clock },
   OFFICIAL: { label: 'Chính thức', badgeClass: 'badge-success', icon: CheckCircle2 },
-  RESIGNED: { label: 'Đã nghỉ', badgeClass: 'badge-error', icon: UserX },
-  QUIT: { label: 'Đã nghỉ', badgeClass: 'badge-error', icon: UserX },
+  RESIGNED: { label: 'Đã nghỉ', badgeClass: 'badge-error', icon: XCircle },
+  QUIT: { label: 'Thôi việc', badgeClass: 'badge-error', icon: XCircle },
 }
 
 export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, onDeactivate }: StaffListProps) {
@@ -62,13 +61,13 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
-  
+
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((c) => c.id),
-    initialVisibleColumns: ['avatar', 'code', 'staff', 'role', 'contact', 'branch', 'status', 'actions'],
+    initialVisibleColumns: ['avatar', 'code', 'staff', 'role', 'contact', 'branch', 'status'],
     initialTopFilterVisibility: { role: true, status: true },
     storageKey: 'staff-list-columns-v1',
   })
@@ -125,7 +124,7 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
   const visibleStaff = processedStaff.slice((page - 1) * pageSize, page * pageSize)
 
   const visibleRowIds = useMemo(() => visibleStaff.map(s => `staff:${s.id}`), [visibleStaff])
-  
+
   const {
     selectedRowIds,
     toggleRowSelection,
@@ -180,9 +179,11 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
               >
                 <option value="ALL">Tất cả trạng thái</option>
                 <option value="WORKING">Đang làm việc</option>
+                <option value="OFFICIAL">Chính thức</option>
                 <option value="PROBATION">Thử việc</option>
                 <option value="LEAVE">Nghỉ phép</option>
-                <option value="RESIGNED">Đã nghỉ việc</option>
+                <option value="RESIGNED">Đã nghỉ</option>
+                <option value="QUIT">Thôi việc</option>
               </select>
             )}
           </>
@@ -215,9 +216,8 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
               <button
                 type="button"
                 onClick={() => dataListState.toggleTopFilterVisibility('role')}
-                className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                  topFilterVisibility.role ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-                }`}
+                className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.role ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                  }`}
               >
                 {topFilterVisibility.role ? <Pin size={12} /> : <PinOff size={12} />}
               </button>
@@ -244,9 +244,8 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
             <button
               type="button"
               onClick={() => dataListState.toggleTopFilterVisibility('status')}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                topFilterVisibility.status ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-              }`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.status ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                }`}
             >
               {topFilterVisibility.status ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
@@ -258,9 +257,11 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
           >
             <option value="ALL">Tất cả trạng thái</option>
             <option value="WORKING">Đang làm việc</option>
+            <option value="OFFICIAL">Chính thức</option>
             <option value="PROBATION">Thử việc</option>
             <option value="LEAVE">Nghỉ phép</option>
-            <option value="RESIGNED">Đã nghỉ việc</option>
+            <option value="RESIGNED">Đã nghỉ</option>
+            <option value="QUIT">Thôi việc</option>
           </select>
         </label>
       </DataListFilterPanel>
@@ -288,8 +289,7 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
           const isSelected = selectedRowIds.has(rowId)
           const statusConf = STATUS_CONFIG[staff.status] || STATUS_CONFIG.WORKING
           const StatusIcon = statusConf.icon
-          const canShowDeactivate = canDeactivate && staff.status !== 'RESIGNED' && staff.status !== 'QUIT'
-          
+
           return (
             <tr
               key={staff.id}
@@ -297,7 +297,7 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
               onClick={() => router.push(`/staff/${staff.username}`)}
             >
               <td className="w-10 px-3 py-3" onClick={e => e.stopPropagation()}>
-                <TableCheckbox 
+                <TableCheckbox
                   checked={isSelected}
                   onCheckedChange={(c, s) => toggleRowSelection(rowId, s)}
                 />
@@ -362,32 +362,6 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
                         <StatusIcon size={11} />
                         {statusConf.label}
                       </span>
-                    </td>
-                  )
-                  case 'actions': return (
-                    <td key={colId} className="px-3 py-2.5 w-24 text-right" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {canEdit && (
-                          <button
-                            type="button"
-                            onClick={() => onEdit(staff)}
-                            className="p-1.5 text-foreground-muted hover:text-primary-500 rounded-lg hover:bg-primary-500/10 transition-colors"
-                            title="Sửa"
-                          >
-                            <Settings size={15} />
-                          </button>
-                        )}
-                        {canShowDeactivate && (
-                          <button
-                            type="button"
-                            onClick={() => onDeactivate(staff.id, staff.fullName)}
-                            className="p-1.5 text-foreground-muted hover:text-error rounded-lg hover:bg-error/10 transition-colors"
-                            title="Nghỉ việc"
-                          >
-                            <UserX size={15} />
-                          </button>
-                        )}
-                      </div>
                     </td>
                   )
                   default: return <td key={colId} />

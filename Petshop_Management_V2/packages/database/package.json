@@ -11,6 +11,7 @@
     "db:push": "node ../../scripts/prisma-run.mjs db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:finance-demo": "node ../../scripts/prisma-run.mjs migrate deploy && node ../../scripts/prisma-run.mjs generate && tsx prisma/seed-finance-demo.ts",
+    "db:seed:inventory-analytics": "node ../../scripts/prisma-run.mjs generate && tsx prisma/seed-inventory-analytics.ts",
     "db:studio": "prisma studio",
     "db:reset": "node ../../scripts/prisma-run.mjs migrate reset --force"
   },

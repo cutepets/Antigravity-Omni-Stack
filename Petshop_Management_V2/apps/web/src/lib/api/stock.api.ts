@@ -1,6 +1,8 @@
 import { api } from '@/lib/api'
 
 export const stockApi = {
+  getProducts: (params?: any) => api.get('/stock/products', { params }).then(res => res.data),
+
   // Receipts
   getReceipts: (params?: any) => api.get('/stock/receipts', { params }),
   getReceipt: (id: string) => api.get(`/stock/receipts/${id}`),

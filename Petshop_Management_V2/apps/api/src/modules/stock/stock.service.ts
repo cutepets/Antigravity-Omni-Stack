@@ -12,6 +12,16 @@ export interface FindReceiptsDto {
   supplierId?: string
 }
 
+export interface FindStockProductsDto {
+  search?: string
+  branchId?: string
+  filterType?: string
+  page?: number
+  limit?: number
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
 export interface ReceiptItemDto {
   receiptItemId?: string
   productId: string
@@ -180,6 +190,68 @@ const SUPPLIER_RECEIPT_INCLUDE = {
     orderBy: { returnedAt: 'desc' as const },
   },
 } as const
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000
+
+function normalizeSearchValue(value?: string | null) {
+  return `${value ?? ''}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, (char) => (char === 'đ' ? 'd' : 'D'))
+    .toLowerCase()
+    .trim()
+}
+
+function tokenizeSearch(value?: string | null) {
+  return normalizeSearchValue(value)
+    .split(/[\s,]+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+}
+
+function buildProductSearchHaystack(product: Record<string, any>) {
+  const variantText = Array.isArray(product.variants)
+    ? product.variants
+        .map((variant: Record<string, any>) =>
+          [variant.name, variant.sku, variant.barcode, variant.conversions, variant.pricePolicies, variant.priceBookPrices]
+            .filter(Boolean)
+            .join(' '),
+        )
+        .join(' ')
+    : ''
+
+  return normalizeSearchValue(
+    [
+      product.name,
+      product.sku,
+      product.barcode,
+      product.category,
+      product.brand,
+      product.importName,
+      product.tags,
+      product.description,
+      variantText,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  )
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+function shiftMonth(date: Date, delta: number) {
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1)
+}
+
+function monthBucket(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+function compareText(left?: string | null, right?: string | null) {
+  return `${left ?? ''}`.localeCompare(`${right ?? ''}`, 'vi', { sensitivity: 'base' })
+}
 
 function toNumber(value: unknown) {
   const amount = Number(value ?? 0)
@@ -1565,6 +1637,327 @@ export class StockService {
     })
 
     return { success: true, data: refund }
+  }
+
+  private getInventorySourceRows(product: any, branchId?: string | null) {
+    const variantRows = Array.isArray(product.variants)
+      ? product.variants.flatMap((variant: any) => (Array.isArray(variant.branchStocks) ? variant.branchStocks : []))
+      : []
+    const productRows = Array.isArray(product.branchStocks) ? product.branchStocks : []
+    const sourceRows = variantRows.length > 0 ? variantRows : productRows
+
+    return branchId ? sourceRows.filter((row: any) => row.branchId === branchId) : sourceRows
+  }
+
+  private buildInventoryStatus(currentStock: number, minStock: number) {
+    if (currentStock <= 0) return 'OUT_OF_STOCK'
+    if (currentStock <= minStock) return 'LOW_STOCK'
+    return 'NORMAL'
+  }
+
+  private calculateSellThroughMetrics(
+    receives: Array<{ receivedAt: Date; quantity: number }>,
+    sales: Array<{ soldAt: Date; quantity: number }>,
+    now: Date,
+  ) {
+    const sortedReceives = [...receives]
+      .filter((row) => row.quantity > 0)
+      .sort((left, right) => left.receivedAt.getTime() - right.receivedAt.getTime())
+    const sortedSales = [...sales]
+      .filter((row) => row.quantity > 0)
+      .sort((left, right) => left.soldAt.getTime() - right.soldAt.getTime())
+
+    const queue: Array<{ receivedAt: Date; quantity: number; remaining: number }> = []
+    const completedBatches: Array<{ receivedAt: Date; soldOutAt: Date; quantity: number; monthlyRate: number }> = []
+    let receiveIndex = 0
+
+    for (const sale of sortedSales) {
+      while (
+        receiveIndex < sortedReceives.length &&
+        sortedReceives[receiveIndex] &&
+        sortedReceives[receiveIndex]!.receivedAt.getTime() <= sale.soldAt.getTime()
+      ) {
+        const batch = sortedReceives[receiveIndex]!
+        queue.push({
+          receivedAt: batch.receivedAt,
+          quantity: batch.quantity,
+          remaining: batch.quantity,
+        })
+        receiveIndex += 1
+      }
+
+      let remainingSale = sale.quantity
+      while (remainingSale > 0 && queue.length > 0) {
+        const currentBatch = queue[0]!
+        const consumed = Math.min(currentBatch.remaining, remainingSale)
+        currentBatch.remaining -= consumed
+        remainingSale -= consumed
+
+        if (currentBatch.remaining <= 0) {
+          const startDate = new Date(
+            currentBatch.receivedAt.getFullYear(),
+            currentBatch.receivedAt.getMonth(),
+            currentBatch.receivedAt.getDate(),
+          )
+          const endDate = new Date(sale.soldAt.getFullYear(), sale.soldAt.getMonth(), sale.soldAt.getDate())
+          const elapsedDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / DAY_IN_MS) + 1)
+
+          completedBatches.push({
+            receivedAt: currentBatch.receivedAt,
+            soldOutAt: sale.soldAt,
+            quantity: currentBatch.quantity,
+            monthlyRate: roundCurrency((currentBatch.quantity / elapsedDays) * 30),
+          })
+          queue.shift()
+        }
+      }
+    }
+
+    const lookbackMonths: Date[] = Array.from({ length: 6 }, (_, index) => shiftMonth(now, -(5 - index)))
+    const oldestLookback = lookbackMonths[0]!
+    const monthlyBatchMap = new Map<string, number[]>()
+
+    for (const batch of completedBatches) {
+      const key = monthBucket(batch.receivedAt)
+      const values = monthlyBatchMap.get(key) ?? []
+      values.push(batch.monthlyRate)
+      monthlyBatchMap.set(key, values)
+    }
+
+    let lastKnownRate =
+      [...completedBatches]
+        .filter((batch) => batch.receivedAt.getTime() < oldestLookback.getTime())
+        .sort((left, right) => right.receivedAt.getTime() - left.receivedAt.getTime())[0]?.monthlyRate ?? null
+
+    const sixMonthValues: number[] = []
+    for (const monthStart of lookbackMonths) {
+      const values = monthlyBatchMap.get(monthBucket(monthStart)) ?? []
+      const monthRate =
+        values.length > 0
+          ? roundCurrency(values.reduce((sum, value) => sum + value, 0) / values.length)
+          : lastKnownRate
+
+      if (monthRate != null) {
+        sixMonthValues.push(monthRate)
+        lastKnownRate = monthRate
+      }
+    }
+
+    const latestCompletedBatch = [...completedBatches].sort(
+      (left, right) => right.soldOutAt.getTime() - left.soldOutAt.getTime(),
+    )[0]
+
+    return {
+      monthlySellThrough:
+        sixMonthValues.length > 0
+          ? roundCurrency(sixMonthValues.reduce((sum, value) => sum + value, 0) / sixMonthValues.length)
+          : latestCompletedBatch?.monthlyRate ?? null,
+      analyticsWindowMonths: 6,
+      completedBatchCount: completedBatches.length,
+      lastSoldOutAt: latestCompletedBatch?.soldOutAt ?? null,
+    }
+  }
+
+  private async buildSellThroughMap(productIds: string[], branchId?: string | null) {
+    const uniqueProductIds = [...new Set(productIds.filter(Boolean))]
+    const result = new Map<
+      string,
+      {
+        monthlySellThrough: number | null
+        analyticsWindowMonths: number
+        completedBatchCount: number
+        lastSoldOutAt: Date | null
+      }
+    >()
+
+    if (uniqueProductIds.length === 0) return result
+
+    const now = new Date()
+    const analyticsStart = shiftMonth(startOfMonth(now), -12)
+
+    const [receiveItems, salesRows] = await Promise.all([
+      this.db.stockReceiptReceiveItem.findMany({
+        where: {
+          productId: { in: uniqueProductIds },
+          receive: {
+            receivedAt: { gte: analyticsStart },
+            ...(branchId ? { branchId } : {}),
+          },
+        },
+        select: {
+          productId: true,
+          quantity: true,
+          receive: {
+            select: {
+              receivedAt: true,
+            },
+          },
+        },
+        orderBy: { receive: { receivedAt: 'asc' } },
+      } as any),
+      this.db.productSalesDaily.findMany({
+        where: {
+          productId: { in: uniqueProductIds },
+          date: { gte: analyticsStart },
+          ...(branchId ? { branchId } : {}),
+        },
+        select: {
+          productId: true,
+          date: true,
+          quantitySold: true,
+        },
+        orderBy: { date: 'asc' },
+      } as any),
+    ])
+
+    const receivesByProduct = new Map<string, Array<{ receivedAt: Date; quantity: number }>>()
+    for (const row of receiveItems) {
+      const values = receivesByProduct.get(row.productId) ?? []
+      values.push({
+        receivedAt: new Date((row as any).receive.receivedAt),
+        quantity: toInt(row.quantity),
+      })
+      receivesByProduct.set(row.productId, values)
+    }
+
+    const salesByProduct = new Map<string, Array<{ soldAt: Date; quantity: number }>>()
+    for (const row of salesRows) {
+      const values = salesByProduct.get(row.productId) ?? []
+      values.push({
+        soldAt: new Date(row.date),
+        quantity: toInt(row.quantitySold),
+      })
+      salesByProduct.set(row.productId, values)
+    }
+
+    for (const productId of uniqueProductIds) {
+      result.set(
+        productId,
+        this.calculateSellThroughMetrics(receivesByProduct.get(productId) ?? [], salesByProduct.get(productId) ?? [], now),
+      )
+    }
+
+    return result
+  }
+
+  async findInventoryProducts(query: FindStockProductsDto) {
+    const page = Math.max(1, Number(query.page) || 1)
+    const limit = Math.max(1, Number(query.limit) || 20)
+    const branchId = query.branchId?.trim() || ''
+    const filterType = query.filterType?.trim() || 'ALL'
+    const searchTokens = tokenizeSearch(query.search)
+    const where: any = { deletedAt: null }
+
+    if (branchId) {
+      where.OR = [
+        { branchStocks: { some: { branchId } } },
+        { variants: { some: { branchStocks: { some: { branchId } } } } },
+      ]
+    }
+
+    const products = await this.db.product.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        branchStocks: true,
+        variants: {
+          include: {
+            branchStocks: true,
+          },
+        },
+      },
+    } as any)
+
+    const searchedProducts =
+      searchTokens.length > 0
+        ? products.filter((product) => {
+            const haystack = buildProductSearchHaystack(product)
+            return searchTokens.some((token) => haystack.includes(token))
+          })
+        : products
+
+    const sellThroughMap = await this.buildSellThroughMap(
+      searchedProducts.map((product) => product.id),
+      branchId || undefined,
+    )
+
+    const mappedRows = searchedProducts.map((product) => {
+      const sourceRows = this.getInventorySourceRows(product, branchId || undefined)
+      const currentStock = sourceRows.reduce((sum: number, row: any) => sum + toInt(row.stock), 0)
+      const reservedStock = sourceRows.reduce((sum: number, row: any) => sum + toInt(row.reservedStock), 0)
+      const minStock =
+        sourceRows.length > 0
+          ? sourceRows.reduce((sum: number, row: any) => sum + toInt(row.minStock), 0)
+          : toInt(product.minStock)
+      const sellableStock = Math.max(0, currentStock - reservedStock)
+      const analytics = sellThroughMap.get(product.id)
+
+      return {
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        image: product.image,
+        unit: product.unit,
+        category: product.category,
+        brand: product.brand,
+        currentStock,
+        reservedStock,
+        sellableStock,
+        minStock,
+        status: this.buildInventoryStatus(currentStock, minStock),
+        monthlySellThrough: analytics?.monthlySellThrough ?? null,
+        analyticsWindowMonths: analytics?.analyticsWindowMonths ?? 6,
+        completedBatchCount: analytics?.completedBatchCount ?? 0,
+        lastSoldOutAt: analytics?.lastSoldOutAt ?? null,
+      }
+    })
+
+    const filteredRows =
+      filterType === 'LOW_STOCK'
+        ? mappedRows.filter((row) => row.currentStock <= row.minStock)
+        : mappedRows
+
+    const sortBy = query.sortBy?.trim() || ''
+    const sortOrder = query.sortOrder === 'asc' ? 'asc' : 'desc'
+    const sortedRows =
+      sortBy.length > 0
+        ? [...filteredRows].sort((left, right) => {
+            const factor = sortOrder === 'asc' ? 1 : -1
+
+            switch (sortBy) {
+              case 'code':
+                return compareText(left.sku, right.sku) * factor
+              case 'name':
+                return compareText(left.name, right.name) * factor
+              case 'minStock':
+                return (left.minStock - right.minStock) * factor
+              case 'stock':
+                return (left.currentStock - right.currentStock) * factor
+              case 'sellable':
+                return (left.sellableStock - right.sellableStock) * factor
+              case 'monthlySellThrough':
+                return ((left.monthlySellThrough ?? -1) - (right.monthlySellThrough ?? -1)) * factor
+              case 'status': {
+                const rank = { OUT_OF_STOCK: 0, LOW_STOCK: 1, NORMAL: 2 }
+                return ((rank[left.status as keyof typeof rank] ?? 99) - (rank[right.status as keyof typeof rank] ?? 99)) * factor
+              }
+              default:
+                return 0
+            }
+          })
+        : filteredRows
+
+    const total = sortedRows.length
+    const pagedRows = sortedRows.slice((page - 1) * limit, page * limit)
+
+    return {
+      success: true,
+      data: pagedRows,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    }
   }
 
   async getTransactionsByProduct(productId: string) {

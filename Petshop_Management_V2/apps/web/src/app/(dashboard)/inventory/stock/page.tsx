@@ -1,6 +1,4 @@
 import { Metadata } from 'next'
-import { PageContainer, PageHeader } from '@/components/layout/PageLayout'
-import { AlertCircle, Package } from 'lucide-react'
 import { StockList } from './_components/stock-list'
 
 export const metadata: Metadata = {
@@ -11,7 +9,6 @@ export const metadata: Metadata = {
 export default function StockPage() {
   return (
     <>
-
       <StockList />
     </>
   )

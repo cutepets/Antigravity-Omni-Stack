@@ -8,6 +8,20 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dayjs from 'dayjs'
 
+function getCurrentProductStock(product: any) {
+  const variantStocks = Array.isArray(product?.variants)
+    ? product.variants.flatMap((variant: any) => (Array.isArray(variant?.branchStocks) ? variant.branchStocks : []))
+    : []
+  const sourceRows =
+    variantStocks.length > 0
+      ? variantStocks
+      : Array.isArray(product?.branchStocks)
+        ? product.branchStocks
+        : []
+
+  return sourceRows.reduce((sum: number, row: any) => sum + Number(row?.stock ?? 0), 0)
+}
+
 export function StockTransactionHistory({ productId }: { productId: string }) {
   const router = useRouter()
 
@@ -23,6 +37,7 @@ export function StockTransactionHistory({ productId }: { productId: string }) {
 
   const product = (resProduct as any)?.data
   const transactions = Array.isArray((resTrans as any)?.data) ? (resTrans as any).data : []
+  const currentStock = product ? getCurrentProductStock(product) : 0
 
   if (isLoadingProduct || isLoadingTrans) {
     return <div className="p-8 text-center text-foreground-muted animate-pulse">Đang tải lịch sử...</div>
@@ -61,7 +76,7 @@ export function StockTransactionHistory({ productId }: { productId: string }) {
         </button>
         <div>
           <h1 className="text-xl font-bold text-foreground">Lịch sử Kho</h1>
-          <p className="text-sm text-foreground-muted">{product.name} (Tồn hiện tại: <strong className="text-primary-600">{product.stock}</strong>)</p>
+          <p className="text-sm text-foreground-muted">{product.name} (Tồn hiện tại: <strong className="text-primary-600">{currentStock}</strong>)</p>
         </div>
       </div>
 
@@ -110,7 +125,7 @@ export function StockTransactionHistory({ productId }: { productId: string }) {
                       ) : '-'}
                     </td>
                     <td className="text-sm">
-                      {t.notes || '-'}
+                      {t.reason || '-'}
                     </td>
                     <td className="text-sm text-foreground-muted">
                       {dayjs(t.createdAt).format('DD/MM/YYYY HH:mm')}

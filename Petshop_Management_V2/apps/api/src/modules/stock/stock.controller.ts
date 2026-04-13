@@ -23,6 +23,7 @@ import {
   CreateReturnReceiptDto,
   CreateSupplierDto,
   FindReceiptsDto,
+  FindStockProductsDto,
   PayReceiptDto,
   ReceiveReceiptDto,
   RefundSupplierReturnDto,
@@ -150,6 +151,13 @@ export class StockController {
   @ApiOperation({ summary: 'Gợi ý nhập hàng' })
   getSuggestions() {
     return this.stockService.getLowStockSuggestions()
+  }
+
+  @Get('products')
+  @Permissions('stock_receipt.read')
+  @ApiOperation({ summary: 'Danh sach ton kho tong hop' })
+  findInventoryProducts(@Query() query: FindStockProductsDto) {
+    return this.stockService.findInventoryProducts(query)
   }
 
   @Get('suppliers')

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx *)",
+      "Read(c:\\Users\\Admin\\.qwen/**)",
+      "Read(c:\\Users\\Admin\\.qwen\\projects/**)",
+      "Bash(npm run *)",
+      "Bash(taskkill *)",
+      "Bash(timeout *)",
+      "Bash(findstr *)"
+    ]
+  },
+  "$version": 3
+}

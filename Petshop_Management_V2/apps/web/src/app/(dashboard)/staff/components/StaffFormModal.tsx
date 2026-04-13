@@ -7,8 +7,8 @@ import { Camera, User, Phone, Shield, Briefcase, Plus, X, Upload, Edit2, Check, 
 import { settingsApi } from '@/lib/api'
 
 // Common Dark Input Style
-const inputStyle = "w-full rounded-xl border border-white/10 bg-[#2A2D3C] px-4 py-3 text-sm text-white placeholder-gray-500 outline-none focus:border-[#00E5B5] focus:ring-1 focus:ring-[#00E5B5] transition-all"
-const labelStyle = "mb-2 block text-xs font-semibold uppercase tracking-wider text-gray-400"
+const inputStyle = "w-full rounded-xl border border-border bg-background-elevated px-4 py-3 text-sm text-foreground placeholder-foreground-muted outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/30 transition-all"
+const labelStyle = "mb-2 block text-xs font-semibold uppercase tracking-wider text-foreground-muted"
 
 interface StaffFormModalProps {
   isOpen: boolean
@@ -214,22 +214,22 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="relative flex max-h-[95vh] w-full max-w-5xl flex-col rounded-2xl bg-[#1A1D27] shadow-2xl ring-1 ring-white/10 overflow-hidden">
+      <div className="relative flex max-h-[95vh] w-full max-w-5xl flex-col rounded-2xl bg-background shadow-2xl ring-1 ring-border/50 overflow-hidden">
         
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 bg-[#1A1D27] px-6 py-4 sticky top-0 z-10">
+        <div className="flex items-center justify-between border-b border-border/50 bg-background px-6 py-4 sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#00E5B5]/20 to-[#00D4FF]/20 text-[#00E5B5]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500/20 to-primary-400/20 text-primary-500">
               <User size={20} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white tracking-wide">
+              <h2 className="text-xl font-bold text-foreground tracking-wide">
                 {isEditing ? 'Cập nhật nhân viên' : 'Thêm nhân viên mới'}
               </h2>
-              <p className="text-xs text-gray-400">Điền đầy đủ thông tin bên dưới để tiếp tục</p>
+              <p className="text-xs text-foreground-muted">Điền đầy đủ thông tin bên dưới để tiếp tục</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-full p-2 text-gray-400 transition-colors hover:bg-white/5 hover:text-white">
+          <button onClick={onClose} className="rounded-full p-2 text-foreground-muted transition-colors hover:bg-white/5 hover:text-foreground">
             <X size={20} />
           </button>
         </div>
@@ -246,30 +246,30 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
             
             {/* Left Column - Core Info */}
             <div className="flex flex-col gap-6 lg:w-[35%]">
-              <div className="rounded-2xl border border-white/5 bg-[#212431] p-5 shadow-sm">
+              <div className="rounded-2xl border border-border/50 bg-background-secondary p-5 shadow-sm">
                 <div className="mb-4 flex items-center gap-2">
-                  <User size={16} className="text-[#00E5B5]" />
-                  <span className="text-sm font-bold text-white uppercase tracking-wider">Thông tin nhân viên</span>
+                  <User size={16} className="text-primary-500" />
+                  <span className="text-sm font-bold text-foreground uppercase tracking-wider">Thông tin nhân viên</span>
                 </div>
                 
                 <div className="mb-6 flex justify-center">
-                    <div className="relative group cursor-pointer h-[144px] w-[108px] mx-auto rounded-xl ring-4 ring-[#2A2D3C] transition-transform hover:scale-105 overflow-hidden">
+                    <div className="relative group cursor-pointer h-[144px] w-[108px] mx-auto rounded-xl ring-4 ring-background-elevated transition-transform hover:scale-105 overflow-hidden">
                       {avatarBase64 ? (
                         <img src={avatarBase64} alt="Avatar" className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#2A2D3C] to-[#1A1D27]">
-                          <Camera size={32} className="text-gray-500" />
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-background-elevated to-background">
+                          <Camera size={32} className="text-foreground-muted" />
                         </div>
                       )}
                       
                       {/* Hover Overlay */}
                       <div className="absolute inset-0 bg-black/60 flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity gap-2 z-10 hidden group-hover:flex">
-                        <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-white hover:text-[#00E5B5]" onClick={e => e.stopPropagation()}>
+                        <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-white hover:text-primary-500" onClick={e => e.stopPropagation()}>
                           <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
                           <Upload size={12} /> Đổi
                         </label>
                         {avatarBase64 && (
-                          <button type="button" onClick={(e) => { e.stopPropagation(); setCropImageObj(avatarBase64) }} className="flex items-center gap-1.5 text-xs font-medium text-white hover:text-[#00D4FF]">
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setCropImageObj(avatarBase64) }} className="flex items-center gap-1.5 text-xs font-medium text-white hover:text-primary-400">
                             <Edit2 size={12} /> Sửa
                           </button>
                         )}
@@ -277,7 +277,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                     </div>
                     {/* fallback click area if no avatar */}
                     {!avatarBase64 && (
-                      <div className="absolute -bottom-3 -right-3 rounded-full bg-[#00E5B5] p-2 text-black shadow-lg z-10 border-2 border-[#1A1D27]" onClick={() => fileInputRef.current?.click()}>
+                      <div className="absolute -bottom-3 -right-3 rounded-full bg-primary-500 p-2 text-primary-foreground shadow-lg z-10 border-2 border-background" onClick={() => fileInputRef.current?.click()}>
                         <Plus size={16} strokeWidth={3} />
                       </div>
                     )}
@@ -302,19 +302,19 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                       placeholder="nva2025"
                     />
                     {!isEditing && (
-                      <p className="mt-1.5 text-[11px] text-gray-500">Mật khẩu mặc định: <span className="text-gray-400 font-medium">Petshop@123</span></p>
+                      <p className="mt-1.5 text-[11px] text-foreground-muted">Mật khẩu mặc định: <span className="text-foreground font-medium">Petshop@123</span></p>
                     )}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={labelStyle}>Giới tính</label>
-                      <div className="flex rounded-xl bg-[#2A2D3C] p-1">
+                      <div className="flex rounded-xl bg-background-elevated p-1">
                         {['MALE', 'FEMALE'].map(g => (
                           <button
                             key={g} type="button"
                             onClick={() => setFormData({ ...formData, gender: g })}
-                            className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${formData.gender === g ? 'bg-[#00E5B5] text-black shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                            className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${formData.gender === g ? 'bg-primary-500 text-primary-foreground shadow-sm' : 'text-foreground-muted hover:text-foreground'}`}
                           >
                             {g === 'MALE' ? 'Nam' : 'Nữ'}
                           </button>
@@ -323,12 +323,12 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                     </div>
                     <div>
                       <label className={labelStyle}>Loại hình</label>
-                      <div className="flex rounded-xl bg-[#2A2D3C] p-1">
+                      <div className="flex rounded-xl bg-background-elevated p-1">
                         {['FULL_TIME', 'PART_TIME'].map(g => (
                           <button
                             key={g} type="button"
                             onClick={() => setFormData({ ...formData, employmentType: g })}
-                            className={`flex-1 rounded-lg py-2 text-xs font-medium transition-colors ${formData.employmentType === g ? 'bg-[#00D4FF] text-black shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                            className={`flex-1 rounded-lg py-2 text-xs font-medium transition-colors ${formData.employmentType === g ? 'bg-primary-500 text-primary-foreground shadow-sm' : 'text-foreground-muted hover:text-foreground'}`}
                           >
                             {g === 'FULL_TIME' ? 'Full-Time' : 'Part-Time'}
                           </button>
@@ -344,10 +344,10 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
             <div className="flex flex-col gap-6 lg:w-[65%]">
               
               {/* Box 1: Contact Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-[#212431] p-5 shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 rounded-2xl border border-border/50 bg-background-secondary p-5 shadow-sm">
                 <div className="col-span-1 md:col-span-2 mb-2 flex items-center gap-2">
-                  <Phone size={16} className="text-[#00D4FF]" />
-                  <span className="text-sm font-bold text-white uppercase tracking-wider">Thông tin liên hệ & cá nhân</span>
+                  <Phone size={16} className="text-primary-500" />
+                  <span className="text-sm font-bold text-foreground uppercase tracking-wider">Thông tin liên hệ & cá nhân</span>
                 </div>
                 
                 <div>
@@ -372,7 +372,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                     <select 
                       value={formData.emergencyContactTitle} 
                       onChange={e => setFormData({ ...formData, emergencyContactTitle: e.target.value })} 
-                      className="rounded-l-xl border border-white/10 bg-[#2A2D3C] px-4 py-3 text-sm text-white outline-none focus:border-[#00E5B5] min-w-[120px] appearance-none"
+                      className="rounded-l-xl border border-border bg-background-elevated px-4 py-3 text-sm text-foreground outline-none focus:border-primary-500 min-w-[120px] appearance-none"
                     >
                       <option value="">Chọn</option>
                       <option value="Ông">Ông</option>
@@ -391,7 +391,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                       type="text" 
                       value={formData.emergencyContactPhone} 
                       onChange={e => setFormData({ ...formData, emergencyContactPhone: e.target.value })} 
-                      className="w-full rounded-r-xl border-y border-r border-white/10 bg-[#2A2D3C] px-4 py-3 text-sm text-white placeholder-gray-500 outline-none focus:border-[#00E5B5]" 
+                      className="w-full rounded-r-xl border-y border-r border-border bg-background-elevated px-4 py-3 text-sm text-foreground placeholder-foreground-muted outline-none focus:border-primary-500" 
                       placeholder="Số điện thoại" 
                     />
                   </div>
@@ -399,10 +399,10 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
               </div>
 
               {/* Box 2: Contract Info — no longer contains branch */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 rounded-2xl border border-white/5 bg-[#212431] p-5 shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 rounded-2xl border border-border/50 bg-background-secondary p-5 shadow-sm">
                 <div className="col-span-1 md:col-span-3 mb-2 flex items-center gap-2">
                   <Briefcase size={16} className="text-purple-400" />
-                  <span className="text-sm font-bold text-white uppercase tracking-wider">Hợp đồng & Ca làm việc</span>
+                  <span className="text-sm font-bold text-foreground uppercase tracking-wider">Hợp đồng & Ca làm việc</span>
                 </div>
                 
                 <div className="md:col-span-1">
@@ -413,14 +413,14 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                   <label className={labelStyle}>Lương cơ bản</label>
                   <div className="relative">
                     <input type="number" value={formData.baseSalary} onChange={e => setFormData({ ...formData, baseSalary: e.target.value })} className={inputStyle} placeholder="Lương theo tháng" />
-                    <span className="absolute right-4 top-3 text-gray-500 text-sm">VNĐ</span>
+                    <span className="absolute right-4 top-3 text-foreground-muted text-sm">VNĐ</span>
                   </div>
                 </div>
                 <div className="md:col-span-1">
                   <label className={labelStyle}>% Thưởng Spa</label>
                   <div className="relative">
                     <input type="number" value={formData.spaCommissionRate} onChange={e => setFormData({ ...formData, spaCommissionRate: e.target.value })} className={inputStyle} placeholder="Vd: 10" />
-                    <span className="absolute right-4 top-3 text-gray-500 text-sm">%</span>
+                    <span className="absolute right-4 top-3 text-foreground-muted text-sm">%</span>
                   </div>
                 </div>
                 <div className="md:col-span-1">
@@ -445,10 +445,10 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
               </div>
 
               {/* Box 3: Roles & Branch Assignment */}
-              <div className="rounded-2xl border border-white/5 bg-[#212431] p-5 shadow-sm">
+              <div className="rounded-2xl border border-border/50 bg-background-secondary p-5 shadow-sm">
                 <div className="mb-4 flex items-center gap-2">
                   <Shield size={16} className="text-orange-400" />
-                  <span className="text-sm font-bold text-white uppercase tracking-wider">Phân quyền & Chi nhánh thao tác</span>
+                  <span className="text-sm font-bold text-foreground uppercase tracking-wider">Phân quyền & Chi nhánh thao tác</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-5">
@@ -466,11 +466,11 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                 <div>
                   <label className={labelStyle}>
                     <div className="flex items-center gap-2">
-                      <MapPin size={12} className="text-[#00E5B5]" />
+                      <MapPin size={12} className="text-primary-500" />
                       <span>Chi nhánh thao tác</span>
                     </div>
                   </label>
-                  <p className="mb-3 text-xs text-gray-500">
+                  <p className="mb-3 text-xs text-foreground-muted">
                     Chọn các chi nhánh mà nhân viên được phép thao tác. Khi bán hàng có thể chuyển đổi giữa các chi nhánh đã chọn.
                   </p>
                   
@@ -484,22 +484,22 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                           onClick={() => toggleBranch(branch.id)}
                           className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
                             isSelected
-                              ? 'border-[#00E5B5]/50 bg-[#00E5B5]/10 ring-1 ring-[#00E5B5]/30'
-                              : 'border-white/10 bg-[#2A2D3C] hover:border-white/20'
+                              ? 'border-primary-500/50 bg-primary-500/10 ring-1 ring-primary-500/30'
+                              : 'border-border/50 bg-background-elevated hover:border-border'
                           }`}
                         >
                           <div className="min-w-0">
-                            <p className={`text-sm font-semibold truncate ${isSelected ? 'text-[#00E5B5]' : 'text-white'}`}>
+                            <p className={`text-sm font-semibold truncate ${isSelected ? 'text-primary-500' : 'text-foreground'}`}>
                               {branch.name}
                             </p>
                             {branch.address && (
-                              <p className="mt-0.5 truncate text-xs text-gray-500">{branch.address}</p>
+                              <p className="mt-0.5 truncate text-xs text-foreground-muted">{branch.address}</p>
                             )}
                           </div>
                           <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition-all ${
                             isSelected
-                              ? 'bg-[#00E5B5] text-black'
-                              : 'border border-white/20'
+                              ? 'bg-primary-500 text-primary-foreground'
+                              : 'border border-border'
                           }`}>
                             {isSelected && <Check size={12} strokeWidth={3} />}
                           </div>
@@ -507,12 +507,12 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                       )
                     })}
                     {branches.length === 0 && (
-                      <p className="col-span-2 py-4 text-center text-xs text-gray-500">Chưa có chi nhánh nào. Vui lòng tạo chi nhánh trước.</p>
+                      <p className="col-span-2 py-4 text-center text-xs text-foreground-muted">Chưa có chi nhánh nào. Vui lòng tạo chi nhánh trước.</p>
                     )}
                   </div>
                   
                   {formData.authorizedBranchIds.length > 0 && (
-                    <p className="mt-2 text-xs text-[#00E5B5]">
+                    <p className="mt-2 text-xs text-primary-500">
                       Đã chọn {formData.authorizedBranchIds.length} chi nhánh
                     </p>
                   )}
@@ -523,12 +523,12 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         </div>
 
         {/* Footer actions */}
-        <div className="border-t border-white/5 bg-[#1A1D27] p-5 flex justify-end gap-4 sticky bottom-0 z-10">
-          <button type="button" onClick={onClose} disabled={loading} className="px-6 py-3 rounded-xl bg-[#2A2D3C] text-white font-medium hover:bg-[#3A3D4C] transition-colors">
+        <div className="border-t border-border/50 bg-background p-5 flex justify-end gap-4 sticky bottom-0 z-10">
+          <button type="button" onClick={onClose} disabled={loading} className="px-6 py-3 rounded-xl bg-background-elevated text-foreground font-medium hover:bg-background-secondary transition-colors border border-border/50">
             Đóng
           </button>
-          <button type="submit" form="staff-form" disabled={loading} className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#00E5B5] to-[#00D4FF] text-black font-bold shadow-lg hover:shadow-[#00E5B5]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center gap-2">
-            {loading ? <span className="animate-spin rounded-full border-2 border-black/20 border-t-black h-4 w-4" /> : null}
+          <button type="submit" form="staff-form" disabled={loading} className="px-8 py-3 rounded-xl bg-gradient-to-r from-primary-500 to-primary-400 text-primary-foreground font-bold shadow-lg shadow-primary-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center gap-2">
+            {loading ? <span className="animate-spin rounded-full border-2 border-primary-foreground/20 border-t-primary-foreground h-4 w-4" /> : null}
             {isEditing ? 'Lưu cập nhật' : 'Tạo mới nhân sự'}
           </button>
         </div>

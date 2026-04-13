@@ -22,6 +22,13 @@ export interface PetResponse {
 
 export type CreatePetPayload = Omit<Pet, 'id' | 'petCode' | 'createdAt' | 'updatedAt' | 'gender'> & { gender?: 'MALE' | 'FEMALE' | 'UNKNOWN' }
 
+export interface AddVaccinationPayload {
+  vaccineName: string
+  date: string
+  nextDueDate?: string
+  notes?: string
+}
+
 export const petApi = {
   getPets: async (params?: FindPetsParams) => {
     const res = await api.get<PetResponse & { success: boolean }>('/pets', { params })
@@ -31,6 +38,11 @@ export const petApi = {
   getPet: async (id: string) => {
     const res = await api.get<ApiResponse<Pet>>(`/pets/${id}`)
     return res.data.data
+  },
+
+  getActivePetServices: async (petId: string) => {
+    const res = await api.get(`/pets/${petId}/active-services`);
+    return res.data?.data ?? res.data;
   },
 
   createPet: async (data: CreatePetPayload) => {
@@ -54,6 +66,11 @@ export const petApi = {
     return res.data.data
   },
 
+  addVaccination: async (petId: string, payload: AddVaccinationPayload) => {
+    const res = await api.post<ApiResponse<any>>(`/pets/${petId}/vaccinations`, payload)
+    return res.data.data
+  },
+
   uploadAvatar: async (id: string, file: File) => {
     const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
@@ -62,6 +79,26 @@ export const petApi = {
     formData.append('file', file)
     
     const res = await fetch(`${API_URL}/api/pets/${id}/avatar`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    })
+    
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message || 'Upload thất bại')
+    return data.data
+  },
+
+  uploadVaccinePhoto: async (petId: string, file: File) => {
+    const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const res = await fetch(`${API_URL}/api/pets/${petId}/vaccinations/photo`, {
       method: 'POST',
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),

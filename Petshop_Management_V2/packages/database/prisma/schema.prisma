@@ -98,8 +98,46 @@ model User {
   branch                Branch?                @relation(fields: [branchId], references: [id])
   role                  Role?                  @relation(fields: [roleId], references: [id])
   authorizedBranches    Branch[]               @relation("UserAuthorizedBranches")
+  documents             EmployeeDocument[]
 
   @@map("users")
+}
+
+// ============================================================================
+// Employee Document Management
+// ============================================================================
+
+model EmployeeDocument {
+  id          String   @id @default(cuid())
+  userId      String
+  type        DocumentType
+  fileName    String
+  fileUrl     String
+  fileSize    Int      // in bytes
+  mimeType    String
+  description String?
+  uploadedAt  DateTime @default(now())
+  uploadedBy  String
+  expiresAt   DateTime?
+  isActive    Boolean  @default(true)
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([isActive])
+  @@map("employee_documents")
+}
+
+enum DocumentType {
+  CCCD_FRONT          // CCCD mặt trước
+  CCCD_BACK           // CCCD mặt sau
+  APPLICATION         // Hồ sơ xin việc
+  CERTIFICATE         // Bằng cấp / Chứng chỉ
+  CONTRACT            // Hợp đồng lao động
+  HEALTH_CERT         // Giấy khám sức khỏe
+  TRAINING_CERT       // Chứng chỉ đào tạo
+  OTHER               // Tài liệu khác
 }
 
 model RefreshToken {
@@ -226,6 +264,7 @@ model PetVaccination {
   date        DateTime
   nextDueDate DateTime?
   notes       String?
+  photoUrl    String?
   createdAt   DateTime  @default(now())
   pet         Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
 

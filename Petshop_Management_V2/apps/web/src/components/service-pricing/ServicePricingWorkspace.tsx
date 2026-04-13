@@ -36,7 +36,7 @@ type SpaServiceColumn = {
 
 type SpaDraft = {
   id?: string
-  sku?: string
+  sku: string
   price: string
   durationMinutes: string
 }
@@ -935,7 +935,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const [hotelDrafts, setHotelDrafts] = useState<Record<string, HotelDraft>>({})
   const [removedBandIds, setRemovedBandIds] = useState<string[]>([])
   const [editingBandKey, setEditingBandKey] = useState<string | null>(null)
-  const [editingServiceKey, setEditingServiceKey] = useState<string | null>(null)
   const [newHoliday, setNewHoliday] = useState<HolidayDraft>(() => createHolidayDraft())
   const [editingHolidayId, setEditingHolidayId] = useState<string | null>(null)
   const [previewForm, setPreviewForm] = useState({
@@ -1040,7 +1039,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       if (!serviceKey) continue
       nextDrafts[getSpaRuleKey(rule.weightBandId, serviceKey)] = {
         id: rule.id,
-        sku: rule.sku ?? undefined,
+        sku: rule.sku ?? '',
         price: formatCurrencyInput(rule.price),
         durationMinutes: formatIntegerInput(rule.durationMinutes),
       }
@@ -1053,7 +1052,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     if (mode !== 'GROOMING') return
     setRemovedBandIds([])
     setEditingBandKey(null)
-    setEditingServiceKey(null)
   }, [mode, species])
 
   useEffect(() => {
@@ -1254,7 +1252,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const addSpaServiceColumn = () => {
     const nextKey = createDraftKey('service')
     setSpaServiceColumns((current) => [...current, { key: nextKey, packageCode: '' }])
-    setEditingServiceKey(nextKey)
   }
 
   const updateSpaServiceColumn = (serviceKey: string, packageCode: string) => {
@@ -1273,7 +1270,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
         }),
       ),
     )
-    setEditingServiceKey((current) => (current === serviceKey ? null : current))
   }
 
   const saveGroomingMatrix = async () => {
@@ -1473,13 +1469,11 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
               serviceColumns={spaServiceColumns}
               drafts={spaDrafts}
               editingBandKey={editingBandKey}
-              editingServiceKey={editingServiceKey}
               onBandChange={updateBandRow}
               onBandEdit={setEditingBandKey}
               onBandRemove={removeBandRow}
               onAddBand={addBandRow}
               onServiceChange={updateSpaServiceColumn}
-              onServiceEdit={setEditingServiceKey}
               onServiceRemove={removeSpaServiceColumn}
               onAddService={addSpaServiceColumn}
               onDraftChange={updateSpaDraft}
@@ -1929,13 +1923,11 @@ function GroomingPricingMatrix({
   serviceColumns,
   drafts,
   editingBandKey,
-  editingServiceKey,
   onBandChange,
   onBandEdit,
   onBandRemove,
   onAddBand,
   onServiceChange,
-  onServiceEdit,
   onServiceRemove,
   onAddService,
   onDraftChange,
@@ -1951,13 +1943,11 @@ function GroomingPricingMatrix({
   serviceColumns: SpaServiceColumn[]
   drafts: Record<string, SpaDraft>
   editingBandKey: string | null
-  editingServiceKey: string | null
   onBandChange: (index: number, patch: Partial<BandDraft>) => void
   onBandEdit: (key: string | null) => void
   onBandRemove: (index: number) => void
   onAddBand: () => void
   onServiceChange: (serviceKey: string, packageCode: string) => void
-  onServiceEdit: (key: string | null) => void
   onServiceRemove: (serviceKey: string) => void
   onAddService: () => void
   onDraftChange: (bandKey: string, serviceKey: string, patch: Partial<SpaDraft>) => void
@@ -1975,7 +1965,6 @@ function GroomingPricingMatrix({
 
   const handleExitEditMode = () => {
     onBandEdit(null)
-    onServiceEdit(null)
     setIsEditMode(false)
   }
 
@@ -2059,7 +2048,7 @@ function GroomingPricingMatrix({
       </div>
 
       <div className="custom-scrollbar overflow-auto rounded-2xl border border-border bg-background-base">
-        <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-sm">
+        <table className="w-full min-w-[1200px] border-separate border-spacing-0 text-left text-sm">
           <thead className="sticky top-0 z-10 bg-background-secondary">
             <tr>
               <th className="w-auto min-w-[280px] border-b border-r border-border bg-background-secondary px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">
@@ -2070,39 +2059,30 @@ function GroomingPricingMatrix({
                   Dịch vụ
                 </th>
               ) : serviceColumns.map((column) => (
-                <th key={column.key} className="border-b border-r border-border px-3 py-3">
-                  <div className="flex items-center justify-center gap-2">
-                    {editingServiceKey === column.key && canEditPricing ? (
-                      <input
-                        value={column.packageCode}
-                        onChange={(event) => onServiceChange(column.key, event.target.value)}
-                        onBlur={() => onServiceEdit(null)}
-                        autoFocus
-                        disabled={!canEditPricing}
-                        placeholder="Tên dịch vụ"
-                        className="h-9 w-full min-w-[120px] rounded-xl border border-border bg-background-base px-3 text-sm font-bold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
-                      />
-                    ) : (
-                      <span className="truncate text-sm font-black text-foreground">{column.packageCode || 'Dịch vụ mới'}</span>
-                    )}
-                    <div className="shrink-0 flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onServiceEdit(column.key)}
-                        disabled={!canEditPricing}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground disabled:opacity-50"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onServiceRemove(column.key)}
-                        disabled={!canEditPricing}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
-                      >
-                        <X size={14} />
-                      </button>
+                <th key={column.key} className="border-b border-r border-border px-3 py-2 min-w-[240px]">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <div className="flex items-center justify-center gap-2">
+                      {canEditPricing ? (
+                        <input
+                          value={column.packageCode}
+                          onChange={(event) => onServiceChange(column.key, event.target.value)}
+                          placeholder="Tên dịch vụ"
+                          className="h-8 w-full min-w-[100px] rounded-lg border border-border bg-background-base px-2 text-xs font-bold text-foreground outline-none focus:border-primary-500"
+                        />
+                      ) : (
+                        <span className="truncate text-xs font-black text-foreground">{column.packageCode || 'Dịch vụ mới'}</span>
+                      )}
+                      {canEditPricing && (
+                        <button
+                          type="button"
+                          onClick={() => onServiceRemove(column.key)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
                     </div>
+                    <span className="text-[9px] font-semibold uppercase tracking-widest text-foreground-muted/60">SKU · Giá · Thời gian</span>
                   </div>
                 </th>
               ))}
@@ -2174,22 +2154,20 @@ function GroomingPricingMatrix({
                   const sku = buildServicePricingSku('SPA', column.packageCode, band.label)
                   return (
                     <td key={`${band.key}:${column.key}`} className="border-b border-r border-border px-2 py-2 align-middle">
-                      <div className="mb-1 text-center">
+                      <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                         {canEditPricing ? (
                           <input
-                            value={draft.sku ?? ''}
+                            value={draft.sku}
                             onChange={(e) => onDraftChange(band.key, column.key, { sku: e.target.value })}
                             placeholder={sku}
-                            className="w-[80px] bg-transparent text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500 placeholder:text-primary-500/50 outline-none"
+                            className="w-[70px] shrink-0 rounded border border-border bg-background-base py-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500 placeholder:text-primary-500/30 outline-none hover:border-primary-500 focus:border-primary-500"
                           />
                         ) : (
-                          <span className="text-[10px] font-black uppercase tracking-[0.12em] text-primary-500">
+                          <span className="w-[70px] shrink-0 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500">
                             {draft.sku || sku}
                           </span>
                         )}
-                      </div>
-                      <div className="flex items-center justify-center gap-1.5 md:gap-3">
-                        <div className="w-[100px] shrink-0">
+                        <div className="w-[90px] shrink-0">
                           <PriceInput
                             value={draft.price}
                             onChange={(value) => onDraftChange(band.key, column.key, { price: value })}
@@ -2197,17 +2175,16 @@ function GroomingPricingMatrix({
                             disabled={!canEditPricing}
                           />
                         </div>
-                        <span className="text-[10px] text-foreground-muted sm:text-xs">/</span>
-                        <div className="relative w-[64px] shrink-0">
+                        <div className="relative w-[56px] shrink-0">
                           <input
                             value={draft.durationMinutes}
                             onChange={(event) => onDraftChange(band.key, column.key, { durationMinutes: event.target.value })}
                             placeholder=""
                             inputMode="numeric"
                             disabled={!canEditPricing}
-                            className="block h-11 w-full rounded-xl border border-border bg-background-secondary pl-1.5 pr-7 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-70"
+                            className="block h-9 w-full rounded-lg border border-border bg-background-secondary pl-1 pr-6 text-center text-xs font-semibold text-foreground outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-70"
                           />
-                          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-foreground-muted">phút</span>
+                          <span className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-[9px] text-foreground-muted">ph</span>
                         </div>
                       </div>
                     </td>

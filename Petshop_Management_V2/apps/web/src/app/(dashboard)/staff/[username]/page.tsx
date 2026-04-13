@@ -10,19 +10,40 @@ import {
   Clock,
   DollarSign,
   Edit,
-  HeartPulse,
+  FileText,
+  History,
   Key,
+  MapPin,
   Shield,
+  TrendingUp,
+  UserCheck,
   X,
 } from 'lucide-react'
+import dayjs from 'dayjs'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { Staff, staffApi, UpdateStaffDto } from '@/lib/api/staff.api'
 import { ChangePasswordModal } from '../components/ChangePasswordModal'
 import { StaffFormModal } from '../components/StaffFormModal'
 import { UpdateStatusModal } from '../components/UpdateStatusModal'
+import { StaffDocumentsTab } from './components/StaffDocumentsTab'
+import { StaffTimekeepingTab } from './components/StaffTimekeepingTab'
+import { StaffSalaryTab } from './components/StaffSalaryTab'
+import { StaffHistoryTab } from './components/StaffHistoryTab'
+import { PerformanceChart, MonthlyPerformance } from './components/PerformanceChart'
 import { api } from '@/lib/api'
 
 type StaffDetailTab = 'OVERVIEW' | 'TIMEKEEPING' | 'SALARY' | 'DOCS' | 'HISTORY'
+
+interface StaffPerformance {
+  monthlyRevenue: number
+  monthlySpaSessions: number
+  monthlyOrders: number
+}
+
+interface BranchRole {
+  role: string
+  branch: string
+}
 
 export default function StaffDetailPage() {
   const params = useParams()
@@ -43,17 +64,45 @@ export default function StaffDetailPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [roles, setRoles] = useState<any[]>([])
 
-  useEffect(() => {
-    api.get('/roles').then(res => setRoles(res.data.data || res.data || [])).catch(() => {})
-  }, [])
+  const [performance, setPerformance] = useState<StaffPerformance>({
+    monthlyRevenue: 0,
+    monthlySpaSessions: 0,
+    monthlyOrders: 0,
+  })
+
+  const [performanceChartData, setPerformanceChartData] = useState<MonthlyPerformance[]>([])
+  const [branchRoles, setBranchRoles] = useState<BranchRole[]>([])
+
+
 
   const loadStaff = async () => {
     if (!username) return
 
     try {
       setLoading(true)
-      const data = await staffApi.getById(username)
+      const [data, perfData, rolesData, allRolesRes] = await Promise.all([
+        staffApi.getById(username),
+        staffApi.getPerformance(username).catch(() => null),
+        staffApi.getBranchRoles(username).catch(() => []),
+        api.get('/roles').catch(() => ({ data: { data: [] } })),
+      ])
       setStaff(data)
+      if (allRolesRes && (allRolesRes.data?.data || allRolesRes.data)) {
+        setRoles(allRolesRes.data.data || allRolesRes.data || [])
+      }
+
+      if (perfData) {
+        setPerformance({
+          monthlyRevenue: perfData.monthlyRevenue || 0,
+          monthlySpaSessions: perfData.monthlySpaSessions || 0,
+          monthlyOrders: perfData.monthlyOrders || 0,
+        })
+        if (perfData.chartData) {
+          setPerformanceChartData(perfData.chartData)
+        }
+      }
+
+      setBranchRoles(rolesData)
     } catch (error) {
       console.error(error)
       alert('Không tìm thấy nhân viên')
@@ -74,16 +123,34 @@ export default function StaffDetailPage() {
     void loadStaff()
   }, [canViewStaff, isAuthLoading, router, username])
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+    }).format(amount)
+  }
+
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '--'
+    return dayjs(dateStr).format('DD/MM/YYYY')
+  }
+
+  const getTenure = (joinDate: string | null | undefined) => {
+    if (!joinDate) return '0 tháng'
+    const months = dayjs().diff(dayjs(joinDate), 'month')
+    return `${months} tháng`
+  }
+
   if (isAuthLoading || loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#0F111A]">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2A2D3C] border-t-[#00E5B5]" />
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary-500" />
       </div>
     )
   }
 
   if (!canViewStaff) {
-    return <div className="flex h-64 items-center justify-center text-gray-400">Đang chuyển hướng...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang chuyển hướng...</div>
   }
 
   if (!staff) {
@@ -93,189 +160,225 @@ export default function StaffDetailPage() {
   const canShowActions = canUpdateStaff || canDeactivateStaff
 
   return (
-    <div className="mx-auto min-h-screen max-w-[1200px] bg-[#0F111A] p-6 md:p-8">
-      <button
-        onClick={() => router.back()}
-        className="mb-6 flex items-center gap-2 text-gray-400 transition-colors hover:text-white"
-      >
-        <ArrowLeft size={16} />
-      </button>
-
-      <div className="flex flex-col items-start gap-6 border-b border-white/5 pb-8 md:flex-row">
-        <div className="aspect-[2/3] w-32 flex-shrink-0 overflow-hidden rounded-2xl border border-white/5 bg-[#1A1D27] shadow-lg">
-          {staff.avatar ? (
-            <img
-              src={staff.avatar}
-              alt={staff.fullName}
-              className="h-full w-full cursor-zoom-in object-cover"
-              onClick={() => setPreviewImage(staff.avatar!)}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#2A2D3C] to-[#1A1D27] text-4xl font-bold text-gray-500">
-              {staff.fullName.charAt(0).toUpperCase()}
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-1 flex-col justify-center pt-2">
-          <div className="mb-2 flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-white">{staff.fullName}</h1>
-            {staff.status === 'WORKING' ? (
-              <span className="flex items-center gap-1.5 rounded-full border border-[#00E5B5]/20 bg-[#00E5B5]/10 px-2.5 py-0.5 text-[11px] font-medium text-[#00E5B5]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#00E5B5]" />
-                Đang làm
-              </span>
-            ) : null}
-            <span className="rounded-md border border-[#6366f1]/20 bg-[#6366f1]/10 px-2 py-0.5 text-[10px] font-bold uppercase text-[#818cf8]">
-              {staff.employmentType === 'PART_TIME' ? 'PART-TIME' : 'FULL-TIME'}
-            </span>
-          </div>
-
-          <p className="mb-4 text-sm text-gray-400">
-            @{staff.username} · {staff.phone || 'Chưa có SĐT'} ·{' '}
-            <span className="text-gray-300">{staff.role?.name || 'Nhân viên'}</span>
-          </p>
-
-          {canShowActions ? (
-            <div className="flex flex-wrap items-center gap-3">
-              {canUpdateStaff ? (
-                <>
-                  <button
-                    onClick={() => setShowUpdateModal(true)}
-                    className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10"
-                  >
-                    <Edit size={14} />
-                    Sửa thông tin
-                  </button>
-                  <button
-                    onClick={() => setShowPasswordModal(true)}
-                    className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10"
-                  >
-                    <Key size={14} />
-                    Đổi mật khẩu
-                  </button>
-                </>
-              ) : null}
-
-              {canDeactivateStaff ? (
-                <button
-                  onClick={() => setShowStatusModal(true)}
-                  className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10"
-                >
-                  <Shield size={14} />
-                  Trạng thái
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="custom-scrollbar mt-4 flex gap-6 overflow-x-auto border-b border-white/5">
-        {[
-          { id: 'OVERVIEW', label: 'Tổng quan', icon: <Briefcase size={14} /> },
-          { id: 'TIMEKEEPING', label: 'Chấm công', icon: <Clock size={14} /> },
-          { id: 'SALARY', label: 'Lương & Thưởng', icon: <DollarSign size={14} /> },
-          { id: 'DOCS', label: 'Tài liệu', icon: <Calendar size={14} /> },
-          { id: 'HISTORY', label: 'Lịch sử', icon: <Activity size={14} /> },
-        ].map((tab) => (
+    <div className="min-h-screen bg-background">
+      {/* Header Section */}
+      <div className="border-b border-border bg-background-secondary">
+        <div className="mx-auto max-w-[1400px] px-6 py-6 md:px-8">
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as StaffDetailTab)}
-            className={`flex items-center gap-2 whitespace-nowrap border-b-2 py-4 text-sm font-bold transition-colors ${
-              activeTab === tab.id
-                ? 'border-[#00E5B5] text-[#00E5B5]'
-                : 'border-transparent text-gray-500 hover:border-white/20 hover:text-gray-300'
-            }`}
+            onClick={() => router.back()}
+            className="mb-4 flex items-center gap-2 text-foreground-muted transition-colors hover:text-foreground"
           >
-            {tab.icon}
-            {tab.label}
+            <ArrowLeft size={16} />
+            <span className="text-sm font-medium">Quay lại</span>
           </button>
-        ))}
+
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="aspect-square w-20 overflow-hidden rounded-2xl border border-border bg-background-tertiary shadow-lg sm:w-24">
+                {staff.avatar ? (
+                  <img
+                    src={staff.avatar}
+                    alt={staff.fullName}
+                    className="h-full w-full cursor-zoom-in object-cover"
+                    onClick={() => setPreviewImage(staff.avatar!)}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-background-tertiary to-background text-3xl font-bold text-foreground-muted sm:text-4xl">
+                    {staff.fullName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl font-bold text-foreground sm:text-2xl">{staff.fullName}</h1>
+                  {staff.status === 'WORKING' && (
+                    <span className="flex items-center gap-1.5 rounded-full border border-primary-500/20 bg-primary-500/10 px-2.5 py-0.5 text-xs font-medium text-primary-500">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />
+                      Đang làm
+                    </span>
+                  )}
+                  {staff.status === 'PROBATION' && (
+                    <span className="flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-500">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                      Thử việc
+                    </span>
+                  )}
+                  {staff.status === 'LEAVE' && (
+                    <span className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-500">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      Nghỉ phép
+                    </span>
+                  )}
+                  {(staff.status === 'RESIGNED' || staff.status === 'QUIT') && (
+                    <span className="flex items-center gap-1.5 rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-500">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                      Đã nghỉ việc
+                    </span>
+                  )}
+                  <span className="rounded-md border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-xs font-bold uppercase text-indigo-400">
+                    {staff.employmentType === 'PART_TIME' ? 'PART-TIME' : 'FULL-TIME'}
+                  </span>
+                </div>
+
+                <p className="mb-3 text-sm text-foreground-muted">
+                  @{staff.username} · {staff.phone || 'Chưa có SĐT'} ·{' '}
+                  <span className="text-foreground">{staff.role?.name || 'Nhân viên'}</span>
+                </p>
+
+                {canShowActions && (
+                  <div className="flex flex-wrap gap-2">
+                    {canUpdateStaff && (
+                      <>
+                        <button
+                          onClick={() => setShowUpdateModal(true)}
+                          className="btn-outline inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
+                        >
+                          <Edit size={14} />
+                          Sửa thông tin
+                        </button>
+                        <button
+                          onClick={() => setShowPasswordModal(true)}
+                          className="btn-outline inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
+                        >
+                          <Key size={14} />
+                          Đổi pass
+                        </button>
+                      </>
+                    )}
+                    {canDeactivateStaff && (
+                      <button
+                        onClick={() => setShowStatusModal(true)}
+                        className="btn-outline inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
+                      >
+                        <Shield size={14} />
+                        Trạng thái
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="rounded-xl border border-border bg-background-secondary px-4 py-3">
+                <div className="mb-1 flex items-center gap-2 text-xs text-foreground-muted">
+                  <DollarSign size={14} className="text-primary-500" />
+                  <span>DOANH SỐ THÁNG</span>
+                </div>
+                <div className="text-xl font-bold text-foreground">
+                  {formatCurrency(performance.monthlyRevenue)}
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-background-secondary px-4 py-3">
+                <div className="mb-1 flex items-center gap-2 text-xs text-foreground-muted">
+                  <Activity size={14} className="text-primary-500" />
+                  <span>SPA THÁNG</span>
+                </div>
+                <div className="text-xl font-bold text-foreground">
+                  {performance.monthlySpaSessions} ca
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="mx-auto max-w-[1400px] px-6 md:px-8">
+          <div className="custom-scrollbar flex gap-1 overflow-x-auto border-b border-border">
+            {[
+              { id: 'OVERVIEW', label: 'Tổng quan', icon: Briefcase },
+              { id: 'TIMEKEEPING', label: 'Chấm công', icon: Clock },
+              { id: 'SALARY', label: 'Lương & Thưởng', icon: DollarSign },
+              { id: 'DOCS', label: 'Tài liệu', icon: FileText },
+              { id: 'HISTORY', label: 'Lịch sử', icon: History },
+            ].map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as StaffDetailTab)}
+                  className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-all ${isActive
+                    ? 'border-primary-500 text-primary-500'
+                    : 'border-transparent text-foreground-muted hover:border-border hover:text-foreground'
+                    }`}
+                >
+                  <Icon size={16} />
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
-      <div className="mt-6">
+      {/* Content Area */}
+      <div className="mx-auto max-w-[1400px] px-6 py-6 md:px-8 md:py-8">
         {activeTab === 'OVERVIEW' ? (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="space-y-6">
-              <div className="rounded-2xl border border-white/5 bg-[#1A1D27] p-6">
-                <h3 className="mb-6 flex items-center gap-2 text-[15px] font-bold text-white">
-                  <Briefcase size={16} className="text-[#00D4FF]" />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {/* Left Column */}
+            <div className="space-y-6 lg:col-span-2">
+              {/* Card: Thông tin cơ bản */}
+              <div className="rounded-xl border border-border bg-background-secondary p-6">
+                <h3 className="mb-5 flex items-center gap-2 text-base font-bold text-foreground">
+                  <Briefcase size={16} className="text-primary-500" />
                   Thông tin cơ bản
                 </h3>
 
                 <div className="space-y-4 text-sm">
+                  {[
+                    { label: 'Vai trò chính', value: staff.role?.name || 'Nhân viên' },
+                    { label: 'Ngày sinh', value: formatDate(staff.dob) },
+                    { label: 'Email', value: staff.email || '--' },
+                    { label: 'SĐT người thân', value: staff.emergencyContactPhone || '--' },
+                    { label: 'Số CCCD', value: staff.identityCode || '--' },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between">
+                      <span className="text-foreground-muted">{item.label}:</span>
+                      <span className="font-medium text-foreground">{item.value}</span>
+                    </div>
+                  ))}
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Vai trò chính:</span>
-                    <span className="font-medium text-white">{staff.role?.name || 'Nhân viên'}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Loại hình:</span>
-                    <span className="rounded-md border border-[#6366f1]/20 bg-[#6366f1]/10 px-2 py-0.5 text-[10px] font-bold uppercase text-[#818cf8]">
+                    <span className="text-foreground-muted">Loại hình:</span>
+                    <span className="rounded-md border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-xs font-bold uppercase text-indigo-400">
                       {staff.employmentType === 'PART_TIME' ? 'PART-TIME' : 'FULL-TIME'}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Ngày sinh:</span>
-                    <span className="font-medium text-white">
-                      {staff.dob ? new Date(staff.dob).toLocaleDateString('vi-VN') : '--'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Email:</span>
-                    <span className="font-medium text-white">{staff.email || '--'}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">SĐT người thân:</span>
-                    <span className="font-medium text-white">{staff.emergencyContactPhone || '--'}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Số CCCD:</span>
-                    <span className="font-medium text-white">{staff.identityCode || '--'}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/5 bg-[#1A1D27] p-6">
-                <h3 className="mb-6 flex items-center gap-2 text-[15px] font-bold text-white">
-                  <Calendar size={16} className="text-[#3B82F6]" />
+              {/* Card: Hợp đồng & Ca làm */}
+              <div className="rounded-xl border border-border bg-background-secondary p-6">
+                <h3 className="mb-5 flex items-center gap-2 text-base font-bold text-foreground">
+                  <Calendar size={16} className="text-blue-500" />
                   Hợp đồng & Ca làm
                 </h3>
 
                 <div className="space-y-4 text-sm">
+                  {[
+                    { label: 'Ngày vào làm', value: formatDate(staff.joinDate) },
+                    { label: 'Giờ làm việc', value: `${staff.shiftStart || '08:00'} → ${staff.shiftEnd || '17:00'}`, bold: true },
+                    { label: 'Chi nhánh chính', value: staff.branch?.name || 'Chưa gán' },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between">
+                      <span className="text-foreground-muted">{item.label}:</span>
+                      <span className={item.bold ? 'font-bold text-foreground' : 'font-medium text-foreground'}>{item.value}</span>
+                    </div>
+                  ))}
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Ngày vào làm:</span>
-                    <span className="font-medium text-white">
-                      {staff.joinDate ? new Date(staff.joinDate).toLocaleDateString('vi-VN') : '--'}
+                    <span className="text-foreground-muted">Thâm niên:</span>
+                    <span className="font-medium text-primary-500">{getTenure(staff.joinDate)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-foreground-muted">Lương cơ bản:</span>
+                    <span className="font-bold text-primary-500">
+                      {staff.baseSalary ? formatCurrency(staff.baseSalary) : '--'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Thâm niên:</span>
-                    <span className="font-medium text-[#00E5B5]">0 tháng</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Giờ làm việc:</span>
-                    <span className="font-bold text-white">
-                      {staff.shiftStart || '08:00'} → {staff.shiftEnd || '17:00'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Chi nhánh chính:</span>
-                    <span className="font-medium text-white">{staff.branch?.name || 'Chưa gán'}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Lương cơ bản:</span>
-                    <span className="font-bold text-[#00E5B5]">
-                      {staff.baseSalary
-                        ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-                            staff.baseSalary,
-                          )
-                        : '--'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">% Thưởng Spa:</span>
-                    <span className="font-bold text-white">
+                    <span className="text-foreground-muted">% Thưởng Spa:</span>
+                    <span className="font-bold text-foreground">
                       {staff.spaCommissionRate ? `${staff.spaCommissionRate}%` : '--%'}
                     </span>
                   </div>
@@ -283,57 +386,121 @@ export default function StaffDetailPage() {
               </div>
             </div>
 
+            {/* Right Column */}
             <div className="space-y-6">
-              <div className="rounded-2xl border border-white/5 bg-[#1A1D27] p-6">
-                <h3 className="mb-6 flex items-center gap-2 text-[15px] font-bold text-white">
-                  <Shield size={16} className="text-amber-400" />
+              {/* Card: Trạng thái làm việc */}
+              <div className="rounded-xl border border-border bg-background-secondary p-6">
+                <h3 className="mb-5 flex items-center gap-2 text-base font-bold text-foreground">
+                  <UserCheck size={16} className="text-amber-400" />
                   Trạng thái làm việc
                 </h3>
 
                 <div className="space-y-4 text-sm">
-                  <div className="flex items-center gap-2 rounded-lg border border-[#00E5B5]/10 bg-[#00E5B5]/5 p-3">
-                    <span className="h-2 w-2 rounded-full bg-[#00E5B5]" />
-                    <span className="font-bold text-[#00E5B5]">Đang làm</span>
+                  <div className={`flex items-center gap-2 rounded-lg border p-3 ${
+                    staff.status === 'WORKING' ? 'border-primary-500/10 bg-primary-500/5' :
+                    staff.status === 'PROBATION' ? 'border-blue-500/10 bg-blue-500/5' :
+                    staff.status === 'LEAVE' ? 'border-amber-500/10 bg-amber-500/5' :
+                    'border-red-500/10 bg-red-500/5'
+                  }`}>
+                    <span className={`h-2 w-2 rounded-full ${
+                      staff.status === 'WORKING' ? 'bg-primary-500' :
+                      staff.status === 'PROBATION' ? 'bg-blue-500' :
+                      staff.status === 'LEAVE' ? 'bg-amber-500' :
+                      'bg-red-500'
+                    }`} />
+                    <span className={`font-bold ${
+                      staff.status === 'WORKING' ? 'text-primary-500' :
+                      staff.status === 'PROBATION' ? 'text-blue-500' :
+                      staff.status === 'LEAVE' ? 'text-amber-500' :
+                      'text-red-500'
+                    }`}>
+                      {staff.status === 'WORKING' ? 'Đang làm' :
+                       staff.status === 'PROBATION' ? 'Thử việc' :
+                       staff.status === 'LEAVE' ? 'Nghỉ phép' : 'Đã nghỉ việc'}
+                    </span>
                   </div>
-                  <div className="flex items-center justify-between pt-2">
-                    <span className="text-gray-500">Đăng nhập lần cuối:</span>
-                    <span className="font-medium text-white">Chưa đăng nhập</span>
+                  <div className="flex items-center justify-between border-t border-border pt-3">
+                    <span className="text-foreground-muted">Đăng nhập lần cuối:</span>
+                    <span className="font-medium text-foreground">Chưa đăng nhập</span>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/5 bg-[#1A1D27] p-6">
-                <h3 className="mb-6 flex items-center gap-2 text-[15px] font-bold text-white">
-                  <HeartPulse size={16} className="text-[#00E5B5]" />
+              {/* Card: Vai trò theo chi nhánh */}
+              <div className="rounded-xl border border-border bg-background-secondary p-6">
+                <h3 className="mb-5 flex items-center gap-2 text-base font-bold text-foreground">
+                  <MapPin size={16} className="text-primary-500" />
+                  Vai trò theo chi nhánh
+                </h3>
+
+                <div className="space-y-3">
+                  {branchRoles.length > 0 ? (
+                    branchRoles.map((br, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 rounded-lg border border-border bg-background-tertiary/30 p-3 text-sm"
+                      >
+                        <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                        <span className="font-medium text-foreground">{br.role}</span>
+                        <span className="text-foreground-muted">·</span>
+                        <span className="text-foreground-muted">{br.branch}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-lg border border-border bg-background-tertiary/30 p-4 text-center text-sm text-foreground-muted">
+                      Chưa phân công chi nhánh
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card: Hiệu suất (tháng này) */}
+              <div className="rounded-xl border border-border bg-background-secondary p-6">
+                <h3 className="mb-5 flex items-center gap-2 text-base font-bold text-foreground">
+                  <TrendingUp size={16} className="text-primary-500" />
                   Hiệu suất (tháng này)
                 </h3>
 
                 <div className="space-y-4 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Đơn hàng:</span>
-                    <span className="font-bold text-white">0 đơn</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Doanh số:</span>
-                    <span className="font-bold text-[#00E5B5]">0 ₫</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Ca Spa:</span>
-                    <span className="font-bold text-white">0 ca</span>
-                  </div>
+                  {[
+                    { label: 'Đơn hàng', value: `${performance.monthlyOrders} đơn` },
+                    { label: 'Doanh số', value: formatCurrency(performance.monthlyRevenue), primary: true },
+                    { label: 'Ca Spa', value: `${performance.monthlySpaSessions} ca` },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between">
+                      <span className="text-foreground-muted">{item.label}:</span>
+                      <span className={`font-bold ${item.primary ? 'text-primary-500' : 'text-foreground'}`}>{item.value}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
+
+            {/* Performance Chart */}
+            {performanceChartData.length > 0 && (
+              <div className="lg:col-span-3">
+                <PerformanceChart data={performanceChartData} />
+              </div>
+            )}
           </div>
+        ) : activeTab === 'TIMEKEEPING' ? (
+          staff && <StaffTimekeepingTab userId={staff.id} />
+        ) : activeTab === 'SALARY' ? (
+          staff && <StaffSalaryTab userId={staff.id} staffName={staff.fullName} />
+        ) : activeTab === 'DOCS' ? (
+          staff && <StaffDocumentsTab userId={staff.id} />
+        ) : activeTab === 'HISTORY' ? (
+          staff && <StaffHistoryTab userId={staff.id} />
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-[#1A1D27] p-12">
-            <Activity size={48} className="mb-4 text-[#2A2D3C]" />
-            <p className="text-lg text-gray-400">Tính năng đang được phát triển.</p>
+          <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-background-secondary p-12">
+            <Activity size={48} className="mb-4 text-foreground-muted/30" />
+            <p className="text-lg text-foreground-muted">Tính năng đang được phát triển.</p>
           </div>
         )}
       </div>
 
-      {showUpdateModal && staff ? (
+      {/* Modals */}
+      {showUpdateModal && staff && (
         <StaffFormModal
           isOpen={showUpdateModal}
           onClose={() => setShowUpdateModal(false)}
@@ -345,19 +512,17 @@ export default function StaffDetailPage() {
             void loadStaff()
           }}
         />
-      ) : null}
+      )}
 
-      {showPasswordModal ? (
+      {showPasswordModal && staff && (
         <ChangePasswordModal
           staffId={staff.id}
           onClose={() => setShowPasswordModal(false)}
-          onSuccess={() => {
-            setShowPasswordModal(false)
-          }}
+          onSuccess={() => setShowPasswordModal(false)}
         />
-      ) : null}
+      )}
 
-      {showStatusModal ? (
+      {showStatusModal && staff && (
         <UpdateStatusModal
           staff={staff}
           onClose={() => setShowStatusModal(false)}
@@ -366,9 +531,9 @@ export default function StaffDetailPage() {
             void loadStaff()
           }}
         />
-      ) : null}
+      )}
 
-      {previewImage ? (
+      {previewImage && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
           onClick={() => setPreviewImage(null)}
@@ -385,7 +550,7 @@ export default function StaffDetailPage() {
             <X size={24} />
           </button>
         </div>
-      ) : null}
+      )}
     </div>
   )
 }

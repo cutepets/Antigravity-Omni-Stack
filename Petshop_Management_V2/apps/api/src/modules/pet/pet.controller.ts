@@ -29,6 +29,7 @@ import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { FindPetsDto } from './dto/find-pets.dto.js'
 import { CreatePetDto } from './dto/create-pet.dto.js'
 import { UpdatePetDto } from './dto/update-pet.dto.js'
+import { AddVaccinationDto } from './dto/add-vaccination.dto.js'
 import { AddWeightLogDto } from './dto/add-weight-log.dto.js'
 import { PetService } from './pet.service.js'
 
@@ -45,6 +46,12 @@ export class PetController {
   @Permissions('pet.create')
   create(@Body() createPetDto: CreatePetDto, @Req() req: AuthenticatedRequest) {
     return this.petService.create(createPetDto, req.user, getRequestedBranchId(req))
+  }
+
+  @Get(':id/active-services')
+  @Permissions('pet.read')
+  async getActivePetServices(@Param('id') petId: string) {
+    return this.petService.getActivePetServices(petId);
   }
 
   @Get()
@@ -69,6 +76,12 @@ export class PetController {
   @Permissions('pet.update')
   addWeightLog(@Param('id') id: string, @Body() addWeightLogDto: AddWeightLogDto, @Req() req: AuthenticatedRequest) {
     return this.petService.addWeightLog(id, addWeightLogDto, req.user)
+  }
+
+  @Post(':id/vaccinations')
+  @Permissions('pet.update')
+  addVaccination(@Param('id') id: string, @Body() addVaccinationDto: AddVaccinationDto, @Req() req: AuthenticatedRequest) {
+    return this.petService.addVaccination(id, addVaccinationDto, req.user)
   }
 
   @Post(':id/avatar')
@@ -106,6 +119,42 @@ export class PetController {
   ) {
     const avatarUrl = `/uploads/pets/${file.filename}`
     return this.petService.updateAvatar(id, avatarUrl, req.user)
+  }
+
+  @Post(':id/vaccinations/photo')
+  @Permissions('pet.update')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const uploadPath = './uploads/vaccines'
+          if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true })
+          }
+          cb(null, uploadPath)
+        },
+        filename: (req, file, cb) => {
+          const uniqueSuffix = randomUUID()
+          const ext = extname(file.originalname)
+          cb(null, `${uniqueSuffix}${ext}`)
+        },
+      }),
+    }),
+  )
+  uploadVaccinePhoto(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: '.(png|jpeg|jpg|webp)' }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    const photoUrl = `/uploads/vaccines/${file.filename}`
+    return { photoUrl }
   }
 
   @Delete(':id')
