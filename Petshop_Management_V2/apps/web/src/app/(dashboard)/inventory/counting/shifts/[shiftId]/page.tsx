@@ -26,7 +26,7 @@ function safeCalc(expr: unknown): number | null {
   const normalized = expr.replace(/[xX×]/g, '*').replace(/[^0-9+\-*/().]/g, '')
   if (!normalized) return null
   try {
-    const result = Function('"use strict"; return (' + normalized + ')')()\
+    const result = Function('"use strict"; return (' + normalized + ')')()
     return typeof result === 'number' && isFinite(result) ? Math.round(result * 1000) / 1000 : null
   } catch {
     return null

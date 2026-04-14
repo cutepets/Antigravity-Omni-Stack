@@ -2040,7 +2040,7 @@ export class OrdersService {
         if (existingStayId) {
           const currentStay = await tx.hotelStay.findUnique({ where: { id: existingStayId } });
           if (currentStay && !['BOOKED', 'CHECKED_IN'].includes(currentStay.status)) {
-            throw new BadRequestException(`LÆ°á»£t lÆ°u trÃº ${currentStay.id} Ä‘Ã£ checkout hoáº·c huá»·, khÃ´ng thá»ƒ cáº­p nháº­t láº¡i tá»« POS.`);
+            throw new BadRequestException(`Lượt lưu trú ${currentStay.id} đã checkout hoặc hủy, không thể cập nhật lại từ POS.`);
           }
         }
 
