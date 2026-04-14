@@ -1,4 +1,4 @@
-import type { CustomerTier } from './core.types.js'
+import type { CustomerTier } from './core.types'
 
 export interface Customer {
   id: string

@@ -1,4 +1,4 @@
-import type { OrderStatus, PaymentStatus } from './core.types.js'
+import type { OrderStatus, PaymentStatus } from './core.types'
 
 export interface Order {
   id: string

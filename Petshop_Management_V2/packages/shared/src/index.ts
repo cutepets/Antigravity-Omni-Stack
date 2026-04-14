@@ -1,25 +1,25 @@
 // Types
-export * from './types/core.types.js'
-export * from './types/customer.types.js'
-export * from './types/pet.types.js'
-export * from './types/order.types.js'
-export * from './types/product.types.js'
-export * from './types/domain.types.js'
+export * from './types/core.types'
+export * from './types/customer.types'
+export * from './types/pet.types'
+export * from './types/order.types'
+export * from './types/product.types'
+export * from './types/domain.types'
 // pos.types imports PaymentEntry from order.types — use named exports to avoid duplicate re-export
 export type {
   CartItem,
   OrderTab,
-} from './types/pos.types.js'
+} from './types/pos.types'
 
 // Utils
-export * from './utils/search.utils.js'
-export * from './utils/branch-code.utils.js'
-export * from './utils/id.utils.js'
-export * from './utils/currency.utils.js'
-export * from './utils/date.utils.js'
+export * from './utils/search.utils'
+export * from './utils/branch-code.utils'
+export * from './utils/id.utils'
+export * from './utils/currency.utils'
+export * from './utils/date.utils'
 
 // Constants
-export * from './constants/index.js'
+export * from './constants/index'
 
 // Errors
-export * from './errors/index.js'
+export * from './errors/index'

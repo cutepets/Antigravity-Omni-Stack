@@ -1,4 +1,4 @@
-import type { PetGender } from './core.types.js'
+import type { PetGender } from './core.types'
 
 export interface Pet {
   id: string

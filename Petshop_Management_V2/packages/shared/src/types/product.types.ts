@@ -1,4 +1,4 @@
-import type { ServiceType } from './core.types.js'
+import type { ServiceType } from './core.types'
 
 export interface Product {
   id: string

@@ -9,7 +9,7 @@ import type {
   TransactionType,
   TransactionSource,
   TransactionReferenceType,
-} from './core.types.js'
+} from './core.types'
 
 // ---- Grooming ----
 export interface GroomingSession {

@@ -1,4 +1,4 @@
-import type { PaymentMethod, PaymentEntry } from './order.types.js'
+import type { PaymentMethod, PaymentEntry } from './order.types'
 
 // POS-specific types (frontend only, not stored in DB directly)
 export interface CartItem {
