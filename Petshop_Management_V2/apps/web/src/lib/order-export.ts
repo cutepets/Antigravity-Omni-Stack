@@ -1,5 +1,5 @@
+import { formatDateTime } from './utils'
 import { exportJsonToExcel } from './excel'
-import { formatCurrency, formatDateTime } from './utils'
 
 const ORDER_STATUS_LABEL: Record<string, string> = {
   PENDING: 'Chờ duyệt',
@@ -39,6 +39,10 @@ export interface ExportOrderData {
 }
 
 export async function exportOrdersToExcel(orders: ExportOrderData[], filename?: string) {
+  if (!orders || orders.length === 0) {
+    return
+  }
+
   const data = orders.map((o) => ({
     'Mã đơn': o.orderNumber,
     'Thời gian tạo': formatDateTime(o.createdAt),
