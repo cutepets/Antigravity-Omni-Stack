@@ -36,7 +36,7 @@ import {
   filterSelectClass,
   useDataListCore,
   useDataListSelection,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 
 // ── Types & Constants ────────────────────────────────────────────────────────
 type DisplayColumnId = 'code' | 'name' | 'contact' | 'address' | 'petCount' | 'petNames' | 'debt' | 'spaCount' | 'hotelCount' | 'tier' | 'points' | 'spent' | 'orders' | 'created' | 'status'

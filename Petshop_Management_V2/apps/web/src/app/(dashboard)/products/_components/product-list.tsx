@@ -37,7 +37,7 @@ import {
   filterInputClass,
   useDataListCore,
   useDataListSelection,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 
 type BranchStockRow = {
   stock?: number | null

@@ -8,7 +8,7 @@ import {
   DataListToolbar,
   DataListTable,
   DataListPagination,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { cn } from '@/lib/utils'
 import StayDetailsDialog from './StayDetailsDialog'

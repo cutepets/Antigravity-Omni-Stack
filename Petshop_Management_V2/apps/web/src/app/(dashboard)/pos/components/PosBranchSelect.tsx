@@ -56,10 +56,10 @@ export function PosBranchSelect() {
       return;
     }
 
-    if (!activeTab?.existingOrderId && activeTab?.branchId !== selectedBranch.id) {
+    if (!activeTab?.linkedOrderId && activeTab?.branchId !== selectedBranch.id) {
       setBranch(selectedBranch.id);
     }
-  }, [activeBranchId, activeTab?.branchId, activeTab?.existingOrderId, selectedBranch, setBranch, switchBranch]);
+  }, [activeBranchId, activeTab?.branchId, activeTab?.linkedOrderId, selectedBranch, setBranch, switchBranch]);
 
   return (
     <div className="relative" ref={containerRef}>
@@ -82,7 +82,7 @@ export function PosBranchSelect() {
                 className="flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-gray-100 transition-colors"
                 onClick={() => {
                   switchBranch(branch.id);
-                  if (!activeTab?.existingOrderId) {
+                  if (!activeTab?.linkedOrderId) {
                     setBranch(branch.id);
                   }
                   setIsOpen(false);

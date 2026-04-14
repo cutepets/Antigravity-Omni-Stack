@@ -27,7 +27,7 @@ import {
   TableCheckbox,
   useDataListCore,
   useDataListSelection,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 import { SupplierFormModal } from './supplier-form-modal'
 import { SupplierDetailDrawer } from './supplier-detail-drawer'
 

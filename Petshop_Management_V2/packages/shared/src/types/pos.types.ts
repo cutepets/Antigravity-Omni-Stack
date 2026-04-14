@@ -81,9 +81,9 @@ export interface OrderTab {
   shippingFee: number
   notes: string
   activePetIds: string[]
-  existingOrderId?: string
-  existingOrderNumber?: string
-  existingPaymentStatus?: string
-  existingAmountPaid?: number
+  linkedOrderId?: string
+  linkedOrderNumber?: string
+  linkedPaymentStatus?: string
+  linkedAmountPaid?: number
   branchId?: string
 }

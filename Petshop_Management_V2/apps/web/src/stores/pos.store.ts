@@ -156,21 +156,7 @@ interface PosStore {
   setSearch: (search: string) => void;
 
   // ── Existing Order (resume payment) ──────────────────────────
-  loadExistingOrder: (data: {
-    orderId: string;
-    orderNumber: string;
-    paymentStatus: string;
-    amountPaid: number;
-    payments?: OrderTab['payments'];
-    branchId?: string;
-    customerId?: string;
-    customerName: string;
-    cart: CartItem[];
-    discountTotal: number;
-    shippingFee: number;
-    notes: string;
-  }) => void;
-  attachActiveOrderMeta: (data: {
+  attachLinkedOrder: (data: {
     orderId: string;
     orderNumber: string;
     paymentStatus?: string;
@@ -481,60 +467,15 @@ export const usePosStore = create<PosStore>()(
           set((s) => updateActiveTab(s, () => ({ productSearch: search }))),
 
         // ── Load existing order ──────────────────────────────────
-        loadExistingOrder: (data) => {
-          set((s) => {
-            const existingTab = s.tabs.find((tab) => tab.existingOrderId === data.orderId);
-            const orderDiscountTotal = Math.max(0, toFiniteNumber(data.discountTotal));
-            const existingOrderPatch: Partial<OrderTab> = {
-              title: `#${data.orderNumber}`,
-              customerId: data.customerId,
-              customerName: data.customerName,
-              cart: data.cart,
-              payments: data.payments ?? [],
-              manualDiscountTotal: orderDiscountTotal,
-              roundingDiscountTotal: 0,
-              discountTotal: orderDiscountTotal,
-              shippingFee: toFiniteNumber(data.shippingFee),
-              notes: data.notes,
-              existingOrderId: data.orderId,
-              existingOrderNumber: data.orderNumber,
-              existingPaymentStatus: data.paymentStatus,
-              existingAmountPaid: toFiniteNumber(data.amountPaid),
-              branchId: data.branchId,
-            };
-
-            if (existingTab) {
-              return {
-                tabs: s.tabs.map((tab) =>
-                  tab.id === existingTab.id ? { ...tab, ...existingOrderPatch } : tab,
-                ),
-                activeTabId: existingTab.id,
-              };
-            }
-
-            const newTab = createNewTab();
-            return {
-              tabs: [
-                ...s.tabs,
-                {
-                  ...newTab,
-                  ...existingOrderPatch,
-                },
-              ],
-              activeTabId: newTab.id,
-            };
-          });
-        },
-
         // ── Branch ───────────────────────────────────────────────
-        attachActiveOrderMeta: (data) =>
+        attachLinkedOrder: (data) =>
           set((s) =>
             updateActiveTab(s, () => ({
               title: `#${data.orderNumber}`,
-              existingOrderId: data.orderId,
-              existingOrderNumber: data.orderNumber,
-              existingPaymentStatus: data.paymentStatus,
-              existingAmountPaid: toFiniteNumber(data.amountPaid),
+              linkedOrderId: data.orderId,
+              linkedOrderNumber: data.orderNumber,
+              linkedPaymentStatus: data.paymentStatus,
+              linkedAmountPaid: toFiniteNumber(data.amountPaid),
               branchId: data.branchId,
             })),
           ),
@@ -562,7 +503,7 @@ export const usePosStore = create<PosStore>()(
     {
       name: 'pos-v3-storage',
       partialize: (state) => {
-        const draftTabs = state.tabs.filter(t => !t.existingOrderId);
+        const draftTabs = state.tabs.filter(t => !t.linkedOrderId);
         const persistTabs = draftTabs.length > 0 ? draftTabs : [createNewTab(`tab-${Date.now()}`)];
         const persistActiveTabId = persistTabs.find(t => t.id === state.activeTabId) 
           ? state.activeTabId 

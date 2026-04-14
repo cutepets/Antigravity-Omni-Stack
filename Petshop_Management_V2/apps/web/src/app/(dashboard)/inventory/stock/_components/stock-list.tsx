@@ -18,7 +18,7 @@ import {
   filterSelectClass,
   useDataListCore,
   useDataListSelection,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 
 // Shift label helper
 const SHIFT_LABELS: Record<string, string> = {

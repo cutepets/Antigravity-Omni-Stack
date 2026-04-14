@@ -25,7 +25,7 @@ import { Menu, X, Plus, Minus, Trash2, Home, NotebookText, Info, FileText, Setti
 import Link from 'next/link';
 import Image from 'next/image';
 import { Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { orderApi } from '@/lib/api/order.api';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
 import { usePaymentIntentStream } from '@/hooks/use-payment-intent-stream';
@@ -318,8 +318,7 @@ function PosPageContent() {
   const createOrder = useCreateOrder();
 
   // â”€â”€ URL Search Params â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const searchParams = useSearchParams();
-  const loadingOrderIdsRef = useRef(new Set<string>());
+  // POS no longer resumes existing orders from URL. Editing/viewing saved orders now belongs to Orders workspace.
   const qrIntentStream = usePaymentIntentStream(activeQrIntent?.code, showQrPaymentModal && Boolean(activeQrIntent?.code));
 
   useEffect(() => {
@@ -342,7 +341,7 @@ function PosPageContent() {
     void queryClient.invalidateQueries({ queryKey: ['orders'] });
 
     if (qrIntentStream.latestIntent.order) {
-      store.attachActiveOrderMeta({
+      store.attachLinkedOrder({
         orderId: qrIntentStream.latestIntent.order.id,
         orderNumber: qrIntentStream.latestIntent.order.orderNumber,
         paymentStatus: 'PAID',
@@ -352,113 +351,12 @@ function PosPageContent() {
     }
   }, [activeQrIntent, activeTab?.branchId, qrIntentStream, queryClient, store]);
 
-  useEffect(() => {
-    const orderId = searchParams.get('orderId');
-    if (!orderId) return;
-
-    const currentState = usePosStore.getState();
-    if (
-      currentState.tabs.some((tab) => tab.existingOrderId === orderId) ||
-      loadingOrderIdsRef.current.has(orderId)
-    ) {
-      return;
-    }
-
-    loadingOrderIdsRef.current.add(orderId);
-
-    void orderApi
-      .get(orderId)
-      .then((data) => {
-        if (!data) return;
-
-        usePosStore.getState().loadExistingOrder({
-          orderId: data.id,
-          orderNumber: data.orderNumber || data.id,
-          paymentStatus: data.paymentStatus || 'PENDING',
-          amountPaid: data.paidAmount ?? data.amountPaid ?? 0,
-          payments: Array.isArray(data.payments)
-            ? data.payments
-              .filter((payment: any) => payment?.method)
-              .map((payment: any) => ({
-                method: payment.method,
-                amount: Number(payment.amount) || 0,
-                note: payment.note ?? undefined,
-                paymentAccountId: payment.paymentAccountId ?? undefined,
-                paymentAccountLabel: payment.paymentAccountLabel ?? undefined,
-              }))
-            : [],
-          branchId: data.branchId,
-          customerId: data.customer?.id,
-          customerName: data.customer?.name || data.customer?.fullName || 'Khách lẻ',
-          cart: data.items.map((i: any) => ({
-            id: i.id,
-            orderItemId: i.id,
-            productId: i.productId,
-            productVariantId: i.productVariantId,
-            serviceId: i.serviceId,
-            serviceVariantId: i.serviceVariantId,
-            petId: i.petId,
-            description: i.name || i.description,
-            sku: i.sku || '',
-            unitPrice: Number(i.unitPrice) || 0,
-            discountItem: Number(i.discountItem) || 0,
-            vatRate: Number(i.vatRate) || 0,
-            type: i.type || 'product',
-            image: i.image || '',
-            unit: i.unit || 'cái',
-            quantity: Number(i.quantity) || 1,
-            hotelDetails: i.hotelDetails
-              ? {
-                petId: i.hotelDetails.petId,
-                checkIn: i.hotelDetails.checkInDate,
-                checkOut: i.hotelDetails.checkOutDate,
-                stayId: i.hotelStayId,
-                lineType: i.hotelDetails.lineType ?? 'REGULAR',
-                bookingGroupKey: i.hotelDetails.bookingGroupKey,
-                chargeLineIndex: i.hotelDetails.chargeLineIndex,
-                chargeLineLabel: i.hotelDetails.chargeLineLabel,
-                chargeDayType: i.hotelDetails.chargeDayType,
-                chargeQuantityDays: i.hotelDetails.chargeQuantityDays,
-                chargeUnitPrice: i.hotelDetails.chargeUnitPrice,
-                chargeSubtotal: i.hotelDetails.chargeSubtotal,
-                chargeWeightBandId: i.hotelDetails.chargeWeightBandId ?? null,
-                chargeWeightBandLabel: i.hotelDetails.chargeWeightBandLabel ?? null,
-              }
-              : undefined,
-            groomingDetails: i.groomingDetails
-              ? {
-                petId: i.groomingDetails.petId,
-                performerId: i.groomingDetails.performerId,
-                startTime: i.groomingDetails.startTime,
-                notes: i.groomingDetails.notes,
-                serviceItems: i.groomingDetails.serviceItems,
-                packageCode: i.groomingDetails.packageCode,
-                weightAtBooking: i.groomingDetails.weightAtBooking,
-                weightBandId: i.groomingDetails.weightBandId,
-                pricingSnapshot: i.groomingDetails.pricingSnapshot,
-              }
-              : undefined,
-          })),
-          discountTotal: Number(data.discount) || 0,
-          shippingFee: Number(data.shippingFee) || 0,
-          notes: data.notes || '',
-        });
-
-        // Xóa param trên URL để không loop nạp lại khi F5 nếu không cần
-        window.history.replaceState({}, '', '/pos');
-      })
-      .catch(console.error)
-      .finally(() => {
-        loadingOrderIdsRef.current.delete(orderId);
-      });
-  }, [searchParams]);
-
   const { data: branches = [] } = useBranches();
 
   // â”€â”€ Keyboard shortcuts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!activeTab || !activeBranchId) return;
-    if (activeTab.existingOrderId) return;
+    if (activeTab.linkedOrderId) return;
     if (activeTab.branchId === activeBranchId) return;
     store.setBranch(activeBranchId);
   }, [activeBranchId, activeTab, store]);
@@ -716,7 +614,7 @@ function PosPageContent() {
             chargeWeightBandLabel: ci.hotelDetails.chargeWeightBandLabel ?? undefined,
           } : undefined,
         })),
-        payments: !activeTab.existingOrderId && checkoutPayments ? checkoutPayments : undefined,
+        payments: !activeTab.linkedOrderId && checkoutPayments ? checkoutPayments : undefined,
         discount: activeTab.discountTotal,
         shippingFee: activeTab.shippingFee,
         notes: overrideNote || activeTab.notes,
@@ -746,20 +644,20 @@ function PosPageContent() {
 
       setIsQrIntentPending(true);
       try {
-        const orderResult = activeTab.existingOrderId
-          ? await orderApi.update(activeTab.existingOrderId, payload)
+        const orderResult = activeTab.linkedOrderId
+          ? await orderApi.update(activeTab.linkedOrderId, payload)
           : await createOrder.mutateAsync(payload);
-        const orderId = activeTab.existingOrderId ?? orderResult?.id;
+        const orderId = activeTab.linkedOrderId ?? orderResult?.id;
 
         if (!orderId) {
           throw new Error('Không tạo được đơn hàng để sinh QR');
         }
 
-        store.attachActiveOrderMeta({
+        store.attachLinkedOrder({
           orderId,
-          orderNumber: orderResult?.orderNumber || activeTab.existingOrderNumber || orderId,
-          paymentStatus: orderResult?.paymentStatus || activeTab.existingPaymentStatus || 'UNPAID',
-          amountPaid: orderResult?.paidAmount ?? orderResult?.amountPaid ?? activeTab.existingAmountPaid ?? 0,
+          orderNumber: orderResult?.orderNumber || activeTab.linkedOrderNumber || orderId,
+          paymentStatus: orderResult?.paymentStatus || activeTab.linkedPaymentStatus || 'UNPAID',
+          amountPaid: orderResult?.paidAmount ?? orderResult?.amountPaid ?? activeTab.linkedAmountPaid ?? 0,
           branchId: orderResult?.branchId || activeTab.branchId,
         });
 
@@ -771,7 +669,7 @@ function PosPageContent() {
         setActiveQrIntent(intent);
         setShowQrPaymentModal(true);
         setCustomerMoneyInput('');
-        toast.success(activeTab.existingOrderId ? 'Đã làm mới QR chuyển khoản' : 'Đã tạo QR chuyển khoản');
+        toast.success(activeTab.linkedOrderId ? 'Đã làm mới QR chuyển khoản' : 'Đã tạo QR chuyển khoản');
       } catch (error: any) {
         toast.error(error?.response?.data?.message || error?.message || 'Không thể tạo QR chuyển khoản');
       } finally {
@@ -862,21 +760,21 @@ function PosPageContent() {
 
       let orderResult: any;
 
-      if (activeTab.existingOrderId) {
+      if (activeTab.linkedOrderId) {
         // Đơn đã tồn tại -> Chỉ cho phép thanh toán thêm
-        orderResult = await orderApi.update(activeTab.existingOrderId, payload);
+        orderResult = await orderApi.update(activeTab.linkedOrderId, payload);
         const outstanding = Math.max(0, (orderResult?.total ?? cartTotal) - (orderResult?.paidAmount ?? orderResult?.amountPaid ?? 0));
 
         if (paymentMethod !== 'UNPAID') {
           if (hasServiceItems) {
             if (checkoutPaymentTotal > 0) {
-              orderResult = await orderApi.pay(activeTab.existingOrderId, {
+              orderResult = await orderApi.pay(activeTab.linkedOrderId, {
                 payments: checkoutPayments ?? [],
               });
             }
           } else {
             if (checkoutPaymentTotal < outstanding) {
-              orderResult = await orderApi.pay(activeTab.existingOrderId, {
+              orderResult = await orderApi.pay(activeTab.linkedOrderId, {
                 payments: checkoutPayments ?? [],
               });
             } else if (checkoutPaymentTotal > outstanding) {
@@ -885,7 +783,7 @@ function PosPageContent() {
                 `Đơn đang dư ${money(overpaid)} đ. Nhấn OK để hoàn tiền ngay, hoặc Cancel để giữ lại công nợ âm cho khách.`,
               );
               orderResult = await orderApi.complete(
-                activeTab.existingOrderId,
+                activeTab.linkedOrderId,
                 shouldRefund
                   ? {
                     payments: checkoutPayments ?? [],
@@ -897,7 +795,7 @@ function PosPageContent() {
                   : { payments: checkoutPayments ?? [], overpaymentAction: 'KEEP_CREDIT' },
               );
             } else {
-              orderResult = await orderApi.complete(activeTab.existingOrderId, outstanding > 0 ? {
+              orderResult = await orderApi.complete(activeTab.linkedOrderId, outstanding > 0 ? {
                 payments: checkoutPayments ?? [],
               } : {});
             }
@@ -1878,3 +1776,4 @@ export default function PosPage() {
     </Suspense>
   );
 }
+

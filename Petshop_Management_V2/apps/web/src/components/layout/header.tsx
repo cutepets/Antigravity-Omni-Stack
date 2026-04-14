@@ -34,6 +34,7 @@ const PetSettingsModal = dynamic(
 )
 
 function resolveHeaderTitle(pathname: string) {
+  if (pathname.startsWith('/pos')) return 'POS / Bán nhanh'
   if (pathname.startsWith('/finance')) return 'Sổ quỹ'
   if (pathname.startsWith('/products')) return 'Sản phẩm & Kho'
   if (pathname.startsWith('/orders')) return 'Quản lý Đơn hàng'

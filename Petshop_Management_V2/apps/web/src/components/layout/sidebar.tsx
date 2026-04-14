@@ -287,12 +287,13 @@ export function Sidebar() {
               {visibleItems.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
                 const Icon = item.icon
+                const displayLabel = item.href === '/pos' ? 'POS / Bán nhanh' : item.label
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    title={!isSidebarOpen ? item.label : undefined}
+                    title={!isSidebarOpen ? displayLabel : undefined}
                     className={clsx(
                       'group relative mx-3 flex h-11 w-[calc(100%-24px)] items-center overflow-hidden rounded-lg text-sm font-medium transition-colors',
                       isActive
@@ -318,7 +319,7 @@ export function Sidebar() {
                           {...fadeIn}
                           className="absolute left-[56px] whitespace-nowrap"
                         >
-                          {item.label}
+                          {displayLabel}
                         </motion.span>
                       ) : null}
                     </AnimatePresence>

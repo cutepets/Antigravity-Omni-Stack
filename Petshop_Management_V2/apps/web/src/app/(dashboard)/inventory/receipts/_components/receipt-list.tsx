@@ -17,7 +17,7 @@ import {
   TableCheckbox,
   useDataListCore,
   useDataListSelection,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 
 type DisplayColumnId = 'code' | 'date' | 'supplier' | 'total' | 'status'
 type PinFilterId = never

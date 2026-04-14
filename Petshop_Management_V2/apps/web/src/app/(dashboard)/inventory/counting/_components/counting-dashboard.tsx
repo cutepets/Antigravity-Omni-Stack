@@ -21,7 +21,7 @@ import {
   DataListToolbar,
   DataListTable,
   DataListPagination,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 
 function getWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))

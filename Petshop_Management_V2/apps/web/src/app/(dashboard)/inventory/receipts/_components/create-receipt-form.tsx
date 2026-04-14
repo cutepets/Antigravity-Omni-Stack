@@ -55,15 +55,11 @@ import { QuickSupplierModal } from './receipt/quick-supplier-modal'
 import { ReceiptPaymentModal } from './receipt/receipt-payment-modal'
 import { ReceiptReturnModal } from './receipt/receipt-return-modal'
 import { useReceiptForm } from './receipt/use-receipt-form'
-import { ReceiptHeader } from './receipt-header'
-import { ReceiptProductTable } from './receipt-product-table'
-import { ReceiptSidebar } from './receipt-sidebar'
 
 export function CreateReceiptForm({
   mode = 'create',
   receiptId,
 }: CreateReceiptFormProps = {}) {
-  let formReturn: any;
   const {
     // refs
     searchInputRef, searchPanelRef, supplierPanelRef, exportMenuRef,
@@ -592,11 +588,6 @@ export function CreateReceiptForm({
         onChangeQuantity={handleReturnItemQuantityChange}
         onConfirm={handleConfirmReturn}
       />
-      <ReceiptHeader form={formReturn as any} />
-      <div className="flex flex-1 overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_420px] max-lg:!block max-lg:[&>aside]:hidden max-lg:[&>div]:!h-full">
-        <ReceiptProductTable form={formReturn as any} />
-        <ReceiptSidebar form={formReturn as any} />
-      </div>
       <div className="shrink-0 border-b border-border bg-[linear-gradient(135deg,rgba(14,165,233,0.08),rgba(255,255,255,0))]">
         <div className="grid gap-3 px-5 py-4 xl:grid-cols-[minmax(240px,0.68fr)_minmax(420px,1.04fr)_minmax(560px,1.34fr)_minmax(220px,0.48fr)]">
           <div className="flex items-start gap-3">

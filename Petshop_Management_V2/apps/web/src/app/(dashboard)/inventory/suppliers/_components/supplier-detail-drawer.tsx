@@ -34,7 +34,7 @@ import {
   DataListToolbar,
   TableCheckbox,
   useDataListSelection,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 interface SupplierDetailDrawerProps {

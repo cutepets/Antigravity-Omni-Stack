@@ -23,7 +23,7 @@ import {
   toolbarSelectClass,
   useDataListCore,
   useDataListSelection,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 
 import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile'
 

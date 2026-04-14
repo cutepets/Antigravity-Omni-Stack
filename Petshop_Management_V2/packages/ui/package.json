@@ -1,0 +1,53 @@
+{
+  "name": "@petshop/ui",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./data-list": {
+      "require": "./dist/data-list/index.js",
+      "import": "./dist/data-list/index.js",
+      "types": "./dist/data-list/index.d.ts"
+    },
+    "./layout": {
+      "require": "./dist/layout/index.js",
+      "import": "./dist/layout/index.js",
+      "types": "./dist/layout/index.d.ts"
+    },
+    "./auth": {
+      "require": "./dist/auth/index.js",
+      "import": "./dist/auth/index.js",
+      "types": "./dist/auth/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "type-check": "tsc --noEmit",
+    "lint": "echo \"Skip lint\""
+  },
+  "peerDependencies": {
+    "next": "^15.0.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "@tanstack/react-query": "^5.0.0",
+    "framer-motion": "^12.0.0"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.4.0",
+    "lucide-react": "^0.487.0",
+    "zustand": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.1 || ^19.0.0",
+    "@types/react-dom": "^18.3.0 || ^19.0.0",
+    "typescript": "^5.7.3"
+  }
+}

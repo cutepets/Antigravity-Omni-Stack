@@ -31,6 +31,18 @@
       ],
       "@petshop/shared": [
         "../../packages/shared/src/index.ts"
+      ],
+      "@petshop/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@petshop/ui/*": [
+        "../../packages/ui/src/*"
+      ],
+      "@petshop/api-client": [
+        "../../packages/api-client/src/index.ts"
+      ],
+      "@petshop/api-client/*": [
+        "../../packages/api-client/src/*"
       ]
     },
     "allowJs": true,

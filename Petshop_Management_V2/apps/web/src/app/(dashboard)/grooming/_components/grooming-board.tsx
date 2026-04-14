@@ -20,7 +20,7 @@ import {
   toolbarSelectClass,
   useDataListSelection,
   useDataListCore,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { useAuthStore } from '@/stores/auth.store'
 import { groomingApi, type GroomingSession, type GroomingStatus } from '@/lib/api/grooming.api'

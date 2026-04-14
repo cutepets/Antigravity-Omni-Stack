@@ -289,10 +289,17 @@ export function OrderList() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => router.push('/pos')}
+              onClick={() => router.push('/orders/new')}
               className="flex h-8 items-center gap-1.5 rounded-lg bg-primary-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-600 shadow-sm"
             >
-              + Tạo đơn mới
+              + Tạo đơn Orders
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/pos')}
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
+            >
+              POS bán nhanh
             </button>
           </div>
         }

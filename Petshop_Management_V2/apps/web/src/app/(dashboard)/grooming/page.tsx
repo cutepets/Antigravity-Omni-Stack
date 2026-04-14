@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { PageContainer } from "@/components/layout/PageLayout";
+import { PageContainer } from '@/components/layout/PageLayout'
 import { GroomingBoard } from "./_components/grooming-board";
 
 export const metadata: Metadata = {

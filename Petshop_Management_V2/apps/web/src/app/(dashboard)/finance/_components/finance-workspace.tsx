@@ -19,7 +19,7 @@ import {
   toolbarSelectClass,
   useDataListCore,
   useDataListSelection,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 import { financeApi, type FinanceTransaction } from '@/lib/api/finance.api'
 import { settingsApi } from '@/lib/api/settings.api'
 import { buildFinanceVoucherHref } from '@/lib/finance-routes'

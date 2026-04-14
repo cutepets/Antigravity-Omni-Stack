@@ -1,0 +1,26 @@
+{
+  "name": "@petshop/api-client",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "@petshop/shared": "workspace:*",
+    "@petshop/auth": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
