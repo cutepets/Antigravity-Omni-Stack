@@ -90,6 +90,7 @@ export interface CreateProductDto {
   tags?: string
   attributes?: string
   isActive?: boolean
+  lastCountShift?: string
 }
 
 export interface UpdateProductDto extends Partial<CreateProductDto> {}

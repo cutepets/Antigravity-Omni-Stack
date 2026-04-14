@@ -118,6 +118,12 @@ export class HotelController {
     return this.hotelService.findStayById(id, req.user)
   }
 
+  @Get('stays/:id/timeline')
+  @Permissions('hotel.read')
+  findStayTimeline(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {
+    return this.hotelService.findStayTimeline(id, req.user)
+  }
+
   @Patch('stays/:id')
   @Permissions('hotel.update')
   updateStay(@Param('id') id: string, @Body() updateStayDto: UpdateHotelStayDto, @Req() req: AuthenticatedRequest): Promise<any> {

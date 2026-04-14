@@ -1220,20 +1220,22 @@ function PosPageContent() {
                                       {(() => {
                                         const targetStockInfo = currentTrueVariant ? currentTrueVariant : item;
                                         const targetBranchStocks = Array.isArray((targetStockInfo as any).branchStocks) ? (targetStockInfo as any).branchStocks : [];
+                                        const isService = item.type !== 'product';
+                                        const defaultFallback = isService ? '∞' : '—';
 
                                         return (
                                           <>
                                             <tr className="border-b border-gray-50">
                                               <td className="text-left py-2.5 font-semibold text-gray-800">Tổng tồn kho</td>
-                                              <td className="px-2 py-2.5">{(targetStockInfo as any).stock ?? 'â€”'}</td>
+                                              <td className="px-2 py-2.5">{isService ? defaultFallback : ((targetStockInfo as any).stock ?? defaultFallback)}</td>
                                               <td className="px-2 py-2.5 text-[#0089A1] font-bold">
-                                                {(targetStockInfo as any).availableStock !== undefined
+                                                {isService ? defaultFallback : ((targetStockInfo as any).availableStock !== undefined
                                                   ? (targetStockInfo as any).availableStock
                                                   : (((targetStockInfo as any).stock !== undefined && (targetStockInfo as any).stock !== null)
                                                     ? (targetStockInfo as any).stock - ((targetStockInfo as any).trading || (targetStockInfo as any).reserved || 0)
-                                                    : 'â€”')}
+                                                    : defaultFallback))}
                                               </td>
-                                              <td className="pl-2 py-2.5">{(targetStockInfo as any).trading ?? 'â€”'}</td>
+                                              <td className="pl-2 py-2.5">{isService ? defaultFallback : ((targetStockInfo as any).trading ?? defaultFallback)}</td>
                                             </tr>
                                             {branches.filter((b: any) => b.isActive).map((b: any) => {
                                               const bs = targetBranchStocks.find((s: any) => s.branchId === b.id || s.branch?.id === b.id);
@@ -1246,9 +1248,9 @@ function PosPageContent() {
                                               return (
                                                 <tr key={b.id} className="border-b border-gray-50 last:border-0 border-dashed">
                                                   <td className="text-left py-2 font-medium text-gray-600 truncate max-w-[120px]">{b.name}</td>
-                                                  <td className="px-2 py-2">{stock}</td>
-                                                  <td className="px-2 py-2 text-[#0089A1]/80">{availableStock}</td>
-                                                  <td className="pl-2 py-2">â€”</td>
+                                                  <td className="px-2 py-2">{isService ? defaultFallback : stock}</td>
+                                                  <td className="px-2 py-2 text-[#0089A1]/80">{isService ? defaultFallback : availableStock}</td>
+                                                  <td className="pl-2 py-2">{defaultFallback}</td>
                                                 </tr>
                                               );
                                             })}

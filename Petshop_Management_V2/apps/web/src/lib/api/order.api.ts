@@ -61,7 +61,7 @@ export interface CreateOrderPayload {
   notes?: string;
 }
 
-export interface UpdateOrderPayload extends CreateOrderPayload {}
+export interface UpdateOrderPayload extends CreateOrderPayload { }
 
 export interface PayOrderPayload {
   payments: { method: string; amount: number; note?: string; paymentAccountId?: string; paymentAccountLabel?: string }[];
@@ -79,6 +79,36 @@ export interface CompleteOrderPayload {
 
 export interface CancelOrderPayload {
   reason?: string;
+}
+
+export interface ApproveOrderPayload {
+  note?: string;
+}
+
+export interface ExportStockPayload {
+  note?: string;
+}
+
+export interface SettleOrderPayload {
+  note?: string;
+  additionalPayments?: PayOrderPayload['payments'];
+}
+
+export interface OrderTimelineEntry {
+  id: string;
+  orderId: string;
+  action: string;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  note?: string | null;
+  performedBy: string;
+  performedByUser: {
+    id: string;
+    fullName: string;
+    staffCode: string;
+  };
+  metadata?: Record<string, any> | null;
+  createdAt: string;
 }
 
 export interface CreatePaymentIntentPayload {
@@ -165,4 +195,16 @@ export const orderApi = {
 
   get: (id: string) =>
     api.get(`/orders/${id}`).then((r) => r.data),
+
+  approve: (id: string, data?: ApproveOrderPayload) =>
+    api.post(`/orders/${id}/approve`, data ?? {}).then((r) => r.data),
+
+  exportStock: (id: string, data?: ExportStockPayload) =>
+    api.post(`/orders/${id}/export-stock`, data ?? {}).then((r) => r.data),
+
+  settle: (id: string, data?: SettleOrderPayload) =>
+    api.post(`/orders/${id}/settle`, data ?? {}).then((r) => r.data),
+
+  getTimeline: (id: string): Promise<OrderTimelineEntry[]> =>
+    api.get(`/orders/${id}/timeline`).then((r) => r.data),
 };

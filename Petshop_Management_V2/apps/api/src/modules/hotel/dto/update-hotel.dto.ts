@@ -1,6 +1,7 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto } from './create-hotel.dto.js';
-import { IsDateString, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto, HotelStayAdjustmentDto } from './create-hotel.dto.js';
+import { Type } from 'class-transformer';
+import { IsArray, IsDateString, IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { HotelLineType, HotelStatus, PaymentStatus } from '@petshop/database';
 
 export class UpdateHotelStayDto extends PartialType(CreateHotelStayDto) {
@@ -41,6 +42,12 @@ export class CheckoutHotelStayDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HotelStayAdjustmentDto)
+  @IsOptional()
+  adjustments?: HotelStayAdjustmentDto[];
 }
 
 export class CalculateHotelPriceDto {
@@ -63,4 +70,8 @@ export class CalculateHotelPriceDto {
   @IsString()
   @IsOptional()
   rateTableId?: string;
+
+  @IsString()
+  @IsOptional()
+  branchId?: string;
 }

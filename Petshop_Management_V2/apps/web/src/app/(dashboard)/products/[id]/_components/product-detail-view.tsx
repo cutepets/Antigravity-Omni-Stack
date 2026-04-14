@@ -60,6 +60,23 @@ function parsePriceBookPrices(raw?: string | null) {
   }
 }
 
+const TARGET_SPECIES_MAP: Record<string, string> = {
+  DOG: 'Chó',
+  CAT: 'Mèo',
+  BOTH: 'Chó & Mèo',
+  OTHER: 'Khác',
+}
+
+const DAY_MAP: Record<string, string> = {
+  MON: 'Thứ 2', TUE: 'Thứ 3', WED: 'Thứ 4', THU: 'Thứ 5', FRI: 'Thứ 6', SAT: 'Thứ 7', SUN: 'Chủ nhật',
+}
+
+function formatShift(shift?: string | null) {
+  if (!shift) return '—';
+  const [day, ca] = shift.split('_');
+  return `${DAY_MAP[day] || day} - Ca ${ca}`;
+}
+
 
 function parseConversionRate(raw?: string | null) {
   if (!raw) return null
@@ -464,12 +481,20 @@ export function ProductDetailView({ productId }: { productId: string }) {
 
           <div className="flex flex-col gap-3 text-sm border-t border-border pt-6">
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Phân loại</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={product.category || ''}>{product.category || '—'}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Dùng cho</span><span className="font-medium text-foreground truncate max-w-[65%] text-right">{TARGET_SPECIES_MAP[product.targetSpecies as string] || product.targetSpecies || '—'}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">SKU</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeItem.sku || product.sku || ''}>{activeItem.sku || product.sku || '—'}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Đơn vị</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeUnit}>{activeUnit}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Barcode</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeItem.barcode || product.barcode || ''}>{activeItem.barcode || product.barcode || '—'}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Trọng lượng</span><span className="font-medium text-foreground text-right">{activeWeight ? Number(activeWeight).toLocaleString('vi-VN') : '—'}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Nhãn hiệu</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={product.brand || ''}>{product.brand || '—'}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">VAT</span><span className="font-medium text-foreground text-right">{product.vat ?? 0}%</span></div>
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Ca kiểm kho</span><span className="font-medium text-foreground text-right">
+              {product.lastCountShift ? (
+                <span className="inline-flex rounded-md bg-purple-500/15 border border-purple-500/20 px-2 py-0.5 text-[11px] text-purple-600 dark:text-purple-400">
+                  {formatShift(product.lastCountShift)}
+                </span>
+              ) : '—'}
+            </span></div>
           </div>
         </div>
 

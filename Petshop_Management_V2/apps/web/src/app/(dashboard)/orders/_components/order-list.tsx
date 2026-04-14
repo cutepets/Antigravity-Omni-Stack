@@ -34,49 +34,87 @@ import {
 } from '@/components/data-list'
 
 // ── Types & Constants ────────────────────────────────────────────────────────
-type DisplayColumnId = 'code' | 'customer' | 'customerPhone' | 'items' | 'discount' | 'shippingFee' | 'total' | 'customerPaid' | 'payment' | 'status' | 'linkedCodes' | 'note' | 'branch' | 'creator' | 'created' | 'updated'
-type PinFilterId = 'paymentStatus'
+type DisplayColumnId = 'code' | 'customer' | 'customerPhone' | 'items' | 'discount' | 'shippingFee' | 'total' | 'customerPaid' | 'payment' | 'status' | 'orderStatus' | 'stockStatus' | 'linkedCodes' | 'note' | 'branch' | 'creator' | 'created' | 'updated'
+type PinFilterId = 'paymentStatus' | 'orderStatus'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
-  { id: 'code',         label: 'Mã đơn',         sortable: false, width: 'w-24' },
-  { id: 'customer',     label: 'Tên khách',      sortable: false, minWidth: 'min-w-[150px]' },
-  { id: 'customerPhone',label: 'SĐT Khách',      sortable: false, width: 'whitespace-nowrap' },
-  { id: 'items',        label: 'Số SP',          sortable: false, width: 'whitespace-nowrap' },
-  { id: 'discount',     label: 'Chiết khấu',      sortable: false, width: 'w-28', align: 'right' },
-  { id: 'shippingFee',  label: 'Phí ship',       sortable: false, width: 'w-28', align: 'right' },
-  { id: 'total',        label: 'Tổng tiền',      sortable: false, width: 'w-28', align: 'right' },
-  { id: 'customerPaid', label: 'Khách đã trả',   sortable: false, width: 'w-28', align: 'right' },
-  { id: 'payment',      label: 'TT',             sortable: false, width: 'w-32' },
-  { id: 'status',       label: 'Trạng thái',     sortable: false, width: 'w-32' },
-  { id: 'linkedCodes',  label: 'Mã liên kết',     sortable: false, minWidth: 'min-w-[180px]' },
-  { id: 'note',         label: 'Ghi chú',        sortable: false, minWidth: 'min-w-[150px]' },
-  { id: 'branch',       label: 'Chi nhánh',      sortable: false, width: 'whitespace-nowrap' },
-  { id: 'creator',      label: 'Người tạo',      sortable: false, width: 'whitespace-nowrap' },
-  { id: 'created',      label: 'Ngày tạo',       sortable: false, width: 'whitespace-nowrap' },
-  { id: 'updated',      label: 'Thời gian cập nhật',  sortable: false, width: 'whitespace-nowrap' },
+  { id: 'code', label: 'Mã đơn', sortable: false, width: 'w-24' },
+  { id: 'customer', label: 'Tên khách', sortable: false, minWidth: 'min-w-[150px]' },
+  { id: 'customerPhone', label: 'SĐT Khách', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'items', label: 'Số SP', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'discount', label: 'Chiết khấu', sortable: false, width: 'w-28', align: 'right' },
+  { id: 'shippingFee', label: 'Phí ship', sortable: false, width: 'w-28', align: 'right' },
+  { id: 'total', label: 'Tổng tiền', sortable: false, width: 'w-28', align: 'right' },
+  { id: 'customerPaid', label: 'Khách đã trả', sortable: false, width: 'w-28', align: 'right' },
+  { id: 'payment', label: 'TT', sortable: false, width: 'w-32' },
+  { id: 'status', label: 'TT thanh toán', sortable: false, width: 'w-32' },
+  { id: 'orderStatus', label: 'Trạng thái', sortable: false, width: 'w-32' },
+  { id: 'stockStatus', label: 'Xuất kho', sortable: false, width: 'w-28' },
+  { id: 'linkedCodes', label: 'Mã liên kết', sortable: false, minWidth: 'min-w-[180px]' },
+  { id: 'note', label: 'Ghi chú', sortable: false, minWidth: 'min-w-[150px]' },
+  { id: 'branch', label: 'Chi nhánh', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'creator', label: 'Người tạo', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'created', label: 'Ngày tạo', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'updated', label: 'Thời gian cập nhật', sortable: false, width: 'whitespace-nowrap' },
 ]
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
   COLUMN_OPTIONS.filter((c) => c.sortable).map((c) => c.id)
 )
 
 const PAYMENT_STATUS_BADGE: Record<string, string> = {
-  PENDING: 'badge badge-warning',
+  UNPAID: 'badge badge-warning',
   PARTIAL: 'badge badge-accent',
-  PAID:    'badge badge-success',
+  PAID: 'badge badge-success',
   COMPLETED: 'badge badge-info',
+  REFUNDED: 'badge badge-ghost',
 }
 
 const PAYMENT_STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Đang xử lý',
+  UNPAID: 'Chưa thanh toán',
   PARTIAL: 'TT 1 phần',
-  PAID:    'Đã thanh toán',
+  PAID: 'Đã thanh toán',
   COMPLETED: 'Hoàn thành',
+  REFUNDED: 'Đã hoàn tiền',
 }
 
-function StatusBadge({ status }: { status: string }) {
+const ORDER_STATUS_BADGE: Record<string, string> = {
+  PENDING: 'badge badge-warning',
+  CONFIRMED: 'badge badge-info',
+  PROCESSING: 'badge badge-accent',
+  COMPLETED: 'badge badge-success',
+  CANCELLED: 'badge badge-ghost',
+  REFUNDED: 'badge badge-error',
+}
+
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Chờ duyệt',
+  CONFIRMED: 'Đã duyệt',
+  PROCESSING: 'Đang xử lý',
+  COMPLETED: 'Hoàn thành',
+  CANCELLED: 'Đã hủy',
+  REFUNDED: 'Đã hoàn tiền',
+}
+
+function PaymentStatusBadge({ status }: { status: string }) {
   const lbl = PAYMENT_STATUS_LABEL[status] ?? status;
   const cls = PAYMENT_STATUS_BADGE[status] ?? 'badge badge-gray';
   return <span className={cls}>{lbl}</span>
+}
+
+function OrderStatusBadge({ status }: { status: string }) {
+  const lbl = ORDER_STATUS_LABEL[status] ?? status;
+  const cls = ORDER_STATUS_BADGE[status] ?? 'badge badge-gray';
+  return <span className={cls}>{lbl}</span>
+}
+
+function StockStatusBadge({ stockExportedAt, status }: { stockExportedAt?: string | null; status?: string }) {
+  if (stockExportedAt) {
+    return <span className="badge badge-success badge-sm">Đã xuất</span>
+  }
+  if (status === 'COMPLETED' || status === 'CANCELLED' || status === 'REFUNDED') {
+    return <span className="badge badge-ghost badge-sm">--</span>
+  }
+  return <span className="badge badge-warning badge-sm">Chưa xuất</span>
 }
 
 export function OrderList() {
@@ -85,24 +123,26 @@ export function OrderList() {
 
   const [search, setSearch] = useState('')
   const [paymentStatus, setPaymentStatus] = useState('')
+  const [orderStatus, setOrderStatus] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
   // System hook for data-list standard
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialVisibleColumns: ['code', 'customer', 'items', 'total', 'customerPaid', 'payment', 'status', 'branch', 'creator', 'created', 'updated'],
-    initialTopFilterVisibility: { paymentStatus: true }
+    initialVisibleColumns: ['code', 'customer', 'items', 'total', 'customerPaid', 'payment', 'orderStatus', 'stockStatus', 'branch', 'creator', 'created'],
+    initialTopFilterVisibility: { paymentStatus: true, orderStatus: false }
   })
-  
+
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data, isLoading } = useQuery({
-    queryKey: ['orders', search, paymentStatus, page, pageSize],
+    queryKey: ['orders', search, paymentStatus, orderStatus, page, pageSize],
     queryFn: () => orderApi.list({
       search,
       paymentStatus: paymentStatus || undefined,
+      status: orderStatus || undefined,
       page,
       limit: pageSize,
     }),
@@ -138,12 +178,13 @@ export function OrderList() {
 
   const clearFilters = () => {
     setPaymentStatus('')
+    setOrderStatus('')
     setSearch('')
     setPage(1)
   }
 
   // ── Layout Components ─────────────────────────────────────────────────────────
-  
+
   const renderActiveColumns = () => {
     return orderedVisibleColumns.map((id) => {
       const col = COLUMN_OPTIONS.find((c) => c.id === id)!
@@ -152,7 +193,7 @@ export function OrderList() {
   }
 
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
-  const rangeEnd   = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rawOrders.length)
+  const rangeEnd = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rawOrders.length)
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -166,18 +207,35 @@ export function OrderList() {
         showFilterToggle={true}
         filterSlot={
           <>
-            {/* Top filter: Status */}
+            {/* Top filter: Payment Status */}
             {topFilterVisibility.paymentStatus && (
               <select
                 value={paymentStatus}
                 onChange={(e) => { setPaymentStatus(e.target.value); setPage(1) }}
                 className={toolbarSelectClass}
               >
-                <option value="">Tất cả trạng thái</option>
-                <option value="PENDING">Chưa thanh toán</option>
+                <option value="">Tất cả TT thanh toán</option>
+                <option value="UNPAID">Chưa thanh toán</option>
                 <option value="PARTIAL">Thanh toán 1 phần</option>
                 <option value="PAID">Đã thanh toán đủ</option>
                 <option value="COMPLETED">Hoàn thành</option>
+                <option value="REFUNDED">Đã hoàn tiền</option>
+              </select>
+            )}
+            {/* Top filter: Order Status */}
+            {topFilterVisibility.orderStatus && (
+              <select
+                value={orderStatus}
+                onChange={(e) => { setOrderStatus(e.target.value); setPage(1) }}
+                className={toolbarSelectClass}
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="PENDING">Chờ duyệt</option>
+                <option value="CONFIRMED">Đã duyệt</option>
+                <option value="PROCESSING">Đang xử lý</option>
+                <option value="COMPLETED">Hoàn thành</option>
+                <option value="CANCELLED">Đã hủy</option>
+                <option value="REFUNDED">Đã hoàn tiền</option>
               </select>
             )}
           </>
@@ -199,45 +257,77 @@ export function OrderList() {
         }
         extraActions={
           <div className="flex items-center gap-2">
-             <button
-               type="button"
-               onClick={() => router.push('/pos')}
-               className="flex h-8 items-center gap-1.5 rounded-lg bg-primary-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-600 shadow-sm"
-             >
-               + Tạo đơn mới
-             </button>
+            <button
+              type="button"
+              onClick={() => router.push('/pos')}
+              className="flex h-8 items-center gap-1.5 rounded-lg bg-primary-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-600 shadow-sm"
+            >
+              + Tạo đơn mới
+            </button>
           </div>
         }
       />
 
       {/* ── Filter Panel ────────────────────────────────── */}
       <DataListFilterPanel onClearAll={clearFilters}>
+        {/* Filter: Payment Status */}
         <label className="space-y-2">
           <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
             <span className="inline-flex items-center gap-2">
-              <AlertCircle size={14} className="text-primary-500" />
+              <CreditCard size={14} className="text-primary-500" />
               Trạng thái thanh toán
             </span>
             <button
               type="button"
               onClick={() => dataListState.toggleTopFilterVisibility('paymentStatus')}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                topFilterVisibility.paymentStatus ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-              }`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.paymentStatus ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                }`}
             >
               {topFilterVisibility.paymentStatus ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
           </span>
           <select
-             value={paymentStatus}
-             onChange={(e) => { setPaymentStatus(e.target.value); setPage(1) }}
-             className={filterSelectClass}
+            value={paymentStatus}
+            onChange={(e) => { setPaymentStatus(e.target.value); setPage(1) }}
+            className={filterSelectClass}
           >
-             <option value="">Tất cả trạng thái</option>
-             <option value="PENDING">Chưa thanh toán</option>
-             <option value="PARTIAL">Thanh toán 1 phần</option>
-             <option value="PAID">Đã thanh toán đủ</option>
-             <option value="COMPLETED">Hoàn thành</option>
+            <option value="">Tất cả TT thanh toán</option>
+            <option value="UNPAID">Chưa thanh toán</option>
+            <option value="PARTIAL">Thanh toán 1 phần</option>
+            <option value="PAID">Đã thanh toán đủ</option>
+            <option value="COMPLETED">Hoàn thành</option>
+            <option value="REFUNDED">Đã hoàn tiền</option>
+          </select>
+        </label>
+
+        {/* Filter: Order Status */}
+        <label className="space-y-2">
+          <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
+            <span className="inline-flex items-center gap-2">
+              <ShoppingBag size={14} className="text-primary-500" />
+              Trạng thái đơn hàng
+            </span>
+            <button
+              type="button"
+              onClick={() => dataListState.toggleTopFilterVisibility('orderStatus')}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.orderStatus ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                }`}
+            >
+              {topFilterVisibility.orderStatus ? <Pin size={12} /> : <PinOff size={12} />}
+            </button>
+          </span>
+          <select
+            value={orderStatus}
+            onChange={(e) => { setOrderStatus(e.target.value); setPage(1) }}
+            className={filterSelectClass}
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="PENDING">Chờ duyệt</option>
+            <option value="CONFIRMED">Đã duyệt</option>
+            <option value="PROCESSING">Đang xử lý</option>
+            <option value="COMPLETED">Hoàn thành</option>
+            <option value="CANCELLED">Đã hủy</option>
+            <option value="REFUNDED">Đã hoàn tiền</option>
           </select>
         </label>
       </DataListFilterPanel>
@@ -272,159 +362,170 @@ export function OrderList() {
         {processedOrders.map((o: any) => {
           const rowId = `o:${o.id}`
           const isSelected = selectedRowIds.has(rowId)
-          
+
           return (
-            <tr 
-              key={o.id} 
+            <tr
+              key={o.id}
               className={`border-b border-border/50 transition-colors hover:bg-background-secondary/40 ${isSelected ? 'bg-primary-500/5' : ''}`}
             >
               <td className="w-12 px-3 py-3 w-10">
-                <TableCheckbox 
+                <TableCheckbox
                   checked={isSelected}
                   onCheckedChange={(checked, shiftKey) => toggleRowSelection(rowId, shiftKey)}
                 />
               </td>
               {orderedVisibleColumns.map(columnId => {
-              switch(columnId) {
-                case 'code': return (
-                  <td key={columnId} className="px-3 py-3 w-24">
-                    <span 
-                       onClick={() => window.open(`/pos?orderId=${o.id}`, '_blank')}
-                       className="font-mono text-xs font-bold text-primary-500 hover:underline cursor-pointer transition-colors"
-                    >
-                      {o.orderNumber || '--'}
-                    </span>
-                  </td>
-                );
-                case 'customer': return (
-                  <td key={columnId} className="px-3 py-3 min-w-[150px]">
-                    <div className="font-semibold text-foreground text-sm">
-                      {o.customer?.name || o.customer?.fullName || 'Khách lẻ'}
-                    </div>
-                  </td>
-                );
-                case 'customerPhone': return (
-                  <td key={columnId} className="px-3 py-3 whitespace-nowrap">
-                    <div className="text-sm font-medium text-foreground-secondary">
-                      {o.customer?.phone || '--'}
-                    </div>
-                  </td>
-                );
-                case 'discount': return (
-                  <td key={columnId} className="px-3 py-3 w-28 text-right">
-                    <div className="text-sm font-medium text-foreground-secondary">
-                      {formatCurrency(o.discount || 0)}
-                    </div>
-                  </td>
-                );
-                case 'shippingFee': return (
-                  <td key={columnId} className="px-3 py-3 w-28 text-right">
-                    <div className="text-sm font-medium text-foreground-secondary">
-                      {formatCurrency(o.shippingFee || 0)}
-                    </div>
-                  </td>
-                );
-                case 'linkedCodes': return (
-                  <td key={columnId} className="px-3 py-3 min-w-[180px]">
-                    <div className="flex flex-wrap gap-1">
-                      {o.transactions?.map((t: any, idx: number) => (
-                        <span key={'tx-'+idx} className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${t.type === 'INCOME' ? 'bg-success/10 text-success-600' : 'bg-destructive/10 text-destructive-600'}`}>
-                          {t.type === 'INCOME' ? 'PT' : 'PC'}: {t.voucherNumber}
-                        </span>
-                      ))}
-                      {o.groomingSessions?.map((s: any, idx: number) => (
-                        <span key={'gr-'+idx} className="bg-primary/10 text-primary-700 px-1.5 py-0.5 rounded-md text-[10px] font-medium">
-                          SPA: {s.sessionCode}
-                        </span>
-                      ))}
-                      {o.hotelStays?.map((h: any, idx: number) => (
-                        <span key={'ht-'+idx} className="bg-warning/10 text-warning-700 px-1.5 py-0.5 rounded-md text-[10px] font-medium">
-                          HOTEL: {h.stayCode}
-                        </span>
-                      ))}
-                      {!(o.transactions?.length) && !(o.groomingSessions?.length) && !(o.hotelStays?.length) && (
-                        <span className="text-xs text-foreground-muted">--</span>
-                      )}
-                    </div>
-                  </td>
-                );
-                case 'note': return (
-                  <td key={columnId} className="px-3 py-3 min-w-[150px]">
-                    <div className="text-xs text-foreground-secondary line-clamp-2" title={o.notes || ''}>
-                      {o.notes || '--'}
-                    </div>
-                  </td>
-                );
-                case 'items': return (
-                  <td key={columnId} className="px-3 py-3 whitespace-nowrap">
-                    <div className="inline-flex items-center gap-1.5 bg-background-tertiary px-2 py-0.5 rounded-md">
-                      <ShoppingBag size={11} className="text-foreground-muted" />
-                      <span className="text-xs font-medium text-foreground-secondary">{o.items?.length || 0} SP</span>
-                    </div>
-                  </td>
-                );
-                case 'total': return (
-                  <td key={columnId} className="px-3 py-3 w-28 text-right">
-                    <div className="text-sm font-bold text-foreground">
-                      {formatCurrency(o.total)}
-                    </div>
-                  </td>
-                );
-                case 'customerPaid': return (
-                  <td key={columnId} className="px-3 py-3 w-28 text-right">
-                    <div className="text-sm font-medium text-foreground">
-                      {formatCurrency(o.paidAmount || 0)}
-                    </div>
-                  </td>
-                );
-                case 'payment': return (
-                  <td key={columnId} className="px-3 py-3 w-32">
-                    <div className="flex items-center gap-1.5 text-xs text-foreground-secondary font-medium">
-                      <CreditCard size={13} className="text-foreground-muted" />
-                      {o.paymentMethod?.replace('_', ' ') || '—'}
-                    </div>
-                  </td>
-                );
-                case 'status': return (
-                  <td key={columnId} className="px-3 py-3 w-32">
-                    <StatusBadge status={o.paymentStatus} />
-                  </td>
-                );
-                case 'branch': return (
-                  <td key={columnId} className="px-3 py-3 whitespace-nowrap">
-                    <div className="text-xs text-foreground-secondary font-medium">
-                      {o.branch?.name || '--'}
-                    </div>
-                  </td>
-                );
-                case 'creator': return (
-                  <td key={columnId} className="px-3 py-3 whitespace-nowrap">
-                    <div className="text-xs text-foreground-secondary">
-                      {o.staff?.fullName || o.staff?.name || '--'}
-                    </div>
-                  </td>
-                );
-                case 'created': return (
-                  <td key={columnId} className="px-3 py-3 whitespace-nowrap text-xs text-foreground-muted">
-                    <div className="flex items-center gap-1">
-                      <CalendarDays size={12}/>
-                      {o.createdAt ? formatDateTime(o.createdAt) : '--'}
-                    </div>
-                  </td>
-                );
-                case 'updated': return (
-                  <td key={columnId} className="px-3 py-3 whitespace-nowrap text-xs text-foreground-muted">
-                    <div className="flex items-center gap-1">
-                      <CalendarDays size={12}/>
-                      {o.updatedAt ? formatDateTime(o.updatedAt) : '--'}
-                    </div>
-                  </td>
-                );
+                switch (columnId) {
+                  case 'code': return (
+                    <td key={columnId} className="px-3 py-3 w-24">
+                      <span
+                        onClick={() => router.push(`/orders/${o.id}`)}
+                        className="font-mono text-xs font-bold text-primary-500 hover:underline cursor-pointer transition-colors"
+                      >
+                        {o.orderNumber || '--'}
+                      </span>
+                    </td>
+                  );
+                  case 'customer': return (
+                    <td key={columnId} className="px-3 py-3 min-w-[150px]">
+                      <div className="font-semibold text-foreground text-sm">
+                        {o.customer?.name || o.customer?.fullName || 'Khách lẻ'}
+                      </div>
+                    </td>
+                  );
+                  case 'customerPhone': return (
+                    <td key={columnId} className="px-3 py-3 whitespace-nowrap">
+                      <div className="text-sm font-medium text-foreground-secondary">
+                        {o.customer?.phone || '--'}
+                      </div>
+                    </td>
+                  );
+                  case 'discount': return (
+                    <td key={columnId} className="px-3 py-3 w-28 text-right">
+                      <div className="text-sm font-medium text-foreground-secondary">
+                        {formatCurrency(o.discount || 0)}
+                      </div>
+                    </td>
+                  );
+                  case 'shippingFee': return (
+                    <td key={columnId} className="px-3 py-3 w-28 text-right">
+                      <div className="text-sm font-medium text-foreground-secondary">
+                        {formatCurrency(o.shippingFee || 0)}
+                      </div>
+                    </td>
+                  );
+                  case 'linkedCodes': return (
+                    <td key={columnId} className="px-3 py-3 min-w-[180px]">
+                      <div className="flex flex-wrap gap-1">
+                        {o.transactions?.map((t: any, idx: number) => (
+                          <span key={'tx-' + idx} className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${t.type === 'INCOME' ? 'bg-success/10 text-success-600' : 'bg-destructive/10 text-destructive-600'}`}>
+                            {t.type === 'INCOME' ? 'PT' : 'PC'}: {t.voucherNumber}
+                          </span>
+                        ))}
+                        {o.groomingSessions?.map((s: any, idx: number) => (
+                          <span key={'gr-' + idx} className="bg-primary/10 text-primary-700 px-1.5 py-0.5 rounded-md text-[10px] font-medium">
+                            SPA: {s.sessionCode}
+                          </span>
+                        ))}
+                        {o.hotelStays?.map((h: any, idx: number) => (
+                          <span key={'ht-' + idx} className="bg-warning/10 text-warning-700 px-1.5 py-0.5 rounded-md text-[10px] font-medium">
+                            HOTEL: {h.stayCode}
+                          </span>
+                        ))}
+                        {!(o.transactions?.length) && !(o.groomingSessions?.length) && !(o.hotelStays?.length) && (
+                          <span className="text-xs text-foreground-muted">--</span>
+                        )}
+                      </div>
+                    </td>
+                  );
+                  case 'note': return (
+                    <td key={columnId} className="px-3 py-3 min-w-[150px]">
+                      <div className="text-xs text-foreground-secondary line-clamp-2" title={o.notes || ''}>
+                        {o.notes || '--'}
+                      </div>
+                    </td>
+                  );
+                  case 'items': return (
+                    <td key={columnId} className="px-3 py-3 whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5 bg-background-tertiary px-2 py-0.5 rounded-md">
+                        <ShoppingBag size={11} className="text-foreground-muted" />
+                        <span className="text-xs font-medium text-foreground-secondary">{o.items?.length || 0} SP</span>
+                      </div>
+                    </td>
+                  );
+                  case 'total': return (
+                    <td key={columnId} className="px-3 py-3 w-28 text-right">
+                      <div className="text-sm font-bold text-foreground">
+                        {formatCurrency(o.total)}
+                      </div>
+                    </td>
+                  );
+                  case 'customerPaid': return (
+                    <td key={columnId} className="px-3 py-3 w-28 text-right">
+                      <div className="text-sm font-medium text-foreground">
+                        {formatCurrency(o.paidAmount || 0)}
+                      </div>
+                    </td>
+                  );
+                  case 'payment': return (
+                    <td key={columnId} className="px-3 py-3 w-32">
+                      <div className="flex items-center gap-1.5 text-xs text-foreground-secondary font-medium">
+                        <CreditCard size={13} className="text-foreground-muted" />
+                        {o.paymentMethod?.replace('_', ' ') || '—'}
+                      </div>
+                    </td>
+                  );
+                  case 'status': return (
+                    <td key={columnId} className="px-3 py-3 w-32">
+                      <PaymentStatusBadge status={o.paymentStatus} />
+                    </td>
+                  );
+                  case 'orderStatus': return (
+                    <td key={columnId} className="px-3 py-3 w-32">
+                      <OrderStatusBadge status={o.status} />
+                    </td>
+                  );
+                  case 'stockStatus': return (
+                    <td key={columnId} className="px-3 py-3 w-28">
+                      <StockStatusBadge stockExportedAt={o.stockExportedAt} status={o.status} />
+                    </td>
+                  );
+                  case 'branch': return (
+                    <td key={columnId} className="px-3 py-3 whitespace-nowrap">
+                      <div className="text-xs text-foreground-secondary font-medium">
+                        {o.branch?.name || '--'}
+                      </div>
+                    </td>
+                  );
+                  case 'creator': return (
+                    <td key={columnId} className="px-3 py-3 whitespace-nowrap">
+                      <div className="text-xs text-foreground-secondary">
+                        {o.staff?.fullName || o.staff?.name || '--'}
+                      </div>
+                    </td>
+                  );
+                  case 'created': return (
+                    <td key={columnId} className="px-3 py-3 whitespace-nowrap text-xs text-foreground-muted">
+                      <div className="flex items-center gap-1">
+                        <CalendarDays size={12} />
+                        {o.createdAt ? formatDateTime(o.createdAt) : '--'}
+                      </div>
+                    </td>
+                  );
+                  case 'updated': return (
+                    <td key={columnId} className="px-3 py-3 whitespace-nowrap text-xs text-foreground-muted">
+                      <div className="flex items-center gap-1">
+                        <CalendarDays size={12} />
+                        {o.updatedAt ? formatDateTime(o.updatedAt) : '--'}
+                      </div>
+                    </td>
+                  );
 
-              }
-            })}
-          </tr>
-        )})}
+                }
+              })}
+            </tr>
+          )
+        })}
       </DataListTable>
 
       <DataListPagination

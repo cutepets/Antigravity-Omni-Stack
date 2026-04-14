@@ -48,9 +48,11 @@ export interface HotelStay {
   branchId: string | null
   cageId: string | null
   checkIn: string
+  checkedInAt?: string | null
   checkOut: string | null
   checkOutActual: string | null
   estimatedCheckOut: string | null
+  cancelledAt?: string | null
   expectedPickup?: string | null
   status: HotelStatus
   lineType: HotelLineType
@@ -71,9 +73,15 @@ export interface HotelStay {
   orderId: string | null
   createdAt: string
   updatedAt: string
+  createdBy?: {
+    id: string
+    fullName: string
+    staffCode?: string | null
+  } | null
   cage?: Cage | null
   branch?: {
     id: string
+    code?: string
     name: string
   } | null
   customer?: {
@@ -86,11 +94,18 @@ export interface HotelStay {
     fullName: string
     phone: string
   } | null
+  slotIndex?: number | null
+  accessories?: string | null
   pet?: {
     id: string
     name: string
     breed?: string | null
     species?: string | null
+    weight?: number | null
+    temperament?: string | null
+    allergies?: string | null
+    vaccinationStatus?: string | null
+    vaccinationNotes?: string | null
     customer?: {
       id: string
       fullName: string
@@ -112,7 +127,44 @@ export interface HotelStay {
     minWeight: number | null
     maxWeight: number | null
   } | null
+  adjustments?: HotelStayAdjustment[]
   chargeLines?: HotelStayChargeLine[]
+}
+
+export interface HotelStayAdjustment {
+  id: string
+  type?: string | null
+  label: string
+  amount: number
+  note?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface HotelStayTimeline {
+  checkpoints: Array<{
+    key: string
+    label: string
+    at: string | null
+    user?: {
+      id: string
+      fullName: string
+      staffCode?: string | null
+    } | null
+  }>
+  activities: Array<{
+    id: string
+    action: string
+    target: string | null
+    targetId: string | null
+    details: Record<string, unknown> | null
+    createdAt: string
+    user?: {
+      id: string
+      fullName: string
+      staffCode?: string | null
+    } | null
+  }>
 }
 
 export interface HotelStayChargeLine {
@@ -160,6 +212,15 @@ export interface CreateHotelStayDto {
   lineType?: HotelLineType
   notes?: string
   petNotes?: string
+  accessories?: string
+  slotIndex?: number
+  adjustments?: Array<{
+    id?: string
+    type?: string
+    label: string
+    amount: number
+    note?: string
+  }>
   price?: number
   dailyRate?: number
   depositAmount?: number
@@ -180,6 +241,13 @@ export interface CheckoutHotelStayDto {
   dailyRate?: number
   surcharge?: number
   promotion?: number
+  adjustments?: Array<{
+    id?: string
+    type?: string
+    label: string
+    amount: number
+    note?: string
+  }>
   paymentStatus?: HotelPaymentStatus
   notes?: string
 }
@@ -189,6 +257,7 @@ export interface CalculateHotelPriceDto {
   checkOut: string
   species: string
   weight: number
+  branchId?: string
   lineType?: HotelLineType
   rateTableId?: string
 }
@@ -232,6 +301,7 @@ export interface GetHotelStaysParams {
   status?: string
   paymentStatus?: string
   branchId?: string
+  createdById?: string
   customerId?: string
   cageId?: string
   date?: string
@@ -239,6 +309,7 @@ export interface GetHotelStaysParams {
   page?: number
   limit?: number
   withMeta?: boolean
+  omitBranchId?: boolean
 }
 
 export interface GetHotelRateTablesParams {
@@ -256,9 +327,15 @@ export const hotelApi = {
   reorderCages: (cageIds: string[]) => api.patch<{ success: boolean }>('/hotel/cages/reorder', { cageIds }).then((res) => res.data),
 
   getStays: () => api.get<HotelStayListResponse>('/hotel/stays', { params: { limit: 200 }, headers: { 'X-Use-Branch-Scope': 'true' } }).then((res) => res.data.items),
-  getStayList: (params?: GetHotelStaysParams) =>
-    api.get<HotelStayListResponse>('/hotel/stays', { params: { ...params, withMeta: true }, headers: { 'X-Use-Branch-Scope': 'true' } }).then((res) => res.data),
+  getStayList: (params?: GetHotelStaysParams) => {
+    const { omitBranchId, ...query } = params ?? {}
+    return api.get<HotelStayListResponse>('/hotel/stays', {
+      params: { ...query, withMeta: true },
+      headers: omitBranchId ? undefined : { 'X-Use-Branch-Scope': 'true' },
+    }).then((res) => res.data)
+  },
   getStay: (id: string) => api.get<HotelStay>(`/hotel/stays/${id}`).then((res) => res.data),
+  getStayTimeline: (id: string) => api.get<HotelStayTimeline>(`/hotel/stays/${id}/timeline`).then((res) => res.data),
   createStay: (data: CreateHotelStayDto) => api.post<HotelStay>('/hotel/stays', data).then((res) => res.data),
   updateStay: (id: string, data: UpdateHotelStayDto) => api.patch<HotelStay>(`/hotel/stays/${id}`, data).then((res) => res.data),
   updateStayPayment: (id: string, paymentStatus: HotelPaymentStatus) =>

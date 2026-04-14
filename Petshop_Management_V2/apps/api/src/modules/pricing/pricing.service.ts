@@ -349,8 +349,9 @@ export class PricingService {
     })
   }
 
-  async listHotelRules(query: { species?: string; year?: string | number; dayType?: string; isActive?: string }) {
+  async listHotelRules(query: { species?: string; year?: string | number; dayType?: string; isActive?: string; branchId?: string }) {
     const species = this.normalizeSpecies(query.species)
+    const branchId = this.normalizeOptionalText(query.branchId)
     const year = Math.floor(Number(query.year ?? new Date().getFullYear()))
     const dayType = this.normalizeDayType(query.dayType)
     const isActive = query.isActive === undefined ? undefined : String(query.isActive) !== 'false'
@@ -358,12 +359,13 @@ export class PricingService {
     const rules = await this.db.hotelPriceRule.findMany({
       where: {
         year,
+        ...(branchId !== null ? { branchId } : {}),
         ...(species !== null ? { species } : {}),
         ...(dayType ? { dayType } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
       } as any,
-      include: { weightBand: true },
-      orderBy: [{ dayType: 'asc' }, { weightBand: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
+      include: { branch: { select: { id: true, code: true, name: true } }, weightBand: true },
+      orderBy: [{ branchId: 'asc' }, { dayType: 'asc' }, { weightBand: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
     })
 
     return rules.map((rule) => ({
@@ -384,6 +386,7 @@ export class PricingService {
         const data = {
           year: Math.floor(this.normalizeNumber(rule.year, 'Năm', 2000)),
           species: this.normalizeSpecies(rule.species),
+          branchId: this.normalizeOptionalText(rule.branchId),
           weightBandId: rule.weightBandId,
           dayType: this.normalizeDayType(rule.dayType) ?? 'REGULAR',
           sku: rule.sku ?? null,
@@ -395,9 +398,16 @@ export class PricingService {
         if (rule.id) {
           const current = await tx.hotelPriceRule.findUnique({ where: { id: rule.id } })
           if (!current) throw new NotFoundException('Không tìm thấy dòng giá Hotel')
-          results.push(await tx.hotelPriceRule.update({ where: { id: rule.id }, data, include: { weightBand: true } }))
+          results.push(await tx.hotelPriceRule.update({
+            where: { id: rule.id },
+            data,
+            include: { branch: { select: { id: true, code: true, name: true } }, weightBand: true },
+          }))
         } else {
-          results.push(await tx.hotelPriceRule.create({ data, include: { weightBand: true } }))
+          results.push(await tx.hotelPriceRule.create({
+            data,
+            include: { branch: { select: { id: true, code: true, name: true } }, weightBand: true },
+          }))
         }
       }
       return results

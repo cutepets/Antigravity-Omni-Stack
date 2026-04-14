@@ -142,8 +142,8 @@ export class StockController {
   @Get('transactions/:productId')
   @Permissions('stock_receipt.read')
   @ApiOperation({ summary: 'Lịch sử giao dịch kho của sản phẩm' })
-  getTransactions(@Param('productId') productId: string) {
-    return this.stockService.getTransactionsByProduct(productId)
+  getTransactions(@Param('productId') productId: string, @Query('variantId') variantId?: string) {
+    return this.stockService.getTransactionsByProduct(productId, variantId)
   }
 
   @Get('suggestions')

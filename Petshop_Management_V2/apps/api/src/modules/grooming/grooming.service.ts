@@ -62,13 +62,10 @@ export class GroomingService {
     return pet
   }
 
-  private normalizeSpecies(value?: string | null) {
-    return value?.trim().toLowerCase() || null
-  }
 
   private async buildSpaPricingPreview(dto: CalculateSpaPriceDto, user?: BranchScopedUser) {
     const pet = await this.findAccessiblePet(dto.petId, user)
-    const species = this.normalizeSpecies(dto.species ?? pet.species)
+    const species = (dto.species ?? pet.species)?.trim() || null
     const weight = Number(dto.weight ?? pet.weight)
 
     if (!Number.isFinite(weight)) {
@@ -84,8 +81,9 @@ export class GroomingService {
       },
       orderBy: [{ sortOrder: 'asc' }, { minWeight: 'asc' }],
     })
+    // Match species case-insensitively in JS, fallback to null-species band
     const weightBand =
-      bands.find((band) => this.normalizeSpecies(band.species) === species) ??
+      bands.find((band) => band.species?.trim().toLowerCase() === species?.toLowerCase()) ??
       bands.find((band) => !band.species)
 
     if (!weightBand) {
@@ -97,12 +95,12 @@ export class GroomingService {
         packageCode: dto.packageCode,
         weightBandId: weightBand.id,
         isActive: true,
-        OR: [{ species }, { species: null }],
       },
       orderBy: { createdAt: 'desc' },
     })
+    // Match species case-insensitively in JS, fallback to null-species rule
     const priceRule =
-      rules.find((rule) => this.normalizeSpecies(rule.species) === species) ??
+      rules.find((rule) => rule.species?.trim().toLowerCase() === species?.toLowerCase()) ??
       rules.find((rule) => !rule.species)
 
     if (!priceRule) {
@@ -146,6 +144,36 @@ export class GroomingService {
     return { success: true, data: preview }
   }
 
+  async getPackages(species?: string): Promise<any> {
+    const normalizedInput = species?.trim().toLowerCase() || null
+
+    // Fetch all active rules — JS filter handles species case-insensitively
+    const rules = await this.db.spaPriceRule.findMany({
+      where: { isActive: true },
+      select: { packageCode: true, species: true },
+      orderBy: { packageCode: 'asc' },
+    })
+
+    // Keep rules that match the species (case-insensitive) OR have no species restriction
+    const filtered = normalizedInput
+      ? rules.filter(
+          (r) => !r.species || r.species.trim().toLowerCase() === normalizedInput,
+        )
+      : rules
+
+    // Deduplicate and return sorted packageCodes
+    const seen = new Set<string>()
+    const packages = filtered
+      .filter((r) => {
+        if (seen.has(r.packageCode)) return false
+        seen.add(r.packageCode)
+        return true
+      })
+      .map((r) => ({ code: r.packageCode, label: r.packageCode }))
+
+    return { success: true, data: packages }
+  }
+
   async create(dto: CreateGroomingDto, user?: BranchScopedUser, requestedBranchId?: string): Promise<any> {
     const pet = await this.findAccessiblePet(dto.petId, user)
     const writableBranchId = resolveWritableBranchId(user, dto.branchId ?? requestedBranchId)
@@ -168,7 +196,7 @@ export class GroomingService {
         petName: pet.name,
         customerId: pet.customerId,
         branchId: branch.id,
-        staffId: dto.staffId ?? null,
+        staffId: dto.staffId ?? user?.userId ?? null,
         serviceId: dto.serviceId ?? null,
         packageCode: dto.packageCode ?? null,
         weightAtBooking: pricingPreview?.weight ?? pet.weight ?? null,
@@ -177,6 +205,7 @@ export class GroomingService {
         startTime: dto.startTime ? new Date(dto.startTime) : null,
         notes: dto.notes ?? null,
         price: dto.price ?? pricingPreview?.price ?? null,
+        surcharge: dto.surcharge ?? 0,
         status: 'PENDING',
       },
       include: {
@@ -192,6 +221,7 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         order: { select: { id: true, orderNumber: true } },
+        branch: { select: { id: true, name: true, code: true } },
       },
     })
 
@@ -225,6 +255,7 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         order: { select: { id: true, orderNumber: true } },
+        branch: { select: { id: true, name: true, code: true } },
       },
     })
 
@@ -247,6 +278,7 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         order: { select: { id: true, orderNumber: true } },
+        branch: { select: { id: true, name: true, code: true } },
       },
     })
 
@@ -275,6 +307,9 @@ export class GroomingService {
     if (dto.status === 'COMPLETED' && !dto.endTime && !session.endTime) {
       dataToUpdate.endTime = new Date()
     }
+    if (dto.status === 'IN_PROGRESS' && !dto.startTime && !session.startTime) {
+      dataToUpdate.startTime = new Date()
+    }
 
     const updated = await this.db.groomingSession.update({
       where: { id },
@@ -292,6 +327,7 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         order: { select: { id: true, orderNumber: true } },
+        branch: { select: { id: true, name: true, code: true } },
       },
     })
 

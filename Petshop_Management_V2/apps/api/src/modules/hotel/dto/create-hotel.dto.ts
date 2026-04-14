@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsDateString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsDateString, IsArray, ValidateNested } from 'class-validator';
 import { HotelLineType, PaymentStatus } from '@petshop/database';
 
 export class CreateCageDto {
@@ -17,6 +18,27 @@ export class CreateCageDto {
   @IsNumber()
   @IsOptional()
   position?: number;
+}
+
+export class HotelStayAdjustmentDto {
+  @IsString()
+  @IsOptional()
+  id?: string;
+
+  @IsString()
+  @IsOptional()
+  type?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  label!: string;
+
+  @IsNumber()
+  amount!: number;
+
+  @IsString()
+  @IsOptional()
+  note?: string;
 }
 
 export class CreateHotelStayDto {
@@ -99,6 +121,20 @@ export class CreateHotelStayDto {
   @IsString()
   @IsOptional()
   orderId?: string;
+
+  @IsString()
+  @IsOptional()
+  accessories?: string;
+
+  @IsNumber()
+  @IsOptional()
+  slotIndex?: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HotelStayAdjustmentDto)
+  @IsOptional()
+  adjustments?: HotelStayAdjustmentDto[];
 }
 
 export class CreateHotelRateTableDto {

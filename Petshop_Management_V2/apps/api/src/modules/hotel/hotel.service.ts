@@ -4,7 +4,7 @@ import { generateHotelStayCode as formatHotelStayCode } from '@petshop/shared';
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js';
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
 import { DatabaseService } from '../../database/database.service.js';
-import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto } from './dto/create-hotel.dto.js';
+import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto, HotelStayAdjustmentDto } from './dto/create-hotel.dto.js';
 import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateHotelRateTableDto, UpdateHotelStayDto, UpdateCageDto } from './dto/update-hotel.dto.js';
 
 const ACTIVE_STAY_STATUSES = ['BOOKED', 'CHECKED_IN'] as const;
@@ -44,6 +44,14 @@ type HotelPricingPreview = {
   pricingSnapshot: Record<string, unknown>;
 };
 
+type HotelAdjustmentInput = HotelStayAdjustmentDto | {
+  id?: string;
+  type?: string;
+  label: string;
+  amount: number;
+  note?: string;
+};
+
 @Injectable()
 export class HotelService {
   constructor(private readonly prisma: DatabaseService) { }
@@ -78,9 +86,19 @@ export class HotelService {
         name: true,
       },
     },
+    createdBy: {
+      select: {
+        id: true,
+        fullName: true,
+        staffCode: true,
+      },
+    },
     cage: true,
     rateTable: true,
     weightBand: true,
+    adjustments: {
+      orderBy: [{ createdAt: 'asc' }],
+    },
     chargeLines: {
       include: {
         weightBand: true,
@@ -135,6 +153,65 @@ export class HotelService {
     return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
+  private normalizeStayAdjustments(adjustments?: HotelAdjustmentInput[] | null) {
+    return (adjustments ?? [])
+      .map((item) => ({
+        type: String(item.type ?? '').trim() || null,
+        label: String(item.label ?? '').trim(),
+        amount: this.roundCurrency(Number(item.amount ?? 0)),
+        note: String(item.note ?? '').trim() || null,
+      }))
+      .filter((item) => item.label && Number.isFinite(item.amount) && item.amount > 0);
+  }
+
+  private sumAdjustmentAmount(adjustments?: HotelAdjustmentInput[] | null) {
+    return this.roundCurrency(
+      this.normalizeStayAdjustments(adjustments).reduce((sum, item) => sum + item.amount, 0),
+    );
+  }
+
+  private async replaceStayAdjustments(
+    tx: Prisma.TransactionClient,
+    stayId: string,
+    adjustments?: HotelAdjustmentInput[] | null,
+  ) {
+    await tx.hotelStayAdjustment.deleteMany({ where: { hotelStayId: stayId } });
+    const normalizedAdjustments = this.normalizeStayAdjustments(adjustments);
+    if (normalizedAdjustments.length === 0) return;
+
+    await tx.hotelStayAdjustment.createMany({
+      data: normalizedAdjustments.map((item) => ({
+        hotelStayId: stayId,
+        type: item.type,
+        label: item.label,
+        amount: item.amount,
+        note: item.note,
+      })),
+    });
+  }
+
+  private async logStayActivity(
+    action: string,
+    stay: { id: string; stayCode?: string | null; branchId?: string | null; petName?: string | null },
+    user?: BranchScopedUser,
+    details?: Record<string, unknown>,
+  ) {
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user?.userId ?? null,
+        action,
+        target: 'HOTEL_STAY',
+        targetId: stay.id,
+        details: {
+          stayCode: stay.stayCode ?? null,
+          branchId: stay.branchId ?? null,
+          petName: stay.petName ?? null,
+          ...(details ?? {}),
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
   private buildWeightBandLabel(minWeight?: number | null, maxWeight?: number | null) {
     if (minWeight === null || minWeight === undefined) return 'Theo can nang';
     if (maxWeight === null || maxWeight === undefined) return `>${minWeight}kg`;
@@ -182,6 +259,7 @@ export class HotelService {
       ...stay,
       expectedPickup: stay.estimatedCheckOut ?? null,
       receiver: stay.customer ?? stay.pet?.customer ?? null,
+      adjustments: Array.isArray(stay.adjustments) ? stay.adjustments : [],
       chargeLines: Array.isArray(stay.chargeLines)
         ? stay.chargeLines.map((line: any) => this.mapStayChargeLine(line))
         : [],
@@ -608,6 +686,7 @@ export class HotelService {
     weight?: number | null;
     checkIn: Date;
     checkOut?: Date | null;
+    branchId?: string | null;
     rateTableId?: string | null;
   }): Promise<HotelPricingPreview> {
     const weight = Number(params.weight ?? 0);
@@ -667,9 +746,16 @@ export class HotelService {
           isActive: true,
           year: { in: [...yearKeys] },
           weightBandId: configuredBand.band.id,
-          OR: [
-            { species: null },
-            { species: { equals: params.species, mode: 'insensitive' } },
+          AND: [
+            ...(params.branchId
+              ? [{ OR: [{ branchId: params.branchId }, { branchId: null }] }]
+              : [{ branchId: null }]),
+            {
+              OR: [
+                { species: null },
+                { species: { equals: params.species, mode: 'insensitive' } },
+              ],
+            },
           ],
         },
       })
@@ -708,8 +794,11 @@ export class HotelService {
           ? priceRules
             .filter((rule) => rule.year === cursor.getFullYear() && rule.dayType === dayType)
             .sort((left, right) => {
+              const leftBranchExact = left.branchId === params.branchId ? 1 : 0;
+              const rightBranchExact = right.branchId === params.branchId ? 1 : 0;
               const leftExact = left.species?.toLowerCase() === params.species.toLowerCase() ? 1 : 0;
               const rightExact = right.species?.toLowerCase() === params.species.toLowerCase() ? 1 : 0;
+              if (rightBranchExact !== leftBranchExact) return rightBranchExact - leftBranchExact;
               return rightExact - leftExact;
             })[0]
           : null;
@@ -722,6 +811,7 @@ export class HotelService {
               snapshot: {
                 source: 'hotel-price-rule',
                 ruleId: matchedRule.id,
+                branchId: matchedRule.branchId,
                 year: matchedRule.year,
                 species: matchedRule.species,
                 weightBandId: matchedRule.weightBandId,
@@ -884,11 +974,12 @@ export class HotelService {
       species: pet.species,
       weight: pet.weight,
       checkIn,
+      branchId: branch.id,
       checkOut: estimatedCheckOut,
       ...(data.rateTableId ? { rateTableId: data.rateTableId } : {}),
     });
     const promotion = data.promotion ?? 0;
-    const surcharge = data.surcharge ?? 0;
+    const surcharge = data.adjustments ? this.sumAdjustmentAmount(data.adjustments) : (data.surcharge ?? 0);
     const totalPrice = data.totalPrice ?? this.roundCurrency(pricingPreview.totalPrice + surcharge - promotion);
     const dailyRate = data.dailyRate ?? data.price ?? pricingPreview.averageDailyRate;
     const breakdownSnapshot = this.buildStayBreakdownSnapshot(pricingPreview, promotion, surcharge, totalPrice);
@@ -902,6 +993,7 @@ export class HotelService {
       customerId: data.customerId ?? pet.customerId,
       branchId: branch.id,
       cageId: data.cageId ?? null,
+      createdById: user?.userId ?? null,
       checkIn,
       ...(data.checkOut ? { checkOut: new Date(data.checkOut) } : {}),
       ...(estimatedCheckOut ? { estimatedCheckOut } : {}),
@@ -929,6 +1021,8 @@ export class HotelService {
         include: this.stayInclude,
       });
 
+      await this.replaceStayAdjustments(tx, stay.id, data.adjustments);
+
       if (pricingPreview.chargeLines.length > 0) {
         await tx.hotelStayChargeLine.createMany({
           data: pricingPreview.chargeLines.map((line) => ({
@@ -955,6 +1049,13 @@ export class HotelService {
       await this.syncLinkedOrder(created.id, created.orderId);
     }
 
+    await this.logStayActivity('HOTEL_STAY_CREATED', created, user, {
+      status: created.status,
+      estimatedCheckOut: created.estimatedCheckOut,
+      surcharge: created.surcharge,
+      totalPrice: created.totalPrice,
+    });
+
     return this.mapStay(created);
   }
 
@@ -978,8 +1079,9 @@ export class HotelService {
     assertBranchAccess(stay.branchId, user);
     const updateData: Prisma.HotelStayUpdateInput = {};
     const nextPetId = data.petId ?? stay.petId;
-    const nextCheckIn = data.checkIn ? new Date(data.checkIn) : stay.checkIn;
+    let nextCheckIn = data.checkIn ? new Date(data.checkIn) : stay.checkIn;
     let nextPet = stay.pet;
+    const statusTransition = data.status && data.status !== stay.status ? data.status : null;
     const nextEstimatedCheckOut = data.estimatedCheckOut
       ? new Date(data.estimatedCheckOut)
       : data.estimatedCheckOut === null
@@ -1014,8 +1116,12 @@ export class HotelService {
     if (data.customerId !== undefined) {
       updateData.customer = data.customerId ? { connect: { id: data.customerId } } : { disconnect: true };
     }
+    const nextBranchId = data.branchId !== undefined || requestedBranchId
+      ? resolveWritableBranchId(user, data.branchId ?? requestedBranchId)
+      : stay.branchId;
+
     if (data.branchId !== undefined || requestedBranchId) {
-      const writableBranchId = resolveWritableBranchId(user, data.branchId ?? requestedBranchId);
+      const writableBranchId = nextBranchId;
       updateData.branch = writableBranchId ? { connect: { id: writableBranchId } } : { disconnect: true };
     }
     if (data.cageId !== undefined) {
@@ -1038,18 +1144,36 @@ export class HotelService {
     if (data.paymentStatus) updateData.paymentStatus = data.paymentStatus;
     if (data.notes !== undefined) updateData.notes = data.notes;
     if (data.petNotes !== undefined) updateData.petNotes = data.petNotes;
+    if (data.accessories !== undefined) updateData.accessories = data.accessories;
+    if (data.slotIndex !== undefined) updateData.slotIndex = data.slotIndex;
     if (data.price !== undefined) updateData.price = data.price;
     if (data.dailyRate !== undefined) updateData.dailyRate = data.dailyRate;
     if (data.depositAmount !== undefined) updateData.depositAmount = data.depositAmount;
     if (data.promotion !== undefined) updateData.promotion = data.promotion;
     if (data.surcharge !== undefined) updateData.surcharge = data.surcharge;
 
+    if (statusTransition === 'CHECKED_IN') {
+      if (!['BOOKED', 'CHECKED_IN'].includes(stay.status)) {
+        throw new BadRequestException('Khong the nhan phong cho stay da ket thuc');
+      }
+      nextCheckIn = new Date();
+      updateData.checkIn = nextCheckIn;
+      updateData.checkedInAt = nextCheckIn;
+    }
+
+    if (statusTransition === 'CANCELLED') {
+      if (stay.status === 'CHECKED_OUT') {
+        throw new BadRequestException('Khong the huy stay da checkout');
+      }
+      updateData.cancelledAt = new Date();
+    }
+
     const promotion = data.promotion ?? stay.promotion;
-    const surcharge = data.surcharge ?? stay.surcharge;
-    const finalCheckOut = data.status === 'CHECKED_OUT'
-      ? data.checkOut
-        ? new Date(data.checkOut)
-        : new Date()
+    const surcharge = data.adjustments
+      ? this.sumAdjustmentAmount(data.adjustments)
+      : data.surcharge ?? stay.surcharge;
+    const finalCheckOut = statusTransition === 'CHECKED_OUT'
+      ? new Date()
       : data.checkOut
         ? new Date(data.checkOut)
         : nextEstimatedCheckOut ?? stay.checkOutActual ?? stay.checkOut ?? null;
@@ -1058,6 +1182,7 @@ export class HotelService {
       species: nextPet.species,
       weight: nextPet.weight,
       checkIn: nextCheckIn,
+      branchId: nextBranchId,
       checkOut: finalCheckOut,
       ...(nextRateTableId ? { rateTableId: nextRateTableId } : {}),
     });
@@ -1079,7 +1204,10 @@ export class HotelService {
       totalPrice,
     ) as Prisma.InputJsonValue;
 
-    if (data.status === 'CHECKED_OUT' && stay.status !== 'CHECKED_OUT') {
+    if (statusTransition === 'CHECKED_OUT') {
+      if (!['BOOKED', 'CHECKED_IN'].includes(stay.status)) {
+        throw new BadRequestException('Khong the checkout stay da ket thuc');
+      }
       updateData.checkOut = finalCheckOut ?? new Date();
       updateData.checkOutActual = finalCheckOut ?? new Date();
     }
@@ -1089,6 +1217,8 @@ export class HotelService {
         where: { id },
         data: updateData,
       });
+
+      await this.replaceStayAdjustments(tx, id, data.adjustments);
 
       await tx.hotelStayChargeLine.deleteMany({
         where: { hotelStayId: id },
@@ -1125,10 +1255,26 @@ export class HotelService {
       data.petId !== undefined ||
       data.surcharge !== undefined ||
       data.promotion !== undefined ||
-      data.status === 'CHECKED_OUT'
+      data.adjustments !== undefined ||
+      statusTransition === 'CHECKED_OUT'
     ) {
       await this.syncLinkedOrder(updated.id, updated.orderId);
     }
+
+    await this.logStayActivity(
+      statusTransition
+        ? `HOTEL_STAY_${statusTransition}`
+        : 'HOTEL_STAY_UPDATED',
+      updated,
+      user,
+      {
+        previousStatus: stay.status,
+        nextStatus: updated.status,
+        estimatedCheckOut: updated.estimatedCheckOut,
+        surcharge: updated.surcharge,
+        totalPrice: updated.totalPrice,
+      },
+    );
 
     return this.mapStay(updated);
   }
@@ -1152,8 +1298,12 @@ export class HotelService {
         .split(',')
         .map((value) => value.trim())
         .filter(Boolean);
-      where.paymentStatus =
-        paymentStatuses.length > 1 ? { in: paymentStatuses as any[] } : (paymentStatuses[0] as any);
+      where.order = {
+        is: {
+          paymentStatus:
+            paymentStatuses.length > 1 ? { in: paymentStatuses as any[] } : (paymentStatuses[0] as any),
+        },
+      };
     }
 
     if (query?.cageId) where.cageId = query.cageId;
@@ -1161,6 +1311,7 @@ export class HotelService {
       where.branchId = scopedBranchIds.length === 1 ? scopedBranchIds[0]! : { in: scopedBranchIds };
     }
     if (query?.customerId) where.customerId = query.customerId;
+    if (query?.createdById) where.createdById = query.createdById;
 
     if (query?.search) {
       const q = String(query.search).trim();
@@ -1272,12 +1423,15 @@ export class HotelService {
 
     assertBranchAccess(stay.branchId, user);
     const checkOutActual = data.checkOutActual ? new Date(data.checkOutActual) : new Date();
-    const surcharge = data.surcharge ?? stay.surcharge;
+    const surcharge = data.adjustments
+      ? this.sumAdjustmentAmount(data.adjustments)
+      : data.surcharge ?? stay.surcharge;
     const promotion = data.promotion ?? stay.promotion;
     const pricingPreview = await this.buildHotelPricingPreview({
       species: stay.pet.species,
       weight: stay.pet.weight,
       checkIn: stay.checkIn,
+      branchId: stay.branchId,
       checkOut: checkOutActual,
       ...(stay.rateTableId ? { rateTableId: stay.rateTableId } : {}),
     });
@@ -1312,6 +1466,8 @@ export class HotelService {
         },
       });
 
+      await this.replaceStayAdjustments(tx, id, data.adjustments);
+
       await tx.hotelStayChargeLine.deleteMany({
         where: { hotelStayId: id },
       });
@@ -1339,6 +1495,12 @@ export class HotelService {
     });
 
     await this.syncLinkedOrder(updated.id, updated.orderId);
+    await this.logStayActivity('HOTEL_STAY_CHECKED_OUT', updated, user, {
+      previousStatus: stay.status,
+      checkOutActual: updated.checkOutActual,
+      surcharge: updated.surcharge,
+      totalPrice: updated.totalPrice,
+    });
 
     return this.mapStay(updated);
   }
@@ -1351,6 +1513,7 @@ export class HotelService {
       weight: data.weight,
       checkIn,
       checkOut,
+      ...(data.branchId ? { branchId: data.branchId } : {}),
       ...(data.rateTableId ? { rateTableId: data.rateTableId } : {}),
     });
 
@@ -1362,6 +1525,73 @@ export class HotelService {
       weightBand: pricingPreview.weightBand,
       chargeLines: pricingPreview.chargeLines,
       pricingSnapshot: pricingPreview.pricingSnapshot,
+    };
+  }
+
+  async findStayTimeline(id: string, user?: BranchScopedUser) {
+    const stay = await this.prisma.hotelStay.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        stayCode: true,
+        petName: true,
+        branchId: true,
+        createdAt: true,
+        checkIn: true,
+        checkedInAt: true,
+        estimatedCheckOut: true,
+        checkOutActual: true,
+        cancelledAt: true,
+        createdBy: { select: { id: true, fullName: true, staffCode: true } },
+      },
+    });
+    if (!stay) throw new NotFoundException('Khong tim thay ky luu tru');
+    assertBranchAccess(stay.branchId, user);
+
+    const activityLogs = await this.prisma.activityLog.findMany({
+      where: {
+        target: 'HOTEL_STAY',
+        targetId: id,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            staffCode: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const findLatestActivityUser = (action: string) =>
+      [...activityLogs].reverse().find((entry) => entry.action === action)?.user ?? null;
+
+    const checkpointUsers = {
+      created: activityLogs.find((entry) => entry.action === 'HOTEL_STAY_CREATED')?.user ?? stay.createdBy ?? null,
+      checkedIn: findLatestActivityUser('HOTEL_STAY_CHECKED_IN'),
+      checkedOut: findLatestActivityUser('HOTEL_STAY_CHECKED_OUT'),
+      cancelled: findLatestActivityUser('HOTEL_STAY_CANCELLED'),
+    };
+
+    return {
+      checkpoints: [
+        { key: 'created', label: 'Tao don', at: stay.createdAt, user: checkpointUsers.created },
+        { key: 'checked_in', label: 'Nhan phong', at: stay.checkedInAt ?? null, user: checkpointUsers.checkedIn },
+        { key: 'expected_checkout', label: 'Du kien tra', at: stay.estimatedCheckOut ?? null, user: null },
+        { key: 'checked_out', label: 'Da tra', at: stay.checkOutActual ?? null, user: checkpointUsers.checkedOut },
+        { key: 'cancelled', label: 'Da huy', at: stay.cancelledAt ?? null, user: checkpointUsers.cancelled },
+      ],
+      activities: activityLogs.map((entry) => ({
+        id: entry.id,
+        action: entry.action,
+        target: entry.target,
+        targetId: entry.targetId,
+        details: entry.details,
+        createdAt: entry.createdAt,
+        user: entry.user,
+      })),
     };
   }
 

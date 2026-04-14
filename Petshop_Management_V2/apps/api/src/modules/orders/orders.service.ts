@@ -126,7 +126,7 @@ const METHOD_LABELS: Record<string, string> = {
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: DatabaseService) {}
+  constructor(private prisma: DatabaseService) { }
 
   private resolveUserPermissions(user?: AccessUser): Set<string> {
     return new Set(resolvePermissions(user?.permissions ?? []));
@@ -467,13 +467,13 @@ export class OrdersService {
       },
       order: paymentIntent.order
         ? {
-            id: paymentIntent.order.id,
-            orderNumber: paymentIntent.order.orderNumber,
-            total: Number(paymentIntent.order.total) || 0,
-            paidAmount: Number(paymentIntent.order.paidAmount) || 0,
-            remainingAmount: Number(paymentIntent.order.remainingAmount) || 0,
-            customerName: paymentIntent.order.customerName ?? null,
-          }
+          id: paymentIntent.order.id,
+          orderNumber: paymentIntent.order.orderNumber,
+          total: Number(paymentIntent.order.total) || 0,
+          paidAmount: Number(paymentIntent.order.paidAmount) || 0,
+          remainingAmount: Number(paymentIntent.order.remainingAmount) || 0,
+          customerName: paymentIntent.order.customerName ?? null,
+        }
         : null,
     };
   }
@@ -910,11 +910,11 @@ export class OrdersService {
     const branchStock =
       (params.productVariantId
         ? await tx.branchStock.findFirst({
-            where: {
-              branchId: branch.id,
-              productVariantId: params.productVariantId,
-            },
-          })
+          where: {
+            branchId: branch.id,
+            productVariantId: params.productVariantId,
+          },
+        })
         : null) ??
       await tx.branchStock.findFirst({
         where: {
@@ -936,6 +936,7 @@ export class OrdersService {
     await tx.stockTransaction.create({
       data: {
         productId: params.productId,
+        productVariantId: params.productVariantId ?? null,
         type: 'IN',
         quantity: params.quantity,
         reason: params.reason,
@@ -959,42 +960,42 @@ export class OrdersService {
     const branch = await resolveBranchIdentity(tx as any, params.branchId ?? null);
     const productDisplayLabel = params.productVariantId
       ? await tx.productVariant
-          .findUnique({
-            where: { id: params.productVariantId },
-            select: {
-              name: true,
-              sku: true,
-              product: {
-                select: {
-                  name: true,
-                },
+        .findUnique({
+          where: { id: params.productVariantId },
+          select: {
+            name: true,
+            sku: true,
+            product: {
+              select: {
+                name: true,
               },
             },
-          })
-          .then((variant) => {
-            const productName = variant?.product?.name || variant?.name || params.productId;
-            return variant?.sku ? `${productName} (${variant.sku})` : productName;
-          })
+          },
+        })
+        .then((variant) => {
+          const productName = variant?.product?.name || variant?.name || params.productId;
+          return variant?.sku ? `${productName} (${variant.sku})` : productName;
+        })
       : await tx.product
-          .findUnique({
-            where: { id: params.productId },
-            select: {
-              name: true,
-              sku: true,
-            },
-          })
-          .then((product) => {
-            const productName = product?.name || params.productId;
-            return product?.sku ? `${productName} (${product.sku})` : productName;
-          });
+        .findUnique({
+          where: { id: params.productId },
+          select: {
+            name: true,
+            sku: true,
+          },
+        })
+        .then((product) => {
+          const productName = product?.name || params.productId;
+          return product?.sku ? `${productName} (${product.sku})` : productName;
+        });
     const branchStock =
       (params.productVariantId
         ? await tx.branchStock.findFirst({
-            where: {
-              branchId: branch.id,
-              productVariantId: params.productVariantId,
-            },
-          })
+          where: {
+            branchId: branch.id,
+            productVariantId: params.productVariantId,
+          },
+        })
         : null) ??
       await tx.branchStock.findFirst({
         where: {
@@ -1036,6 +1037,7 @@ export class OrdersService {
     await tx.stockTransaction.create({
       data: {
         productId: params.productId,
+        productVariantId: params.productVariantId ?? null,
         type: 'OUT',
         quantity: params.quantity,
         reason: params.reason,
@@ -1400,8 +1402,8 @@ export class OrdersService {
   async getProducts() {
     const products = await this.prisma.product.findMany({
       where: { isActive: true, deletedAt: null },
-      include: { 
-        variants: { 
+      include: {
+        variants: {
           where: { isActive: true, deletedAt: null },
           include: {
             branchStocks: { include: { branch: { select: { name: true } } } }
@@ -1554,7 +1556,7 @@ export class OrdersService {
               orderId: order.id,
               reason: `Bán hàng đơn ${order.orderNumber}`,
             });
-          } 
+          }
           // SERVICE stock reservation handled by BranchStock if needed
         }
 
@@ -2044,17 +2046,17 @@ export class OrdersService {
 
         const stay = existingStayId
           ? await tx.hotelStay.update({
-              where: { id: existingStayId },
-              data: stayPayload as any,
-            })
+            where: { id: existingStayId },
+            data: stayPayload as any,
+          })
           : await tx.hotelStay.create({
-              data: {
-                stayCode: await this.generateHotelStayCode(tx as any, order.createdAt, branch.code),
-                ...stayPayload,
-                status: 'BOOKED',
-                paymentStatus: 'UNPAID',
-              } as any,
-            });
+            data: {
+              stayCode: await this.generateHotelStayCode(tx as any, order.createdAt, branch.code),
+              ...stayPayload,
+              status: 'BOOKED',
+              paymentStatus: 'UNPAID',
+            } as any,
+          });
 
         await tx.hotelStayChargeLine.deleteMany({ where: { hotelStayId: stay.id } });
         if (chargeLines.length > 0) {
@@ -2712,7 +2714,7 @@ export class OrdersService {
         (i) => i.groomingSessionId || i.hotelStayId || i.type === 'grooming' || i.type === 'hotel',
       );
       const orderType = hasService ? 'SERVICE' : 'QUICK';
-      
+
       if (orderType === 'QUICK') {
         // QUICK orders deducted stock immediately on creation, so we must restore it
         for (const item of order.items) {
@@ -2902,8 +2904,8 @@ export class OrdersService {
 
     const groomingSessions = groomingSessionIds.length
       ? await this.prisma.groomingSession.findMany({
-          where: { id: { in: groomingSessionIds } },
-        })
+        where: { id: { in: groomingSessionIds } },
+      })
       : [];
 
     const groomingById = new Map(groomingSessions.map((session) => [session.id, session]));
@@ -2919,43 +2921,299 @@ export class OrdersService {
           ...item,
           groomingDetails: groomingSession
             ? {
-                petId: groomingSession.petId,
-                performerId: groomingSession.staffId,
-                startTime: groomingSession.startTime,
-                notes: groomingSession.notes,
-                packageCode: groomingSession.packageCode,
-                weightAtBooking: groomingSession.weightAtBooking,
-                weightBandId: groomingSession.weightBandId,
-                pricingSnapshot: groomingSession.pricingSnapshot,
-              }
+              petId: groomingSession.petId,
+              performerId: groomingSession.staffId,
+              startTime: groomingSession.startTime,
+              notes: groomingSession.notes,
+              packageCode: groomingSession.packageCode,
+              weightAtBooking: groomingSession.weightAtBooking,
+              weightBandId: groomingSession.weightBandId,
+              pricingSnapshot: groomingSession.pricingSnapshot,
+            }
             : undefined,
           hotelDetails: item.hotelStay
             ? {
-                petId: item.hotelStay.petId,
-                checkInDate: item.hotelStay.checkIn,
-                checkOutDate: item.hotelStay.estimatedCheckOut ?? item.hotelStay.checkOut,
-                branchId: item.hotelStay.branchId,
-                cageId: item.hotelStay.cageId,
-                lineType: item.hotelStay.lineType,
-                rateTableId: item.hotelStay.rateTableId,
-                dailyRate: item.hotelStay.dailyRate,
-                depositAmount: item.hotelStay.depositAmount,
-                promotion: item.hotelStay.promotion,
-                surcharge: item.hotelStay.surcharge,
-                notes: item.hotelStay.notes,
-                bookingGroupKey: itemPricingSnapshot?.bookingGroupKey ?? undefined,
-                chargeLineIndex: hotelChargeLine?.index ?? undefined,
-                chargeLineLabel: hotelChargeLine?.label ?? undefined,
-                chargeDayType: hotelChargeLine?.dayType ?? undefined,
-                chargeQuantityDays: hotelChargeLine?.quantityDays ?? undefined,
-                chargeUnitPrice: hotelChargeLine?.unitPrice ?? undefined,
-                chargeSubtotal: hotelChargeLine?.subtotal ?? undefined,
-                chargeWeightBandId: hotelChargeLine?.weightBandId ?? undefined,
-                chargeWeightBandLabel: hotelChargeLine?.weightBandLabel ?? undefined,
-              }
+              petId: item.hotelStay.petId,
+              checkInDate: item.hotelStay.checkIn,
+              checkOutDate: item.hotelStay.estimatedCheckOut ?? item.hotelStay.checkOut,
+              branchId: item.hotelStay.branchId,
+              cageId: item.hotelStay.cageId,
+              lineType: item.hotelStay.lineType,
+              rateTableId: item.hotelStay.rateTableId,
+              dailyRate: item.hotelStay.dailyRate,
+              depositAmount: item.hotelStay.depositAmount,
+              promotion: item.hotelStay.promotion,
+              surcharge: item.hotelStay.surcharge,
+              notes: item.hotelStay.notes,
+              bookingGroupKey: itemPricingSnapshot?.bookingGroupKey ?? undefined,
+              chargeLineIndex: hotelChargeLine?.index ?? undefined,
+              chargeLineLabel: hotelChargeLine?.label ?? undefined,
+              chargeDayType: hotelChargeLine?.dayType ?? undefined,
+              chargeQuantityDays: hotelChargeLine?.quantityDays ?? undefined,
+              chargeUnitPrice: hotelChargeLine?.unitPrice ?? undefined,
+              chargeSubtotal: hotelChargeLine?.subtotal ?? undefined,
+              chargeWeightBandId: hotelChargeLine?.weightBandId ?? undefined,
+              chargeWeightBandLabel: hotelChargeLine?.weightBandLabel ?? undefined,
+            }
             : undefined,
         };
       }),
     };
+  }
+
+  // =============================================================================
+  // ORDER TIMELINE
+  // =============================================================================
+
+  private async createTimelineEntry(params: {
+    orderId: string;
+    action: string;
+    fromStatus?: string;
+    toStatus?: string;
+    note?: string;
+    performedBy: string;
+    metadata?: Record<string, any>;
+  }) {
+    const { orderId, action, fromStatus, toStatus, note, performedBy, metadata } = params;
+    return this.prisma.orderTimeline.create({
+      data: {
+        orderId,
+        action: action as any,
+        fromStatus: fromStatus ?? null,
+        toStatus: toStatus ?? null,
+        note: note ?? null,
+        performedBy,
+        metadata: (metadata ?? undefined) as any,
+      },
+    });
+  }
+
+  async getOrderTimeline(orderId: string, user: AccessUser) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, branchId: true, staffId: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    this.assertOrderScope(order, user);
+
+    const timelines = await this.prisma.orderTimeline.findMany({
+      where: { orderId },
+      include: {
+        performedByUser: {
+          select: {
+            id: true,
+            fullName: true,
+            staffCode: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return timelines.map((t: any) => ({
+      ...t,
+      performedByUser: t.performedByUser,
+    }));
+  }
+
+  // =============================================================================
+  // APPROVE ORDER
+  // =============================================================================
+
+  async approveOrder(id: string, dto: { note?: string }, staffId: string, user: AccessUser) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    this.assertOrderScope(order, user);
+
+    if (order.status !== 'PENDING') {
+      throw new BadRequestException(`Cannot approve order with status ${order.status}. Only PENDING orders can be approved.`);
+    }
+
+    const now = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      // Update order status
+      await tx.order.update({
+        where: { id },
+        data: {
+          status: 'CONFIRMED',
+          approvedAt: now,
+          approvedBy: staffId,
+        },
+      });
+
+      // Create timeline entry
+      await tx.orderTimeline.create({
+        data: {
+          orderId: id,
+          action: 'APPROVED',
+          fromStatus: 'PENDING',
+          toStatus: 'CONFIRMED',
+          note: dto.note ?? null,
+          performedBy: staffId,
+        },
+      });
+    });
+
+    return this.findOne(id, user);
+  }
+
+  // =============================================================================
+  // EXPORT STOCK
+  // =============================================================================
+
+  async exportStock(id: string, dto: { note?: string }, staffId: string, user: AccessUser) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            groomingSession: true,
+            hotelStay: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    this.assertOrderScope(order, user);
+
+    // Check if order can be exported
+    if (!['CONFIRMED', 'PROCESSING'].includes(order.status)) {
+      throw new BadRequestException(`Cannot export stock for order with status ${order.status}.`);
+    }
+
+    // For service orders, check if all grooming/hotel sessions are completed
+    const hasServiceItems = order.items.some((item: any) => item.type === 'grooming' || item.type === 'hotel');
+    if (hasServiceItems) {
+      const groomingSessions = order.items
+        .filter((item: any) => item.groomingSession)
+        .map((item: any) => item.groomingSession!);
+      const hotelStays = order.items
+        .filter((item: any) => item.hotelStay)
+        .map((item: any) => item.hotelStay!);
+
+      const allGroomingCompleted = groomingSessions.every((s: any) => s.status === 'COMPLETED');
+      const allHotelCompleted = hotelStays.every((s: any) => s.status === 'CHECKED_OUT');
+
+      if (!allGroomingCompleted || !allHotelCompleted) {
+        throw new BadRequestException(
+          'Cannot export stock until all grooming sessions are COMPLETED and all hotel stays are CHECKED_OUT.',
+        );
+      }
+    }
+
+    const now = new Date();
+
+    // Determine next status
+    const isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'COMPLETED';
+    const nextStatus = isPaid ? 'COMPLETED' : 'PROCESSING';
+
+    await this.prisma.$transaction(async (tx) => {
+      // Update order
+      await tx.order.update({
+        where: { id },
+        data: {
+          status: nextStatus,
+          stockExportedAt: now,
+          stockExportedBy: staffId,
+        },
+      });
+
+      // Create timeline entry
+      await tx.orderTimeline.create({
+        data: {
+          orderId: id,
+          action: 'STOCK_EXPORTED',
+          fromStatus: order.status,
+          toStatus: nextStatus,
+          note: dto.note ?? null,
+          performedBy: staffId,
+          metadata: { hasServiceItems } as any,
+        },
+      });
+    });
+
+    return this.findOne(id, user);
+  }
+
+  // =============================================================================
+  // SETTLE ORDER (for service orders)
+  // =============================================================================
+
+  async settleOrder(id: string, dto: { note?: string; additionalPayments?: any[] }, staffId: string, user: AccessUser) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: { items: true, payments: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    this.assertOrderScope(order, user);
+
+    // Check if order can be settled
+    if (order.status !== 'PROCESSING') {
+      throw new BadRequestException(`Cannot settle order with status ${order.status}. Order must be in PROCESSING status.`);
+    }
+
+    const hasServiceItems = order.items.some((item: any) => item.type === 'grooming' || item.type === 'hotel');
+    if (!hasServiceItems) {
+      throw new BadRequestException('Settle is only available for service orders (grooming/hotel).');
+    }
+
+    // Check if stock has been exported
+    if (!order.stockExportedAt) {
+      throw new BadRequestException('Cannot settle order until stock has been exported.');
+    }
+
+    // Check if order is fully paid
+    if (order.paymentStatus !== 'PAID' && order.paymentStatus !== 'COMPLETED') {
+      throw new BadRequestException('Cannot settle order until it is fully paid.');
+    }
+
+    const now = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      // Update order
+      await tx.order.update({
+        where: { id },
+        data: {
+          status: 'COMPLETED',
+          settledAt: now,
+          settledBy: staffId,
+          completedAt: now,
+        },
+      });
+
+      // Create timeline entry
+      await tx.orderTimeline.create({
+        data: {
+          orderId: id,
+          action: 'SETTLED',
+          fromStatus: 'PROCESSING',
+          toStatus: 'COMPLETED',
+          note: dto.note ?? null,
+          performedBy: staffId,
+        },
+      });
+    });
+
+    return this.findOne(id, user);
   }
 }

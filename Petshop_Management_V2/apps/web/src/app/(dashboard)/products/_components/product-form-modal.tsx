@@ -108,7 +108,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     name: '', sku: '', barcode: '',
     category: '', brand: '', unit: '', importName: '', targetSpecies: '',
     price: 0, costPrice: 0, vat: 0, weight: 0, minStock: 5, tags: '',
-    isActive: true, priceBookPrices: {} as Record<string, number>
+    isActive: true, priceBookPrices: {} as Record<string, number>, lastCountShift: ''
   })
   const [productImage, setProductImage] = useState<string | null>(null)
   const [variantImages, setVariantImages] = useState<Record<string, string | null>>({})
@@ -172,7 +172,8 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
         minStock: initialData.minStock || 5,
         tags: initialData.tags || '',
         isActive: initialData.isActive ?? true,
-        priceBookPrices: initialPriceBookPrices
+        priceBookPrices: initialPriceBookPrices,
+        lastCountShift: initialData.lastCountShift || ''
       })
       setProductImage(initialData.image || null)
       setVariantImages({})
@@ -190,7 +191,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
         name: '', sku: '', barcode: '',
         category: '', brand: '', unit: '', importName: '', targetSpecies: '',
         price: 0, costPrice: 0, vat: 0, weight: 0, minStock: 5, tags: '',
-        isActive: true, priceBookPrices: {}
+        isActive: true, priceBookPrices: {}, lastCountShift: ''
       })
       setProductImage(null)
       setVariantImages({})
@@ -367,6 +368,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
         isActive: formData.isActive,
         image: productImage || undefined,
         attributes: hasAttributes ? JSON.stringify(attributes) : undefined,
+        lastCountShift: formData.lastCountShift || undefined,
       }
 
       const variantPayload = generatedVariants.map(buildVariantPayload)
@@ -656,7 +658,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                           </div>
                        </div>
 
-                       <div className="grid grid-cols-6 gap-3 pt-2">
+                       <div className="grid grid-cols-7 gap-3 pt-2">
                           <div className="col-span-1">
                              <label className="block text-xs font-medium mb-1.5 text-foreground-muted">SKU</label>
                              <input name="sku" value={formData.sku} onChange={handleChange} className="form-input w-full text-xs" />
@@ -694,6 +696,52 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                           <div className="col-span-1">
                              <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Tồn min</label>
                              <input type="number" name="minStock" value={formData.minStock} onChange={handleChange} className="form-input w-full text-xs" />
+                          </div>
+                          <div className="col-span-1">
+                             <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Ca kiểm kho</label>
+                             <div className="flex gap-1.5">
+                               <select 
+                                  value={formData.lastCountShift?.split('_')[0] || ''} 
+                                  onChange={e => {
+                                     const day = e.target.value;
+                                     if (!day) {
+                                        handleChange({ target: { name: 'lastCountShift', value: '' } } as any);
+                                     } else {
+                                        const shift = formData.lastCountShift?.split('_')[1] || 'A';
+                                        handleChange({ target: { name: 'lastCountShift', value: `${day}_${shift}` } } as any);
+                                     }
+                                  }} 
+                                  className="form-input w-1/2 text-xs px-1.5 text-foreground-base bg-background-secondary border-border"
+                               >
+                                  <option value="">T.cả</option>
+                                  <option value="MON">T2</option>
+                                  <option value="TUE">T3</option>
+                                  <option value="WED">T4</option>
+                                  <option value="THU">T5</option>
+                                  <option value="FRI">T6</option>
+                                  <option value="SAT">T7</option>
+                               </select>
+                               <select 
+                                  value={formData.lastCountShift?.split('_')[1] || ''} 
+                                  onChange={e => {
+                                     const shift = e.target.value;
+                                     if (!shift) {
+                                        handleChange({ target: { name: 'lastCountShift', value: '' } } as any);
+                                     } else {
+                                        const day = formData.lastCountShift?.split('_')[0] || 'MON';
+                                        handleChange({ target: { name: 'lastCountShift', value: `${day}_${shift}` } } as any);
+                                     }
+                                  }}
+                                  className="form-input w-1/2 text-xs px-1.5 text-foreground-base bg-background-secondary border-border disabled:opacity-50"
+                                  disabled={!formData.lastCountShift?.split('_')[0]}
+                               >
+                                  <option value="">-</option>
+                                  <option value="A">Ca A</option>
+                                  <option value="B">Ca B</option>
+                                  <option value="C">Ca C</option>
+                                  <option value="D">Ca D</option>
+                               </select>
+                             </div>
                           </div>
                        </div>
                     </div>

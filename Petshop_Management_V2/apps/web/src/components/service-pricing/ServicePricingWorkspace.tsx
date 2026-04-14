@@ -15,7 +15,9 @@ import {
   type PricingServiceType,
   type ServiceWeightBand,
 } from '@/lib/api/pricing.api'
+import { settingsApi } from '@/lib/api/settings.api'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import { useAuthStore } from '@/stores/auth.store'
 import { cn, formatCurrency } from '@/lib/utils'
 
 type PricingMode = 'HOTEL' | 'GROOMING'
@@ -924,11 +926,13 @@ function HolidayCalendarPanel({
 export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const { hasAnyPermission } = useAuthorization()
   const queryClient = useQueryClient()
+  const activeBranchId = useAuthStore((state) => state.activeBranchId)
   const serviceType: PricingServiceType = mode === 'HOTEL' ? 'HOTEL' : 'GROOMING'
   const currentYear = new Date().getFullYear()
   const [species, setSpecies] = useState(SPECIES_OPTIONS[0].value)
   const [year, setYear] = useState(currentYear)
   const [dayType, setDayType] = useState<PricingDayType>('REGULAR')
+  const [selectedBranchId, setSelectedBranchId] = useState('')
   const [bandDrafts, setBandDrafts] = useState<BandDraft[]>([])
   const [spaServiceColumns, setSpaServiceColumns] = useState<SpaServiceColumn[]>([])
   const [spaDrafts, setSpaDrafts] = useState<Record<string, SpaDraft>>({})
@@ -967,8 +971,14 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   })
 
   const hotelRulesQuery = useQuery({
-    queryKey: ['pricing', 'hotel-rules', year],
-    queryFn: () => pricingApi.getHotelRules({ year, isActive: true }),
+    queryKey: ['pricing', 'hotel-rules', year, selectedBranchId],
+    queryFn: () => pricingApi.getHotelRules({ year, branchId: selectedBranchId || undefined, isActive: true }),
+    enabled: mode === 'HOTEL',
+  })
+
+  const branchesQuery = useQuery({
+    queryKey: ['settings', 'branches', 'hotel-pricing'],
+    queryFn: () => settingsApi.getBranches(),
     enabled: mode === 'HOTEL',
   })
 
@@ -982,6 +992,19 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const spaRules = useMemo(() => spaRulesQuery.data ?? [], [spaRulesQuery.data])
   const hotelRules = useMemo(() => hotelRulesQuery.data ?? [], [hotelRulesQuery.data])
   const holidays = useMemo(() => holidaysQuery.data ?? [], [holidaysQuery.data])
+  const pricingBranches = useMemo(
+    () => (branchesQuery.data ?? []).filter((branch) => branch.isActive !== false),
+    [branchesQuery.data],
+  )
+
+  useEffect(() => {
+    if (mode !== 'HOTEL') return
+    if (!pricingBranches.length) return
+    if (selectedBranchId && pricingBranches.some((branch) => branch.id === selectedBranchId)) return
+    setSelectedBranchId(activeBranchId && pricingBranches.some((branch) => branch.id === activeBranchId)
+      ? activeBranchId
+      : pricingBranches[0]?.id ?? '')
+  }, [activeBranchId, mode, pricingBranches, selectedBranchId])
 
   const bands = useMemo(() => {
     if (mode !== 'HOTEL') return rawBands
@@ -1174,6 +1197,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       return hotelApi.calculatePrice({
         species: previewForm.species,
         weight,
+        branchId: selectedBranchId || undefined,
         checkIn: new Date(previewForm.checkIn).toISOString(),
         checkOut: new Date(previewForm.checkOut).toISOString(),
       })
@@ -1394,6 +1418,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
                   id: draft?.id,
                   year,
                   species: speciesOption.value,
+                  branchId: selectedBranchId || null,
                   weightBandId,
                   dayType: option.value,
                   sku: hotelDrafts[getHotelRuleKey(band.key, 'REGULAR', speciesOption.value)]?.sku || draft?.sku || null,
@@ -1506,6 +1531,9 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
             }}
             isSaving={isSavingHotel}
             isCreatingPreset={presetBandsMutation.isPending}
+            branches={pricingBranches}
+            selectedBranchId={selectedBranchId}
+            onSelectBranch={setSelectedBranchId}
             holidays={holidays}
             newHoliday={newHoliday}
             editingHolidayId={editingHolidayId}
@@ -1561,6 +1589,9 @@ function UnifiedHotelPricingPanel({
   onCreatePresetBands,
   isSaving,
   isCreatingPreset,
+  branches,
+  selectedBranchId,
+  onSelectBranch,
   holidays,
   newHoliday,
   editingHolidayId,
@@ -1590,6 +1621,9 @@ function UnifiedHotelPricingPanel({
   onCreatePresetBands: () => void
   isSaving: boolean
   isCreatingPreset: boolean
+  branches: Array<{ id: string; name: string; code: string }>
+  selectedBranchId: string
+  onSelectBranch: (value: string) => void
   holidays: HolidayCalendarDate[]
   newHoliday: HolidayDraft
   editingHolidayId: string | null
@@ -1634,6 +1668,17 @@ function UnifiedHotelPricingPanel({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={selectedBranchId}
+              onChange={(event) => onSelectBranch(event.target.value)}
+              className="h-10 rounded-xl border border-border bg-background-base px-3 text-sm font-semibold text-foreground"
+            >
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name} ({branch.code})
+                </option>
+              ))}
+            </select>
             {canEditHotelPricing ? (
               <button
                 type="button"

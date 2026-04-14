@@ -20,6 +20,10 @@ export class PricingQueryDto {
   @IsIn(['REGULAR', 'HOLIDAY'])
   @IsOptional()
   dayType?: PricingDayType
+
+  @IsString()
+  @IsOptional()
+  branchId?: string
 }
 
 export class UpsertWeightBandDto {
@@ -119,6 +123,10 @@ export class HotelRuleInputDto {
   @IsString()
   @IsOptional()
   species?: string | null
+
+  @IsString()
+  @IsOptional()
+  branchId?: string | null
 
   @IsString()
   weightBandId!: string

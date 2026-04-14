@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, Clock, DollarSign, Hotel, PawPrint, X } from 'lucide-react';
 import { hotelApi } from '@/lib/api/hotel.api';
+import { useAuthStore } from '@/stores/auth.store';
 import { useCustomerPets } from '../_hooks/use-pos-queries';
 
 const formatCurrency = (value: number) =>
@@ -30,6 +31,7 @@ export function HotelCheckoutModal({
 }: HotelCheckoutModalProps) {
   const [selectedPet, setSelectedPet] = useState<string>('');
   const [checkoutAt, setCheckoutAt] = useState(() => new Date().toISOString());
+  const activeBranchId = useAuthStore((state) => state.activeBranchId);
   const { data: pets = [] } = useCustomerPets(customerId);
 
   useEffect(() => {
@@ -67,6 +69,7 @@ export function HotelCheckoutModal({
       checkoutAt,
       selectedPetProfile?.species,
       petWeight,
+      activeBranchId,
     ],
     queryFn: () =>
       hotelApi.calculatePrice({
@@ -74,6 +77,7 @@ export function HotelCheckoutModal({
         checkOut: checkoutAt,
         species: String(selectedPetProfile?.species ?? ''),
         weight: petWeight,
+        branchId: activeBranchId ?? undefined,
       }),
     enabled: Boolean(activeStay) && canPriceCheckout,
     staleTime: 10_000,

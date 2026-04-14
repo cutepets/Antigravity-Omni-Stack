@@ -42,24 +42,6 @@ const mockProducts = [
   },
 ]
 
-const mockStockAnalyticsByProductId: Record<string, { monthlySellThrough: number | null; completedBatchCount: number; lastSoldOutAt: string | null }> = {
-  'prod-1': {
-    monthlySellThrough: 36,
-    completedBatchCount: 4,
-    lastSoldOutAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  'prod-2': {
-    monthlySellThrough: 18,
-    completedBatchCount: 3,
-    lastSoldOutAt: new Date(Date.now() - 22 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  'prod-3': {
-    monthlySellThrough: 27,
-    completedBatchCount: 5,
-    lastSoldOutAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-}
-
 const mockServices = [
   {
     id: 'svc-1', name: 'Tắm + Sấy chó nhỏ', type: 'GROOMING',
@@ -450,81 +432,6 @@ export const inventoryHandlers = [
         p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q),
       )
     }
-    return HttpResponse.json(paginate(filtered, page, limit))
-  }),
-
-  http.get(`${BASE}/stock/products`, async ({ request }) => {
-    await delay(300)
-    const url = new URL(request.url)
-    const search = (url.searchParams.get('search') ?? '').trim().toLowerCase()
-    const filterType = (url.searchParams.get('filterType') ?? 'ALL').trim().toUpperCase()
-    const sortBy = (url.searchParams.get('sortBy') ?? '').trim()
-    const sortOrder = (url.searchParams.get('sortOrder') ?? 'desc').trim().toLowerCase() === 'asc' ? 'asc' : 'desc'
-    const page = Number(url.searchParams.get('page') ?? 1)
-    const limit = Number(url.searchParams.get('limit') ?? 20)
-
-    const rows = mockProducts.map((product) => {
-      const currentStock = toNumber((product as any).stock)
-      const reservedStock = toNumber((product as any).reservedStock)
-      const minStock = toNumber((product as any).minStock)
-      const analytics = mockStockAnalyticsByProductId[product.id]
-      const sellableStock = Math.max(0, currentStock - reservedStock)
-
-      return {
-        id: product.id,
-        name: product.name,
-        sku: product.sku,
-        image: product.image ?? null,
-        unit: product.unit ?? null,
-        category: product.category ?? null,
-        brand: product.brand ?? null,
-        currentStock,
-        reservedStock,
-        sellableStock,
-        minStock,
-        status: currentStock <= 0 ? 'OUT_OF_STOCK' : currentStock <= minStock ? 'LOW_STOCK' : 'NORMAL',
-        monthlySellThrough: analytics?.monthlySellThrough ?? null,
-        analyticsWindowMonths: 6,
-        completedBatchCount: analytics?.completedBatchCount ?? 0,
-        lastSoldOutAt: analytics?.lastSoldOutAt ?? null,
-      }
-    })
-
-    let filtered = rows
-    if (search) {
-      filtered = filtered.filter((row) =>
-        row.name.toLowerCase().includes(search) || (row.sku ?? '').toLowerCase().includes(search),
-      )
-    }
-
-    if (filterType === 'LOW_STOCK') {
-      filtered = filtered.filter((row) => row.currentStock <= row.minStock)
-    }
-
-    const direction = sortOrder === 'asc' ? 1 : -1
-    if (sortBy) {
-      filtered = [...filtered].sort((left, right) => {
-        switch (sortBy) {
-          case 'code':
-            return (left.sku ?? '').localeCompare(right.sku ?? '') * direction
-          case 'name':
-            return left.name.localeCompare(right.name) * direction
-          case 'sellable':
-            return (left.sellableStock - right.sellableStock) * direction
-          case 'monthlySellThrough':
-            return ((left.monthlySellThrough ?? -1) - (right.monthlySellThrough ?? -1)) * direction
-          case 'minStock':
-            return (left.minStock - right.minStock) * direction
-          case 'stock':
-            return (left.currentStock - right.currentStock) * direction
-          case 'status':
-            return left.status.localeCompare(right.status) * direction
-          default:
-            return left.name.localeCompare(right.name) * direction
-        }
-      })
-    }
-
     return HttpResponse.json(paginate(filtered, page, limit))
   }),
 

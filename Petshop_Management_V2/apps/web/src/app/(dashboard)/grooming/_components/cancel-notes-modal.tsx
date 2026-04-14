@@ -1,18 +1,45 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AlertTriangle, XCircle } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface CancelNotesModalProps {
-  session: any
+  // Legacy props (used by grooming-board.tsx kanban drag-drop cancel)
+  session?: any
+  onCancel?: () => void
+  // New unified props (used by grooming-session-dialog.tsx)
+  isOpen?: boolean
+  title?: string
+  placeholder?: string
+  onClose?: () => void
+  // Shared
   onConfirm: (notes: string) => void
-  onCancel: () => void
 }
 
-export function CancelNotesModal({ session, onConfirm, onCancel }: CancelNotesModalProps) {
+export function CancelNotesModal({
+  session,
+  onCancel,
+  isOpen,
+  title,
+  placeholder,
+  onClose,
+  onConfirm,
+}: CancelNotesModalProps) {
   const [note, setNote] = useState('')
 
+  // Reset note khi modal mở lại
+  useEffect(() => {
+    if (isOpen) setNote('')
+  }, [isOpen])
+
+  const handleClose = () => {
+    setNote('')
+    onClose?.() || onCancel?.()
+  }
+
+  // Nếu dùng prop isOpen thì phải check — legacy mode (không có isOpen) luôn render
+  if (isOpen === false) return null
+
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70" onClick={onCancel}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70" onClick={handleClose}>
       <div
         className="w-full max-w-sm border shadow-2xl bg-background border-border rounded-2xl animate-in zoom-in-95"
         onClick={(e) => e.stopPropagation()}
@@ -22,7 +49,7 @@ export function CancelNotesModal({ session, onConfirm, onCancel }: CancelNotesMo
             <AlertTriangle size={18} className="text-error" />
           </div>
           <div>
-            <h3 className="font-bold text-foreground">Hủy phiên SPA</h3>
+            <h3 className="font-bold text-foreground">{title || 'Hủy phiên SPA'}</h3>
             {session?.petName && (
               <p className="mt-0.5 text-xs text-foreground-muted">
                 Thú cưng: <span className="font-semibold text-foreground">{session.petName}</span>
@@ -39,7 +66,7 @@ export function CancelNotesModal({ session, onConfirm, onCancel }: CancelNotesMo
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="VD: Khách báo hủy, thú cưng bị bệnh..."
+            placeholder={placeholder || 'VD: Khách báo hủy, thú cưng bị bệnh...'}
             className="w-full text-sm resize-none form-input"
           />
           <p className="text-[11px] text-foreground-muted">
@@ -49,14 +76,17 @@ export function CancelNotesModal({ session, onConfirm, onCancel }: CancelNotesMo
         <div className="flex justify-end gap-2 p-4 border-t border-border bg-background-secondary/50 rounded-b-2xl">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleClose}
             className="px-4 py-2 text-sm font-medium transition-colors border max-w-xs border-border rounded-xl hover:bg-background-secondary"
           >
             Quay lại
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(note)}
+            onClick={() => {
+              onConfirm(note)
+              setNote('')
+            }}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white transition-colors bg-error rounded-xl hover:bg-error/90"
           >
             <XCircle size={14} /> Xác nhận hủy

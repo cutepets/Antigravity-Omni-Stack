@@ -25,6 +25,9 @@ import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto.js'
 import { CreateOrderDto } from './dto/create-order.dto.js'
 import { PayOrderDto } from './dto/pay-order.dto.js'
 import { UpdateOrderDto } from './dto/update-order.dto.js'
+import { ApproveOrderDto } from './dto/approve-order.dto.js'
+import { ExportStockDto } from './dto/export-stock.dto.js'
+import { SettleOrderDto } from './dto/settle-order.dto.js'
 import { OrdersService } from './orders.service.js'
 
 interface AuthenticatedRequest extends Request {
@@ -34,7 +37,7 @@ interface AuthenticatedRequest extends Request {
 @Controller('orders')
 @UseGuards(JwtGuard, PermissionsGuard)
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(private readonly ordersService: OrdersService) { }
 
   private getStaffId(req: AuthenticatedRequest): string {
     const staffId = req.user?.userId
@@ -167,5 +170,41 @@ export class OrdersController {
   @Permissions('order.read.all', 'order.read.assigned')
   getOrder(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.ordersService.findOne(id, req.user)
+  }
+
+  @Post(':id/approve')
+  @Permissions('order.approve')
+  approveOrder(
+    @Param('id') id: string,
+    @Body() dto: ApproveOrderDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.ordersService.approveOrder(id, dto, this.getStaffId(req), req.user!)
+  }
+
+  @Post(':id/export-stock')
+  @Permissions('order.export_stock')
+  exportStock(
+    @Param('id') id: string,
+    @Body() dto: ExportStockDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.ordersService.exportStock(id, dto, this.getStaffId(req), req.user!)
+  }
+
+  @Post(':id/settle')
+  @Permissions('order.settle')
+  settleOrder(
+    @Param('id') id: string,
+    @Body() dto: SettleOrderDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.ordersService.settleOrder(id, dto, this.getStaffId(req), req.user!)
+  }
+
+  @Get(':id/timeline')
+  @Permissions('order.read.all', 'order.read.assigned')
+  getOrderTimeline(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {
+    return this.ordersService.getOrderTimeline(id, req.user!)
   }
 }

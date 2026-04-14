@@ -11,10 +11,39 @@ import {
   SubmitCountItemDto,
   ApproveSessionDto,
   StartShiftSessionDto,
+  ClaimRandomShiftDto,
 } from './dto/index.js'
 
-// Shift labels for display
-const SHIFT_LABELS: Record<string, string> = {
+const SHIFT_SEQUENCE = [
+  'MON_A',
+  'MON_B',
+  'MON_C',
+  'MON_D',
+  'TUE_A',
+  'TUE_B',
+  'TUE_C',
+  'TUE_D',
+  'WED_A',
+  'WED_B',
+  'WED_C',
+  'WED_D',
+  'THU_A',
+  'THU_B',
+  'THU_C',
+  'THU_D',
+  'FRI_A',
+  'FRI_B',
+  'FRI_C',
+  'FRI_D',
+  'SAT_A',
+  'SAT_B',
+  'SAT_C',
+  'SAT_D',
+] as const
+
+type ShiftKey = (typeof SHIFT_SEQUENCE)[number]
+
+const SHIFT_LABELS: Record<ShiftKey, string> = {
   MON_A: 'Thứ 2 | Ca A',
   MON_B: 'Thứ 2 | Ca B',
   MON_C: 'Thứ 2 | Ca C',
@@ -41,31 +70,137 @@ const SHIFT_LABELS: Record<string, string> = {
   SAT_D: 'Thứ 7 | Ca D',
 }
 
-// Day-of-week mapping (Monday=1 to Saturday=6)
-const SHIFT_DAY_ORDER: Record<string, number> = {
-  MON_A: 1, MON_B: 1, MON_C: 1, MON_D: 1,
-  TUE_A: 2, TUE_B: 2, TUE_C: 2, TUE_D: 2,
-  WED_A: 3, WED_B: 3, WED_C: 3, WED_D: 3,
-  THU_A: 4, THU_B: 4, THU_C: 4, THU_D: 4,
-  FRI_A: 5, FRI_B: 5, FRI_C: 5, FRI_D: 5,
-  SAT_A: 6, SAT_B: 6, SAT_C: 6, SAT_D: 6,
+const SHIFT_DAY_INDEX: Record<ShiftKey, number> = {
+  MON_A: 0,
+  MON_B: 0,
+  MON_C: 0,
+  MON_D: 0,
+  TUE_A: 1,
+  TUE_B: 1,
+  TUE_C: 1,
+  TUE_D: 1,
+  WED_A: 2,
+  WED_B: 2,
+  WED_C: 2,
+  WED_D: 2,
+  THU_A: 3,
+  THU_B: 3,
+  THU_C: 3,
+  THU_D: 3,
+  FRI_A: 4,
+  FRI_B: 4,
+  FRI_C: 4,
+  FRI_D: 4,
+  SAT_A: 5,
+  SAT_B: 5,
+  SAT_C: 5,
+  SAT_D: 5,
 }
 
-const ALL_SHIFTS = Object.keys(SHIFT_LABELS)
+const DAY_SHIFT_GROUPS: Record<string, ShiftKey[]> = {
+  MON: ['MON_A', 'MON_B', 'MON_C', 'MON_D'],
+  TUE: ['TUE_A', 'TUE_B', 'TUE_C', 'TUE_D'],
+  WED: ['WED_A', 'WED_B', 'WED_C', 'WED_D'],
+  THU: ['THU_A', 'THU_B', 'THU_C', 'THU_D'],
+  FRI: ['FRI_A', 'FRI_B', 'FRI_C', 'FRI_D'],
+  SAT: ['SAT_A', 'SAT_B', 'SAT_C', 'SAT_D'],
+}
+
+const DAY_LABELS: Record<string, string> = {
+  MON: 'Thứ 2',
+  TUE: 'Thứ 3',
+  WED: 'Thứ 4',
+  THU: 'Thứ 5',
+  FRI: 'Thứ 6',
+  SAT: 'Thứ 7',
+}
+
+const CATEGORY_DAY_PREFERENCES: Array<{ keywords: string[]; days: string[] }> = [
+  { keywords: ['thuc an', 'food', 'treat', 'snack'], days: ['MON', 'TUE'] },
+  { keywords: ['ve sinh', 'litter', 'bath', 'shampoo'], days: ['WED', 'THU'] },
+  { keywords: ['cham soc', 'care', 'supplement'], days: ['THU', 'FRI'] },
+  { keywords: ['phu kien', 'accessory', 'toy'], days: ['FRI', 'SAT'] },
+  { keywords: ['thuoc', 'medicine', 'med'], days: ['SAT', 'FRI'] },
+]
+
+type BranchCountRow = {
+  productId: string
+  productVariantId: string | null
+  stock: number
+  reservedStock: number
+  minStock: number
+  product: {
+    id: string
+    name: string
+    sku: string | null
+    category: string | null
+    lastCountShift: ShiftKey | null
+    image: string | null
+  }
+  variant: {
+    id: string
+    name: string
+    sku: string | null
+  } | null
+}
+
+type ProductShiftCandidate = {
+  id: string
+  name: string
+  category: string | null
+  lastCountShift: ShiftKey | null
+  rowCount: number
+}
 
 @Injectable()
 export class StockCountService {
-  constructor(private readonly prisma: DatabaseService) { }
+  constructor(private readonly prisma: DatabaseService) {}
 
-  // ===========================================================================
-  // SESSION MANAGEMENT
-  // ===========================================================================
+  private sessionInclude() {
+    return {
+      branch: { select: { id: true, name: true, code: true } },
+      shifts: {
+        orderBy: [{ countDate: 'asc' as const }, { shift: 'asc' as const }],
+        include: {
+          _count: { select: { items: true } },
+          counter: { select: { id: true, fullName: true, staffCode: true } },
+        },
+      },
+      creator: { select: { id: true, fullName: true, staffCode: true } },
+      approver: { select: { id: true, fullName: true, staffCode: true } },
+    }
+  }
 
-  /**
-   * Create a weekly stock count session
-   */
+  private shiftInclude() {
+    return {
+      items: {
+        orderBy: [{ product: { name: 'asc' as const } }, { variant: { name: 'asc' as const } }],
+        include: {
+          product: { select: { id: true, name: true, sku: true, image: true } },
+          variant: { select: { id: true, name: true, sku: true, image: true } },
+        },
+      },
+      session: {
+        select: {
+          id: true,
+          branchId: true,
+          weekNumber: true,
+          year: true,
+          startDate: true,
+          endDate: true,
+          status: true,
+          branch: { select: { id: true, name: true, code: true } },
+        },
+      },
+      counter: { select: { id: true, fullName: true, staffCode: true } },
+    }
+  }
+
   async createSession(userId: string, dto: CreateStockCountSessionDto) {
-    // Check if session already exists for this branch/week/year
+    const startDate = this.normalizeDate(dto.startDate)
+    const endDate = this.normalizeDate(dto.endDate)
+    this.assertValidSessionDates(startDate, endDate)
+
     const existing = await this.prisma.stockCountSession.findUnique({
       where: {
         branchId_weekNumber_year: {
@@ -82,43 +217,56 @@ export class StockCountService {
       )
     }
 
-    // Count total products across all branches (active, not deleted)
-    const totalProducts = await this.prisma.product.count({
-      where: { isActive: true, deletedAt: null },
-    })
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await this.loadBranchCountRows(tx, dto.branchId)
+      if (rows.length === 0) {
+        throw new BadRequestException('Chi nhánh này chưa có dữ liệu tồn kho để kiểm')
+      }
 
-    const session = await this.prisma.stockCountSession.create({
-      data: {
-        branchId: dto.branchId,
-        weekNumber: dto.weekNumber,
-        year: dto.year,
-        startDate: new Date(dto.startDate),
-        endDate: new Date(dto.endDate),
-        createdBy: userId,
-        totalProducts,
-      },
-      include: {
-        branch: { select: { id: true, name: true, code: true } },
-      },
-    })
+      await this.ensureProductShiftAssignments(tx, rows)
 
-    return session
+      const session = await tx.stockCountSession.create({
+        data: {
+          branchId: dto.branchId,
+          weekNumber: dto.weekNumber,
+          year: dto.year,
+          startDate,
+          endDate,
+          createdBy: userId,
+          totalProducts: rows.length,
+          countedProducts: 0,
+        },
+      })
+
+      await this.syncSessionShifts(tx, session.id)
+
+      const created = await tx.stockCountSession.findUnique({
+        where: { id: session.id },
+        include: this.sessionInclude(),
+      })
+
+      if (!created) {
+        throw new NotFoundException('Không thể tạo phiếu kiểm kho')
+      }
+
+      return created
+    })
   }
 
-  /**
-   * List sessions for a branch with pagination
-   */
   async findSessions(branchId: string, weekNumber?: number, year?: number, page = 1, limit = 20) {
-    const where: any = { branchId }
-    if (weekNumber) where.weekNumber = weekNumber
-    if (year) where.year = year
+    const where: Record<string, any> = { branchId }
+    if (weekNumber) where.weekNumber = Number(weekNumber)
+    if (year) where.year = Number(year)
+
+    const currentPage = Number(page) > 0 ? Number(page) : 1
+    const currentLimit = Number(limit) > 0 ? Number(limit) : 20
 
     const [sessions, total] = await Promise.all([
       this.prisma.stockCountSession.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
+        orderBy: [{ year: 'desc' }, { weekNumber: 'desc' }, { createdAt: 'desc' }],
+        skip: (currentPage - 1) * currentLimit,
+        take: currentLimit,
         include: {
           branch: { select: { id: true, name: true, code: true } },
           _count: { select: { shifts: true } },
@@ -130,217 +278,156 @@ export class StockCountService {
     return {
       data: sessions,
       total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      page: currentPage,
+      limit: currentLimit,
+      totalPages: Math.ceil(total / currentLimit),
     }
   }
 
-  /**
-   * Get session detail with shifts
-   */
   async findSessionById(sessionId: string) {
     const session = await this.prisma.stockCountSession.findUnique({
       where: { id: sessionId },
-      include: {
-        branch: { select: { id: true, name: true, code: true } },
-        shifts: {
-          orderBy: { countDate: 'asc' },
-          include: {
-            _count: { select: { items: true } },
-            counter: { select: { id: true, fullName: true, staffCode: true } },
-          },
-        },
-        creator: { select: { id: true, fullName: true, staffCode: true } },
-        approver: { select: { id: true, fullName: true, staffCode: true } },
-      },
+      include: this.sessionInclude(),
     })
 
     if (!session) {
       throw new NotFoundException('Không tìm thấy phiếu kiểm kho')
     }
 
-    return session
-  }
-
-  // ===========================================================================
-  // SHIFT ASSIGNMENT (RANDOM)
-  // ===========================================================================
-
-  /**
-   * Randomly assign products to shifts, excluding already-assigned shifts
-   */
-  async assignShiftsToProducts(sessionId: string, dto: AssignShiftsDto) {
-    const session = await this.prisma.stockCountSession.findUnique({
-      where: { id: sessionId },
-      include: {
-        shifts: { select: { shift: true } },
-      },
-    })
-
-    if (!session) {
-      throw new NotFoundException('Không tìm thấy phiếu kiểm kho')
-    }
-
-    if (session.status !== 'DRAFT') {
-      throw new BadRequestException('Chỉ có thể phân ca cho phiếu ở trạng thái nháp')
-    }
-
-    // Get already-used shifts for this session
-    const usedShifts = session.shifts.map((s) => s.shift)
-    const availableShifts = ALL_SHIFTS.filter((s) => !usedShifts.includes(s as any))
-
-    if (availableShifts.length === 0) {
-      throw new BadRequestException('Tất cả ca đã được sử dụng. Không thể phân thêm.')
-    }
-
-    // Get products for this session's branch
-    const branchStocks = await this.prisma.branchStock.findMany({
-      where: {
-        branchId: session.branchId,
-        product: { isActive: true, deletedAt: null },
-      },
-      include: {
-        product: { select: { id: true, name: true, sku: true, category: true } },
-        variant: { select: { id: true, name: true, sku: true } },
-      },
-    })
-
-    if (branchStocks.length === 0) {
-      throw new BadRequestException('Không có sản phẩm trong kho chi nhánh này')
-    }
-
-    // Filter by productIds if provided
-    let productsToAssign = branchStocks
-    if (dto.productIds && dto.productIds.length > 0) {
-      productsToAssign = branchStocks.filter((bs) =>
-        dto.productIds.includes(bs.productId ?? ''),
-      )
-    }
-
-    // Distribute products evenly across available shifts
-    const shiftAssignments: {
-      shift: any
-      countDate: Date
-      items: { productId: string; productVariantId: string | null; systemQuantity: number }[]
-    }[] = []
-
-    // Initialize shift assignments
-    for (const shiftKey of availableShifts) {
-      const dayOffset = SHIFT_DAY_ORDER[shiftKey] ?? 1
-      const countDate = new Date(session.startDate)
-      countDate.setDate(countDate.getDate() + (dayOffset - 1))
-
-      shiftAssignments.push({
-        shift: shiftKey,
-        countDate,
-        items: [],
-      })
-    }
-
-    // Round-robin assignment
-    productsToAssign.forEach((bs, index) => {
-      const shiftIndex = index % shiftAssignments.length
-      if (bs.productId) {
-        shiftAssignments[shiftIndex]!.items.push({
-          productId: bs.productId,
-          productVariantId: bs.productVariantId,
-          systemQuantity: bs.stock,
-        })
-      }
-    })
-
-    // Create shift sessions and items in a transaction
-    const result = await this.prisma.$transaction(async (tx) => {
-      const createdShifts = []
-
-      for (const assignment of shiftAssignments) {
-        if (assignment.items.length === 0) continue
-
-        const shiftSession = await tx.stockCountShiftSession.create({
-          data: {
-            sessionId,
-            shift: assignment.shift as any,
-            countDate: assignment.countDate,
-            countedBy: session.createdBy, // Default to session creator
-            totalItems: assignment.items.length,
-            items: {
-              create: assignment.items.map((item) => ({
-                productId: item.productId,
-                productVariantId: item.productVariantId,
-                systemQuantity: item.systemQuantity,
-                categoryId: 'PRODUCT',
-              })),
-            },
-          },
-          include: {
-            items: {
-              include: {
-                product: { select: { id: true, name: true, sku: true } },
-                variant: { select: { id: true, name: true, sku: true } },
-              },
-            },
-          },
-        })
-
-        createdShifts.push(shiftSession)
-
-        // Update lastCountShift on products
-        const productIds = assignment.items.map((item) => item.productId).filter(Boolean)
-        if (productIds.length > 0) {
-          await tx.product.updateMany({
-            where: { id: { in: productIds } },
-            data: { lastCountShift: assignment.shift as any },
-          })
-        }
-      }
-
-      // Update session total
-      await tx.stockCountSession.update({
-        where: { id: sessionId },
-        data: { totalProducts: productsToAssign.length },
-      })
-
-      return createdShifts
-    })
+    const progressPercent =
+      session.totalProducts > 0 ? Math.round((session.countedProducts / session.totalProducts) * 100) : 0
 
     return {
-      shiftsCreated: result.length,
-      totalProductsAssigned: productsToAssign.length,
-      availableShiftsRemaining: availableShifts.length - result.length,
+      ...session,
+      progressPercent,
     }
   }
 
-  // ===========================================================================
-  // SHIFT SESSION OPERATIONS
-  // ===========================================================================
+  async assignShiftsToProducts(sessionId: string, dto: AssignShiftsDto) {
+    void dto
 
-  /**
-   * Get shift session detail
-   */
+    return this.prisma.$transaction(async (tx) => {
+      const session = await tx.stockCountSession.findUnique({
+        where: { id: sessionId },
+        include: { shifts: true },
+      })
+
+      if (!session) {
+        throw new NotFoundException('Không tìm thấy phiếu kiểm kho')
+      }
+
+      if (session.status !== 'DRAFT') {
+        throw new BadRequestException('Chỉ có thể đồng bộ ca khi phiếu đang ở trạng thái nháp')
+      }
+
+      const hasProgress = session.shifts.some(
+        (shift) => shift.startedAt || shift.completedAt || shift.countedItems > 0 || shift.status !== 'DRAFT',
+      )
+
+      if (hasProgress) {
+        throw new BadRequestException('Phiếu đã có dữ liệu kiểm. Không thể phân ca lại')
+      }
+
+      const summary = await this.syncSessionShifts(tx, sessionId, true)
+
+      return {
+        shiftsCreated: summary.shiftsCreated,
+        totalProductsAssigned: summary.totalItems,
+      }
+    })
+  }
+
+  async claimRandomShift(sessionId: string, userId: string, dto: ClaimRandomShiftDto) {
+    const targetDate = this.normalizeDate(dto.countDate)
+
+    const pickedShiftId = await this.prisma.$transaction(async (tx) => {
+      const session = await tx.stockCountSession.findUnique({
+        where: { id: sessionId },
+        include: {
+          shifts: true,
+        },
+      })
+
+      if (!session) {
+        throw new NotFoundException('Không tìm thấy phiếu kiểm kho')
+      }
+
+      if (session.status !== 'DRAFT') {
+        throw new BadRequestException('Phiếu kiểm không còn ở trạng thái đang kiểm')
+      }
+
+      this.assertDateInsideSession(session.startDate, session.endDate, targetDate)
+
+      const dayKey = this.getDayKeyFromDate(targetDate)
+      if (dayKey === 'SUN') {
+        throw new BadRequestException('Chủ nhật không thực hiện kiểm kho')
+      }
+
+      const ownedShiftForSelectedDay = session.shifts.find(
+        (shift) =>
+          shift.countedBy === userId &&
+          shift.status === 'DRAFT' &&
+          !shift.completedAt &&
+          shift.shift.startsWith(dayKey),
+      )
+
+      if (ownedShiftForSelectedDay) {
+        return ownedShiftForSelectedDay.id
+      }
+
+      const candidates = session.shifts.filter(
+        (shift) =>
+          shift.status === 'DRAFT' &&
+          !shift.completedAt &&
+          shift.totalItems > 0 &&
+          shift.shift.startsWith(dayKey) &&
+          !shift.countedBy,
+      )
+
+      if (candidates.length === 0) {
+        throw new BadRequestException(`Không còn ca kiểm khả dụng cho ${DAY_LABELS[dayKey] ?? dayKey}`)
+      }
+
+      const picked = candidates[Math.floor(Math.random() * candidates.length)]
+      if (!picked) {
+        throw new BadRequestException('Không thể chọn ca kiểm khả dụng')
+      }
+      await tx.stockCountShiftSession.update({
+        where: { id: picked.id },
+        data: {
+          countedBy: userId,
+          startedAt: new Date(),
+          notes: dto.notes ?? picked.notes ?? null,
+        } as any,
+      })
+
+      return picked.id
+    })
+
+    return this.getShiftSessionDetail(pickedShiftId)
+  }
+
   async getShiftSessionDetail(shiftSessionId: string) {
     const shift = await this.prisma.stockCountShiftSession.findUnique({
       where: { id: shiftSessionId },
-      include: {
-        items: {
-          include: {
-            product: { select: { id: true, name: true, sku: true, image: true } },
-            variant: { select: { id: true, name: true, sku: true } },
-          },
-        },
-        session: true,
-        counter: { select: { id: true, fullName: true, staffCode: true } },
-      },
+      include: this.shiftInclude(),
     })
+
     if (!shift) {
       throw new NotFoundException('Không tìm thấy ca kiểm')
     }
-    return shift
+
+    const items = [...shift.items].sort((left, right) =>
+      this.getItemDisplayName(left).localeCompare(this.getItemDisplayName(right), 'vi'),
+    )
+
+    return {
+      ...shift,
+      shiftLabel: this.getShiftLabel(shift.shift as ShiftKey),
+      items,
+    }
   }
 
-  /**
-   * Start a shift counting session
-   */
   async startShiftSession(shiftSessionId: string, userId: string, dto?: StartShiftSessionDto) {
     const shift = await this.prisma.stockCountShiftSession.findUnique({
       where: { id: shiftSessionId },
@@ -352,39 +439,30 @@ export class StockCountService {
     }
 
     if (shift.session.status !== 'DRAFT') {
-      throw new BadRequestException('Phiếu kiểm không ở trạng thái nháp')
+      throw new BadRequestException('Phiếu kiểm không còn ở trạng thái đang kiểm')
     }
 
-    const updated = await this.prisma.stockCountShiftSession.update({
+    if (shift.status !== 'DRAFT') {
+      throw new BadRequestException('Ca kiểm này đã hoàn thành')
+    }
+
+    if (shift.countedBy && shift.countedBy !== userId) {
+      throw new ForbiddenException('Ca kiểm này đang được người khác thực hiện')
+    }
+
+    await this.prisma.stockCountShiftSession.update({
       where: { id: shiftSessionId },
       data: {
-        status: 'DRAFT',
-        startedAt: new Date(),
         countedBy: userId,
-        notes: dto?.notes ?? shift.notes,
-      },
-      include: {
-        items: {
-          include: {
-            product: { select: { id: true, name: true, sku: true, image: true } },
-            variant: { select: { id: true, name: true, sku: true } },
-          },
-          orderBy: {
-            product: { name: 'asc' },
-          },
-        },
-        session: { select: { branchId: true, weekNumber: true, year: true } },
-        counter: { select: { id: true, fullName: true, staffCode: true } },
-      },
+        startedAt: shift.startedAt ?? new Date(),
+        notes: dto?.notes ?? shift.notes ?? null,
+      } as any,
     })
 
-    return updated
+    return this.getShiftSessionDetail(shiftSessionId)
   }
 
-  /**
-   * Complete a shift counting session
-   */
-  async completeShiftSession(shiftSessionId: string) {
+  async completeShiftSession(shiftSessionId: string, userId: string) {
     const shift = await this.prisma.stockCountShiftSession.findUnique({
       where: { id: shiftSessionId },
       include: { items: true, session: true },
@@ -394,76 +472,119 @@ export class StockCountService {
       throw new NotFoundException('Không tìm thấy ca kiểm')
     }
 
-    const allCounted = shift.items.every((item) => item.countedQuantity !== null)
-    if (!allCounted) {
-      throw new BadRequestException('Vẫn còn sản phẩm chưa kiểm. Vui lòng kiểm hết trước khi hoàn thành.')
+    if (shift.countedBy && shift.countedBy !== userId) {
+      throw new ForbiddenException('Bạn không phải người đang kiểm ca này')
     }
 
-    await this.prisma.stockCountShiftSession.update({
-      where: { id: shiftSessionId },
-      data: {
-        status: 'SUBMITTED',
-        completedAt: new Date(),
-        countedItems: shift.items.length,
-      },
+    if (shift.items.some((item) => item.variance === null)) {
+      throw new BadRequestException('Vẫn còn sản phẩm chưa nhập chênh lệch kiểm kho')
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.stockCountShiftSession.update({
+        where: { id: shiftSessionId },
+        data: {
+          status: 'SUBMITTED',
+          countedBy: userId,
+          startedAt: shift.startedAt ?? new Date(),
+          completedAt: new Date(),
+          countedItems: shift.items.length,
+        } as any,
+      })
+
+      await this.updateSessionProgress(tx, shift.sessionId)
     })
 
-    // Update session progress
-    await this.updateSessionProgress(shift.sessionId)
-
-    return { success: true, message: 'Ca kiểm đã hoàn thành' }
+    return {
+      success: true,
+      message: 'Ca kiểm đã được gửi quản lý duyệt',
+    }
   }
 
-  // ===========================================================================
-  // COUNTING ITEMS
-  // ===========================================================================
-
-  /**
-   * Submit a count for a specific item
-   */
   async submitCountItem(itemId: string, userId: string, dto: SubmitCountItemDto) {
     const item = await this.prisma.stockCountItem.findUnique({
       where: { id: itemId },
-      include: { shiftSession: { include: { session: true } } },
+      include: {
+        shiftSession: {
+          include: {
+            session: true,
+          },
+        },
+      },
     })
 
     if (!item) {
       throw new NotFoundException('Không tìm thấy sản phẩm kiểm')
     }
 
-    if (item.shiftSession.status !== 'DRAFT') {
-      throw new BadRequestException('Ca kiểm này đã hoàn thành, không thể sửa')
+    if (item.shiftSession.session.status !== 'DRAFT' || item.shiftSession.status !== 'DRAFT') {
+      throw new BadRequestException('Ca kiểm này đã khóa, không thể cập nhật')
     }
 
-    const variance = dto.countedQuantity - item.systemQuantity
+    if (item.shiftSession.countedBy && item.shiftSession.countedBy !== userId) {
+      throw new ForbiddenException('Ca kiểm này đang được người khác thực hiện')
+    }
 
-    const updated = await this.prisma.stockCountItem.update({
-      where: { id: itemId },
-      data: {
-        countedQuantity: dto.countedQuantity,
-        variance,
-        notes: dto.notes ?? item.notes,
-      },
-      include: {
-        product: { select: { id: true, name: true, sku: true } },
-        variant: { select: { id: true, name: true, sku: true } },
-      },
+    const countedQuantity = item.systemQuantity + dto.variance
+    if (countedQuantity < 0) {
+      throw new BadRequestException('Chênh lệch đang làm số lượng thực tế âm')
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (!item.shiftSession.startedAt || !item.shiftSession.countedBy) {
+        await tx.stockCountShiftSession.update({
+          where: { id: item.shiftSessionId },
+          data: {
+            countedBy: userId,
+            startedAt: item.shiftSession.startedAt ?? new Date(),
+          } as any,
+        })
+      }
+
+      const result = await tx.stockCountItem.update({
+        where: { id: itemId },
+        data: {
+          countedQuantity,
+          variance: dto.variance,
+          notes: dto.notes ?? item.notes ?? null,
+        },
+        include: {
+          product: { select: { id: true, name: true, sku: true } },
+          variant: { select: { id: true, name: true, sku: true } },
+        },
+      })
+
+      await this.syncShiftProgress(tx, item.shiftSessionId)
+      await this.updateSessionProgress(tx, item.shiftSession.sessionId)
+
+      return result
     })
 
     return updated
   }
 
-  // ===========================================================================
-  // APPROVAL WORKFLOW
-  // ===========================================================================
-
-  /**
-   * Approve a stock count session
-   */
   async approveSession(sessionId: string, approverId: string) {
     const session = await this.prisma.stockCountSession.findUnique({
       where: { id: sessionId },
-      include: { shifts: { include: { items: true } } },
+      include: {
+        shifts: {
+          include: {
+            items: {
+              include: {
+                product: { select: { id: true, name: true, sku: true } },
+                variant: {
+                  select: {
+                    id: true,
+                    name: true,
+                    sku: true,
+                    productId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     })
 
     if (!session) {
@@ -471,32 +592,124 @@ export class StockCountService {
     }
 
     if (session.status !== 'SUBMITTED') {
-      throw new BadRequestException('Phiếu kiểm phải ở trạng thái đã gửi duyệt')
+      throw new BadRequestException('Phiếu kiểm phải ở trạng thái chờ duyệt')
     }
 
-    // Check all shifts are submitted
-    const allSubmitted = session.shifts.every((s) => s.status === 'SUBMITTED')
+    const allSubmitted = session.shifts.every((shift) => shift.status === 'SUBMITTED')
     if (!allSubmitted) {
       throw new BadRequestException('Tất cả ca kiểm phải hoàn thành trước khi duyệt')
     }
 
-    await this.prisma.stockCountSession.update({
-      where: { id: sessionId },
-      data: {
-        status: 'APPROVED',
-        approvedBy: approverId,
-        approvedAt: new Date(),
-      },
-    })
+    return this.prisma.$transaction(async (tx) => {
+      let adjustedItems = 0
 
-    return { success: true, message: 'Phiếu kiểm đã được duyệt' }
+      for (const shift of session.shifts) {
+        for (const item of shift.items) {
+          const variance = item.variance ?? 0
+          if (variance === 0) {
+            continue
+          }
+
+          const productId = item.productId ?? item.variant?.productId
+          if (!productId) {
+            throw new BadRequestException('Item kiểm kho đang thiếu productId để điều chỉnh tồn')
+          }
+
+          const branchStock = await tx.branchStock.findFirst({
+            where: item.productVariantId
+              ? {
+                  branchId: session.branchId,
+                  productVariantId: item.productVariantId,
+                }
+              : {
+                  branchId: session.branchId,
+                  productId,
+                  productVariantId: null,
+                },
+          })
+
+          if (!branchStock) {
+            if (variance < 0) {
+              throw new BadRequestException(
+                `Không thể trừ tồn cho ${this.getItemDisplayName(item)} vì chi nhánh không còn bản ghi tồn kho`,
+              )
+            }
+
+            await tx.branchStock.create({
+              data: {
+                branchId: session.branchId,
+                productId,
+                productVariantId: item.productVariantId ?? null,
+                stock: variance,
+                reservedStock: 0,
+                minStock: 5,
+              } as any,
+            })
+          } else {
+            const nextStock = branchStock.stock + variance
+            if (nextStock < 0) {
+              throw new BadRequestException(
+                `Không thể duyệt vì ${this.getItemDisplayName(item)} hiện chỉ còn ${branchStock.stock}, không đủ để trừ ${Math.abs(
+                  variance,
+                )}`,
+              )
+            }
+
+            await tx.branchStock.update({
+              where: { id: branchStock.id },
+              data: {
+                stock: {
+                  increment: variance,
+                },
+              },
+            })
+          }
+
+          await tx.stockTransaction.create({
+            data: {
+              productId,
+              productVariantId: item.productVariantId ?? null,
+              type: 'ADJUST',
+              quantity: Math.abs(variance),
+              reason: `Dieu chinh tu kiem kho tuan ${session.weekNumber}/${session.year} - ${this.getShiftLabel(
+                shift.shift as ShiftKey,
+              )}`,
+              referenceId: session.id,
+            } as any,
+          })
+
+          adjustedItems += 1
+        }
+      }
+
+      await tx.stockCountShiftSession.updateMany({
+        where: { sessionId },
+        data: {
+          status: 'APPROVED',
+        },
+      })
+
+      await tx.stockCountSession.update({
+        where: { id: sessionId },
+        data: {
+          status: 'APPROVED',
+          approvedBy: approverId,
+          approvedAt: new Date(),
+        },
+      })
+
+      return {
+        success: true,
+        adjustedItems,
+        message: 'Phiếu kiểm đã được duyệt và áp chênh lệch vào tồn kho',
+      }
+    })
   }
 
-  /**
-   * Reject a stock count session
-   */
   async rejectSession(sessionId: string, approverId: string, dto: ApproveSessionDto) {
-    if (!dto.rejectionReason) {
+    void approverId
+
+    if (!dto.rejectionReason?.trim()) {
       throw new BadRequestException('Bắt buộc phải có lý do từ chối')
     }
 
@@ -509,63 +722,41 @@ export class StockCountService {
     }
 
     if (session.status !== 'SUBMITTED') {
-      throw new BadRequestException('Phiếu kiểm phải ở trạng thái đã gửi duyệt')
+      throw new BadRequestException('Phiếu kiểm phải ở trạng thái chờ duyệt')
     }
 
     await this.prisma.stockCountSession.update({
       where: { id: sessionId },
       data: {
         status: 'REJECTED',
-        rejectionReason: dto.rejectionReason,
+        rejectionReason: dto.rejectionReason.trim(),
       },
     })
 
-    return { success: true, message: 'Phiếu kiểm đã bị từ chối' }
+    return {
+      success: true,
+      message: 'Phiếu kiểm đã bị từ chối',
+    }
   }
 
-  // ===========================================================================
-  // PROGRESS TRACKING
-  // ===========================================================================
-
-  /**
-   * Update session progress based on shift completions
-   */
-  private async updateSessionProgress(sessionId: string) {
-    const shifts = await this.prisma.stockCountShiftSession.findMany({
-      where: { sessionId },
-      select: { status: true, countedItems: true, totalItems: true },
-    })
-
-    const completedShifts = shifts.filter((s) => s.status === 'SUBMITTED').length
-    const countedProducts = shifts.reduce((sum, s) => sum + (s.countedItems || 0), 0)
-
-    await this.prisma.stockCountSession.update({
-      where: { id: sessionId },
-      data: {
-        countedProducts,
-      },
-    })
-
-    return { completedShifts, totalShifts: shifts.length, countedProducts }
-  }
-
-  /**
-   * Get weekly progress for a branch
-   */
   async getWeeklyProgress(branchId: string, weekNumber: number, year: number) {
     const session = await this.prisma.stockCountSession.findUnique({
       where: {
-        branchId_weekNumber_year: { branchId, weekNumber, year },
+        branchId_weekNumber_year: {
+          branchId,
+          weekNumber: Number(weekNumber),
+          year: Number(year),
+        },
       },
       include: {
         shifts: {
-          orderBy: { countDate: 'asc' },
+          orderBy: [{ countDate: 'asc' as const }, { shift: 'asc' as const }],
           include: {
             _count: { select: { items: true } },
-            counter: { select: { id: true, fullName: true } },
+            counter: { select: { id: true, fullName: true, staffCode: true } },
           },
         },
-        branch: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true, code: true } },
       },
     })
 
@@ -574,21 +765,30 @@ export class StockCountService {
     }
 
     const totalShifts = session.shifts.length
-    const completedShifts = session.shifts.filter((s) => s.status === 'SUBMITTED').length
-    const progressPercent = totalShifts > 0 ? Math.round((completedShifts / totalShifts) * 100) : 0
+    const completedShifts = session.shifts.filter((shift) =>
+      ['SUBMITTED', 'APPROVED'].includes(shift.status),
+    ).length
+    const inProgressShifts = session.shifts.filter(
+      (shift) => shift.status === 'DRAFT' && !!shift.startedAt && !shift.completedAt,
+    ).length
+    const progressPercent =
+      session.totalProducts > 0 ? Math.round((session.countedProducts / session.totalProducts) * 100) : 0
 
-    // Group shifts by day
-    const shiftsByDay: Record<string, any[]> = {}
+    const shiftsByDay = Object.keys(DAY_SHIFT_GROUPS).reduce<Record<string, any[]>>((acc, dayKey) => {
+      acc[dayKey] = []
+      return acc
+    }, {})
+
     for (const shift of session.shifts) {
-      const shiftKey = shift.shift as string
-      const dayKey = shiftKey.split('_')[0] // MON, TUE, etc.
-      if (!shiftsByDay[dayKey!]) shiftsByDay[dayKey!] = []
-      shiftsByDay[dayKey!]!.push({
+      const dayKey = this.getShiftDayKey(shift.shift as ShiftKey)
+      shiftsByDay[dayKey]!.push({
         id: shift.id,
-        shift: shiftKey,
-        shiftLabel: SHIFT_LABELS[shiftKey] || shiftKey,
+        shift: shift.shift,
+        shiftLabel: this.getShiftLabel(shift.shift as ShiftKey),
         status: shift.status,
         countDate: shift.countDate,
+        startedAt: shift.startedAt,
+        completedAt: shift.completedAt,
         counter: shift.counter,
         totalItems: shift.totalItems,
         countedItems: shift.countedItems,
@@ -605,25 +805,401 @@ export class StockCountService {
         status: session.status,
         totalProducts: session.totalProducts,
         countedProducts: session.countedProducts,
+        rejectionReason: session.rejectionReason,
         progressPercent,
       },
       shiftsByDay,
       summary: {
         totalShifts,
         completedShifts,
-        remainingShifts: totalShifts - completedShifts,
+        inProgressShifts,
+        remainingShifts: Math.max(0, totalShifts - completedShifts),
       },
     }
   }
 
-  // ===========================================================================
-  // HELPER: Get date for a shift within a session
-  // ===========================================================================
-
   getDateForShift(session: { startDate: Date }, shift: string): Date {
-    const dayOffset = SHIFT_DAY_ORDER[shift] ?? 1
+    const dayOffset = SHIFT_DAY_INDEX[shift as ShiftKey] ?? 0
     const date = new Date(session.startDate)
-    date.setDate(date.getDate() + (dayOffset - 1))
+    date.setDate(date.getDate() + dayOffset)
     return date
+  }
+
+  private async syncSessionShifts(tx: any, sessionId: string, forceReset = false) {
+    const session = await tx.stockCountSession.findUnique({
+      where: { id: sessionId },
+      include: { shifts: true },
+    })
+
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy phiếu kiểm kho')
+    }
+
+    if (forceReset && session.shifts.length > 0) {
+      await tx.stockCountShiftSession.deleteMany({ where: { sessionId } })
+    }
+
+    const rows = await this.loadBranchCountRows(tx, session.branchId)
+    if (rows.length === 0) {
+      throw new BadRequestException('Chi nhánh này chưa có dữ liệu tồn kho để kiểm')
+    }
+
+    const fallbackAssignments = await this.ensureProductShiftAssignments(tx, rows)
+    const assignments = new Map<
+      ShiftKey,
+      Array<{ productId: string; productVariantId: string | null; systemQuantity: number }>
+    >()
+
+    for (const shift of SHIFT_SEQUENCE) {
+      assignments.set(shift, [])
+    }
+
+    for (const row of rows) {
+      const assignedShift = (row.product.lastCountShift ??
+        fallbackAssignments.get(row.productId)) as ShiftKey | undefined
+      if (!assignedShift) {
+        throw new BadRequestException(`Sản phẩm ${row.product.name} chưa có ca kiểm`)
+      }
+
+      assignments.get(assignedShift)!.push({
+        productId: row.productId,
+        productVariantId: row.productVariantId ?? null,
+        systemQuantity: row.stock,
+      })
+    }
+
+    if (!forceReset && session.shifts.length > 0) {
+      throw new BadRequestException('Phiếu đã có ca kiểm. Không thể sinh lại dữ liệu')
+    }
+
+    for (const shift of SHIFT_SEQUENCE) {
+      const items = assignments.get(shift)!
+      if (items.length === 0) {
+        continue
+      }
+
+      await tx.stockCountShiftSession.create({
+        data: {
+          sessionId,
+          shift,
+          countDate: this.getDateForShift(session, shift),
+          countedBy: null,
+          totalItems: items.length,
+          countedItems: 0,
+          items: {
+            create: items.map((item) => ({
+              productId: item.productId,
+              productVariantId: item.productVariantId,
+              categoryId: 'PRODUCT',
+              systemQuantity: item.systemQuantity,
+            })),
+          },
+        } as any,
+      })
+    }
+
+    await tx.stockCountSession.update({
+      where: { id: sessionId },
+      data: {
+        totalProducts: rows.length,
+        countedProducts: 0,
+        status: 'DRAFT',
+        rejectionReason: null,
+      },
+    })
+
+    return {
+      shiftsCreated: Array.from(assignments.values()).filter((items) => items.length > 0).length,
+      totalItems: rows.length,
+    }
+  }
+
+  private async loadBranchCountRows(tx: any, branchId: string): Promise<BranchCountRow[]> {
+    const rows = await tx.branchStock.findMany({
+      where: {
+        branchId,
+        productId: { not: null },
+        product: {
+          isActive: true,
+          deletedAt: null,
+        },
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            category: true,
+            lastCountShift: true,
+            image: true,
+          },
+        },
+        variant: {
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+          },
+        },
+      },
+      orderBy: [{ product: { category: 'asc' } }, { product: { name: 'asc' } }],
+    })
+
+    return rows as BranchCountRow[]
+  }
+
+  private async ensureProductShiftAssignments(tx: any, rows: BranchCountRow[]) {
+    const loadByShift = new Map<ShiftKey, number>()
+    for (const shift of SHIFT_SEQUENCE) {
+      loadByShift.set(shift, 0)
+    }
+
+    const byProduct = new Map<string, ProductShiftCandidate>()
+    for (const row of rows) {
+      const current = byProduct.get(row.productId)
+      if (current) {
+        current.rowCount += 1
+      } else {
+        byProduct.set(row.productId, {
+          id: row.product.id,
+          name: row.product.name,
+          category: row.product.category,
+          lastCountShift: row.product.lastCountShift,
+          rowCount: 1,
+        })
+      }
+
+      if (row.product.lastCountShift) {
+        loadByShift.set(
+          row.product.lastCountShift,
+          (loadByShift.get(row.product.lastCountShift) ?? 0) + 1,
+        )
+      }
+    }
+
+    const missingProducts = Array.from(byProduct.values())
+      .filter((product) => !product.lastCountShift)
+      .sort((left, right) => {
+        const categoryCompare = (left.category ?? '').localeCompare(right.category ?? '', 'vi')
+        if (categoryCompare !== 0) {
+          return categoryCompare
+        }
+        return left.name.localeCompare(right.name, 'vi')
+      })
+
+    const assigned = new Map<string, ShiftKey>()
+    if (missingProducts.length === 0) {
+      return assigned
+    }
+
+    for (const product of missingProducts) {
+      const shift = this.pickSuggestedShiftForProduct(product, loadByShift)
+      assigned.set(product.id, shift)
+      loadByShift.set(shift, (loadByShift.get(shift) ?? 0) + product.rowCount)
+    }
+
+    const productIdsByShift = new Map<ShiftKey, string[]>()
+    for (const shift of SHIFT_SEQUENCE) {
+      productIdsByShift.set(shift, [])
+    }
+
+    for (const [productId, shift] of assigned.entries()) {
+      productIdsByShift.get(shift)!.push(productId)
+    }
+
+    for (const shift of SHIFT_SEQUENCE) {
+      const productIds = productIdsByShift.get(shift)!
+      if (productIds.length === 0) {
+        continue
+      }
+
+      await tx.product.updateMany({
+        where: {
+          id: {
+            in: productIds,
+          },
+        },
+        data: {
+          lastCountShift: shift,
+        },
+      })
+    }
+
+    return assigned
+  }
+
+  private pickLeastLoadedShift(loadByShift: Map<ShiftKey, number>) {
+    return SHIFT_SEQUENCE.reduce((bestShift, shift) => {
+      const bestLoad = loadByShift.get(bestShift) ?? 0
+      const currentLoad = loadByShift.get(shift) ?? 0
+      return currentLoad < bestLoad ? shift : bestShift
+    }, SHIFT_SEQUENCE[0])
+  }
+
+  private pickSuggestedShiftForProduct(
+    product: Pick<ProductShiftCandidate, 'category'>,
+    loadByShift: Map<ShiftKey, number>,
+  ) {
+    const preferredDays = this.getPreferredDaysForCategory(product.category)
+    if (preferredDays.length > 0) {
+      const preferredShifts = preferredDays.flatMap((dayKey) => DAY_SHIFT_GROUPS[dayKey] ?? [])
+      if (preferredShifts.length > 0) {
+        return preferredShifts.reduce((bestShift, shift) => {
+          const bestLoad = loadByShift.get(bestShift) ?? 0
+          const currentLoad = loadByShift.get(shift) ?? 0
+          return currentLoad < bestLoad ? shift : bestShift
+        }, preferredShifts[0]!)
+      }
+    }
+
+    return this.pickLeastLoadedShift(loadByShift)
+  }
+
+  private getPreferredDaysForCategory(category: string | null) {
+    const normalizedCategory = this.normalizeCategory(category)
+    if (!normalizedCategory) {
+      return []
+    }
+
+    const matchedRule = CATEGORY_DAY_PREFERENCES.find((rule) =>
+      rule.keywords.some((keyword) => normalizedCategory.includes(keyword)),
+    )
+
+    return matchedRule?.days ?? []
+  }
+
+  private normalizeCategory(value: string | null) {
+    return (value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .toLowerCase()
+      .trim()
+  }
+
+  private async syncShiftProgress(tx: any, shiftSessionId: string) {
+    const countedItems = await tx.stockCountItem.count({
+      where: {
+        shiftSessionId,
+        variance: { not: null },
+      },
+    })
+
+    await tx.stockCountShiftSession.update({
+      where: { id: shiftSessionId },
+      data: {
+        countedItems,
+      },
+    })
+  }
+
+  private async updateSessionProgress(tx: any, sessionId: string) {
+    const session = await tx.stockCountSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        shifts: {
+          select: {
+            status: true,
+            countedItems: true,
+            totalItems: true,
+          },
+        },
+      },
+    })
+
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy phiếu kiểm kho')
+    }
+
+    const countedProducts = session.shifts.reduce(
+      (sum: number, shift: { countedItems: number | null }) => sum + (shift.countedItems ?? 0),
+      0,
+    )
+    const allSubmitted =
+      session.shifts.length > 0 &&
+      session.shifts.every((shift: { status: string }) => ['SUBMITTED', 'APPROVED'].includes(shift.status))
+
+    const nextStatus =
+      session.status === 'APPROVED' || session.status === 'REJECTED'
+        ? session.status
+        : allSubmitted
+          ? 'SUBMITTED'
+          : 'DRAFT'
+
+    await tx.stockCountSession.update({
+      where: { id: sessionId },
+      data: {
+        countedProducts,
+        status: nextStatus,
+      },
+    })
+  }
+
+  private normalizeDate(value: string | Date) {
+    const date = new Date(value)
+    date.setHours(0, 0, 0, 0)
+    return date
+  }
+
+  private assertValidSessionDates(startDate: Date, endDate: Date) {
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      throw new BadRequestException('Ngày kiểm kho không hợp lệ')
+    }
+
+    if (endDate < startDate) {
+      throw new BadRequestException('Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu')
+    }
+
+    const startDay = startDate.getDay()
+    const endDay = endDate.getDay()
+    if (startDay !== 1 || endDay !== 6) {
+      throw new BadRequestException('Phiếu kiểm tuần phải bắt đầu từ thứ 2 và kết thúc vào thứ 7')
+    }
+  }
+
+  private assertDateInsideSession(startDate: Date, endDate: Date, targetDate: Date) {
+    const normalizedStart = this.normalizeDate(startDate)
+    const normalizedEnd = this.normalizeDate(endDate)
+    if (targetDate < normalizedStart || targetDate > normalizedEnd) {
+      throw new BadRequestException('Ngày kiểm phải nằm trong tuần của phiếu kiểm')
+    }
+  }
+
+  private getDayKeyFromDate(date: Date) {
+    const day = date.getDay()
+    switch (day) {
+      case 1:
+        return 'MON'
+      case 2:
+        return 'TUE'
+      case 3:
+        return 'WED'
+      case 4:
+        return 'THU'
+      case 5:
+        return 'FRI'
+      case 6:
+        return 'SAT'
+      default:
+        return 'SUN'
+    }
+  }
+
+  private getShiftDayKey(shift: ShiftKey) {
+    return shift.split('_')[0]!
+  }
+
+  private getShiftLabel(shift: ShiftKey) {
+    return SHIFT_LABELS[shift] ?? shift
+  }
+
+  private getItemDisplayName(item: {
+    product?: { name?: string | null } | null
+    variant?: { name?: string | null; sku?: string | null } | null
+  }) {
+    const productName = item.product?.name ?? 'Sản phẩm'
+    const variantName = item.variant?.name?.trim()
+    return variantName ? `${productName} - ${variantName}` : productName
   }
 }

@@ -3,13 +3,10 @@ import {
   Controller,
   Get,
   Param,
-  Patch,
   Post,
-  Put,
   Query,
   Req,
   UnauthorizedException,
-  NotFoundException,
   BadRequestException,
   UseGuards,
 } from '@nestjs/common'
@@ -26,6 +23,7 @@ import {
   SubmitCountItemDto,
   ApproveSessionDto,
   StartShiftSessionDto,
+  ClaimRandomShiftDto,
 } from './dto/index.js'
 
 interface AuthenticatedRequest extends Request {
@@ -37,28 +35,26 @@ interface AuthenticatedRequest extends Request {
 @UseGuards(JwtGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class StockCountController {
-  constructor(private readonly stockCountService: StockCountService) { }
+  constructor(private readonly stockCountService: StockCountService) {}
 
   private getStaffId(req: AuthenticatedRequest): string {
     const staffId = req.user?.userId
-    if (!staffId) throw new UnauthorizedException('Thiếu thông tin người dùng trong token')
+    if (!staffId) {
+      throw new UnauthorizedException('Thieu thong tin nguoi dung trong token')
+    }
     return staffId
   }
 
-  // ===========================================================================
-  // SESSION CRUD
-  // ===========================================================================
-
   @Post('sessions')
   @Permissions('stock_count.create')
-  @ApiOperation({ summary: 'Tạo phiếu kiểm kho tuần mới' })
+  @ApiOperation({ summary: 'Tao phieu kiem kho tuan moi va sinh ca kiem theo lich san pham' })
   createSession(@Req() req: AuthenticatedRequest, @Body() dto: CreateStockCountSessionDto) {
     return this.stockCountService.createSession(this.getStaffId(req), dto)
   }
 
   @Get('sessions')
   @Permissions('stock_count.read')
-  @ApiOperation({ summary: 'Danh sách phiếu kiểm kho' })
+  @ApiOperation({ summary: 'Danh sach phieu kiem kho' })
   findSessions(
     @Query('branchId') branchId: string,
     @Query('weekNumber') weekNumber?: number,
@@ -74,36 +70,39 @@ export class StockCountController {
 
   @Get('sessions/:id')
   @Permissions('stock_count.read')
-  @ApiOperation({ summary: 'Chi tiết phiếu kiểm kho' })
+  @ApiOperation({ summary: 'Chi tiet phieu kiem kho' })
   findSessionById(@Param('id') id: string) {
     return this.stockCountService.findSessionById(id)
   }
 
-  // ===========================================================================
-  // SHIFT ASSIGNMENT
-  // ===========================================================================
-
   @Post('sessions/:id/assign-shifts')
   @Permissions('stock_count.update')
-  @ApiOperation({ summary: 'Phân ca kiểm ngẫu nhiên cho sản phẩm' })
+  @ApiOperation({ summary: 'Dong bo lai ca kiem theo lich san pham' })
   assignShifts(@Param('id') id: string, @Body() dto: AssignShiftsDto) {
     return this.stockCountService.assignShiftsToProducts(id, dto)
   }
 
-  // ===========================================================================
-  // SHIFT SESSION OPERATIONS
-  // ===========================================================================
+  @Post('sessions/:id/claim-random-shift')
+  @Permissions('stock_count.count')
+  @ApiOperation({ summary: 'Nhan ngau nhien mot ca chua kiem theo ngay duoc chon' })
+  claimRandomShift(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: ClaimRandomShiftDto,
+  ) {
+    return this.stockCountService.claimRandomShift(id, this.getStaffId(req), dto)
+  }
 
   @Get('shifts/:shiftId')
   @Permissions('stock_count.read')
-  @ApiOperation({ summary: 'Chi tiết ca kiểm' })
+  @ApiOperation({ summary: 'Chi tiet ca kiem' })
   findShiftSession(@Param('shiftId') shiftId: string) {
     return this.stockCountService.getShiftSessionDetail(shiftId)
   }
 
   @Post('shifts/:shiftId/start')
   @Permissions('stock_count.count')
-  @ApiOperation({ summary: 'Bắt đầu ca kiểm' })
+  @ApiOperation({ summary: 'Bat dau hoac mo lai ca kiem' })
   startShiftSession(
     @Param('shiftId') shiftId: string,
     @Req() req: AuthenticatedRequest,
@@ -114,18 +113,14 @@ export class StockCountController {
 
   @Post('shifts/:shiftId/complete')
   @Permissions('stock_count.count')
-  @ApiOperation({ summary: 'Hoàn thành ca kiểm' })
-  completeShiftSession(@Param('shiftId') shiftId: string) {
-    return this.stockCountService.completeShiftSession(shiftId)
+  @ApiOperation({ summary: 'Hoan thanh ca kiem' })
+  completeShiftSession(@Param('shiftId') shiftId: string, @Req() req: AuthenticatedRequest) {
+    return this.stockCountService.completeShiftSession(shiftId, this.getStaffId(req))
   }
-
-  // ===========================================================================
-  // COUNTING ITEMS
-  // ===========================================================================
 
   @Post('items/:id/count')
   @Permissions('stock_count.count')
-  @ApiOperation({ summary: 'Nhập số lượng kiểm cho sản phẩm' })
+  @ApiOperation({ summary: 'Nhap so chenh lech cho san pham kiem kho' })
   submitCountItem(
     @Param('id') id: string,
     @Req() req: AuthenticatedRequest,
@@ -134,20 +129,16 @@ export class StockCountController {
     return this.stockCountService.submitCountItem(id, this.getStaffId(req), dto)
   }
 
-  // ===========================================================================
-  // APPROVAL WORKFLOW
-  // ===========================================================================
-
   @Post('sessions/:id/approve')
   @Permissions('stock_count.approve')
-  @ApiOperation({ summary: 'Duyệt phiếu kiểm kho' })
+  @ApiOperation({ summary: 'Duyet phieu kiem kho va ap chenhlech vao ton kho' })
   approveSession(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.stockCountService.approveSession(id, this.getStaffId(req))
   }
 
   @Post('sessions/:id/reject')
   @Permissions('stock_count.approve')
-  @ApiOperation({ summary: 'Từ chối phiếu kiểm kho' })
+  @ApiOperation({ summary: 'Tu choi phieu kiem kho' })
   rejectSession(
     @Param('id') id: string,
     @Req() req: AuthenticatedRequest,
@@ -156,13 +147,9 @@ export class StockCountController {
     return this.stockCountService.rejectSession(id, this.getStaffId(req), dto)
   }
 
-  // ===========================================================================
-  // PROGRESS TRACKING
-  // ===========================================================================
-
   @Get('progress/:branchId/:weekNumber/:year')
   @Permissions('stock_count.read')
-  @ApiOperation({ summary: 'Tiến độ kiểm kho tuần theo chi nhánh' })
+  @ApiOperation({ summary: 'Tien do kiem kho tuan theo chi nhanh' })
   getWeeklyProgress(
     @Param('branchId') branchId: string,
     @Param('weekNumber') weekNumber: number,

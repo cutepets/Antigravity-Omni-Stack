@@ -46,6 +46,12 @@ export class GroomingController {
     return this.groomingService.findAll(query, req.user, getRequestedBranchId(req))
   }
 
+  @Get('packages')
+  @Permissions('grooming.read')
+  getPackages(@Query('species') species?: string): Promise<any> {
+    return this.groomingService.getPackages(species)
+  }
+
   @Get(':id')
   @Permissions('grooming.read')
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {

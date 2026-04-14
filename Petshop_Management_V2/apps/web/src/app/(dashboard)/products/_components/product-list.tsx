@@ -64,13 +64,13 @@ type VariantGroup = {
   children: ListVariantItem[]
 }
 
-type DisplayColumnId = 'image' | 'product' | 'sku' | 'barcode' | 'category' | 'stock' | 'price' | 'status'
+type DisplayColumnId = 'image' | 'product' | 'sku' | 'barcode' | 'category' | 'stock' | 'price' | 'status' | 'lastCountShift'
 type SaleStatusFilter = 'all' | 'active' | 'inactive'
 type SystemStatusFilter = 'ACTIVE' | 'DELETED'
 type StockStatusFilter = 'all' | 'in_stock' | 'out_of_stock' | 'low_stock'
 type PinFilterId = 'category' | 'stock' | 'sale'
 type SortDirection = 'asc' | 'desc'
-type BulkEditableField = 'image' | 'category' | 'unit' | 'brand' | 'price' | 'costPrice' | 'minStock'
+type BulkEditableField = 'image' | 'category' | 'unit' | 'brand' | 'price' | 'costPrice' | 'minStock' | 'lastCountShift'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
   { id: 'image', label: 'Ảnh', width: 'w-20' },
@@ -81,9 +81,10 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'stock', label: 'Tồn kho', sortable: true, minWidth: 'min-w-[140px]' },
   { id: 'price', label: 'Giá vốn / Giá bán', sortable: true, minWidth: 'min-w-[140px]' },
   { id: 'status', label: 'Trạng thái', sortable: true, minWidth: 'min-w-[140px]' },
+  { id: 'lastCountShift', label: 'Ca kiểm', sortable: true, minWidth: 'min-w-[100px]' },
 ]
 
-const SORTABLE_COLUMNS = new Set<DisplayColumnId>(['product', 'sku', 'barcode', 'category', 'stock', 'price', 'status'])
+const SORTABLE_COLUMNS = new Set<DisplayColumnId>(['product', 'sku', 'barcode', 'category', 'stock', 'price', 'status', 'lastCountShift'])
 
 function parseConversionRate(raw?: string | null) {
   if (!raw) return null
@@ -382,6 +383,9 @@ export function ProductList() {
           break
         case 'status':
           comparison = Number(Boolean(left.isActive ?? true)) - Number(Boolean(right.isActive ?? true))
+          break
+        case 'lastCountShift':
+          comparison = compareText(left.lastCountShift, right.lastCountShift)
           break
         default:
           comparison = 0
@@ -778,6 +782,7 @@ function BulkEditProductsModal({
     price: false,
     costPrice: false,
     minStock: false,
+    lastCountShift: false,
   })
   const [formData, setFormData] = useState({
     image: '',
@@ -787,6 +792,7 @@ function BulkEditProductsModal({
     price: '',
     costPrice: '',
     minStock: '',
+    lastCountShift: '',
   })
 
   const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: () => inventoryApi.getCategories(), enabled: isOpen })
@@ -806,6 +812,7 @@ function BulkEditProductsModal({
       price: false,
       costPrice: false,
       minStock: false,
+      lastCountShift: false,
     })
     setFormData({
       image: '',
@@ -815,6 +822,7 @@ function BulkEditProductsModal({
       price: '',
       costPrice: '',
       minStock: '',
+      lastCountShift: '',
     })
   }
 
@@ -829,6 +837,7 @@ function BulkEditProductsModal({
       if (enabledFields.price) payload.price = Number(formData.price || 0)
       if (enabledFields.costPrice) payload.costPrice = Number(formData.costPrice || 0)
       if (enabledFields.minStock) payload.minStock = Number(formData.minStock || 0)
+      if (enabledFields.lastCountShift) payload.lastCountShift = formData.lastCountShift || null
 
       await Promise.all(selectedProductIds.map((productId) => inventoryApi.updateProduct(productId, payload)))
     },
@@ -1016,6 +1025,57 @@ function BulkEditProductsModal({
                 placeholder="0"
               />
             </BulkEditField>
+
+            <BulkEditField
+              checked={enabledFields.lastCountShift}
+              label="Ca kiểm kho"
+              onToggle={() => setEnabledFields((current) => ({ ...current, lastCountShift: !current.lastCountShift }))}
+            >
+              <div className="flex gap-2">
+                <select 
+                   value={formData.lastCountShift?.split('_')[0] || ''} 
+                   onChange={e => {
+                      const day = e.target.value;
+                      if (!day) {
+                         setFormData((current) => ({ ...current, lastCountShift: '' }))
+                      } else {
+                         const shift = formData.lastCountShift?.split('_')[1] || 'A';
+                         setFormData((current) => ({ ...current, lastCountShift: `${day}_${shift}` }))
+                      }
+                   }} 
+                   disabled={!enabledFields.lastCountShift}
+                   className="h-11 w-1/2 rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                >
+                   <option value="">Ngày</option>
+                   <option value="MON">Thứ 2</option>
+                   <option value="TUE">Thứ 3</option>
+                   <option value="WED">Thứ 4</option>
+                   <option value="THU">Thứ 5</option>
+                   <option value="FRI">Thứ 6</option>
+                   <option value="SAT">Thứ 7</option>
+                </select>
+                <select 
+                   value={formData.lastCountShift?.split('_')[1] || ''} 
+                   onChange={e => {
+                      const shift = e.target.value;
+                      if (!shift) {
+                         setFormData((current) => ({ ...current, lastCountShift: '' }))
+                      } else {
+                         const day = formData.lastCountShift?.split('_')[0] || 'MON';
+                         setFormData((current) => ({ ...current, lastCountShift: `${day}_${shift}` }))
+                      }
+                   }}
+                   disabled={!enabledFields.lastCountShift || !formData.lastCountShift?.split('_')[0]}
+                   className="h-11 w-1/2 rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                >
+                   <option value="">Ca</option>
+                   <option value="A">Ca A</option>
+                   <option value="B">Ca B</option>
+                   <option value="C">Ca C</option>
+                   <option value="D">Ca D</option>
+                </select>
+              </div>
+            </BulkEditField>
           </div>
         </div>
 
@@ -1171,6 +1231,18 @@ function ProductRowBlock({
                   </span>
                 </td>
               )
+            case 'lastCountShift':
+              return (
+                <td key={columnId} className="px-3 py-3 text-sm text-foreground font-medium">
+                  {product.lastCountShift ? (
+                    <span className="inline-flex rounded-md bg-purple-500/15 border border-purple-500/20 px-2 py-0.5 text-xs text-purple-400">
+                      {product.lastCountShift.replace('_', ' - ')}
+                    </span>
+                  ) : (
+                    <span className="text-foreground-muted text-xs">—</span>
+                  )}
+                </td>
+              )
             default:
               return null
           }
@@ -1258,6 +1330,8 @@ function VariantRows({
                         </span>
                       </td>
                     )
+                  case 'lastCountShift':
+                    return <td key={columnId} className="px-3 py-3 text-sm text-foreground"></td>
                   default:
                     return null
                 }
@@ -1361,6 +1435,8 @@ function ConversionRow({
                 </span>
               </td>
             )
+          case 'lastCountShift':
+            return <td key={columnId} className="px-3 py-3 text-sm text-foreground"></td>
           default:
             return null
         }

@@ -15,8 +15,8 @@ import { TableCheckbox } from './TableCheckbox'
 
 interface DataListToolbarProps {
   // Search
-  searchValue: string
-  onSearchChange: (value: string) => void
+  searchValue?: string
+  onSearchChange?: (value: string) => void
   searchPlaceholder?: string
 
   // Total count slot (shown below search bar)
@@ -53,15 +53,17 @@ export function DataListToolbar({
     <div className="shrink-0">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         {/* Search */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
-          <input
-            value={searchValue}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={searchPlaceholder}
-            className="w-full h-11 rounded-xl border border-border bg-background-secondary pl-10 pr-4 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-          />
-        </div>
+        {onSearchChange && (
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+            <input
+              value={searchValue}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="w-full h-11 rounded-xl border border-border bg-background-secondary pl-10 pr-4 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+            />
+          </div>
+        )}
 
         {/* Actions row */}
         <div className="flex flex-wrap items-center gap-2">

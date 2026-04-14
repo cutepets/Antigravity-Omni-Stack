@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, PawPrint, X } from 'lucide-react';
 import { hotelApi } from '@/lib/api/hotel.api';
+import { useAuthStore } from '@/stores/auth.store';
 import { useCustomerPets } from '../_hooks/use-pos-queries';
 
 const formatCurrency = (value: number) =>
@@ -32,6 +33,7 @@ export function ServiceBookingModal({
   initialPetId,
 }: BookingModalProps) {
   const { data: pets = [] } = useCustomerPets(customerId);
+  const activeBranchId = useAuthStore((state) => state.activeBranchId);
   const [selectedPet, setSelectedPet] = useState<string>('');
   const [checkIn, setCheckIn] = useState<string>('');
   const [checkOut, setCheckOut] = useState<string>('');
@@ -66,6 +68,7 @@ export function ServiceBookingModal({
       hotelCheckOutIso,
       selectedPetProfile?.species,
       petWeight,
+      activeBranchId,
     ],
     queryFn: () =>
       hotelApi.calculatePrice({
@@ -73,6 +76,7 @@ export function ServiceBookingModal({
         checkOut: hotelCheckOutIso,
         species: String(selectedPetProfile?.species ?? ''),
         weight: petWeight,
+        branchId: activeBranchId ?? undefined,
       }),
     enabled: isOpen && Boolean(service) && Boolean(selectedPet) && hasHotelProfile && hasValidRange,
     staleTime: 30_000,

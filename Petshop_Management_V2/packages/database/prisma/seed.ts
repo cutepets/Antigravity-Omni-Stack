@@ -1,8 +1,8 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, StockCountShift } from '@prisma/client'
 import * as bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
-const NOW = new Date('2026-04-06T09:00:00+07:00')
+const NOW = new Date('2026-04-13T09:00:00+07:00')
 
 const branchSeeds = [
   { id: 'branch-main', code: 'MAIN', name: 'Showroom Trung Tam', address: '12 Nguyen Hue, Quan 1, TP HCM', phone: '02871000001', email: 'main@petcare.local', isMain: true },
@@ -11,75 +11,153 @@ const branchSeeds = [
 ] as const
 
 const roleSeeds = [
-  { code: 'SUPER_ADMIN', name: 'Chu cua hang', isSystem: true, permissions: ['MANAGE_STAFF', 'MANAGE_USERS', 'MANAGE_ROLES', 'MANAGE_BRANCHES', 'MANAGE_SETTINGS', 'MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS', 'FULL_BRANCH_ACCESS'] },
-  { code: 'ADMIN', name: 'Quan tri vien', isSystem: true, permissions: ['MANAGE_STAFF', 'MANAGE_BRANCHES', 'MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS'] },
-  { code: 'MANAGER', name: 'Cua hang truong', isSystem: false, permissions: ['MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS'] },
-  { code: 'STAFF', name: 'Nhan vien van hanh', isSystem: false, permissions: ['MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS'] },
+  { code: 'SUPER_ADMIN', name: 'Chủ cửa hàng', isSystem: true, permissions: ['MANAGE_STAFF', 'MANAGE_USERS', 'MANAGE_ROLES', 'MANAGE_BRANCHES', 'MANAGE_SETTINGS', 'MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS', 'FULL_BRANCH_ACCESS', 'stock_count.create', 'stock_count.read', 'stock_count.update', 'stock_count.count', 'stock_count.approve'] },
+  { code: 'ADMIN', name: 'Quản trị viên', isSystem: true, permissions: ['MANAGE_STAFF', 'MANAGE_BRANCHES', 'MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS', 'stock_count.create', 'stock_count.read', 'stock_count.update', 'stock_count.count', 'stock_count.approve'] },
+  { code: 'MANAGER', name: 'Cửa hàng trưởng', isSystem: false, permissions: ['MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS', 'stock_count.create', 'stock_count.read', 'stock_count.update', 'stock_count.count', 'stock_count.approve'] },
+  { code: 'STAFF', name: 'Nhân viên vận hành', isSystem: false, permissions: ['MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'stock_count.read', 'stock_count.count'] },
 ] as const
 
 const customerGroups = [
-  { key: 'VIP', name: 'VIP', color: '#f59e0b', discount: 10, pricePolicy: 'Gia VIP', isDefault: false },
-  { key: 'LOYAL', name: 'Than thiet', color: '#22c55e', discount: 5, pricePolicy: 'Gia thanh vien', isDefault: true },
+  { key: 'VIP', name: 'Thân thiết VIP', color: '#f59e0b', discount: 10, pricePolicy: 'Giá VIP', isDefault: false },
+  { key: 'LOYAL', name: 'Thành viên', color: '#22c55e', discount: 5, pricePolicy: 'Giá thành viên', isDefault: true },
   { key: 'SPA', name: 'Spa care', color: '#0ea5e9', discount: 7, pricePolicy: 'Combo grooming', isDefault: false },
-  { key: 'HOTEL', name: 'Hotel care', color: '#a855f7', discount: 6, pricePolicy: 'Combo luu tru', isDefault: false },
+  { key: 'HOTEL', name: 'Hotel care', color: '#a855f7', discount: 6, pricePolicy: 'Combo lưu trú', isDefault: false },
 ] as const
 
 const supplierSeeds = [
-  { key: 'SUP1', name: 'Royal Pet Trading', phone: '0919000101', email: 'royal@petcare.local', address: 'Kho A, Thu Duc, TP HCM', monthTarget: 18_000_000, yearTarget: 210_000_000, notes: 'Doi tac chien luoc cho nhom thuc an cho cho.' },
-  { key: 'SUP2', name: 'Bio Groom Viet Nam', phone: '0919000102', email: 'bio@petcare.local', address: 'Kho B, Di An, Binh Duong', monthTarget: 12_000_000, yearTarget: 150_000_000, notes: 'Chuyen hang grooming, shampoo va cham soc long.' },
-  { key: 'SUP3', name: 'PetStyle Accessory', phone: '0919000103', email: 'style@petcare.local', address: 'Kho C, Go Vap, TP HCM', monthTarget: 14_000_000, yearTarget: 170_000_000, notes: 'Nguon phu kien chu luc cho chuoi cua hang.' },
-  { key: 'SUP4', name: 'Vet Plus Pharma', phone: '0919000104', email: 'vet@petcare.local', address: 'Kho D, Bien Hoa, Dong Nai', monthTarget: 10_000_000, yearTarget: 120_000_000, notes: 'NCC thuoc va bo tro suc khoe cho thu cung.' },
-  { key: 'SUP5', name: 'Natural Cat Litter', phone: '0919000105', email: 'litter@petcare.local', address: 'Kho E, Hoc Mon, TP HCM', monthTarget: 8_000_000, yearTarget: 95_000_000, notes: 'Tap trung cat ve sinh va xit khu mui.' },
-  { key: 'SUP6', name: 'Happy Bark Foods', phone: '0919000106', email: 'bark@petcare.local', address: 'Kho F, Tan Phu, TP HCM', monthTarget: 15_000_000, yearTarget: 190_000_000, notes: 'Nhap pate, snack va thuc an meo/chó quay vong nhanh.' },
+  { key: 'SUP1', name: 'Royal Pet Trading', phone: '0919000101', email: 'royal@petcare.local', address: 'Kho A, Thủ Đức, TP HCM', monthTarget: 18_000_000, yearTarget: 210_000_000, notes: 'Đối tác chiến lược cho nhóm thức ăn chó.', debt: 0, creditBalance: 0 },
+  { key: 'SUP2', name: 'Bio Groom Viet Nam', phone: '0919000102', email: 'bio@petcare.local', address: 'Kho B, Dĩ An, Bình Dương', monthTarget: 12_000_000, yearTarget: 150_000_000, notes: 'Chuyên hàng grooming, shampoo và chăm sóc lông.', debt: 0, creditBalance: 0 },
+  { key: 'SUP3', name: 'PetStyle Accessory', phone: '0919000103', email: 'style@petcare.local', address: 'Kho C, Gò Vấp, TP HCM', monthTarget: 14_000_000, yearTarget: 170_000_000, notes: 'Nguồn phụ kiện chủ lực cho chuỗi cửa hàng.', debt: 0, creditBalance: 0 },
+  { key: 'SUP4', name: 'Vet Plus Pharma', phone: '0919000104', email: 'vet@petcare.local', address: 'Kho D, Biên Hòa, Đồng Nai', monthTarget: 10_000_000, yearTarget: 120_000_000, notes: 'NCC thuốc và bổ trợ sức khỏe cho thú cưng.', debt: 0, creditBalance: 0 },
+  { key: 'SUP5', name: 'Natural Cat Litter', phone: '0919000105', email: 'litter@petcare.local', address: 'Kho E, Hóc Môn, TP HCM', monthTarget: 8_000_000, yearTarget: 95_000_000, notes: 'Tập trung cát vệ sinh và xịt khử mùi.', debt: 0, creditBalance: 0 },
+  { key: 'SUP6', name: 'Happy Bark Foods', phone: '0919000106', email: 'bark@petcare.local', address: 'Kho F, Tân Phú, TP HCM', monthTarget: 15_000_000, yearTarget: 190_000_000, notes: 'Nhập pate, snack và thức ăn mèo/chó quay vòng nhanh.', debt: 0, creditBalance: 0 },
 ] as const
 
 const productSeeds = [
-  ['DOGFOOD001', 'Hat Royal Canin Mini Adult 2kg', 'Thuc an', 'Royal Canin', 'goi', 325000, 248000, 10, 'SUP1'],
-  ['DOGFOOD002', 'Hat SmartHeart Puppy 3kg', 'Thuc an', 'SmartHeart', 'goi', 285000, 214000, 8, 'SUP1'],
-  ['DOGFOOD003', 'Pate Happy Bark Chicken 375g', 'Thuc an', 'Happy Bark Foods', 'hop', 42000, 28000, 24, 'SUP6'],
-  ['CATFOOD001', 'Hat Me O Salmon 1.2kg', 'Thuc an', 'Me O', 'goi', 128000, 89000, 15, 'SUP6'],
-  ['CATFOOD002', 'Pate Me O Tuna 80g', 'Thuc an', 'Me O', 'hop', 18000, 11500, 48, 'SUP6'],
-  ['SNACK001', 'Snack dental chew size S', 'Thuc an', 'Happy Bark Foods', 'thanh', 26000, 16000, 40, 'SUP6'],
-  ['SNACK002', 'Snack soft cube salmon', 'Thuc an', 'Happy Bark Foods', 'goi', 55000, 35000, 20, 'SUP6'],
-  ['LITTER001', 'Cat ve sinh than hoat tinh 10L', 'Ve sinh', 'Natural Cat Litter', 'goi', 145000, 98000, 18, 'SUP5'],
-  ['LITTER002', 'Xit khu mui cat 500ml', 'Ve sinh', 'Bio Care', 'chai', 92000, 62000, 12, 'SUP2'],
-  ['BATH001', 'Sua tam cho long trang 500ml', 'Ve sinh', 'Bio Care', 'chai', 138000, 92000, 10, 'SUP2'],
-  ['BATH002', 'Sua tam hypoallergenic 500ml', 'Ve sinh', 'Bio Care', 'chai', 168000, 118000, 8, 'SUP2'],
-  ['BATH003', 'Khan tam kho sieu hut nuoc', 'Ve sinh', 'PetStyle', 'cai', 99000, 65000, 14, 'SUP3'],
-  ['ACCESS001', 'Day dat nylon size M', 'Phu kien', 'PetStyle', 'cai', 115000, 72000, 10, 'SUP3'],
-  ['ACCESS002', 'Vong co da co khac ten', 'Phu kien', 'PetStyle', 'cai', 145000, 98000, 9, 'SUP3'],
-  ['ACCESS003', 'Bat an inox chong truot', 'Phu kien', 'PetStyle', 'cai', 76000, 43000, 18, 'SUP3'],
-  ['ACCESS004', 'Long van chuyen size M', 'Phu kien', 'PetStyle', 'cai', 420000, 305000, 4, 'SUP3'],
-  ['ACCESS005', 'Ao mua cho mini', 'Phu kien', 'PetStyle', 'cai', 85000, 52000, 10, 'SUP3'],
-  ['CARE001', 'Vitamin da va long 60 vien', 'Cham soc', 'Dr Pet', 'hop', 195000, 132000, 8, 'SUP4'],
-  ['CARE002', 'Men tieu hoa thu cung 30 goi', 'Cham soc', 'Dr Pet', 'hop', 172000, 118000, 8, 'SUP4'],
-  ['CARE003', 'Xit duong long silk finish', 'Cham soc', 'Bio Care', 'chai', 149000, 101000, 10, 'SUP2'],
-  ['CARE004', 'Kem duong chan nut ne', 'Cham soc', 'Dr Pet', 'chai', 110000, 73000, 10, 'SUP4'],
-  ['MED001', 'Thuoc nho ve sinh tai 60ml', 'Thuoc', 'Virbac', 'chai', 210000, 154000, 6, 'SUP4'],
-  ['MED002', 'Thuoc nho tri bo chet 20kg', 'Thuoc', 'Virbac', 'hop', 285000, 214000, 6, 'SUP4'],
-  ['MED003', 'Gel rua mat cho meo 100ml', 'Thuoc', 'Virbac', 'chai', 158000, 109000, 7, 'SUP4'],
+  ['DOGFOOD001', 'Hạt Royal Canin Mini Adult 2kg', 'Thức ăn', 'Royal Canin', 'gói', 325000, 248000, 'Chó', 'MON_A', 'SUP1'],
+  ['DOGFOOD002', 'Hạt SmartHeart Puppy 10kg', 'Thức ăn', 'SmartHeart', 'gói', 420000, 315000, 'Chó', 'MON_A', 'SUP1'],
+  ['DOGFOOD003', 'Hạt Orijen Original 340g', 'Thức ăn', 'Orijen', 'gói', 285000, 228000, 'Chó', 'MON_B', 'SUP1'],
+  ['DOGFOOD004', 'Pate Happy Bark Chicken 375g', 'Thức ăn', 'Happy Bark Foods', 'hộp', 42000, 28000, 'Chó', 'TUE_A', 'SUP6'],
+  ['DOGFOOD005', 'Pate VitaCraft Beef 80g', 'Thức ăn', 'VitaCraft', 'hộp', 38000, 24000, 'Chó', 'TUE_A', 'SUP6'],
+  ['DOGFOOD006', 'Snack dental chew size S', 'Thức ăn', 'Happy Bark Foods', 'thanh', 26000, 16000, 'Chó', 'TUE_B', 'SUP6'],
+  ['DOGFOOD007', 'Snack soft cube salmon', 'Thức ăn', 'Happy Bark Foods', 'gói', 55000, 35000, 'Chó', 'TUE_B', 'SUP6'],
+  ['DOGFOOD008', 'Hạt Hill\'s Science Diet Adult 4kg', 'Thức ăn', 'Hill\'s', 'gói', 480000, 372000, 'Chó', 'WED_A', 'SUP1'],
+  ['DOGFOOD009', 'Xúc xích dinh dưỡng cho chó', 'Thức ăn', 'PetBar', 'gói', 85000, 55000, 'Chó', 'WED_A', 'SUP6'],
+  ['DOGFOOD010', 'Hạt Acana Puppy 6kg', 'Thức ăn', 'Acana', 'gói', 395000, 305000, 'Chó', 'WED_B', 'SUP1'],
+
+  ['CATFOOD001', 'Hạt Me O Salmon 1.2kg', 'Thức ăn', 'Me O', 'gói', 128000, 89000, 'Mèo', 'WED_B', 'SUP6'],
+  ['CATFOOD002', 'Pate Me O Tuna 80g', 'Thức ăn', 'Me O', 'hộp', 18000, 11500, 'Mèo', 'THU_A', 'SUP6'],
+  ['CATFOOD003', 'Hạt Royal Canin Indoor 2kg', 'Thức ăn', 'Royal Canin', 'gói', 295000, 228000, 'Mèo', 'THU_A', 'SUP1'],
+  ['CATFOOD004', 'Pate Whiskas Ocean Fish 85g', 'Thức ăn', 'Whiskas', 'hộp', 15000, 9500, 'Mèo', 'THU_B', 'SUP6'],
+  ['CATFOOD005', 'Hạt Purina ONE Adult 1.5kg', 'Thức ăn', 'Purina', 'gói', 185000, 135000, 'Mèo', 'THU_B', 'SUP1'],
+  ['CATFOOD006', 'Treat Temptation Classic 85g', 'Thức ăn', 'Temptations', 'gói', 48000, 30000, 'Mèo', 'FRI_A', 'SUP6'],
+  ['CATFOOD007', 'Snack Ciao Tuna Stick 14g', 'Thức ăn', 'Ciao', 'gói', 18000, 11000, 'Mèo', 'FRI_A', 'SUP6'],
+  ['CATFOOD008', 'Hạt Hill\'s Science Diet Cat 4kg', 'Thức ăn', 'Hill\'s', 'gói', 520000, 402000, 'Mèo', 'FRI_B', 'SUP1'],
+
+  ['LITTER001', 'Cát vệ sinh than hoạt tính 10L', 'Vệ sinh', 'Natural Cat Litter', 'gói', 145000, 98000, 'Mèo', 'FRI_B', 'SUP5'],
+  ['LITTER002', 'Cát vệ sinh tinh thể silica 3.8L', 'Vệ sinh', 'Crystal Sand', 'gói', 95000, 62000, 'Mèo', 'SAT_A', 'SUP5'],
+  ['LITTER003', 'Xịt khử mùi cát 500ml', 'Vệ sinh', 'Bio Care', 'chai', 92000, 62000, 'Chó & Mèo', 'SAT_A', 'SUP2'],
+  ['BATH001', 'Sữa tắm cho lông trắng 500ml', 'Vệ sinh', 'Bio Care', 'chai', 138000, 92000, 'Chó & Mèo', 'SAT_B', 'SUP2'],
+  ['BATH002', 'Sữa tắm hypoallergenic 500ml', 'Vệ sinh', 'Bio Care', 'chai', 168000, 118000, 'Chó & Mèo', 'SAT_B', 'SUP2'],
+  ['BATH003', 'Sữa tắm khô (không xả nước)', 'Vệ sinh', 'PetStyle', 'chai', 145000, 95000, 'Chó & Mèo', 'SAT_A', 'SUP3'],
+  ['BATH004', 'Khăn tắm khô siêu hút nước', 'Vệ sinh', 'PetStyle', 'cái', 99000, 65000, 'Chó & Mèo', 'SAT_A', 'SUP3'],
+  ['BATH005', 'Nước hoa thú cưng 50ml', 'Vệ sinh', 'PawScent', 'chai', 78000, 48000, 'Chó & Mèo', 'SAT_A', 'SUP2'],
+
+  ['ACCESS001', 'Dây đai nylon size M', 'Phụ kiện', 'PetStyle', 'cái', 115000, 72000, 'Chó', 'SAT_A', 'SUP3'],
+  ['ACCESS002', 'Vòng cổ da có khắc tên', 'Phụ kiện', 'PetStyle', 'cái', 145000, 98000, 'Chó & Mèo', 'MON_A', 'SUP3'],
+  ['ACCESS003', 'Bát ăn inox chống trượt size S', 'Phụ kiện', 'PetStyle', 'cái', 76000, 43000, 'Chó & Mèo', 'MON_A', 'SUP3'],
+  ['ACCESS004', 'Lồng vận chuyển size M', 'Phụ kiện', 'PetStyle', 'cái', 420000, 305000, 'Chó & Mèo', 'MON_B', 'SUP3'],
+  ['ACCESS005', 'Áo mưa chó mini', 'Phụ kiện', 'PetStyle', 'cái', 85000, 52000, 'Chó', 'MON_B', 'SUP3'],
+  ['ACCESS006', 'Đồ chơi dây thừng kéo co', 'Phụ kiện', 'FunPet', 'cái', 65000, 38000, 'Chó', 'TUE_A', 'SUP3'],
+  ['ACCESS007', 'Bóng cao su phát tiếng kêu', 'Phụ kiện', 'FunPet', 'cái', 45000, 26000, 'Chó', 'TUE_A', 'SUP3'],
+  ['ACCESS008', 'Nhà cát mèo 3 tầng', 'Phụ kiện', 'PetStyle', 'cái', 850000, 620000, 'Mèo', 'TUE_B', 'SUP3'],
+  ['ACCESS009', 'Cần câu lông vũ cho mèo', 'Phụ kiện', 'FunPet', 'cái', 55000, 32000, 'Mèo', 'TUE_B', 'SUP3'],
+  ['ACCESS010', 'Bàn gãi móng sisal', 'Phụ kiện', 'PetStyle', 'cái', 195000, 145000, 'Mèo', 'WED_A', 'SUP3'],
+
+  ['CARE001', 'Vitamin da và lông 60 viên', 'Chăm sóc', 'Dr Pet', 'hộp', 195000, 132000, 'Chó & Mèo', 'WED_A', 'SUP4'],
+  ['CARE002', 'Men tiêu hóa thú cưng 30 gói', 'Chăm sóc', 'Dr Pet', 'hộp', 172000, 118000, 'Chó & Mèo', 'WED_B', 'SUP4'],
+  ['CARE003', 'Xịt dưỡng lông silk finish', 'Chăm sóc', 'Bio Care', 'chai', 149000, 101000, 'Chó & Mèo', 'WED_B', 'SUP2'],
+  ['CARE004', 'Kem dưỡng chân nứt nẻ', 'Chăm sóc', 'Dr Pet', 'chai', 110000, 73000, 'Chó', 'THU_A', 'SUP4'],
+  ['CARE005', 'Dầu cá Omega-3 cho pet 60ml', 'Chăm sóc', 'NutriPet', 'chai', 155000, 110000, 'Chó & Mèo', 'THU_A', 'SUP4'],
+  ['CARE006', 'Bột tắm khô cho chó size S', 'Chăm sóc', 'Bio Care', 'gói', 68000, 42000, 'Chó', 'THU_B', 'SUP2'],
+  ['CARE007', 'Gel làm trắng răng không flo 50g', 'Chăm sóc', 'PetDent', 'tuýp', 89000, 55000, 'Chó & Mèo', 'THU_B', 'SUP4'],
+  ['CARE008', 'Thuốc nhỏ mắt dưỡng ẩm 10ml', 'Chăm sóc', 'Virbac', 'chai', 95000, 65000, 'Chó & Mèo', 'FRI_A', 'SUP4'],
+
+  ['MED001', 'Thuốc nhỏ vệ sinh tai 60ml', 'Thuốc', 'Virbac', 'chai', 210000, 154000, 'Chó & Mèo', 'FRI_A', 'SUP4'],
+  ['MED002', 'Thuốc nhỏ trị bọ chét dưới 20kg', 'Thuốc', 'Virbac', 'hộp', 285000, 214000, 'Chó', 'FRI_B', 'SUP4'],
+  ['MED003', 'Gel rửa mắt cho mèo 100ml', 'Thuốc', 'Virbac', 'chai', 158000, 109000, 'Mèo', 'FRI_B', 'SUP4'],
+  ['MED004', 'Thuốc tẩy giun 4 con/hộp', 'Thuốc', 'Dr Pet', 'hộp', 125000, 88000, 'Chó & Mèo', 'SAT_A', 'SUP4'],
+  ['MED005', 'Kháng sinh dạng uống 50ml', 'Thuốc', 'Vetcare', 'chai', 178000, 129000, 'Chó & Mèo', 'SAT_A', 'SUP4'],
+  ['MED006', 'Xịt kháng khuẩn vết thương 100ml', 'Thuốc', 'Vetcare', 'chai', 145000, 105000, 'Chó & Mèo', 'SAT_B', 'SUP4'],
 ] as const
 
-const customerNames = [
-  'Le Bao An', 'Tran Minh Thu', 'Nguyen Hoang Nam', 'Pham Gia Han', 'Doan Thanh Vy', 'Vo Quoc Huy',
-  'Dang Phuong Linh', 'Bui Tuan Kiet', 'Cao My Duyen', 'Ngo Duc Long', 'Vu Thanh Mai', 'Truong Gia Bao',
-  'Ly Cam Tu', 'Huynh Dang Khoa', 'Mai Ngoc Yen', 'Nguyen Kim Anh', 'Phan Hoai Phuc', 'Le Khanh Chi',
-  'Pham Tan Tai', 'Duong Thu Ha', 'Lam Nha Uyen', 'Chau Manh Cuong', 'Ton Nhat Ha', 'Ngo Bao Tram',
+const customerSeeds = [
+  // --- VIP tier (6 khách) ---
+  { name: 'Trần Minh Anh',   phone: '0901111001', tier: 'PLATINUM', group: 'VIP',   debt: 0 },
+  { name: 'Lê Thị Bảo Châu', phone: '0901111002', tier: 'PLATINUM', group: 'VIP',   debt: 0 },
+  { name: 'Nguyễn Hoàng Nam', phone: '0901111003', tier: 'PLATINUM', group: 'VIP',   debt: 350000 },
+  { name: 'Phạm Gia Hân',    phone: '0901111004', tier: 'PLATINUM', group: 'VIP',   debt: 0 },
+  { name: 'Đoàn Thanh Vỹ',   phone: '0901111005', tier: 'PLATINUM', group: 'VIP',   debt: 0 },
+  { name: 'Võ Quốc Huy',     phone: '0901111006', tier: 'PLATINUM', group: 'VIP',   debt: 0 },
+
+  // --- GOLD tier / Spa Care (10 khách) ---
+  { name: 'Nguyễn Kim Anh',  phone: '0901111007', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Đặng Phương Linh',phone: '0901111008', tier: 'GOLD', group: 'SPA', debt: 180000 },
+  { name: 'Bùi Tuấn Kiệt',  phone: '0901111009', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Cao Mỹ Duyên KH', phone: '0901111010', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Ngô Đức Long',    phone: '0901111011', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Vũ Thanh Mai',    phone: '0901111012', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Lý Cẩm Tú',      phone: '0901111013', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Huỳnh Đăng Duy',  phone: '0901111014', tier: 'GOLD', group: 'SPA', debt: 225000 },
+  { name: 'Phan Hoài Phúc',  phone: '0901111015', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Lê Khánh Chi',    phone: '0901111016', tier: 'GOLD', group: 'SPA', debt: 0 },
+
+  // --- GOLD tier / Hotel Care (8 khách) ---
+  { name: 'Trương Gia Bảo',  phone: '0901111017', tier: 'GOLD',   group: 'HOTEL', debt: 0 },
+  { name: 'Phạm Tấn Tài',    phone: '0901111018', tier: 'GOLD',   group: 'HOTEL', debt: 0 },
+  { name: 'Dương Thu Hà',    phone: '0901111019', tier: 'GOLD',   group: 'HOTEL', debt: 0 },
+  { name: 'Lâm Nhã Uyên KH', phone: '0901111020', tier: 'GOLD',   group: 'HOTEL', debt: 120000 },
+  { name: 'Châu Mạnh Cường', phone: '0901111021', tier: 'GOLD',   group: 'HOTEL', debt: 0 },
+  { name: 'Tôn Nhật Hà',     phone: '0901111022', tier: 'SILVER', group: 'HOTEL', debt: 0 },
+  { name: 'Ngô Bảo Trâm',    phone: '0901111023', tier: 'SILVER', group: 'HOTEL', debt: 0 },
+  { name: 'Đinh Phú Cường',  phone: '0901111024', tier: 'SILVER', group: 'HOTEL', debt: 0 },
+
+  // --- SILVER/BRONZE / Thành viên thường (16 khách) ---
+  { name: 'Hoàng Thị Lan',   phone: '0901111025', tier: 'SILVER', group: 'LOYAL', debt: 0 },
+  { name: 'Đỗ Văn Minh',     phone: '0901111026', tier: 'SILVER', group: 'LOYAL', debt: 0 },
+  { name: 'Bạch Thị Ngọc',   phone: '0901111027', tier: 'SILVER', group: 'LOYAL', debt: 75000 },
+  { name: 'Trịnh Hoài Nam',  phone: '0901111028', tier: 'SILVER', group: 'LOYAL', debt: 0 },
+  { name: 'Lưu Thị Hương',   phone: '0901111029', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Hà Văn Tùng',     phone: '0901111030', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Kiều Thị Thảo',   phone: '0901111031', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Vương Minh Hiếu', phone: '0901111032', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Quách Thị Ngân',  phone: '0901111033', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Tạ Văn Đức',      phone: '0901111034', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Mã Thị Liên',     phone: '0901111035', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Sơn Thị Thúy',    phone: '0901111036', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Dư Văn Hải',      phone: '0901111037', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Vòng Thị Kiều',   phone: '0901111038', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Ân Thị Ngọc',     phone: '0901111039', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Khương Văn Bình', phone: '0901111040', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
 ] as const
 
 const streets = [
-  'Nguyen Hue, Quan 1', 'Vo Van Tan, Quan 3', 'Xo Viet Nghe Tinh, Binh Thanh', 'Nguyen Thi Thap, Quan 7',
-  'Kha Van Can, Thu Duc', 'Le Van Sy, Phu Nhuan', 'Phan Van Tri, Go Vap', 'Tran Xuan Soan, Quan 7',
+  'Nguyễn Huệ, Quận 1', 'Võ Văn Tần, Quận 3', 'Xô Viết Nghệ Tĩnh, Bình Thạnh', 'Nguyễn Thị Thập, Quận 7',
+  'Kha Vạn Cân, Thủ Đức', 'Lê Văn Sỹ, Phú Nhuận', 'Phan Văn Trị, Gò Vấp', 'Trần Xuân Soạn, Quận 7',
 ] as const
 
 const petNames = [
   'Mochi', 'Biscuit', 'Cookie', 'Bun', 'Milo', 'Latte', 'Tofu', 'Sunny', 'Luna', 'Bobo',
-  'Misa', 'Benji', 'Gau', 'Suri', 'Peanut', 'Mew', 'Pika', 'Kuma', 'Mint', 'Tiger',
+  'Misa', 'Benji', 'Gấu', 'Suri', 'Peanut', 'Mew', 'Pika', 'Kuma', 'Mint', 'Tiger',
   'Choco', 'Nori', 'Daisy', 'Neo', 'Mimi', 'Snow', 'Bambi', 'Olive', 'Rex', 'Mocha',
+  'Bella', 'Max', 'Lucy', 'Charlie', 'Leo', 'Kitty', 'Oreo', 'Smokey', 'Simba', 'Loki',
+  'Chloe', 'Nani', 'Lily', 'Ruby', 'Bear', 'Teddy', 'Duke', 'Buddy', 'Rocky', 'Buster'
 ] as const
 
-const dogBreeds = ['Poodle', 'Corgi', 'Pomeranian', 'Golden Retriever', 'Pug', 'Shiba', 'Samoyed', 'French Bulldog', 'Maltese', 'Mini Schnauzer'] as const
-const catBreeds = ['British Shorthair', 'Munchkin', 'Siamese', 'Scottish Fold', 'Persian', 'Ragdoll', 'Bengal', 'British Longhair', 'Scottish Straight', 'American Curl'] as const
+const dogBreeds = ['Poodle', 'Corgi', 'Pomeranian', 'Golden Retriever', 'Pug', 'Shiba', 'Samoyed', 'French Bulldog', 'Maltese', 'Mini Schnauzer', 'Labrador', 'Husky', 'Chihuahua', 'Beagle'] as const
+const catBreeds = ['British Shorthair', 'Munchkin', 'Siamese', 'Scottish Fold', 'Persian', 'Ragdoll', 'Bengal', 'Birman', 'Abyssinian', 'American Curl'] as const
+const allergiesOptions = ['Dị ứng mùi nước hoa', 'Tránh hóa chất mạnh', 'Dị ứng thức ăn có tôm', null, null, null, null, null, null, null] as const
+const temperaments = ['Thân thiện', 'Nhút nhát', 'Hiếu động', 'Cẩn thận khi gặp chó lạ', 'Cần bịt mõm khi spa', 'Quấn chủ', 'Sợ sấm sét'] as const
 
 function addDays(base: Date, offset: number) {
   const value = new Date(base)
@@ -137,14 +215,16 @@ function roundCurrency(value: number) {
 
 async function main() {
   console.log('Seeding standardized demo data...')
-  await prisma.refreshToken.deleteMany()
 
   await prisma.$transaction([
     prisma.transaction.deleteMany(),
+    prisma.activityLog.deleteMany(),
     prisma.orderPayment.deleteMany(),
     prisma.orderItem.deleteMany(),
     prisma.order.deleteMany(),
     prisma.groomingSession.deleteMany(),
+    prisma.hotelStayAdjustment.deleteMany(),
+    prisma.hotelStayChargeLine.deleteMany(),
     prisma.hotelStay.deleteMany(),
     prisma.supplierReturnRefund.deleteMany(),
     prisma.supplierReturnItem.deleteMany(),
@@ -154,6 +234,9 @@ async function main() {
     prisma.stockReceiptReceiveItem.deleteMany(),
     prisma.stockReceiptReceive.deleteMany(),
     prisma.stockTransaction.deleteMany(),
+    prisma.stockCountItem.deleteMany(),
+    prisma.stockCountShiftSession.deleteMany(),
+    prisma.stockCountSession.deleteMany(),
     prisma.stockReceiptItem.deleteMany(),
     prisma.stockReceipt.deleteMany(),
     prisma.branchStock.deleteMany(),
@@ -168,30 +251,34 @@ async function main() {
     prisma.pet.deleteMany(),
     prisma.customer.deleteMany(),
     prisma.customerGroup.deleteMany(),
+    prisma.hotelPriceRule.deleteMany(),
+    prisma.holidayCalendarDate.deleteMany(),
     prisma.hotelRateTable.deleteMany(),
+    prisma.serviceWeightBand.deleteMany(),
     prisma.cage.deleteMany(),
     prisma.priceBook.deleteMany(),
     prisma.category.deleteMany(),
     prisma.brand.deleteMany(),
     prisma.unit.deleteMany(),
+    prisma.shiftSession.deleteMany(),
+    prisma.refreshToken.deleteMany(),
+    prisma.user.deleteMany(),
+    prisma.role.deleteMany(),
+    prisma.branch.deleteMany()
   ])
 
   const branchMap = new Map<string, any>()
   for (const seed of branchSeeds) {
-    const branch = await prisma.branch.upsert({
-      where: { id: seed.id },
-      update: { code: seed.code, name: seed.name, address: seed.address, phone: seed.phone, email: seed.email, isMain: seed.isMain, isActive: true } as any,
-      create: { ...seed, isActive: true } as any,
+    const branch = await prisma.branch.create({
+      data: { id: seed.id, code: seed.code, name: seed.name, address: seed.address, phone: seed.phone, email: seed.email, isMain: seed.isMain, isActive: true } as any,
     })
     branchMap.set(seed.code, branch)
   }
 
   const roleMap = new Map<string, any>()
   for (const seed of roleSeeds) {
-    const role = await prisma.role.upsert({
-      where: { code: seed.code },
-      update: { name: seed.name, isSystem: seed.isSystem, permissions: seed.permissions as any } as any,
-      create: { ...seed, description: `${seed.name} standard role` } as any,
+    const role = await prisma.role.create({
+      data: { code: seed.code, name: seed.name, isSystem: seed.isSystem, permissions: seed.permissions as any, description: `${seed.name} standard role` } as any,
     })
     roleMap.set(seed.code, role)
   }
@@ -201,7 +288,7 @@ async function main() {
     update: {
       shopName: 'PetCare Unified Demo',
       shopPhone: '02871008888',
-      shopAddress: '12 Nguyen Hue, Quan 1, TP HCM',
+      shopAddress: '12 Nguyễn Huệ, Quận 1, TP HCM',
       currency: 'VND',
       timezone: 'Asia/Ho_Chi_Minh',
       loyaltySpendPerPoint: 1000,
@@ -213,7 +300,7 @@ async function main() {
       id: 'system-config-main',
       shopName: 'PetCare Unified Demo',
       shopPhone: '02871008888',
-      shopAddress: '12 Nguyen Hue, Quan 1, TP HCM',
+      shopAddress: '12 Nguyễn Huệ, Quận 1, TP HCM',
       currency: 'VND',
       timezone: 'Asia/Ho_Chi_Minh',
       loyaltySpendPerPoint: 1000,
@@ -229,51 +316,51 @@ async function main() {
   }
 
   const userSeeds = [
-    { username: 'superadmin', staffCode: 'NV00001', fullName: 'Super Admin', roleCode: 'SUPER_ADMIN', branchCode: 'MAIN', legacyRole: 'SUPER_ADMIN', passwordHash: hashes.admin },
-    { username: 'admin', staffCode: 'NV00002', fullName: 'Admin He Thong', roleCode: 'ADMIN', branchCode: 'MAIN', legacyRole: 'ADMIN', passwordHash: hashes.admin },
-    { username: 'manager', staffCode: 'NV00003', fullName: 'Quan Ly Trung Tam', roleCode: 'MANAGER', branchCode: 'MAIN', legacyRole: 'MANAGER', passwordHash: hashes.staff },
-    { username: 'cashier01', staffCode: 'NV00004', fullName: 'Thu Ngan Main', roleCode: 'STAFF', branchCode: 'MAIN', legacyRole: 'STAFF', passwordHash: hashes.staff },
-    { username: 'groomer01', staffCode: 'NV00005', fullName: 'Ky Thuat Grooming 1', roleCode: 'STAFF', branchCode: 'BT', legacyRole: 'STAFF', passwordHash: hashes.staff },
-    { username: 'groomer02', staffCode: 'NV00006', fullName: 'Ky Thuat Grooming 2', roleCode: 'STAFF', branchCode: 'Q7', legacyRole: 'STAFF', passwordHash: hashes.staff },
-    { username: 'hotel01', staffCode: 'NV00007', fullName: 'Dieu Phoi Hotel 1', roleCode: 'STAFF', branchCode: 'MAIN', legacyRole: 'STAFF', passwordHash: hashes.staff },
-    { username: 'hotel02', staffCode: 'NV00008', fullName: 'Dieu Phoi Hotel 2', roleCode: 'STAFF', branchCode: 'BT', legacyRole: 'STAFF', passwordHash: hashes.staff },
+    { username: 'superadmin', fullName: 'Trần Văn Hùng', roleCode: 'SUPER_ADMIN', branchCode: 'MAIN', shiftStart: '08:00', shiftEnd: '17:00', baseSalary: 0, phone: '0901234501', gender: 'MALE', dob: new Date('1990-01-01') },
+    { username: 'admin', fullName: 'Nguyễn Thị Lan', roleCode: 'ADMIN', branchCode: 'MAIN', shiftStart: '08:00', shiftEnd: '17:00', baseSalary: 0, phone: '0901234502', gender: 'FEMALE', dob: new Date('1992-05-15') },
+    { username: 'manager', fullName: 'Lê Quốc Bảo', roleCode: 'MANAGER', branchCode: 'MAIN', shiftStart: '08:00', shiftEnd: '17:00', baseSalary: 12000000, phone: '0901234503', gender: 'MALE', dob: new Date('1993-08-20') },
+    { username: 'manager_bt', fullName: 'Phạm Thị Hoa', roleCode: 'MANAGER', branchCode: 'BT', shiftStart: '08:00', shiftEnd: '17:00', baseSalary: 11000000, phone: '0901234504', gender: 'FEMALE', dob: new Date('1991-11-10') },
+    { username: 'manager_q7', fullName: 'Võ Minh Khoa', roleCode: 'MANAGER', branchCode: 'Q7', shiftStart: '09:00', shiftEnd: '18:00', baseSalary: 11000000, phone: '0901234505', gender: 'MALE', dob: new Date('1994-03-25') },
+    { username: 'cashier01', fullName: 'Đặng Thị Thu', roleCode: 'STAFF', branchCode: 'MAIN', shiftStart: '08:00', shiftEnd: '17:00', baseSalary: 7500000, phone: '0901234506', gender: 'FEMALE', dob: new Date('1998-07-12') },
+    { username: 'cashier02', fullName: 'Bùi Thanh Tùng', roleCode: 'STAFF', branchCode: 'MAIN', shiftStart: '13:00', shiftEnd: '21:00', baseSalary: 7500000, phone: '0901234507', gender: 'MALE', dob: new Date('1999-02-28') },
+    { username: 'groomer01', fullName: 'Cao Mỹ Duyên', roleCode: 'STAFF', branchCode: 'MAIN', shiftStart: '08:00', shiftEnd: '17:00', baseSalary: 8000000, phone: '0901234508', gender: 'FEMALE', dob: new Date('1996-09-05') },
+    { username: 'groomer02', fullName: 'Ngô Thị Hà', roleCode: 'STAFF', branchCode: 'BT', shiftStart: '08:00', shiftEnd: '17:00', baseSalary: 8000000, phone: '0901234509', gender: 'FEMALE', dob: new Date('1995-12-18') },
+    { username: 'groomer03', fullName: 'Hồ Văn Tiến', roleCode: 'STAFF', branchCode: 'Q7', shiftStart: '09:00', shiftEnd: '18:00', baseSalary: 8000000, phone: '0901234510', gender: 'MALE', dob: new Date('1997-04-14') },
+    { username: 'groomer04', fullName: 'Trương Thị Bích', roleCode: 'STAFF', branchCode: 'BT', shiftStart: '13:00', shiftEnd: '21:00', baseSalary: 7800000, phone: '0901234511', gender: 'FEMALE', dob: new Date('2000-10-30') },
+    { username: 'hotel01', fullName: 'Lý Thị Cam', roleCode: 'STAFF', branchCode: 'MAIN', shiftStart: '07:00', shiftEnd: '16:00', baseSalary: 7200000, phone: '0901234512', gender: 'FEMALE', dob: new Date('1998-06-22') },
+    { username: 'hotel02', fullName: 'Huỳnh Đăng Khoa', roleCode: 'STAFF', branchCode: 'BT', shiftStart: '07:00', shiftEnd: '16:00', baseSalary: 7200000, phone: '0901234513', gender: 'MALE', dob: new Date('1999-01-05') },
+    { username: 'hotel03', fullName: 'Mai Ngọc Yến', roleCode: 'STAFF', branchCode: 'Q7', shiftStart: '08:00', shiftEnd: '17:00', baseSalary: 7200000, phone: '0901234514', gender: 'FEMALE', dob: new Date('1997-08-19') },
+    { username: 'receptionist01', fullName: 'Lâm Nhã Uyên', roleCode: 'STAFF', branchCode: 'MAIN', shiftStart: '08:00', shiftEnd: '17:00', baseSalary: 7000000, phone: '0901234515', gender: 'FEMALE', dob: new Date('2001-03-08') },
   ] as const
 
   const userMap = new Map<string, any>()
-  for (const seed of userSeeds) {
-    const existing = await prisma.user.findFirst({
-      where: {
-        OR: [{ username: seed.username }, { staffCode: seed.staffCode }],
-      },
-    })
-
+  for (let i=0; i<userSeeds.length; i++) {
+    const seed = userSeeds[i]!
     const payload = {
       username: seed.username,
-      staffCode: seed.staffCode,
-      passwordHash: seed.passwordHash,
+      staffCode: `NV${String(i+1).padStart(5, '0')}`,
+      passwordHash: seed.roleCode.includes('ADMIN') ? hashes.admin : hashes.staff,
       fullName: seed.fullName,
-      legacyRole: seed.legacyRole as any,
+      legacyRole: 'STAFF' as any,
       roleId: roleMap.get(seed.roleCode).id,
       status: 'WORKING',
       employmentType: 'FULL_TIME',
       branchId: branchMap.get(seed.branchCode).id,
-      joinDate: new Date('2025-01-01T09:00:00+07:00'),
+      joinDate: new Date('2024-06-01T09:00:00+07:00'),
     }
 
-    const user = existing
-      ? await prisma.user.update({ where: { id: existing.id }, data: payload as any })
-      : await prisma.user.create({ data: payload as any })
+    const user = await prisma.user.create({ data: payload as any })
     userMap.set(seed.username, user)
   }
 
-  await prisma.category.createMany({ data: ['Thuc an', 'Ve sinh', 'Phu kien', 'Cham soc', 'Thuoc'].map((name) => ({ name, description: `${name} standard demo category` })) as any[] })
-  await prisma.brand.createMany({ data: ['Royal Canin', 'SmartHeart', 'Me O', 'Bio Care', 'PetStyle', 'Virbac', 'Dr Pet'].map((name) => ({ name })) as any[] })
-  await prisma.unit.createMany({ data: ['goi', 'chai', 'hop', 'cai', 'thanh'].map((name) => ({ name, description: `${name} unit` })) as any[] })
+  await prisma.category.createMany({ data: ['Thức ăn', 'Vệ sinh', 'Phụ kiện', 'Chăm sóc', 'Thuốc'].map((name) => ({ name, description: `${name} standard demo category` })) as any[] })
+  await prisma.brand.createMany({ data: ['Royal Canin', 'SmartHeart', 'Orijen', 'Happy Bark Foods', 'VitaCraft', 'PetBar', 'Acana', 'Me O', 'Whiskas', 'Purina', 'Temptations', 'Ciao', 'Hill\'s', 'Natural Cat Litter', 'Crystal Sand', 'Bio Care', 'PetStyle', 'PawScent', 'FunPet', 'Dr Pet', 'NutriPet', 'PetDent', 'Virbac', 'Vetcare'].map((name) => ({ name })) as any[] })
+  await prisma.unit.createMany({ data: ['gói', 'chai', 'hộp', 'cái', 'thanh', 'tuýp'].map((name) => ({ name, description: `${name} unit` })) as any[] })
   await prisma.priceBook.createMany({
     data: [
-      { name: 'Gia le toan he thong', channel: 'POS', isDefault: true, isActive: true, sortOrder: 1 },
-      { name: 'Gia combo grooming', channel: 'SPA', isDefault: false, isActive: true, sortOrder: 2 },
-      { name: 'Gia luu tru qua dem', channel: 'HOTEL', isDefault: false, isActive: true, sortOrder: 3 },
+      { name: 'Giá lẻ toàn hệ thống', channel: 'POS', isDefault: true, isActive: true, sortOrder: 1 },
+      { name: 'Giá combo grooming', channel: 'SPA', isDefault: false, isActive: true, sortOrder: 2 },
+      { name: 'Giá lưu trú qua đêm', channel: 'HOTEL', isDefault: false, isActive: true, sortOrder: 3 },
     ] as any[],
   })
 
@@ -304,14 +391,26 @@ async function main() {
 
   const serviceMap = new Map<string, any>()
   const serviceSeeds = [
-    { key: 'GROOM_BASIC', code: 'SVCGROOM001', name: 'Tam say co ban', type: 'GROOMING', price: 180000, duration: 60 },
-    { key: 'GROOM_SMALL', code: 'SVCGROOM002', name: 'Cat tia cho nho', type: 'GROOMING', price: 250000, duration: 90 },
-    { key: 'GROOM_LARGE', code: 'SVCGROOM003', name: 'Cat tia cho lon', type: 'GROOMING', price: 360000, duration: 120 },
-    { key: 'GROOM_CAT', code: 'SVCGROOM004', name: 'Spa meo long ngan', type: 'GROOMING', price: 220000, duration: 75 },
-    { key: 'GROOM_DETOX', code: 'SVCGROOM005', name: 'Spa detox da nhay cam', type: 'GROOMING', price: 320000, duration: 105 },
-    { key: 'HOTEL_STD', code: 'SVCHOTEL001', name: 'Luu tru tieu chuan', type: 'HOTEL', price: 190000, duration: null },
-    { key: 'HOTEL_CAT', code: 'SVCHOTEL002', name: 'Luu tru meo premium', type: 'HOTEL', price: 170000, duration: null },
-    { key: 'HOTEL_VIP', code: 'SVCHOTEL003', name: 'Phong hotel dieu hoa', type: 'HOTEL', price: 260000, duration: null },
+    { key: 'SVCGROOM001', code: 'SVCGROOM001', name: 'Tắm sấy cơ bản', type: 'GROOMING', price: 180000, duration: 60 },
+    { key: 'SVCGROOM002', code: 'SVCGROOM002', name: 'Tắm sấy + cắt tỉa chó nhỏ', type: 'GROOMING', price: 250000, duration: 90 },
+    { key: 'SVCGROOM003', code: 'SVCGROOM003', name: 'Tắm sấy + cắt tỉa chó lớn', type: 'GROOMING', price: 360000, duration: 120 },
+    { key: 'SVCGROOM004', code: 'SVCGROOM004', name: 'Spa mèo lông ngắn', type: 'GROOMING', price: 220000, duration: 75 },
+    { key: 'SVCGROOM005', code: 'SVCGROOM005', name: 'Spa mèo lông dài', type: 'GROOMING', price: 295000, duration: 105 },
+    { key: 'SVCGROOM006', code: 'SVCGROOM006', name: 'Spa detox da nhạy cảm', type: 'GROOMING', price: 320000, duration: 105 },
+    { key: 'SVCGROOM007', code: 'SVCGROOM007', name: 'Gội đầu dưỡng lông Olaplex', type: 'GROOMING', price: 180000, duration: 45 },
+    { key: 'SVCGROOM008', code: 'SVCGROOM008', name: 'Cắt móng + vệ sinh tai', type: 'GROOMING', price: 95000, duration: 30 },
+    { key: 'SVCGROOM009', code: 'SVCGROOM009', name: 'Tẩy ố lông vàng lông trắng', type: 'GROOMING', price: 245000, duration: 90 },
+    { key: 'SVCGROOM010', code: 'SVCGROOM010', name: 'Massage thư giãn 30 phút', type: 'GROOMING', price: 150000, duration: 30 },
+    { key: 'SVCGROOM011', code: 'SVCGROOM011', name: 'Tắm sấy + cắt tỉa chó XL', type: 'GROOMING', price: 450000, duration: 150 },
+    { key: 'SVCGROOM012', code: 'SVCGROOM012', name: 'Combo full service (tắm+cắt+spa)', type: 'GROOMING', price: 520000, duration: 180 },
+    { key: 'SVCHOTEL001', code: 'SVCHOTEL001', name: 'Chuồng tiêu chuẩn (chó nhỏ)', type: 'HOTEL', price: 190000, duration: null },
+    { key: 'SVCHOTEL002', code: 'SVCHOTEL002', name: 'Chuồng tiêu chuẩn (chó lớn)', type: 'HOTEL', price: 240000, duration: null },
+    { key: 'SVCHOTEL003', code: 'SVCHOTEL003', name: 'Phòng mèo premium', type: 'HOTEL', price: 170000, duration: null },
+    { key: 'SVCHOTEL004', code: 'SVCHOTEL004', name: 'Phòng VIP điều hòa', type: 'HOTEL', price: 320000, duration: null },
+    { key: 'SVCHOTEL005', code: 'SVCHOTEL005', name: 'Phòng VIP ban công', type: 'HOTEL', price: 380000, duration: null },
+    { key: 'SVCHOTEL006', code: 'SVCHOTEL006', name: 'Chuồng phòng ngủ qua đêm', type: 'HOTEL', price: 210000, duration: null },
+    { key: 'SVCHOTEL007', code: 'SVCHOTEL007', name: 'Gói daycare (7h–19h)', type: 'HOTEL', price: 130000, duration: null },
+    { key: 'SVCHOTEL008', code: 'SVCHOTEL008', name: 'Gói daycare + tắm sấy', type: 'HOTEL', price: 260000, duration: null },
   ] as const
   for (const seed of serviceSeeds) {
     const service = await prisma.service.create({
@@ -321,20 +420,20 @@ async function main() {
   }
   await prisma.serviceVariant.createMany({
     data: [
-      { serviceId: serviceMap.get('GROOM_BASIC').id, name: 'Cho nho duoi 5kg', price: 180000, duration: 60 },
-      { serviceId: serviceMap.get('GROOM_SMALL').id, name: 'Cho 5kg den 10kg', price: 250000, duration: 90 },
-      { serviceId: serviceMap.get('GROOM_LARGE').id, name: 'Cho tren 10kg', price: 360000, duration: 120 },
-      { serviceId: serviceMap.get('GROOM_CAT').id, name: 'Meo long ngan', price: 220000, duration: 75 },
-      { serviceId: serviceMap.get('GROOM_DETOX').id, name: 'Da nhay cam', price: 320000, duration: 105 },
-      { serviceId: serviceMap.get('HOTEL_STD').id, name: 'Chuong tieu chuan', price: 190000, duration: null },
-      { serviceId: serviceMap.get('HOTEL_CAT').id, name: 'Phong meo premium', price: 170000, duration: null },
-      { serviceId: serviceMap.get('HOTEL_VIP').id, name: 'Phong dieu hoa', price: 260000, duration: null },
+      { serviceId: serviceMap.get('SVCGROOM002').id, name: 'Chó nhỏ dưới 5kg', price: 250000, duration: 90 },
+      { serviceId: serviceMap.get('SVCGROOM002').id, name: 'Chó 5kg đến 10kg', price: 320000, duration: 110 },
+      { serviceId: serviceMap.get('SVCGROOM003').id, name: 'Chó lớn trên 10kg', price: 360000, duration: 120 },
+      { serviceId: serviceMap.get('SVCGROOM004').id, name: 'Mèo lông ngắn', price: 220000, duration: 75 },
+      { serviceId: serviceMap.get('SVCGROOM005').id, name: 'Mèo lông dài', price: 295000, duration: 105 },
+      { serviceId: serviceMap.get('SVCHOTEL001').id, name: 'Chuồng tiêu chuẩn', price: 190000, duration: null },
+      { serviceId: serviceMap.get('SVCHOTEL003').id, name: 'Phòng mèo premium', price: 170000, duration: null },
     ] as any[],
   })
 
+  // Using the original 12 cages
   const cageMap = new Map<string, any>()
   for (const [name, type] of [
-    ['A01', 'REGULAR'], ['A02', 'REGULAR'], ['A03', 'REGULAR'],
+    ['A01', 'REGULAR'], ['A02', 'REGULAR'], ['A03', 'REGULAR'], ['A04', 'REGULAR'], ['A05', 'REGULAR'], ['A06', 'REGULAR'],
     ['B01', 'REGULAR'], ['B02', 'REGULAR'], ['B03', 'REGULAR'],
     ['C01', 'REGULAR'], ['C02', 'REGULAR'], ['C03', 'REGULAR'],
     ['VIP01', 'HOLIDAY'], ['VIP02', 'HOLIDAY'], ['VIP03', 'HOLIDAY'],
@@ -347,11 +446,11 @@ async function main() {
 
   const rateTableMap = new Map<string, any>()
   for (const seed of [
-    { key: 'DOG_SMALL', name: 'Bang gia cho nho 2026', species: 'Cho', minWeight: 0, maxWeight: 5, lineType: 'REGULAR', ratePerNight: 190000 },
-    { key: 'DOG_MEDIUM', name: 'Bang gia cho vua 2026', species: 'Cho', minWeight: 5, maxWeight: 12, lineType: 'REGULAR', ratePerNight: 220000 },
-    { key: 'DOG_LARGE', name: 'Bang gia cho lon 2026', species: 'Cho', minWeight: 12, maxWeight: 35, lineType: 'REGULAR', ratePerNight: 260000 },
-    { key: 'CAT_STD', name: 'Bang gia meo 2026', species: 'Meo', minWeight: 0, maxWeight: 10, lineType: 'REGULAR', ratePerNight: 170000 },
-    { key: 'VIP_ALL', name: 'Bang gia phong VIP 2026', species: null, minWeight: 0, maxWeight: 40, lineType: 'HOLIDAY', ratePerNight: 320000 },
+    { key: 'DOG_SMALL', name: 'Bảng giá chó nhỏ 2026', species: 'Chó', minWeight: 0, maxWeight: 5, lineType: 'REGULAR', ratePerNight: 190000 },
+    { key: 'DOG_MEDIUM', name: 'Bảng giá chó vừa 2026', species: 'Chó', minWeight: 5, maxWeight: 12, lineType: 'REGULAR', ratePerNight: 240000 },
+    { key: 'DOG_LARGE', name: 'Bảng giá chó lớn 2026', species: 'Chó', minWeight: 12, maxWeight: 35, lineType: 'REGULAR', ratePerNight: 260000 },
+    { key: 'CAT_STD', name: 'Bảng giá mèo 2026', species: 'Mèo', minWeight: 0, maxWeight: 10, lineType: 'REGULAR', ratePerNight: 170000 },
+    { key: 'VIP_ALL', name: 'Bảng giá phòng VIP 2026', species: null, minWeight: 0, maxWeight: 40, lineType: 'HOLIDAY', ratePerNight: 320000 },
   ] as const) {
     const rate = await prisma.hotelRateTable.create({
       data: { name: seed.name, year: 2026, species: seed.species, minWeight: seed.minWeight, maxWeight: seed.maxWeight, lineType: seed.lineType as any, ratePerNight: seed.ratePerNight, isActive: true } as any,
@@ -359,24 +458,116 @@ async function main() {
     rateTableMap.set(seed.key, rate)
   }
 
+  const hotelWeightBandMap = new Map<string, any>()
+  for (const [index, seed] of [
+    { key: 'LT2', label: '<2kg', minWeight: 0, maxWeight: 2 },
+    { key: '2_4', label: '2-4kg', minWeight: 2, maxWeight: 4 },
+    { key: '4_6', label: '4-6kg', minWeight: 4, maxWeight: 6 },
+    { key: '6_9', label: '6-9kg', minWeight: 6, maxWeight: 9 },
+    { key: '9_12', label: '9-12kg', minWeight: 9, maxWeight: 12 },
+    { key: '12_15', label: '12-15kg', minWeight: 12, maxWeight: 15 },
+    { key: '15_20', label: '15-20kg', minWeight: 15, maxWeight: 20 },
+    { key: '20_30', label: '20-30kg', minWeight: 20, maxWeight: 30 },
+    { key: '30_40', label: '30-40kg', minWeight: 30, maxWeight: 40 },
+    { key: '40_50', label: '40-50kg', minWeight: 40, maxWeight: 50 },
+    { key: 'GT50', label: '>50kg', minWeight: 50, maxWeight: null },
+  ].entries()) {
+    const band = await prisma.serviceWeightBand.create({
+      data: {
+        serviceType: 'HOTEL',
+        species: null,
+        label: seed.label,
+        minWeight: seed.minWeight,
+        maxWeight: seed.maxWeight,
+        sortOrder: index,
+        isActive: true,
+      } as any,
+    })
+    hotelWeightBandMap.set(seed.key, band)
+  }
+
+  const branchPricingAdjustments: Record<string, number> = {
+    MAIN: 0,
+    BT: 10000,
+    Q7: 20000,
+  }
+
+  for (const [bandIndex, bandKey] of [...hotelWeightBandMap.keys()].entries()) {
+    const baseRegular = 140000 + bandIndex * 20000
+    const baseHoliday = Math.round(baseRegular * 1.3)
+    const weightBandId = hotelWeightBandMap.get(bandKey).id
+
+    for (const [branchCode, branchDelta] of Object.entries(branchPricingAdjustments)) {
+      await prisma.hotelPriceRule.createMany({
+        data: [
+          {
+            year: 2026,
+            branchId: branchMap.get(branchCode).id,
+            species: null,
+            weightBandId,
+            dayType: 'REGULAR',
+            fullDayPrice: baseRegular + branchDelta,
+            halfDayPrice: Math.round((baseRegular + branchDelta) / 2),
+            isActive: true,
+          },
+          {
+            year: 2026,
+            branchId: branchMap.get(branchCode).id,
+            species: null,
+            weightBandId,
+            dayType: 'HOLIDAY',
+            fullDayPrice: baseHoliday + branchDelta,
+            halfDayPrice: Math.round((baseHoliday + branchDelta) / 2),
+            isActive: true,
+          },
+        ] as any[],
+      })
+    }
+  }
+
+  await prisma.holidayCalendarDate.createMany({
+    data: [
+      {
+        date: new Date('2026-01-01T00:00:00.000Z'),
+        endDate: new Date('2026-01-01T00:00:00.000Z'),
+        year: 2026,
+        name: 'Tet Duong lich',
+        isRecurring: true,
+        isActive: true,
+      },
+      {
+        date: new Date('2026-09-02T00:00:00.000Z'),
+        endDate: new Date('2026-09-02T00:00:00.000Z'),
+        year: 2026,
+        name: 'Quoc khanh',
+        isRecurring: true,
+        isActive: true,
+      },
+    ] as any[],
+  })
+
   const customerMap = new Map<string, any>()
-  for (let index = 0; index < customerNames.length; index += 1) {
-    const fullName = customerNames[index]!
+  for (let index = 0; index < customerSeeds.length; index += 1) {
+    const seed = customerSeeds[index]!
     const code = sequentialCode('KH', index + 1)
-    const groupKey = index % 6 === 0 ? 'VIP' : index % 4 === 0 ? 'HOTEL' : index % 3 === 0 ? 'SPA' : 'LOYAL'
+    const email = `${seed.name.toLowerCase().replace(/\s+/g, '.')}@petcare.local`
+    
+    // Convert Vietnamese to lowercase no diacritics for realistic email (simple version)
+    const cleanEmail = email.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D")
+
     const customer = await prisma.customer.create({
       data: {
         customerCode: code,
-        fullName,
-        phone: `09010000${String(index + 1).padStart(2, '0')}`,
-        email: `${fullName.toLowerCase().replace(/\s+/g, '.')}@petcare.local`,
+        fullName: seed.name,
+        phone: seed.phone,
+        email: cleanEmail,
         address: `${12 + index * 3} ${streets[index % streets.length]}`,
-        tier: (index % 6 === 0 ? 'PLATINUM' : index % 4 === 0 ? 'GOLD' : index % 3 === 0 ? 'SILVER' : 'BRONZE') as any,
+        tier: seed.tier as any,
         points: 0,
         pointsUsed: index % 5 === 0 ? 40 : 0,
-        groupId: groupMap.get(groupKey).id,
+        groupId: groupMap.get(seed.group).id,
         notes: `Demo customer ${code}`,
-        debt: 0,
+        debt: seed.debt,
         totalSpent: 0,
         totalOrders: 0,
         isActive: true,
@@ -390,687 +581,801 @@ async function main() {
   for (let index = 0; index < petNames.length; index += 1) {
     const name = petNames[index]!
     const code = sequentialCode('PET', index + 1)
-    const customerCode = sequentialCode('KH', (index % customerNames.length) + 1)
-    const species = index % 4 === 1 || index % 4 === 2 ? 'Meo' : 'Cho'
-    const breed = species === 'Cho' ? dogBreeds[index % dogBreeds.length] : catBreeds[index % catBreeds.length]
+    const customerIdx = index % customerSeeds.length
+    const customerCode = sequentialCode('KH', customerIdx + 1)
+    const customerInfo = customerSeeds[customerIdx]!
+    const species = index % 5 < 3 ? 'Chó' : 'Mèo' // 30 dogs, 20 cats
+    const breed = species === 'Chó' ? dogBreeds[index % dogBreeds.length]! : catBreeds[index % catBreeds.length]!
+    const hasChip = index % 3 === 0
+    
     const pet = await prisma.pet.create({
       data: {
         petCode: code,
         name,
         species,
         breed,
-        gender: (index % 2 === 0 ? 'MALE' : 'FEMALE') as any,
-        dateOfBirth: addDays(NOW, -(260 + index * 9)),
-        weight: species === 'Cho' ? 3 + (index % 8) * 2.1 : 2.8 + (index % 6) * 0.5,
-        color: ['Kem', 'Trang', 'Xam', 'Nau', 'Vang', 'Socola'][index % 6],
-        microchipId: index % 3 === 0 ? `MC${String(index + 1).padStart(8, '0')}` : null,
-        notes: `Demo pet ${code}`,
+        gender: index % 2 === 0 ? 'MALE' : 'FEMALE',
+        weight: species === 'Chó' ? 2.5 + (index % 30) : 2.5 + (index % 5),
+        color: index % 4 === 0 ? 'Kem trắng' : index % 4 === 1 ? 'Socola nâu' : index % 4 === 2 ? 'Xám xanh' : 'Vàng cam',
+        microchipId: hasChip ? `CHIP${String(index+1).padStart(5, '0')}` : null,
+        allergies: allergiesOptions[index % allergiesOptions.length],
+        temperament: temperaments[index % temperaments.length],
         customerId: customerMap.get(customerCode).id,
-        allergies: index % 5 === 0 ? 'Tranh sua tam mui manh' : null,
-        temperament: ['Than thien', 'Tinh nghich', 'Diu', 'Canh giac'][index % 4],
-        isActive: true,
-        createdAt: setTime(addDays(NOW, -(24 - (index % 18))), 8 + (index % 8), 5),
+        notes: `Thú cưng ${name} của ${customerInfo.name}`,
+        createdAt: setTime(addDays(NOW, -(20 + index)), 10, 0),
       } as any,
     })
     petMap.set(code, pet)
-    await prisma.petWeightLog.create({ data: { petId: pet.id, weight: pet.weight, date: addDays(NOW, -14), notes: 'Cap nhat can nang demo', createdAt: addDays(NOW, -14) } as any })
-    await prisma.petVaccination.create({ data: { petId: pet.id, vaccineName: species === 'Cho' ? '7 in 1' : '4 in 1', date: addDays(NOW, -60), nextDueDate: addDays(NOW, 300), notes: 'Lich tiem demo', createdAt: addDays(NOW, -60) } as any })
-    if (index % 2 === 0) {
-      await prisma.petHealthNote.create({ data: { petId: pet.id, content: 'The trang on dinh, du dieu kien spa/hotel', date: addDays(NOW, -20), createdAt: addDays(NOW, -20) } as any })
+    
+    // Add health records
+    await prisma.petWeightLog.createMany({
+      data: [
+        { petId: pet.id, weight: pet.weight! - 0.5, date: addDays(NOW, -90), notes: 'Sức khỏe bình thường' },
+        { petId: pet.id, weight: pet.weight!, date: addDays(NOW, -30), notes: 'Tăng cân đều' },
+      ] as any[]
+    })
+    
+    await prisma.petVaccination.create({
+      data: {
+        petId: pet.id,
+        vaccineName: species === 'Chó' ? 'Vaccine 7 bệnh' : 'Vaccine 4 bệnh',
+        date: addDays(NOW, -180),
+        nextDueDate: addDays(NOW, 180),
+      } as any
+    })
+    
+    if (customerInfo.tier === 'PLATINUM' || customerInfo.tier === 'GOLD') {
+      await prisma.petHealthNote.create({
+        data: {
+          petId: pet.id,
+          content: `Khám định kỳ tổng quát. Tình trạng tốt. Cần lưu ý chế độ ăn.`,
+          date: addDays(NOW, -15),
+        } as any
+      })
     }
   }
+
+  const categoryMap = new Map<string, any>()
+  const cats = await prisma.category.findMany()
+  cats.forEach((c) => categoryMap.set(c.name, c))
+
+  const brandMap = new Map<string, any>()
+  const brds = await prisma.brand.findMany()
+  brds.forEach((b) => brandMap.set(b.name, b))
+
+  const unitMap = new Map<string, any>()
+  const uns = await prisma.unit.findMany()
+  uns.forEach((u) => unitMap.set(u.name, u))
+
+  const posPriceBook = await prisma.priceBook.findFirst({ where: { channel: 'POS' } })
 
   const productMap = new Map<string, any>()
-  for (let index = 0; index < productSeeds.length; index += 1) {
-    const seed = productSeeds[index]!
-    const product = await prisma.product.create({
+  for (const [code, name, categoryName, brandName, unitName, price, costPrice, targetSpecies, countShift, supKey] of productSeeds) {
+    const id = `prod-${code.toLowerCase()}`
+    const p = await prisma.product.create({
       data: {
-        sku: seed[0],
-        barcode: `89310000${String(index + 1).padStart(4, '0')}`,
-        name: seed[1],
-        category: seed[2],
-        brand: seed[3],
-        description: `${seed[1]} standard demo product`,
-        unit: seed[4],
-        price: seed[5],
-        costPrice: seed[6],
-        minStock: seed[7],
-        supplierId: supplierMap.get(seed[8]).id,
+        id,
+        sku: code,
+        name,
+        targetSpecies,
+        lastCountShift: countShift as StockCountShift,
+        price,
+        costPrice,
+        category: categoryName,
+        brand: brandName,
+        unit: unitName,
+        supplierId: supplierMap.get(supKey).id,
         isActive: true,
-        weight: seed[2] === 'Thuc an' ? 1.2 + (index % 4) * 0.5 : 0.4 + (index % 3) * 0.1,
-        wholesalePrice: Math.round(seed[5] * 0.92),
-        createdAt: setTime(addDays(NOW, -(40 - index)), 7 + (index % 6), 20),
       } as any,
     })
-    productMap.set(seed[0], product)
-    for (let branchIndex = 0; branchIndex < 3; branchIndex += 1) {
-      const branchCode = (['MAIN', 'BT', 'Q7'] as const)[branchIndex]!
+    productMap.set(code, p)
+
+    await prisma.productVariant.create({
+      data: { sku: code, barcode: `893${code.slice(-6)}${code.slice(-4, -1)}`, name, productId: p.id, price, costPrice, isActive: true } as any,
+    })
+
+    for (const bCode of ['MAIN', 'BT', 'Q7']) {
       await prisma.branchStock.create({
-        data: {
-          branchId: branchMap.get(branchCode).id,
-          productId: product.id,
-          stock: index % 6 === 0 && branchCode === 'Q7' ? 4 : 16 + ((index * 7 + branchIndex * 5) % 28),
-          reservedStock: index % 5 === 0 ? 1 : 0,
-          minStock: seed[7],
-        } as any,
+        data: { branchId: branchMap.get(bCode).id, productId: p.id, stock: 50, minStock: 20 } as any,
       })
     }
   }
 
-  const products = Array.from(productMap.values())
-  const orderCounts = new Map<string, number>()
-  const incomeCounts = new Map<string, number>()
-  const expenseCounts = new Map<string, number>()
-  const groomingCounts = new Map<string, number>()
-  const hotelCounts = new Map<string, number>()
-  const customerStats = new Map<string, { totalSpent: number; totalOrders: number; debt: number }>()
-  let receiptSequence = 1
-  let receiveSequence = 1
-  let paymentSequence = 1
-  let returnSequence = 1
-  let refundSequence = 1
+  // Stock Receipts - 30 receipts
+  console.log('Seeding stock receipts...')
+  const rxStatuses = [
+    'FULLY_PAID', 'FULLY_PAID', 'FULLY_PAID', 'FULLY_PAID', 'FULLY_PAID', 'FULLY_PAID', 'FULLY_PAID',
+    'FULLY_PARTIAL', 'FULLY_PARTIAL', 'FULLY_PARTIAL', 'FULLY_PARTIAL', 'FULLY_PARTIAL', 'FULLY_PARTIAL',
+    'PARTIAL_RECEIVED', 'PARTIAL_RECEIVED', 'PARTIAL_RECEIVED', 'PARTIAL_RECEIVED', 'PARTIAL_RECEIVED', 'PARTIAL_RECEIVED',
+    'SHORT_CLOSED', 'SHORT_CLOSED', 'SHORT_CLOSED', 'SHORT_CLOSED', 'SHORT_CLOSED',
+    'PREPAID_DRAFT', 'PREPAID_DRAFT', 'PREPAID_DRAFT', 'PREPAID_DRAFT',
+    'CANCELLED', 'CANCELLED'
+  ]
 
-  for (const customer of Array.from(customerMap.values())) customerStats.set(customer.id, { totalSpent: 0, totalOrders: 0, debt: 0 })
+  for (let index = 0; index < 30; index += 1) {
+    const rxDate = addDays(NOW, -(30 - index))
+    const status = rxStatuses[index]!
+    const supplier = supplierMap.get(`SUP${(index % 6) + 1}`)!
+    
+    let dbStatus = 'DRAFT'
+    let receiveStatus = 'UNRECEIVED'
+    let paymentStatus = 'UNPAID'
+    
+    if (status === 'FULLY_PAID') { dbStatus = 'COMPLETED'; receiveStatus = 'FULLY_RECEIVED'; paymentStatus = 'PAID' }
+    if (status === 'FULLY_PARTIAL') { dbStatus = 'COMPLETED'; receiveStatus = 'FULLY_RECEIVED'; paymentStatus = 'PARTIAL' }
+    if (status === 'PARTIAL_RECEIVED') { dbStatus = 'PARTIAL'; receiveStatus = 'PARTIAL'; paymentStatus = 'UNPAID' }
+    if (status === 'SHORT_CLOSED') { dbStatus = 'COMPLETED'; receiveStatus = 'PARTIAL'; paymentStatus = 'PAID' }
+    if (status === 'PREPAID_DRAFT') { dbStatus = 'DRAFT'; receiveStatus = 'UNRECEIVED'; paymentStatus = 'PARTIAL' }
+    if (status === 'CANCELLED') { dbStatus = 'CANCELLED'; receiveStatus = 'UNRECEIVED'; paymentStatus = 'UNPAID' }
 
-  const nextPerDay = (map: Map<string, number>, date: Date) => {
-    const key = date.toISOString().slice(0, 10)
-    const count = (map.get(key) ?? 0) + 1
-    map.set(key, count)
-    return count
-  }
-
-  const nextPerMonthBranch = (map: Map<string, number>, date: Date, branchCode: string) => {
-    const key = `${branchCode}-${date.getFullYear()}-${date.getMonth() + 1}`
-    const count = (map.get(key) ?? 0) + 1
-    map.set(key, count)
-    return count
-  }
-
-  for (let index = 0; index < 24; index += 1) {
-    const createdAt = setTime(addDays(NOW, -(24 - index)), 8 + (index % 6), 15)
-    const supplierKey = supplierSeeds[index % supplierSeeds.length]!.key
-    const supplier = supplierMap.get(supplierKey)
-    const branch = branchMap.get(branchSeeds[index % branchSeeds.length]!.code)
-    const flow =
-      index < 5
-        ? 'FULLY_PAID'
-        : index < 10
-          ? 'FULLY_PARTIAL'
-          : index < 14
-            ? 'PARTIAL_RECEIVED'
-            : index < 18
-              ? 'SHORT_CLOSED'
-              : index < 21
-                ? 'PREPAID_DRAFT'
-                : 'CANCELLED'
-    const receiptNumber = procurementNumber('PO', createdAt, receiptSequence++)
-    const items = Array.from({ length: 2 + (index % 3) }, (_, itemIndex) => {
-      const product = products[(index * 2 + itemIndex) % products.length]!
-      const quantity = 8 + ((index + itemIndex) % 6) * 2
-      const unitPrice = product.costPrice ?? Math.round(product.price * 0.7)
-      return {
-        productId: product.id,
-        productVariantId: null,
-        quantity,
-        unitPrice,
-        totalPrice: quantity * unitPrice,
-      }
-    })
-    const totalAmount = roundCurrency(items.reduce((sum, item) => sum + item.totalPrice, 0))
-    const receipt = await prisma.stockReceipt.create({
+    const rx = await prisma.stockReceipt.create({
       data: {
-        receiptNumber,
-        supplierId: supplier.id,
-        branchId: branch.id,
-        status: flow === 'CANCELLED' ? 'CANCELLED' : 'DRAFT',
-        receiptStatus: flow === 'CANCELLED' ? 'CANCELLED' : 'DRAFT',
-        paymentStatus: 'UNPAID',
-        totalAmount,
-        totalReceivedAmount: 0,
-        totalReturnedAmount: 0,
-        paidAmount: 0,
-        notes: `Demo stock receipt ${receiptNumber} (${flow})`,
-        createdAt,
-        cancelledAt: flow === 'CANCELLED' ? setTime(createdAt, createdAt.getHours() + 1, 10) : null,
-        items: { create: items },
+        receiptNumber: procurementNumber('PN', rxDate, index + 1, 4),
+        branch: { connect: { id: branchMap.get('MAIN').id } },
+        supplier: { connect: { id: supplier.id } },
+        status: dbStatus as any,
+        receiptStatus: receiveStatus as any,
+        paymentStatus: paymentStatus as any,
+        totalAmount: 5000000,
+        paidAmount: paymentStatus === 'PAID' ? 5000000 : paymentStatus === 'PARTIAL' ? 2500000 : 0,
+        notes: `Phiếu nhập hàng tự động ${index + 1}`,
+        createdAt: rxDate,
+        updatedAt: rxDate,
       } as any,
-      include: { items: true },
     })
 
-    const receiptItems = receipt.items.map((item: any) => ({
-      ...item,
-      orderedQuantity: item.quantity,
-      receivedQuantity: 0,
-      returnedQuantity: 0,
-      closedQuantity: 0,
-    }))
-
-    let totalReceivedAmount = 0
-    let totalReturnedAmount = 0
-    let paidAmount = 0
-    let latestReceiveAt: Date | null = null
-    let shortClosedAt: Date | null = null
-
-    const createReceiveEvent = async (receivedAt: Date, ratios: number[]) => {
-      const receiveItems = receiptItems
-        .map((item, itemIndex) => {
-          const remaining = item.orderedQuantity - item.receivedQuantity - item.closedQuantity
-          const plannedQty = Math.min(remaining, Math.max(0, Math.round(item.orderedQuantity * ratios[itemIndex % ratios.length]!)))
-          const quantity = item.receivedQuantity === 0 && plannedQty === 0 && remaining > 0 ? 1 : plannedQty
-          return quantity > 0 && remaining > 0
-            ? {
-                item,
-                quantity: Math.min(quantity, remaining),
-                totalPrice: roundCurrency(Math.min(quantity, remaining) * item.unitPrice),
-              }
-            : null
-        })
-        .filter(Boolean) as Array<{ item: any; quantity: number; totalPrice: number }>
-
-      if (receiveItems.length === 0) return
-
-      await prisma.stockReceiptReceive.create({
-        data: {
-          receiveNumber: procurementNumber('RN', receivedAt, receiveSequence++),
-          receiptId: receipt.id,
-          branchId: branch.id,
-          staffId: userMap.get(index % 2 === 0 ? 'manager' : 'cashier01').id,
-          notes: `Ghi nhan nhap hang dot ${receiveSequence - 1} cho ${receipt.receiptNumber}`,
-          receivedAt,
-          totalQuantity: receiveItems.reduce((sum, entry) => sum + entry.quantity, 0),
-          totalAmount: roundCurrency(receiveItems.reduce((sum, entry) => sum + entry.totalPrice, 0)),
-          items: {
-            create: receiveItems.map((entry) => ({
-              receiptItemId: entry.item.id,
-              productId: entry.item.productId,
-              productVariantId: entry.item.productVariantId,
-              quantity: entry.quantity,
-              unitPrice: entry.item.unitPrice,
-              totalPrice: entry.totalPrice,
-            })),
-          },
-        } as any,
+    // Receipt items
+    const pv1 = await prisma.productVariant.findFirst({ where: { sku: productSeeds[index % 50]![0] } })
+    const pv2 = await prisma.productVariant.findFirst({ where: { sku: productSeeds[(index + 1) % 50]![0] } })
+    
+    if (pv1 && pv2) {
+      const ri1 = await prisma.stockReceiptItem.create({
+        data: { receiptId: rx.id, productId: pv1.productId, productVariantId: pv1.id, quantity: 100, unitPrice: pv1.costPrice || 0, totalPrice: (pv1.costPrice || 0) * 100 } as any
       })
-
-      for (const entry of receiveItems) {
-        entry.item.receivedQuantity += entry.quantity
-        totalReceivedAmount = roundCurrency(totalReceivedAmount + entry.totalPrice)
-        latestReceiveAt = receivedAt
-        await prisma.stockReceiptItem.update({
-          where: { id: entry.item.id },
-          data: { receivedQuantity: { increment: entry.quantity } } as any,
-        })
-        await prisma.branchStock.updateMany({
-          where: {
-            branchId: branch.id,
-            productId: entry.item.productId,
-            productVariantId: entry.item.productVariantId,
-          } as any,
-          data: { stock: { increment: entry.quantity } } as any,
-        })
-        await prisma.stockTransaction.create({
+      const ri2 = await prisma.stockReceiptItem.create({
+        data: { receiptId: rx.id, productId: pv2.productId, productVariantId: pv2.id, quantity: 100, unitPrice: pv2.costPrice || 0, totalPrice: (pv2.costPrice || 0) * 100 } as any
+      })
+      
+      // Stock Receive
+      if (receiveStatus !== 'UNRECEIVED') {
+        const sr = await prisma.stockReceiptReceive.create({
           data: {
-            productId: entry.item.productId,
-            type: 'IN',
-            quantity: entry.quantity,
-            reason: `Nhap kho tu ${receipt.receiptNumber}`,
-            referenceId: receipt.id,
-            createdAt: receivedAt,
-          } as any,
-        })
-      }
-    }
-
-    if (flow === 'FULLY_PAID' || flow === 'FULLY_PARTIAL') {
-      if (index % 2 === 0) {
-        await createReceiveEvent(setTime(createdAt, createdAt.getHours() + 2, 0), [0.55, 0.5, 0.6])
-        await createReceiveEvent(addDays(setTime(createdAt, createdAt.getHours() + 2, 45), 1), [1, 1, 1])
-      } else {
-        await createReceiveEvent(setTime(createdAt, createdAt.getHours() + 3, 10), [1, 1, 1])
-      }
-    }
-    if (flow === 'PARTIAL_RECEIVED') {
-      await createReceiveEvent(setTime(createdAt, createdAt.getHours() + 2, 25), [0.45, 0.55, 0.5])
-    }
-    if (flow === 'SHORT_CLOSED') {
-      await createReceiveEvent(setTime(createdAt, createdAt.getHours() + 1, 40), [0.65, 0.6, 0.7])
-      const closableItems = receiptItems
-        .map((item) => {
-          const remaining = item.orderedQuantity - item.receivedQuantity - item.closedQuantity
-          return remaining > 0 ? { item, quantity: remaining } : null
-        })
-        .filter(Boolean) as Array<{ item: any; quantity: number }>
-      shortClosedAt = addDays(setTime(createdAt, createdAt.getHours() + 4, 5), 1)
-      for (const entry of closableItems) {
-        entry.item.closedQuantity += entry.quantity
-        await prisma.stockReceiptItem.update({
-          where: { id: entry.item.id },
-          data: { closedQuantity: { increment: entry.quantity } } as any,
-        })
-      }
-    }
-
-    if ((flow === 'FULLY_PAID' || flow === 'FULLY_PARTIAL') && index % 4 === 1) {
-      const returnAt = addDays(setTime(createdAt, createdAt.getHours() + 5, 10), 2)
-      const returnItems = receiptItems
-        .slice(0, 1)
-        .map((item) => {
-          const quantity = Math.min(2 + (index % 2), item.receivedQuantity)
-          return quantity > 0
-            ? {
-                item,
-                quantity,
-                totalPrice: roundCurrency(quantity * item.unitPrice),
-              }
-            : null
-        })
-        .filter(Boolean) as Array<{ item: any; quantity: number; totalPrice: number }>
-
-      if (returnItems.length > 0) {
-        const supplierReturn = await prisma.supplierReturn.create({
-          data: {
-            returnNumber: procurementNumber('RT', returnAt, returnSequence++),
-            receiptId: receipt.id,
-            supplierId: supplier.id,
-            branchId: branch.id,
+            receiveNumber: `PNK${Date.now()}`,
+            receiptId: rx.id,
+            branchId: branchMap.get('MAIN').id,
             staffId: userMap.get('manager').id,
-            notes: `Tra NCC do loi dong goi cho ${receipt.receiptNumber}`,
-            totalAmount: roundCurrency(returnItems.reduce((sum, entry) => sum + entry.totalPrice, 0)),
-            creditedAmount: roundCurrency(returnItems.reduce((sum, entry) => sum + entry.totalPrice, 0)),
-            refundedAmount: 0,
-            returnedAt: returnAt,
-            items: {
-              create: returnItems.map((entry) => ({
-                receiptItemId: entry.item.id,
-                productId: entry.item.productId,
-                productVariantId: entry.item.productVariantId,
-                quantity: entry.quantity,
-                unitPrice: entry.item.unitPrice,
-                totalPrice: entry.totalPrice,
-                reason: 'Hang loi / khong lay nua',
-              })),
-            },
-          } as any,
+            totalQuantity: receiveStatus === 'PARTIAL' ? 100 : 200,
+            totalAmount: receiveStatus === 'PARTIAL' ? (pv1.costPrice || 0) * 100 : 5000000,
+            receivedAt: setTime(rxDate, 14),
+          } as any
         })
-
-        for (const entry of returnItems) {
-          entry.item.returnedQuantity += entry.quantity
-          totalReturnedAmount = roundCurrency(totalReturnedAmount + entry.totalPrice)
-          await prisma.stockReceiptItem.update({
-            where: { id: entry.item.id },
-            data: { returnedQuantity: { increment: entry.quantity } } as any,
+        
+        await prisma.stockReceiptReceiveItem.create({
+          data: { receiveId: sr.id, receiptItemId: ri1.id, productId: pv1.productId, productVariantId: pv1.id, quantity: 100, unitPrice: pv1.costPrice || 0, totalPrice: (pv1.costPrice || 0) * 100 } as any
+        })
+        if (receiveStatus !== 'PARTIAL') {
+          await prisma.stockReceiptReceiveItem.create({
+            data: { receiveId: sr.id, receiptItemId: ri2.id, productId: pv2.productId, productVariantId: pv2.id, quantity: 100, unitPrice: pv2.costPrice || 0, totalPrice: (pv2.costPrice || 0) * 100 } as any
           })
-          await prisma.branchStock.updateMany({
-            where: {
-              branchId: branch.id,
-              productId: entry.item.productId,
-              productVariantId: entry.item.productVariantId,
-            } as any,
-            data: { stock: { decrement: entry.quantity } } as any,
-          })
+        }
+        
+        // Stock Transactions
+        const branchStock1 = await prisma.branchStock.findFirst({ where: { branchId: branchMap.get('MAIN').id, productId: pv1.productId } })
+        if (branchStock1) {
           await prisma.stockTransaction.create({
             data: {
-              productId: entry.item.productId,
-              type: 'OUT',
-              quantity: entry.quantity,
-              reason: `Tra NCC ${supplierReturn.returnNumber}`,
-              referenceId: supplierReturn.id,
-              createdAt: returnAt,
-            } as any,
+              productId: pv1.productId,
+              productVariantId: pv1.id,
+              type: 'RECEIPT',
+              quantity: 100,
+              reason: 'Nhập kho từ phiếu ' + rx.receiptNumber,
+              referenceId: sr.id,
+            } as any
           })
+          await prisma.branchStock.update({ where: { id: branchStock1.id }, data: { stock: { increment: 100 } } })
         }
+      }
+      
+      // Payment
+      if (paymentStatus !== 'UNPAID') {
+        const payAmount = paymentStatus === 'PAID' ? 5000000 : 2500000
+        const py = await prisma.supplierPayment.create({
+          data: {
+            paymentNumber: procurementNumber('PCN', setTime(rxDate, 15), index + 1, 4),
+            branchId: branchMap.get('MAIN').id,
+            supplierId: supplier.id,
+            staffId: userMap.get('admin').id,
+            amount: payAmount,
+            paymentMethod: 'BANK_TRANSFER',
+            paidAt: setTime(rxDate, 15),
+            notes: 'Thanh toán nhập hàng',
+            createdAt: setTime(rxDate, 15)
+          } as any
+        })
+        
+        await prisma.supplierPaymentAllocation.create({
+          data: { paymentId: py.id, receiptId: rx.id, amount: payAmount, createdAt: setTime(rxDate, 15) } as any
+        })
+      }
+    }
+  }
 
-        if (index % 8 === 1) {
-          const refundAt = addDays(returnAt, 1)
-          const refundAmount = index % 16 === 1
-            ? supplierReturn.totalAmount
-            : roundCurrency(supplierReturn.totalAmount * 0.6)
-          const supplierRefund = await prisma.supplierReturnRefund.create({
-            data: {
-              refundNumber: procurementNumber('RF', refundAt, refundSequence++),
-              supplierReturnId: supplierReturn.id,
-              branchId: branch.id,
-              staffId: userMap.get('cashier01').id,
-              amount: refundAmount,
-              paymentMethod: index % 2 === 0 ? 'BANK' : 'CASH',
-              notes: `NCC hoan tien cho ${supplierReturn.returnNumber}`,
-              receivedAt: refundAt,
-            } as any,
-          })
-          await prisma.transaction.create({
-            data: {
-              voucherNumber: voucher('INCOME', refundAt, nextPerDay(incomeCounts, refundAt)),
-              type: 'INCOME',
-              amount: refundAmount,
-              description: `Thu hoan tien NCC ${supplierReturn.returnNumber}`,
-              category: 'Tra NCC',
-              paymentMethod: supplierRefund.paymentMethod,
-              branchId: branch.id,
-              branchName: branch.name,
-              refType: 'SUPPLIER_RETURN_REFUND',
-              refId: supplierRefund.id,
-              refNumber: supplierRefund.refundNumber,
-              payerId: supplier.id,
-              payerName: supplier.name,
-              notes: supplierRefund.notes,
-              source: 'SUPPLIER_RETURN',
-              isManual: false,
-              staffId: userMap.get('cashier01').id,
-              date: refundAt,
-              createdAt: refundAt,
-            } as any,
-          })
-          await prisma.supplierReturn.update({
-            where: { id: supplierReturn.id },
-            data: { refundedAmount: refundAmount } as any,
-          })
-        }
+  // Orders - 50 orders
+  console.log('Seeding orders...')
+  for (let index = 0; index < 50; index += 1) {
+    const oDate = addDays(NOW, -(50 - index))
+    const code = orderNumber(oDate, index + 1)
+    const orderType = index < 20 ? 'RETAIL' : index < 36 ? 'GROOMING' : 'HOTEL'
+    
+    let oStatus = 'COMPLETED'
+    let pStatus = 'PAID'
+    
+    // Distribution: 35 COMPLETED/PAID, 8 COMPLETED/PARTIAL, 4 PENDING, 3 CANCELLED
+    if (index >= 35 && index < 43) pStatus = 'PARTIAL'
+    if (index >= 43 && index < 47) { oStatus = 'PENDING'; pStatus = 'UNPAID' }
+    if (index >= 47) { oStatus = 'CANCELLED'; pStatus = 'UNPAID' }
+
+    const pv1 = await prisma.productVariant.findFirst({ where: { sku: productSeeds[index % 50]![0] } })
+    const customerCode = sequentialCode('KH', (index % 40) + 1)
+    const customer = customerMap.get(customerCode)
+
+    const order = await prisma.order.create({
+      data: {
+        orderNumber: code,
+        branchId: branchMap.get('MAIN').id,
+        customerId: customer.id,
+        customerName: customer.fullName,
+        staffId: userMap.get('cashier01').id,
+        status: oStatus as any,
+        paymentStatus: pStatus as any,
+        subtotal: 500000,
+        discount: 0,
+        total: 500000,
+        paidAmount: pStatus === 'PAID' ? 500000 : pStatus === 'PARTIAL' ? 200000 : 0,
+        remainingAmount: pStatus === 'PAID' ? 0 : pStatus === 'PARTIAL' ? 300000 : 500000,
+        createdAt: oDate,
+        updatedAt: oDate,
+      } as any,
+    })
+
+    if (pv1 && orderType === 'RETAIL') {
+      await prisma.orderItem.create({
+        data: {
+          orderId: order.id, productId: pv1.productId, productVariantId: pv1.id, description: pv1.name,
+          quantity: 2, unitPrice: pv1.price, subtotal: pv1.price * 2, type: 'PRODUCT'
+        } as any
+      })
+    }
+
+    if (orderType === 'GROOMING') {
+      const groomSvc = await prisma.service.findFirst({ where: { type: 'GROOMING' } })
+      const petId = (await prisma.pet.findFirst({ where: { customerId: customer.id } }))?.id
+      if (groomSvc && petId) {
+        await prisma.orderItem.create({
+          data: {
+            orderId: order.id, serviceId: groomSvc.id, description: groomSvc.name,
+            quantity: 1, unitPrice: groomSvc.price, subtotal: groomSvc.price, type: 'SERVICE'
+          } as any
+        })
+        
+        await prisma.groomingSession.create({
+          data: {
+            sessionCode: groomingCode(oDate, 'MAIN', index + 1),
+            branchId: branchMap.get('MAIN').id,
+            orderId: order.id,
+            customerId: customer.id,
+            petId: petId,
+            petName: (await prisma.pet.findUnique({ where: { id: petId } }))!.name,
+            status: oStatus === 'COMPLETED' ? 'COMPLETED' : 'PENDING' as any,
+            startTime: oStatus === 'COMPLETED' ? setTime(oDate, 10) : null,
+            endTime: oStatus === 'COMPLETED' ? setTime(oDate, 11) : null,
+            price: groomSvc.price,
+            notes: 'Tắm sấy cơ bản',
+            staffId: userMap.get('cashier01').id,
+          } as any
+        })
       }
     }
 
-    const payableAmount = roundCurrency(Math.max(0, totalReceivedAmount - totalReturnedAmount))
-    const createSupplierPayment = async (amount: number, paidAt: Date, notes: string, allocateToReceipt: boolean) => {
-      const normalizedAmount = roundCurrency(amount)
-      if (normalizedAmount <= 0) return
-      const appliedAmount = allocateToReceipt ? normalizedAmount : 0
-      const supplierPayment = await prisma.supplierPayment.create({
+    if (orderType === 'HOTEL') {
+      const hotelSvc = await prisma.service.findFirst({ where: { type: 'HOTEL' } })
+      const petId = (await prisma.pet.findFirst({ where: { customerId: customer.id } }))?.id
+
+      if (hotelSvc && petId) {
+        await prisma.orderItem.create({
+          data: {
+            orderId: order.id, serviceId: hotelSvc.id, description: hotelSvc.name,
+            quantity: 2, unitPrice: hotelSvc.price, subtotal: hotelSvc.price * 2, type: 'SERVICE'
+          } as any
+        })
+        
+      }
+    }
+
+    // Transactions for Paid orders
+    if (pStatus !== 'UNPAID') {
+      const payAmount = pStatus === 'PAID' ? 500000 : 200000
+      await prisma.orderPayment.create({
         data: {
-          paymentNumber: procurementNumber('SP', paidAt, paymentSequence++),
-          supplierId: supplier.id,
-          branchId: branch.id,
-          staffId: userMap.get('cashier01').id,
-          targetReceiptId: allocateToReceipt ? receipt.id : null,
-          targetReceiptNumber: allocateToReceipt ? receipt.receiptNumber : null,
-          amount: normalizedAmount,
-          appliedAmount,
-          unappliedAmount: roundCurrency(normalizedAmount - appliedAmount),
-          paymentMethod: index % 2 === 0 ? 'BANK' : 'CASH',
-          notes,
-          paidAt,
+          orderId: order.id, method: 'BANK_TRANSFER', amount: payAmount,
+          createdAt: setTime(oDate, 10)
+        } as any
+      })
+      
+      await prisma.transaction.create({
+        data: {
+          voucherNumber: voucher('INCOME', setTime(oDate, 10), index + 1),
+          branchId: branchMap.get('MAIN').id,
+          type: 'INCOME',
+          category: 'Bán hàng',
+          amount: payAmount,
+          paymentMethod: 'BANK_TRANSFER',
+          description: `Thu tiền đơn hàng ${code}`,
+          payerId: customer.id,
+          payerName: customer.name,
+          orderId: order.id,
+          createdAt: setTime(oDate, 10),
+        } as any
+      })
+    }
+  }
+
+  const hotelDemoSeeds: Array<{
+    branchCode: string
+    cageName: string | null
+    petCode: string
+    createdBy: string
+    status: 'BOOKED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
+    startAt: Date
+    expectedAt: Date
+    createdAt: Date
+    checkedInAt?: Date
+    checkOutAt?: Date
+    cancelledAt?: Date
+    surcharge: number
+    linkedOrder?: {
+      status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'COMPLETED'
+      paymentStatus: 'UNPAID' | 'PARTIAL' | 'PAID' | 'COMPLETED'
+      paidAmount?: number
+    }
+    note: string
+  }> = [
+    {
+      branchCode: 'MAIN',
+      cageName: 'A02',
+      petCode: 'PET000011',
+      createdBy: 'hotel01',
+      status: 'BOOKED',
+      startAt: setTime(addDays(NOW, 1), 9),
+      expectedAt: setTime(addDays(NOW, 3), 11),
+      createdAt: setTime(NOW, 8, 15),
+      surcharge: 20000,
+      note: 'Demo đơn đặt lịch chi nhánh chính',
+    },
+    {
+      branchCode: 'MAIN',
+      cageName: 'A03',
+      petCode: 'PET000012',
+      createdBy: 'hotel01',
+      status: 'CHECKED_IN',
+      startAt: setTime(NOW, 8),
+      expectedAt: setTime(addDays(NOW, 1), 10),
+      checkedInAt: setTime(NOW, 8, 5),
+      createdAt: setTime(NOW, 7, 45),
+      surcharge: 35000,
+      linkedOrder: {
+        status: 'PROCESSING',
+        paymentStatus: 'PARTIAL',
+        paidAmount: 120000,
+      },
+      note: 'Demo thú cưng đang trông giữ',
+    },
+    {
+      branchCode: 'MAIN',
+      cageName: 'A04',
+      petCode: 'PET000013',
+      createdBy: 'hotel01',
+      status: 'CHECKED_OUT',
+      startAt: setTime(addDays(NOW, -1), 9),
+      expectedAt: setTime(NOW, 10),
+      checkedInAt: setTime(addDays(NOW, -1), 9, 10),
+      checkOutAt: setTime(NOW, 10, 30),
+      createdAt: setTime(addDays(NOW, -1), 8, 40),
+      surcharge: 15000,
+      linkedOrder: {
+        status: 'COMPLETED',
+        paymentStatus: 'PAID',
+      },
+      note: 'Demo đơn đã trả hôm nay',
+    },
+    {
+      branchCode: 'MAIN',
+      cageName: null,
+      petCode: 'PET000014',
+      createdBy: 'hotel01',
+      status: 'CANCELLED',
+      startAt: setTime(addDays(NOW, 1), 8),
+      expectedAt: setTime(addDays(NOW, 2), 10),
+      cancelledAt: setTime(NOW, 9, 20),
+      createdAt: setTime(NOW, 8, 50),
+      surcharge: 0,
+      note: 'Demo đơn hủy trong ngày',
+    },
+    {
+      branchCode: 'BT',
+      cageName: 'B01',
+      petCode: 'PET000015',
+      createdBy: 'hotel02',
+      status: 'BOOKED',
+      startAt: setTime(addDays(NOW, 1), 9),
+      expectedAt: setTime(addDays(NOW, 2), 11),
+      createdAt: setTime(NOW, 8, 10),
+      surcharge: 10000,
+      linkedOrder: {
+        status: 'PENDING',
+        paymentStatus: 'UNPAID',
+      },
+      note: 'Demo đặt lịch chi nhánh Bình Thạnh',
+    },
+    {
+      branchCode: 'BT',
+      cageName: 'B02',
+      petCode: 'PET000016',
+      createdBy: 'hotel02',
+      status: 'CHECKED_IN',
+      startAt: setTime(NOW, 7, 30),
+      expectedAt: setTime(addDays(NOW, 2), 10),
+      checkedInAt: setTime(NOW, 7, 40),
+      createdAt: setTime(NOW, 7, 5),
+      surcharge: 45000,
+      note: 'Demo đang trông giữ chi nhánh Bình Thạnh',
+    },
+    {
+      branchCode: 'BT',
+      cageName: 'B03',
+      petCode: 'PET000017',
+      createdBy: 'hotel02',
+      status: 'CHECKED_OUT',
+      startAt: setTime(addDays(NOW, -2), 10),
+      expectedAt: setTime(NOW, 11),
+      checkedInAt: setTime(addDays(NOW, -2), 10, 5),
+      checkOutAt: setTime(NOW, 11, 5),
+      createdAt: setTime(addDays(NOW, -2), 9, 40),
+      surcharge: 0,
+      linkedOrder: {
+        status: 'COMPLETED',
+        paymentStatus: 'COMPLETED',
+      },
+      note: 'Demo đã trả trong ngày chi nhánh Bình Thạnh',
+    },
+    {
+      branchCode: 'BT',
+      cageName: null,
+      petCode: 'PET000018',
+      createdBy: 'hotel02',
+      status: 'CANCELLED',
+      startAt: setTime(addDays(NOW, 2), 9),
+      expectedAt: setTime(addDays(NOW, 4), 10),
+      cancelledAt: setTime(NOW, 11, 10),
+      createdAt: setTime(NOW, 10, 15),
+      surcharge: 0,
+      note: 'Demo hủy chi nhánh Bình Thạnh',
+    },
+    {
+      branchCode: 'Q7',
+      cageName: 'C01',
+      petCode: 'PET000019',
+      createdBy: 'hotel03',
+      status: 'BOOKED',
+      startAt: setTime(addDays(NOW, 1), 10),
+      expectedAt: setTime(addDays(NOW, 3), 11),
+      createdAt: setTime(NOW, 9, 10),
+      surcharge: 25000,
+      note: 'Demo đặt lịch chi nhánh Quận 7',
+    },
+    {
+      branchCode: 'Q7',
+      cageName: 'C02',
+      petCode: 'PET000020',
+      createdBy: 'hotel03',
+      status: 'CHECKED_IN',
+      startAt: setTime(NOW, 9),
+      expectedAt: setTime(addDays(NOW, 1), 9),
+      checkedInAt: setTime(NOW, 9, 15),
+      createdAt: setTime(NOW, 8, 30),
+      surcharge: 30000,
+      linkedOrder: {
+        status: 'PROCESSING',
+        paymentStatus: 'PARTIAL',
+        paidAmount: 90000,
+      },
+      note: 'Demo đang trông giữ chi nhánh Quận 7',
+    },
+    {
+      branchCode: 'Q7',
+      cageName: 'C03',
+      petCode: 'PET000021',
+      createdBy: 'hotel03',
+      status: 'CHECKED_OUT',
+      startAt: setTime(addDays(NOW, -1), 8),
+      expectedAt: setTime(NOW, 14),
+      checkedInAt: setTime(addDays(NOW, -1), 8, 20),
+      checkOutAt: setTime(NOW, 14, 5),
+      createdAt: setTime(addDays(NOW, -1), 7, 40),
+      surcharge: 0,
+      linkedOrder: {
+        status: 'COMPLETED',
+        paymentStatus: 'PAID',
+      },
+      note: 'Demo đã trả hôm nay chi nhánh Quận 7',
+    },
+    {
+      branchCode: 'Q7',
+      cageName: null,
+      petCode: 'PET000022',
+      createdBy: 'hotel03',
+      status: 'CANCELLED',
+      startAt: setTime(addDays(NOW, 2), 8),
+      expectedAt: setTime(addDays(NOW, 5), 10),
+      cancelledAt: setTime(NOW, 15, 15),
+      createdAt: setTime(NOW, 14, 10),
+      surcharge: 0,
+      note: 'Demo hủy trong ngày chi nhánh Quận 7',
+    },
+  ]
+
+  for (const [index, seed] of hotelDemoSeeds.entries()) {
+    const pet = petMap.get(seed.petCode)
+    const branch = branchMap.get(seed.branchCode)
+    const createdBy = userMap.get(seed.createdBy)
+    const cage = seed.cageName ? cageMap.get(seed.cageName) : null
+    if (!pet || !branch || !createdBy) continue
+    const customer = Array.from(customerMap.values()).find((item) => item.id === pet.customerId) ?? null
+
+    const basePrice = 160000 + (index % 4) * 20000
+    const totalPrice = basePrice + seed.surcharge
+    const stay = await prisma.hotelStay.create({
+      data: {
+        stayCode: hotelCode(seed.createdAt, seed.branchCode, 300 + index + 1),
+        branchId: branch.id,
+        customerId: pet.customerId,
+        petId: pet.id,
+        petName: pet.name,
+        cageId: cage?.id ?? null,
+        createdById: createdBy.id,
+        status: seed.status as any,
+        checkIn: seed.startAt,
+        estimatedCheckOut: seed.expectedAt,
+        checkOut: seed.checkOutAt ?? null,
+        checkOutActual: seed.checkOutAt ?? null,
+        checkedInAt: seed.checkedInAt ?? null,
+        cancelledAt: seed.cancelledAt ?? null,
+        price: basePrice,
+        dailyRate: basePrice,
+        surcharge: seed.surcharge,
+        totalPrice,
+        paymentStatus: (seed.linkedOrder?.paymentStatus ?? 'UNPAID') as any,
+        notes: seed.note,
+        weightAtBooking: pet.weight ?? 0,
+        createdAt: seed.createdAt,
+      } as any,
+    })
+
+    if (seed.surcharge > 0) {
+      await prisma.hotelStayAdjustment.create({
+        data: {
+          hotelStayId: stay.id,
+          type: 'AGGRESSIVE',
+          label: 'Phụ phí đặc biệt',
+          amount: seed.surcharge,
+          note: seed.status === 'CHECKED_IN' ? 'Theo dõi hành vi trong lúc lưu trú' : 'Phụ phí demo',
         } as any,
       })
-      if (allocateToReceipt && appliedAmount > 0) {
-        await prisma.supplierPaymentAllocation.create({
+    }
+
+    if (seed.linkedOrder) {
+      const hotelServiceCode =
+        pet.species?.toUpperCase() === 'CAT'
+          ? 'SVCHOTEL003'
+          : totalPrice >= 260000
+            ? 'SVCHOTEL004'
+            : 'SVCHOTEL001'
+      const hotelService = serviceMap.get(hotelServiceCode)
+      const paidAmount =
+        seed.linkedOrder.paidAmount ??
+        (seed.linkedOrder.paymentStatus === 'UNPAID'
+          ? 0
+          : seed.linkedOrder.paymentStatus === 'PARTIAL'
+            ? Math.round(totalPrice * 0.4)
+            : totalPrice)
+      const remainingAmount = Math.max(0, totalPrice - paidAmount)
+      const paymentCreatedAt =
+        seed.checkOutAt ?? seed.checkedInAt ?? setTime(seed.createdAt, seed.createdAt.getHours() + 1)
+
+      const order = await prisma.order.create({
+        data: {
+          orderNumber: orderNumber(seed.createdAt, 500 + index + 1),
+          branchId: branch.id,
+          customerId: pet.customerId,
+          customerName: customer?.fullName ?? pet.name,
+          staffId: createdBy.id,
+          status: seed.linkedOrder.status as any,
+          paymentStatus: seed.linkedOrder.paymentStatus as any,
+          subtotal: totalPrice,
+          discount: 0,
+          shippingFee: 0,
+          total: totalPrice,
+          paidAmount,
+          remainingAmount,
+          notes: `Đơn demo liên kết với phiếu hotel ${stay.stayCode}`,
+          createdAt: seed.createdAt,
+          updatedAt: seed.createdAt,
+          ...(seed.linkedOrder.status === 'COMPLETED' && seed.checkOutAt ? { completedAt: seed.checkOutAt } : {}),
+        } as any,
+      })
+
+      await prisma.orderItem.create({
+        data: {
+          orderId: order.id,
+          serviceId: hotelService?.id ?? null,
+          petId: pet.id,
+          hotelStayId: stay.id,
+          description: `${hotelService?.name ?? 'Dịch vụ hotel'} · ${stay.stayCode}`,
+          quantity: 1,
+          unitPrice: totalPrice,
+          discountItem: 0,
+          subtotal: totalPrice,
+          type: 'SERVICE',
+          createdAt: seed.createdAt,
+        } as any,
+      })
+
+      if (paidAmount > 0) {
+        const paymentMethod = paidAmount >= totalPrice ? 'CASH' : 'BANK_TRANSFER'
+
+        await prisma.orderPayment.create({
           data: {
-            paymentId: supplierPayment.id,
-            receiptId: receipt.id,
-            amount: appliedAmount,
+            orderId: order.id,
+            method: paymentMethod,
+            amount: paidAmount,
+            note: 'Thanh toán demo cho đơn hotel',
+            createdAt: paymentCreatedAt,
           } as any,
         })
-        paidAmount = roundCurrency(paidAmount + appliedAmount)
+
+        await prisma.transaction.create({
+          data: {
+            voucherNumber: voucher('INCOME', paymentCreatedAt, 500 + index + 1),
+            branchId: branch.id,
+            type: 'INCOME',
+            category: 'Bán hàng',
+            amount: paidAmount,
+            paymentMethod,
+            description: `Thu tiền đơn hotel ${order.orderNumber}`,
+            payerId: pet.customerId,
+            payerName: customer?.fullName ?? pet.name,
+            orderId: order.id,
+            createdAt: paymentCreatedAt,
+          } as any,
+        })
       }
-      const transaction = await prisma.transaction.create({
+
+      await prisma.hotelStay.update({
+        where: { id: stay.id },
         data: {
-          voucherNumber: voucher('EXPENSE', paidAt, nextPerDay(expenseCounts, paidAt)),
-          type: 'EXPENSE',
-          amount: normalizedAmount,
-          description: allocateToReceipt ? `Thanh toan NCC cho ${receipt.receiptNumber}` : `Tam ung NCC ${supplier.name}`,
-          category: 'Nhap hang',
-          paymentMethod: supplierPayment.paymentMethod,
-          branchId: branch.id,
-          branchName: branch.name,
-          refType: 'SUPPLIER_PAYMENT',
-          refId: supplierPayment.id,
-          refNumber: supplierPayment.paymentNumber,
-          payerId: supplier.id,
-          payerName: supplier.name,
-          notes,
-          source: 'SUPPLIER_PAYMENT',
-          isManual: false,
-          staffId: userMap.get('cashier01').id,
-          date: paidAt,
-          createdAt: paidAt,
+          orderId: order.id,
+          paymentStatus: seed.linkedOrder.paymentStatus as any,
         } as any,
       })
-      await prisma.supplierPayment.update({
-        where: { id: supplierPayment.id },
-        data: { transactionId: transaction.id } as any,
-      })
     }
 
-    if (flow === 'FULLY_PAID') {
-      const firstAmount = roundCurrency(payableAmount * 0.55)
-      const secondAmount = roundCurrency(payableAmount - firstAmount)
-      await createSupplierPayment(firstAmount, addDays(setTime(createdAt, createdAt.getHours() + 6, 0), 1), `Dot 1 cho ${receipt.receiptNumber}`, true)
-      await createSupplierPayment(secondAmount, addDays(setTime(createdAt, createdAt.getHours() + 9, 30), 2), `Dot 2 cho ${receipt.receiptNumber}`, true)
-    } else if (flow === 'FULLY_PARTIAL') {
-      await createSupplierPayment(roundCurrency(payableAmount * 0.62), addDays(setTime(createdAt, createdAt.getHours() + 5, 20), 1), `Thanh toan mot phan ${receipt.receiptNumber}`, true)
-    } else if (flow === 'PARTIAL_RECEIVED') {
-      await createSupplierPayment(roundCurrency(payableAmount * 0.45), addDays(setTime(createdAt, createdAt.getHours() + 4, 35), 1), `Dat coc sau nhap dot dau ${receipt.receiptNumber}`, true)
-    } else if (flow === 'SHORT_CLOSED') {
-      await createSupplierPayment(roundCurrency(payableAmount * (index % 2 === 0 ? 1 : 0.7)), addDays(setTime(createdAt, createdAt.getHours() + 7, 0), 1), `Doi chieu chot thieu ${receipt.receiptNumber}`, true)
-    } else if (flow === 'PREPAID_DRAFT') {
-      await createSupplierPayment(roundCurrency(totalAmount * 0.3), setTime(createdAt, createdAt.getHours() + 2, 10), `Tam ung truoc cho ${receipt.receiptNumber}`, false)
-    }
-
-    const allFulfilled = receiptItems.every((item) => item.receivedQuantity + item.closedQuantity >= item.orderedQuantity)
-    const hasAnyReceive = receiptItems.some((item) => item.receivedQuantity > 0)
-    const hasAnyClose = receiptItems.some((item) => item.closedQuantity > 0)
-    const receiptStatus =
-      flow === 'CANCELLED'
-        ? 'CANCELLED'
-        : allFulfilled && hasAnyClose
-          ? 'SHORT_CLOSED'
-          : allFulfilled && hasAnyReceive
-            ? 'FULL_RECEIVED'
-            : hasAnyReceive
-              ? 'PARTIAL_RECEIVED'
-              : 'DRAFT'
-    const paymentStatus =
-      payableAmount <= 0
-        ? paidAmount > 0
-          ? 'PAID'
-          : 'UNPAID'
-        : paidAmount <= 0
-          ? 'UNPAID'
-          : paidAmount < payableAmount
-            ? 'PARTIAL'
-            : 'PAID'
-
-    await prisma.stockReceipt.update({
-      where: { id: receipt.id },
+    await prisma.activityLog.create({
       data: {
-        status: receiptStatus === 'CANCELLED' ? 'CANCELLED' : receiptStatus === 'DRAFT' ? 'DRAFT' : 'RECEIVED',
-        receiptStatus,
-        paymentStatus: paymentStatus as any,
-        totalAmount,
-        totalReceivedAmount,
-        totalReturnedAmount,
-        paidAmount,
-        receivedAt: latestReceiveAt,
-        completedAt: receiptStatus === 'FULL_RECEIVED' || receiptStatus === 'SHORT_CLOSED' ? latestReceiveAt ?? shortClosedAt : null,
-        shortClosedAt,
+        userId: createdBy.id,
+        action: 'HOTEL_STAY_CREATED',
+        target: 'HOTEL_STAY',
+        targetId: stay.id,
+        details: {
+          stayCode: stay.stayCode,
+          branchId: branch.id,
+          petName: pet.name,
+        } as any,
+        createdAt: seed.createdAt,
       } as any,
     })
+
+    if (seed.checkedInAt) {
+      await prisma.activityLog.create({
+        data: {
+          userId: createdBy.id,
+          action: 'HOTEL_STAY_CHECKED_IN',
+          target: 'HOTEL_STAY',
+          targetId: stay.id,
+          details: { stayCode: stay.stayCode } as any,
+          createdAt: seed.checkedInAt,
+        } as any,
+      })
+    }
+
+    if (seed.checkOutAt) {
+      await prisma.activityLog.create({
+        data: {
+          userId: createdBy.id,
+          action: 'HOTEL_STAY_CHECKED_OUT',
+          target: 'HOTEL_STAY',
+          targetId: stay.id,
+          details: { stayCode: stay.stayCode } as any,
+          createdAt: seed.checkOutAt,
+        } as any,
+      })
+    }
+
+    if (seed.cancelledAt) {
+      await prisma.activityLog.create({
+        data: {
+          userId: createdBy.id,
+          action: 'HOTEL_STAY_CANCELLED',
+          target: 'HOTEL_STAY',
+          targetId: stay.id,
+          details: { stayCode: stay.stayCode } as any,
+          createdAt: seed.cancelledAt,
+        } as any,
+      })
+    }
   }
 
-  for (const seed of supplierSeeds) {
-    const supplier = supplierMap.get(seed.key)
-    const receipts = await prisma.stockReceipt.findMany({
-      where: { supplierId: supplier.id },
-      select: {
-        paidAmount: true,
-        totalReceivedAmount: true,
-        totalReturnedAmount: true,
-        status: true,
-        receiptStatus: true,
-      },
-    })
-    const payments = await prisma.supplierPayment.findMany({
-      where: { supplierId: supplier.id },
-      select: { unappliedAmount: true },
-    })
-    const returns = await prisma.supplierReturn.findMany({
-      where: { supplierId: supplier.id },
-      select: {
-        creditedAmount: true,
-        refundedAmount: true,
-      },
-    })
-
-    const debt = roundCurrency(
-      receipts.reduce((sum: number, stockReceipt: any) => {
-        if (stockReceipt.status === 'CANCELLED' || stockReceipt.receiptStatus === 'CANCELLED') return sum
-        const payable = Math.max(0, Number(stockReceipt.totalReceivedAmount ?? 0) - Number(stockReceipt.totalReturnedAmount ?? 0))
-        return sum + Math.max(0, payable - Number(stockReceipt.paidAmount ?? 0))
-      }, 0),
-    )
-    const paymentCredit = roundCurrency(
-      payments.reduce((sum: number, payment: any) => sum + Number(payment.unappliedAmount ?? 0), 0),
-    )
-    const returnCredit = roundCurrency(
-      returns.reduce(
-        (sum: number, supplierReturn: any) =>
-          sum + Math.max(0, Number(supplierReturn.creditedAmount ?? 0) - Number(supplierReturn.refundedAmount ?? 0)),
-        0,
-      ),
-    )
-
-    await prisma.supplier.update({
-      where: { id: supplier.id },
+  // Manual Transactions (10)
+  for (let index = 0; index < 10; index += 1) {
+    const tDate = addDays(NOW, -index)
+    const isIncome = index === 0 || index === 1 || index === 8
+    const type = isIncome ? 'INCOME' : 'EXPENSE'
+    
+    let desc = ''
+    let cat = ''
+    let amt = 0
+    
+    if (index === 0) { desc = 'Thu tiền thuê tủ trưng bày'; cat = 'Phụ thu'; amt = 2500000 }
+    else if (index === 1) { desc = 'Thu đặt cọc sự kiện'; cat = 'Khác'; amt = 5000000 }
+    else if (index === 2) { desc = 'Chi phí điện tháng 4'; cat = 'Vận hành'; amt = 3200000 }
+    else if (index === 3) { desc = 'Chi phí thuê mặt bằng'; cat = 'Mặt bằng'; amt = 18000000 }
+    else if (index === 4) { desc = 'Chi phí vật tư văn phòng'; cat = 'Hành chính'; amt = 85000 }
+    else if (index === 5) { desc = 'Chi phí nhân viên part-time'; cat = 'Nhân sự'; amt = 2400000 }
+    else if (index === 6) { desc = 'Chi phí sửa máy tắm'; cat = 'Bảo trì'; amt = 1200000 }
+    else if (index === 7) { desc = 'Chi mua ghế ngồi chờ'; cat = 'Tài sản'; amt = 3500000 }
+    else if (index === 8) { desc = 'Thu hoa hồng đại lý'; cat = 'Phụ thu'; amt = 1800000 }
+    else { desc = 'Chi phí quảng cáo Facebook'; cat = 'Marketing'; amt = 2000000 }
+    
+    await prisma.transaction.create({
       data: {
-        debt,
-        creditBalance: roundCurrency(paymentCredit + returnCredit),
-      } as any,
+        voucherNumber: voucher(type as any, tDate, 100 + index),
+        branchId: branchMap.get('MAIN').id,
+        type: type as any,
+        category: cat,
+        amount: amt,
+        paymentMethod: 'CASH',
+        description: desc,
+        createdAt: tDate,
+      } as any
     })
   }
 
-  const pets = Array.from(petMap.values())
-  const groomingKeys = ['GROOM_BASIC', 'GROOM_SMALL', 'GROOM_LARGE', 'GROOM_CAT', 'GROOM_DETOX'] as const
-  const hotelKeys = ['HOTEL_STD', 'HOTEL_CAT', 'HOTEL_VIP'] as const
-  const salesUsers = ['cashier01', 'manager', 'groomer01', 'hotel01'] as const
-
-  for (let index = 0; index < 24; index += 1) {
-    const createdAt = setTime(addDays(NOW, -(12 - Math.floor(index / 2))), 9 + (index % 6), 20)
-    const customer = customerMap.get(sequentialCode('KH', (index % customerNames.length) + 1))
-    const branchCode = branchSeeds[index % branchSeeds.length]!.code
-    const branch = branchMap.get(branchCode)
-    const staff = userMap.get(salesUsers[index % salesUsers.length]!)
-    const type = index % 3
-    const items: any[] = []
-    let status: 'PENDING' | 'COMPLETED' | 'CANCELLED'
-    let paymentStatus: 'UNPAID' | 'PARTIAL' | 'PAID'
-
-    if (type === 0) {
-      const a = products[(index * 2) % products.length]!
-      const b = products[(index * 2 + 3) % products.length]!
-      items.push({ type: 'product', description: a.name, quantity: 1 + (index % 2), unitPrice: a.price, subtotal: (1 + (index % 2)) * a.price, productId: a.id, petId: null })
-      items.push({ type: 'product', description: b.name, quantity: 1, unitPrice: b.price, subtotal: b.price, productId: b.id, petId: null })
-      status = index % 6 === 0 ? 'CANCELLED' : 'COMPLETED'
-      paymentStatus = status === 'CANCELLED' ? 'UNPAID' : index % 5 === 0 ? 'PARTIAL' : 'PAID'
-    } else if (type === 1) {
-      const pet = pets[(index * 2) % pets.length]!
-      const addon = products[(index + 5) % products.length]!
-      const service = serviceMap.get(groomingKeys[index % groomingKeys.length]!)
-      items.push({ type: 'grooming', description: `${service.name} - ${pet.name}`, quantity: 1, unitPrice: service.price, subtotal: service.price, serviceId: service.id, petId: pet.id })
-      items.push({ type: 'product', description: addon.name, quantity: 1, unitPrice: addon.price, subtotal: addon.price, productId: addon.id, petId: pet.id })
-      status = index % 4 === 0 ? 'PENDING' : 'COMPLETED'
-      paymentStatus = status === 'COMPLETED' ? 'PAID' : index % 2 === 0 ? 'PARTIAL' : 'UNPAID'
-    } else {
-      const pet = pets[(index * 2 + 1) % pets.length]!
-      const service = serviceMap.get(hotelKeys[index % hotelKeys.length]!)
-      const nights = 2 + (index % 3)
-      items.push({ type: 'hotel', description: `${service.name} - ${pet.name} ${nights} dem`, quantity: nights, unitPrice: service.price, subtotal: nights * service.price, serviceId: service.id, petId: pet.id, nights })
-      status = index % 5 === 0 ? 'PENDING' : 'COMPLETED'
-      paymentStatus = status === 'COMPLETED' ? 'PAID' : 'PARTIAL'
-    }
-
-    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0)
-    const discount = type === 2 ? 30000 : type === 1 ? 15000 : 0
-    const shippingFee = type === 0 && index % 4 === 0 ? 20000 : 0
-    const total = subtotal - discount + shippingFee
-    const paidAmount = paymentStatus === 'PAID' ? total : paymentStatus === 'PARTIAL' ? Math.round(total * 0.6) : 0
-    const remainingAmount = Math.max(0, total - paidAmount)
-    const order = await prisma.order.create({
-      data: { orderNumber: orderNumber(createdAt, nextPerDay(orderCounts, createdAt)), customerId: customer.id, customerName: customer.fullName, staffId: staff.id, branchId: branch.id, status: status as any, paymentStatus: paymentStatus as any, subtotal, discount, shippingFee, total, paidAmount, remainingAmount, notes: 'Standardized demo order', createdAt } as any,
-    })
-
-    const createdItems: any[] = []
-    for (const item of items) {
-      const createdItem = await prisma.orderItem.create({ data: { orderId: order.id, productId: item.productId ?? null, serviceId: item.serviceId ?? null, petId: item.petId ?? null, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, discountItem: 0, vatRate: 0, subtotal: item.subtotal, type: item.type, createdAt } as any })
-      createdItems.push({ ...createdItem, source: item })
-      if (item.type === 'product' && status === 'COMPLETED') {
-        await prisma.stockTransaction.create({ data: { productId: item.productId, type: 'OUT', quantity: item.quantity, reason: `Ban hang ${order.orderNumber}`, referenceId: order.id, createdAt } as any })
-      }
-    }
-
-    if (type === 1) {
-      const serviceItem = createdItems.find((item) => item.type === 'grooming')
-      const pet = pets.find((candidate) => candidate.id === serviceItem.source.petId)!
-      const sessionStatus = status === 'COMPLETED' ? 'COMPLETED' : index % 2 === 0 ? 'IN_PROGRESS' : 'PENDING'
-      const session = await prisma.groomingSession.create({
-        data: { sessionCode: groomingCode(createdAt, branchCode, nextPerMonthBranch(groomingCounts, createdAt, branchCode)), petId: pet.id, petName: pet.name, customerId: pet.customerId, branchId: branch.id, staffId: userMap.get(index % 2 === 0 ? 'groomer01' : 'groomer02').id, serviceId: serviceItem.source.serviceId, orderId: order.id, status: sessionStatus as any, startTime: setTime(createdAt, createdAt.getHours(), 35), endTime: sessionStatus === 'COMPLETED' ? setTime(createdAt, createdAt.getHours() + 1, 40) : null, notes: 'Linked grooming session', price: serviceItem.subtotal, createdAt } as any,
-      })
-      await prisma.orderItem.update({ where: { id: serviceItem.id }, data: { groomingSessionId: session.id } as any })
-    }
-
-    if (type === 2) {
-      const serviceItem = createdItems.find((item) => item.type === 'hotel')
-      const pet = pets.find((candidate) => candidate.id === serviceItem.source.petId)!
-      const rate = pet.species === 'Meo' ? rateTableMap.get('CAT_STD') : pet.weight <= 5 ? rateTableMap.get('DOG_SMALL') : pet.weight <= 12 ? rateTableMap.get('DOG_MEDIUM') : rateTableMap.get('DOG_LARGE')
-      const lineType = index % 5 === 0 ? 'HOLIDAY' : 'REGULAR'
-      const stayStatus = status === 'COMPLETED' ? 'CHECKED_OUT' : index % 2 === 0 ? 'CHECKED_IN' : 'BOOKED'
-      const stay = await prisma.hotelStay.create({
-        data: { stayCode: hotelCode(createdAt, branchCode, nextPerMonthBranch(hotelCounts, createdAt, branchCode)), petId: pet.id, petName: pet.name, customerId: pet.customerId, cageId: cageMap.get(pet.species === 'Meo' ? `C0${(index % 3) + 1}` : lineType === 'HOLIDAY' ? `VIP0${(index % 3) + 1}` : `B0${(index % 3) + 1}`).id, checkIn: createdAt, estimatedCheckOut: addDays(createdAt, serviceItem.source.nights), checkOutActual: stayStatus === 'CHECKED_OUT' ? addDays(createdAt, serviceItem.source.nights) : null, status: stayStatus as any, lineType: lineType as any, price: serviceItem.subtotal, paymentStatus: paymentStatus as any, notes: 'Linked hotel stay', rateTableId: rate.id, orderId: order.id, branchId: branch.id, dailyRate: rate.ratePerNight, depositAmount: paymentStatus === 'UNPAID' ? 0 : Math.round(serviceItem.subtotal * 0.3), promotion: discount, surcharge: lineType === 'HOLIDAY' ? 25000 : 0, totalPrice: serviceItem.subtotal, createdAt } as any,
-      })
-      await prisma.orderItem.update({ where: { id: serviceItem.id }, data: { hotelStayId: stay.id } as any })
-    }
-
-    if (paidAmount > 0) {
-      const method = index % 4 === 0 ? 'BANK' : index % 4 === 1 ? 'CASH' : index % 4 === 2 ? 'MOMO' : 'CARD'
-      await prisma.orderPayment.create({ data: { orderId: order.id, method, amount: paidAmount, createdAt } as any })
-      await prisma.transaction.create({ data: { voucherNumber: voucher('INCOME', createdAt, nextPerDay(incomeCounts, createdAt)), type: 'INCOME', amount: paidAmount, description: `Thu tien don ${order.orderNumber}`, category: type === 0 ? 'Ban hang' : type === 1 ? 'Grooming' : 'Hotel', paymentMethod: method, branchId: branch.id, branchName: branch.name, orderId: order.id, refType: 'ORDER', refId: order.id, refNumber: order.orderNumber, payerId: customer.id, payerName: customer.fullName, notes: 'Demo payment', source: 'ORDER_PAYMENT', isManual: false, staffId: staff.id, date: createdAt, createdAt } as any })
-    }
-
-    const stats = customerStats.get(customer.id)!
-    if (status === 'COMPLETED') {
-      stats.totalSpent += total
-      stats.totalOrders += 1
-    }
-    if (status !== 'CANCELLED' && remainingAmount > 0) stats.debt += remainingAmount
-  }
-
-  for (let index = 0; index < 16; index += 1) {
-    const createdAt = setTime(addDays(NOW, -(15 - index)), 10 + (index % 5), 5)
-    const pet = pets[(index + 6) % pets.length]!
-    const branchCode = branchSeeds[(index + 1) % branchSeeds.length]!.code
-    await prisma.groomingSession.create({
-      data: { sessionCode: groomingCode(createdAt, branchCode, nextPerMonthBranch(groomingCounts, createdAt, branchCode)), petId: pet.id, petName: pet.name, customerId: pet.customerId, branchId: branchMap.get(branchCode).id, staffId: userMap.get(index % 2 === 0 ? 'groomer01' : 'groomer02').id, serviceId: serviceMap.get(groomingKeys[index % groomingKeys.length]!).id, status: (index < 7 ? 'COMPLETED' : index < 11 ? 'IN_PROGRESS' : index < 14 ? 'PENDING' : 'CANCELLED') as any, startTime: setTime(createdAt, createdAt.getHours(), 20), endTime: index < 7 ? setTime(createdAt, createdAt.getHours() + 1, 30) : null, notes: 'Standalone grooming demo', price: 190000 + (index % 5) * 30000, createdAt } as any,
-    })
-  }
-
-  for (let index = 0; index < 18; index += 1) {
-    const createdAt = setTime(addDays(NOW, -(18 - index)), 11 + (index % 4), 10)
-    const pet = pets[(index + 8) % pets.length]!
-    const branchCode = branchSeeds[(index + 2) % branchSeeds.length]!.code
-    const rate = pet.species === 'Meo' ? rateTableMap.get('CAT_STD') : pet.weight <= 5 ? rateTableMap.get('DOG_SMALL') : pet.weight <= 12 ? rateTableMap.get('DOG_MEDIUM') : rateTableMap.get('DOG_LARGE')
-    const lineType = index % 6 === 0 ? 'HOLIDAY' : 'REGULAR'
-    const nights = 1 + (index % 4)
-    const totalPrice = nights * rate.ratePerNight + (lineType === 'HOLIDAY' ? 30000 : 0) - (index % 4 === 0 ? 20000 : 0)
-    await prisma.hotelStay.create({
-      data: { stayCode: hotelCode(createdAt, branchCode, nextPerMonthBranch(hotelCounts, createdAt, branchCode)), petId: pet.id, petName: pet.name, customerId: pet.customerId, cageId: cageMap.get(pet.species === 'Meo' ? `C0${(index % 3) + 1}` : lineType === 'HOLIDAY' ? `VIP0${(index % 3) + 1}` : `A0${(index % 3) + 1}`).id, checkIn: createdAt, estimatedCheckOut: addDays(createdAt, nights), checkOutActual: index < 8 ? addDays(createdAt, nights) : null, status: (index < 8 ? 'CHECKED_OUT' : index < 13 ? 'CHECKED_IN' : index < 16 ? 'BOOKED' : 'CANCELLED') as any, lineType: lineType as any, price: totalPrice, paymentStatus: (index < 16 ? 'PAID' : 'UNPAID') as any, notes: 'Standalone hotel demo', rateTableId: rate.id, branchId: branchMap.get(branchCode).id, dailyRate: rate.ratePerNight, depositAmount: Math.round(totalPrice * 0.3), promotion: index % 4 === 0 ? 20000 : 0, surcharge: lineType === 'HOLIDAY' ? 30000 : 0, totalPrice, createdAt } as any,
-    })
-  }
-
-  for (let index = 0; index < customerNames.length; index += 1) {
-    const customer = customerMap.get(sequentialCode('KH', index + 1))
-    const stats = customerStats.get(customer.id)!
-    await prisma.customer.update({ where: { id: customer.id }, data: { totalSpent: Math.round(stats.totalSpent), totalOrders: stats.totalOrders, debt: Math.round(stats.debt), points: Math.floor(stats.totalSpent / 10000) + (index % 6 === 0 ? 120 : index % 4 === 0 ? 80 : 40) } as any })
-  }
-
-  console.log('Seeded customers: 24')
-  console.log('Seeded pets: 30')
-  console.log('Seeded products: 24')
-  console.log('Seeded stock receipts: 24')
-  console.log('Seeded grooming sessions: 24')
-  console.log('Seeded hotel stays: 24')
-  console.log('Seeded orders: 24')
-  console.log('Login: superadmin/admin => Admin@123 | manager/cashier01/groomer01/hotel01 => Staff@123')
+  console.log('✓ Branches:     3')
+  console.log('✓ Users:        15')
+  console.log('✓ Categories:   5')
+  console.log('✓ Brands:       24')
+  console.log('✓ Units:        6')
+  console.log('✓ Suppliers:    6')
+  console.log('✓ Products:     50')
+  console.log('✓ Customers:    40')
+  console.log('✓ Pets:         50')
+  console.log('✓ Receipts:     30')
+  console.log('✓ Orders:       50')
+  console.log('✓ Transactions: 50+ (Auto + 10 Manual)')
 }
 
 main()
-  .catch((error) => {
-    console.error('Seed failed:', error)
+  .catch((e) => {
+    console.error(e)
     process.exit(1)
   })
   .finally(async () => {

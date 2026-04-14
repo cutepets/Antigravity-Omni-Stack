@@ -32,6 +32,10 @@ export class CreateGroomingDto {
   @IsNumber()
   @IsOptional()
   price?: number
+
+  @IsNumber()
+  @IsOptional()
+  surcharge?: number
 }
 
 export class CalculateSpaPriceDto {
@@ -82,4 +86,8 @@ export class UpdateGroomingDto {
   @IsNumber()
   @IsOptional()
   price?: number
+
+  @IsNumber()
+  @IsOptional()
+  surcharge?: number
 }

@@ -54,6 +54,7 @@ model Branch {
   users                 User[]
   authorizedUsers       User[]                 @relation("UserAuthorizedBranches")
   stockCountSessions    StockCountSession[]
+  hotelPriceRules       HotelPriceRule[]
 
   @@map("branches")
 }
@@ -87,6 +88,7 @@ model User {
   updatedAt             DateTime               @updatedAt
   activityLogs          ActivityLog[]
   groomingSessions      GroomingSession[]
+  hotelCreatedStays     HotelStay[]
   orders                Order[]
   refreshTokens         RefreshToken[]
   shiftSessions         ShiftSession[]
@@ -103,6 +105,10 @@ model User {
   stockCountSessions    StockCountSession[]    @relation("StockCountSessionCreatedBy")
   approvedStockCountSessions StockCountSession[] @relation("StockCountSessionApprovedBy")
   stockCountShiftSessions StockCountShiftSession[] @relation("StockCountShiftCountedBy")
+  approvedOrders          Order[]              @relation("OrderApprover")
+  stockExportOrders       Order[]              @relation("OrderStockExporter")
+  settledOrders           Order[]              @relation("OrderSettler")
+  orderTimelines          OrderTimeline[]
 
   @@map("users")
 }
@@ -414,6 +420,15 @@ model Order {
   createdAt        DateTime          @default(now())
   completedAt      DateTime?
   updatedAt        DateTime          @updatedAt
+
+  // Workflow tracking fields
+  approvedAt       DateTime?
+  approvedBy       String?
+  stockExportedAt  DateTime?
+  stockExportedBy  String?
+  settledAt        DateTime?
+  settledBy        String?
+
   groomingSessions GroomingSession[]
   hotelStays       HotelStay[]
   items            OrderItem[]
@@ -421,16 +436,23 @@ model Order {
   paymentIntents   PaymentIntent[]
   bankTransactions BankTransaction[]
   webhookEvents    PaymentWebhookEvent[]
+  timeline         OrderTimeline[]
   branch           Branch?           @relation(fields: [branchId], references: [id])
   customer         Customer?         @relation(fields: [customerId], references: [id])
   staff            User              @relation(fields: [staffId], references: [id])
   transactions     Transaction[]
+  approvedByUser   User?             @relation("OrderApprover", fields: [approvedBy], references: [id])
+  stockExportUser  User?             @relation("OrderStockExporter", fields: [stockExportedBy], references: [id])
+  settledUser      User?             @relation("OrderSettler", fields: [settledBy], references: [id])
 
   @@index([customerId])
   @@index([status])
   @@index([paymentStatus])
   @@index([createdAt])
   @@index([completedAt])
+  @@index([approvedBy])
+  @@index([stockExportedBy])
+  @@index([settledBy])
   @@map("orders")
 }
 
@@ -448,6 +470,31 @@ model OrderPayment {
   @@index([orderId])
   @@index([paymentAccountId])
   @@map("order_payments")
+}
+
+// ============================================================================
+// Order Timeline / Lịch sử thay đổi đơn hàng
+// ============================================================================
+
+model OrderTimeline {
+  id            String      @id @default(cuid())
+  orderId       String
+  action        OrderAction
+  fromStatus    String?
+  toStatus      String?
+  note          String?
+  performedBy   String
+  metadata      Json?
+  createdAt     DateTime    @default(now())
+
+  order         Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  performedByUser User      @relation(fields: [performedBy], references: [id])
+
+  @@index([orderId])
+  @@index([performedBy])
+  @@index([createdAt])
+  @@index([action])
+  @@map("order_timelines")
 }
 
 model OrderItem {
@@ -521,6 +568,7 @@ model GroomingSession {
   endTime     DateTime?
   notes       String?
   price       Float?
+  surcharge   Float?         @default(0)
   packageCode String?
   weightAtBooking Float?
   weightBandId String?
@@ -601,6 +649,7 @@ model HotelPriceRule {
   sku           String?           // Editable SKU
   year          Int
   species       String?
+  branchId      String?
   weightBandId  String
   dayType       HotelLineType     @default(REGULAR)
   halfDayPrice  Float
@@ -608,9 +657,10 @@ model HotelPriceRule {
   isActive      Boolean           @default(true)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
+  branch        Branch?           @relation(fields: [branchId], references: [id], onDelete: Cascade)
   weightBand    ServiceWeightBand @relation(fields: [weightBandId], references: [id], onDelete: Cascade)
 
-  @@index([year, dayType, species, isActive])
+  @@index([year, branchId, dayType, species, isActive])
   @@index([weightBandId, year])
   @@map("hotel_price_rules")
 }
@@ -658,7 +708,9 @@ model HotelStay {
   petName           String
   customerId        String?
   cageId            String?
+  createdById       String?
   checkIn           DateTime
+  checkedInAt       DateTime?
   checkOut          DateTime?
   estimatedCheckOut DateTime?
   status            HotelStatus     @default(BOOKED)
@@ -682,27 +734,35 @@ model HotelStay {
   breakdownSnapshot Json?
   promotion         Float           @default(0)
   surcharge         Float           @default(0)
+  slotIndex         Int?            // Vi tri o trong luoi so do
+  accessories       String?         // Do di kem cua thu cung
+  cancelledAt       DateTime?
   totalPrice        Float           @default(0)
   branch            Branch?         @relation(fields: [branchId], references: [id])
   cage              Cage?           @relation(fields: [cageId], references: [id])
   customer          Customer?       @relation(fields: [customerId], references: [id])
+  createdBy         User?           @relation(fields: [createdById], references: [id])
   order             Order?          @relation(fields: [orderId], references: [id])
   pet               Pet             @relation(fields: [petId], references: [id])
   rateTable         HotelRateTable? @relation(fields: [rateTableId], references: [id])
   weightBand        ServiceWeightBand? @relation(fields: [weightBandId], references: [id])
   orderItems        OrderItem[]
   chargeLines       HotelStayChargeLine[]
+  adjustments       HotelStayAdjustment[]
 
   @@index([petId])
   @@index([customerId])
   @@index([branchId])
   @@index([cageId])
+  @@index([createdById])
   @@index([status])
   @@index([paymentStatus])
   @@index([orderId])
   @@index([weightBandId])
   @@index([checkIn])
+  @@index([checkedInAt])
   @@index([estimatedCheckOut])
+  @@index([cancelledAt])
   @@map("hotel_stays")
 }
 
@@ -726,6 +786,21 @@ model HotelStayChargeLine {
   @@index([dayType])
   @@index([weightBandId])
   @@map("hotel_stay_charge_lines")
+}
+
+model HotelStayAdjustment {
+  id          String    @id @default(cuid())
+  hotelStayId String
+  type        String?
+  label       String
+  amount      Float
+  note        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  hotelStay   HotelStay @relation(fields: [hotelStayId], references: [id], onDelete: Cascade)
+
+  @@index([hotelStayId, createdAt])
+  @@map("hotel_stay_adjustments")
 }
 
 model Supplier {
@@ -1509,6 +1584,22 @@ enum OrderStatus {
   REFUNDED
 }
 
+enum OrderAction {
+  CREATED
+  APPROVED
+  PAYMENT_ADDED
+  PAID
+  STOCK_EXPORTED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  NOTE_UPDATED
+  ITEM_ADDED
+  ITEM_REMOVED
+  DISCOUNT_APPLIED
+  SETTLED
+}
+
 enum PaymentStatus {
   UNPAID
   PARTIAL
@@ -1552,6 +1643,7 @@ enum ServiceType {
 }
 
 enum GroomingStatus {
+  BOOKED
   PENDING
   IN_PROGRESS
   COMPLETED
@@ -1670,13 +1762,13 @@ model StockCountShiftSession {
   status          StockCountSessionStatus @default(DRAFT)
   startedAt       DateTime?
   completedAt     DateTime?
-  countedBy       String
+  countedBy       String?
   notes           String?
   totalItems      Int                     @default(0)
   countedItems    Int                     @default(0)
 
   session         StockCountSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  counter         User                    @relation("StockCountShiftCountedBy", fields: [countedBy], references: [id])
+  counter         User?                   @relation("StockCountShiftCountedBy", fields: [countedBy], references: [id])
   items           StockCountItem[]
 
   @@index([sessionId])

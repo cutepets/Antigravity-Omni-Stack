@@ -1906,9 +1906,9 @@ export class StockService {
           },
         },
       },
-    } as any)
+    })
 
-    const rawRows = products.flatMap((product) => {
+    const rawRows = products.flatMap((product: any) => {
       const variants = Array.isArray(product.variants)
         ? product.variants.filter((variant: any) => !variant?.deletedAt)
         : []

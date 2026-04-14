@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { CheckCircle2, Clock3, Scissors, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock3, Scissors, XCircle } from "lucide-react";
 import type { GroomingStatus } from "@/lib/api/grooming.api";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ interface GroomingStatusMeta {
 }
 
 export const GROOMING_STATUS_ORDER: GroomingStatus[] = [
+  "BOOKED",
   "PENDING",
   "IN_PROGRESS",
   "COMPLETED",
@@ -21,6 +22,15 @@ export const GROOMING_STATUS_ORDER: GroomingStatus[] = [
 
 export const GROOMING_STATUS_META: Record<GroomingStatus, GroomingStatusMeta> =
   {
+    BOOKED: {
+      label: "Đặt lịch",
+      columnTitle: "Đặt lịch",
+      icon: CalendarClock,
+      chipClassName: "border-indigo-500/20 bg-indigo-500/10 text-indigo-500",
+      columnClassName: "border-indigo-500/15 bg-indigo-500/[0.04]",
+      headerClassName:
+        "border-b border-indigo-500/10 bg-indigo-500/[0.08] text-indigo-500",
+    },
     PENDING: {
       label: "Chờ làm",
       columnTitle: "Chờ làm",
@@ -41,7 +51,7 @@ export const GROOMING_STATUS_META: Record<GroomingStatus, GroomingStatusMeta> =
     },
     COMPLETED: {
       label: "Hoàn thành",
-      columnTitle: "Hoàn thành",
+      columnTitle: "Hoàn thành (hôm nay)",
       icon: CheckCircle2,
       chipClassName: "border-emerald-500/20 bg-emerald-500/10 text-emerald-500",
       columnClassName: "border-emerald-500/15 bg-emerald-500/[0.04]",
@@ -50,7 +60,7 @@ export const GROOMING_STATUS_META: Record<GroomingStatus, GroomingStatusMeta> =
     },
     CANCELLED: {
       label: "Đã hủy",
-      columnTitle: "Đã hủy",
+      columnTitle: "Hủy (hôm nay)",
       icon: XCircle,
       chipClassName: "border-rose-500/20 bg-rose-500/10 text-rose-500",
       columnClassName: "border-rose-500/15 bg-rose-500/[0.04]",

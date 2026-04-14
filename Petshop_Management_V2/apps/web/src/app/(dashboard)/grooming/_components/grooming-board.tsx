@@ -13,18 +13,20 @@ import {
   DataListShell,
   DataListTable,
   DataListToolbar,
+  DataListColumnPanel,
   TableCheckbox,
   filterInputClass,
   filterSelectClass,
   toolbarSelectClass,
   useDataListSelection,
+  useDataListCore,
 } from '@/components/data-list'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import { useAuthStore } from '@/stores/auth.store'
 import { groomingApi, type GroomingSession, type GroomingStatus } from '@/lib/api/grooming.api'
 import { staffApi } from '@/lib/api/staff.api'
 import { cn } from '@/lib/utils'
-import { GroomingDetailDrawer } from './grooming-detail-drawer'
-import { GroomingModal } from './grooming-modal'
+import { GroomingSessionDialog } from './grooming-session-dialog'
 import { CancelNotesModal } from './cancel-notes-modal'
 import {
   formatGroomingDateTime,
@@ -38,15 +40,18 @@ import {
 type ViewMode = 'kanban' | 'list' | 'pricing'
 
 const TABLE_COLUMNS = [
-  { id: 'session', label: 'Mã SPA', width: 'w-28' },
+  { id: 'session', label: 'Mã SPA', width: 'w-24' },
   { id: 'pet', label: 'Thú cưng', minWidth: 'min-w-[180px]' },
   { id: 'customer', label: 'Khách hàng', minWidth: 'min-w-[170px]' },
   { id: 'staff', label: 'Nhân viên', minWidth: 'min-w-[150px]' },
-  { id: 'status', label: 'Trạng thái', width: 'w-36' },
-  { id: 'start', label: 'Bắt đầu', width: 'w-36' },
-  { id: 'price', label: 'Giá', width: 'w-28' },
-  { id: 'created', label: 'Tạo lúc', width: 'w-40' },
+  { id: 'branch', label: 'Chi nhánh', width: 'whitespace-nowrap' },
+  { id: 'status', label: 'Trạng thái', width: 'w-32' },
+  { id: 'start', label: 'Bắt đầu', width: 'w-32' },
+  { id: 'price', label: 'Giá', width: 'w-28', align: 'right' as const },
+  { id: 'created', label: 'Tạo lúc', width: 'w-[140px]' },
 ] as const
+
+type DisplayColumnId = typeof TABLE_COLUMNS[number]['id']
 
 function getDateKey(value?: string | null) {
   if (!value) return ''
@@ -95,7 +100,7 @@ function KanbanCard({
       }}
       onClick={() => onOpen(session)}
       className={cn(
-        'w-full rounded-[24px] border bg-background-base p-4 text-left transition-all',
+        'w-[296px] shrink-0 rounded-[24px] border bg-background-base p-4 text-left transition-all',
         canInteract
           ? 'cursor-grab border-border hover:-translate-y-0.5 hover:border-primary-500/35 hover:shadow-lg active:cursor-grabbing'
           : isCancelled
@@ -144,6 +149,7 @@ export function GroomingBoard() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission, hasAnyPermission, isLoading: isAuthLoading } = useAuthorization()
+  const activeBranchId = useAuthStore((s) => s.activeBranchId)
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
@@ -152,12 +158,41 @@ export function GroomingBoard() {
   const [dateFilter, setDateFilter] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(12)
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [dialogMode, setDialogMode] = useState<'create' | 'detail' | null>(null)
   const [selectedSession, setSelectedSession] = useState<GroomingSession | null>(null)
   const [cancelSessionData, setCancelSessionData] = useState<{ id: string; session: GroomingSession } | null>(null)
   const canReadGrooming = hasPermission('grooming.read')
   const canCreateGrooming = hasPermission('grooming.create')
   const canManageSessions = hasAnyPermission(['grooming.update', 'grooming.start', 'grooming.complete', 'grooming.cancel'])
+
+  const dataListState = useDataListCore<DisplayColumnId, never>({
+    initialColumnOrder: TABLE_COLUMNS.map((col) => col.id as DisplayColumnId),
+    initialVisibleColumns: ['session', 'pet', 'customer', 'staff', 'branch', 'status', 'start', 'price', 'created'],
+    initialTopFilterVisibility: {}
+  })
+
+  const { orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
+
+  const renderActiveColumns = () => {
+    return orderedVisibleColumns.map((id) => {
+      const col = TABLE_COLUMNS.find((c) => c.id === id)!
+      return { ...col, id: id as DisplayColumnId }
+    })
+  }
+
+  const [itemsPerColumn, setItemsPerColumn] = useState(4)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const updateSize = () => {
+      const availableHeight = window.innerHeight - 360
+      const calc = Math.floor(availableHeight / 175)
+      setItemsPerColumn(Math.max(2, calc))
+    }
+    updateSize()
+    window.addEventListener('resize', updateSize)
+    return () => window.removeEventListener('resize', updateSize)
+  }, [])
 
   useEffect(() => {
     if (isAuthLoading) return
@@ -174,7 +209,7 @@ export function GroomingBoard() {
 
   const sessionsQuery = useQuery({
     queryKey: ['grooming-sessions'],
-    queryFn: () => groomingApi.getSessions(),
+    queryFn: () => groomingApi.getSessions({ omitBranchId: true }),
     enabled: !isAuthLoading && canReadGrooming,
   })
 
@@ -289,7 +324,23 @@ export function GroomingBoard() {
               searchValue={search}
               onSearchChange={(value) => { setSearch(value); setPage(1) }}
               searchPlaceholder="Tìm theo thú cưng, khách, SĐT, mã phiên..."
-              showColumnToggle={false}
+              showColumnToggle={viewMode === 'list'}
+              columnPanelContent={
+                viewMode === 'list' && (
+                  <DataListColumnPanel
+                    columns={TABLE_COLUMNS.map(c => ({...c}))}
+                    columnOrder={columnOrder}
+                    visibleColumns={visibleColumns}
+                    sortInfo={{}}
+                    sortableColumns={new Set()}
+                    draggingColumnId={draggingColumnId}
+                    onToggle={(id) => dataListState.toggleColumn(id as DisplayColumnId)}
+                    onReorder={(s, t) => dataListState.reorderColumn(s as DisplayColumnId, t as DisplayColumnId)}
+                    onDragStart={(id) => dataListState.setDraggingColumnId(id as DisplayColumnId)}
+                    onDragEnd={() => dataListState.setDraggingColumnId(null)}
+                  />
+                )
+              }
               filterSlot={
                 <>
                   <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as GroomingStatus | ''); setPage(1) }} className={toolbarSelectClass}>
@@ -309,7 +360,7 @@ export function GroomingBoard() {
                     <button type="button" onClick={() => setViewMode('kanban')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'kanban' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><LayoutGrid size={15} />Kanban</button>
                     <button type="button" onClick={() => setViewMode('list')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'list' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><List size={15} />Danh sách</button>
                   </div>
-                  <button type="button" onClick={() => setIsCreateModalOpen(true)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"><Plus size={15} />Thêm SPA</button>
+                  <button type="button" onClick={() => setDialogMode('create')} className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"><Plus size={15} />Thêm SPA</button>
                 </div>
               }
             />
@@ -325,15 +376,48 @@ export function GroomingBoard() {
             {GROOMING_STATUS_ORDER.map((status) => {
               const meta = GROOMING_STATUS_META[status]
               const Icon = meta.icon
-              const columnSessions = filteredSessions.filter((session) => session.status === status)
+              const isFlexibleColumn = status === 'PENDING' || status === 'IN_PROGRESS';
+              
+              const columnSessions = filteredSessions.filter((session) => {
+                if (session.status !== status) return false;
+                if (session.branchId !== activeBranchId) return false;
+
+                if (!dateFilter && (status === 'COMPLETED' || status === 'CANCELLED')) {
+                  const todayStr = getDateKey(new Date().toISOString());
+                  const sessionDateStr = getDateKey(session.createdAt);
+                  if (todayStr !== sessionDateStr) return false;
+                }
+
+                return true;
+              })
+
+              const chunks: GroomingSession[][] = [];
+              if (isFlexibleColumn && columnSessions.length > 0) {
+                for (let i = 0; i < columnSessions.length; i += itemsPerColumn) {
+                  chunks.push(columnSessions.slice(i, i + itemsPerColumn));
+                }
+              }
+
               return (
-                <section key={status} className={cn('flex w-[320px] min-w-[320px] flex-col overflow-hidden rounded-[28px] border', meta.columnClassName)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleDrop(event, status)}>
-                  <div className={cn('flex items-center justify-between px-4 py-3', meta.headerClassName)}>
+                <section key={status} className={cn('flex flex-col rounded-[28px] border shrink-0', meta.columnClassName, isFlexibleColumn ? 'w-auto min-w-[320px]' : 'w-[320px] min-w-[320px] overflow-hidden')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleDrop(event, status)}>
+                  <div className={cn('flex items-center justify-between px-4 py-3 shrink-0', meta.headerClassName)}>
                     <div className="flex items-center gap-2 text-sm font-bold"><Icon size={16} />{meta.columnTitle}</div>
                     <span className="rounded-full border border-current/15 bg-white/10 px-2 py-1 text-xs font-semibold">{columnSessions.length}</span>
                   </div>
-                  <div className="custom-scrollbar flex min-h-[240px] flex-1 flex-col gap-3 overflow-y-auto p-3">
-                    {sessionsQuery.isLoading ? <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted">Đang tải dữ liệu...</div> : columnSessions.length === 0 ? <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted">Không có phiên nào trong cột này.</div> : columnSessions.map((session) => <KanbanCard key={session.id} session={session} onOpen={setSelectedSession} />)}
+                  <div className={cn("flex flex-1 min-h-0", isFlexibleColumn ? "flex-row p-3 gap-4 overflow-hidden" : "custom-scrollbar flex-col gap-3 p-3 overflow-y-auto overflow-x-hidden")}>
+                    {sessionsQuery.isLoading ? (
+                      <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-[296px]">Đang tải dữ liệu...</div>
+                    ) : columnSessions.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-[296px]">Không có phiên nào trong cột này.</div>
+                    ) : isFlexibleColumn ? (
+                      chunks.map((chunk, idx) => (
+                        <div key={idx} className="flex flex-col gap-3 w-[296px] shrink-0">
+                          {chunk.map((session) => <KanbanCard key={session.id} session={session} onOpen={(s) => { setSelectedSession(s); setDialogMode('detail'); }} />)}
+                        </div>
+                      ))
+                    ) : (
+                      columnSessions.map((session) => <KanbanCard key={session.id} session={session} onOpen={(s) => { setSelectedSession(s); setDialogMode('detail'); }} />)
+                    )}
                   </div>
                 </section>
               )
@@ -342,7 +426,7 @@ export function GroomingBoard() {
         ) : (
           <>
             <DataListTable
-              columns={TABLE_COLUMNS.map((column) => ({ ...column }))}
+              columns={renderActiveColumns()}
               isLoading={sessionsQuery.isLoading}
               isEmpty={!sessionsQuery.isLoading && paginatedSessions.length === 0}
               emptyText="Không có phiên grooming phù hợp."
@@ -357,16 +441,22 @@ export function GroomingBoard() {
                 const rowId = `g:${session.id}`
                 const isSelected = selectedRowIds.has(rowId)
                 return (
-                  <tr key={session.id} onClick={() => setSelectedSession(session)} className={cn('border-b border-border/50 transition-colors hover:bg-background-secondary/40 cursor-pointer', isSelected ? 'bg-primary-500/5' : '')}>
+                  <tr key={session.id} onClick={() => { setSelectedSession(session); setDialogMode('detail') }} className={cn('border-b border-border/50 transition-colors hover:bg-background-secondary/40 cursor-pointer', isSelected ? 'bg-primary-500/5' : '')}>
                     <td className="w-12 px-3 py-3" onClick={(e) => e.stopPropagation()}><TableCheckbox checked={isSelected} onCheckedChange={(_, shiftKey) => { if (!canManageSessions) return; toggleRowSelection(rowId, shiftKey) }} /></td>
-                    <td className="px-3 py-3"><span className="font-mono text-xs font-semibold text-primary-500">{session.id.slice(-6).toUpperCase()}</span></td>
-                    <td className="px-3 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-sm font-black uppercase text-primary-500">{session.petName?.charAt(0) || 'P'}</div><div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{session.petName}</p><p className="truncate text-xs text-foreground-muted">{session.pet?.breed || session.pet?.species || 'Không rõ giống'}</p></div></div></td>
-                    <td className="px-3 py-3"><p className="text-sm font-medium text-foreground">{session.pet?.customer?.fullName || 'Khách lẻ'}</p><p className="mt-1 text-xs text-foreground-muted">{session.pet?.customer?.phone || '—'}</p></td>
-                    <td className="px-3 py-3 text-sm text-foreground">{session.staff?.fullName || 'Chưa phân công'}</td>
-                    <td className="px-3 py-3"><GroomingStatusBadge status={session.status} /></td>
-                    <td className="px-3 py-3 text-sm text-foreground-muted">{session.startTime ? formatGroomingDateTime(session.startTime) : '—'}</td>
-                    <td className="px-3 py-3 text-sm font-semibold text-primary-500">{formatGroomingMoney(session.price)}</td>
-                    <td className="px-3 py-3 text-xs text-foreground-muted">{formatGroomingDateTime(session.createdAt)}</td>
+                    {orderedVisibleColumns.map(columnId => {
+                      switch (columnId) {
+                        case 'session': return <td key={columnId} className="px-3 py-3"><span className="font-mono text-xs font-semibold text-primary-500">{session.sessionCode || session.id.slice(-6).toUpperCase()}</span></td>;
+                        case 'pet': return <td key={columnId} className="px-3 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-sm font-black uppercase text-primary-500">{session.petName?.charAt(0) || 'P'}</div><div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{session.petName}</p><p className="truncate text-xs text-foreground-muted">{session.pet?.breed || session.pet?.species || 'Không rõ giống'}</p></div></div></td>;
+                        case 'customer': return <td key={columnId} className="px-3 py-3"><p className="text-sm font-medium text-foreground">{session.pet?.customer?.fullName || 'Khách lẻ'}</p><p className="mt-1 text-xs text-foreground-muted">{session.pet?.customer?.phone || '—'}</p></td>;
+                        case 'branch': return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{(session as any).branch?.name || session.branchId || '—'}</td>;
+                        case 'staff': return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{session.staff?.fullName || 'Chưa phân công'}</td>;
+                        case 'status': return <td key={columnId} className="px-3 py-3"><GroomingStatusBadge status={session.status} /></td>;
+                        case 'start': return <td key={columnId} className="px-3 py-3 text-sm text-foreground-muted">{session.startTime ? formatGroomingDateTime(session.startTime) : '—'}</td>;
+                        case 'price': return <td key={columnId} className="px-3 py-3 text-sm font-semibold text-primary-500 text-right">{formatGroomingMoney(session.price)}</td>;
+                        case 'created': return <td key={columnId} className="px-3 py-3 text-xs text-foreground-muted">{formatGroomingDateTime(session.createdAt)}</td>;
+                        default: return null;
+                      }
+                    })}
                   </tr>
                 )
               })}
@@ -377,8 +467,15 @@ export function GroomingBoard() {
           </>
         )}
 
-        {canCreateGrooming ? <GroomingModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} initialData={null} /> : null}
-        <GroomingDetailDrawer isOpen={Boolean(selectedSession)} session={selectedSession} staffOptions={staffOptions} onClose={() => setSelectedSession(null)} />
+        <GroomingSessionDialog
+          isOpen={Boolean(dialogMode)}
+          mode={dialogMode || 'create'}
+          session={selectedSession}
+          onClose={() => {
+            setDialogMode(null)
+            setSelectedSession(null)
+          }}
+        />
         {cancelSessionData && (
           <CancelNotesModal
             session={cancelSessionData.session}

@@ -2,6 +2,7 @@ import { api } from "@/lib/api";
 import type { ApiResponse } from "@petshop/shared";
 
 export type GroomingStatus =
+  | "BOOKED"
   | "PENDING"
   | "IN_PROGRESS"
   | "COMPLETED"
@@ -43,6 +44,7 @@ export interface GroomingSession {
   endTime: string | null;
   notes: string | null;
   price: number | null;
+  surcharge?: number | null;
   packageCode?: string | null;
   weightAtBooking?: number | null;
   weightBandId?: string | null;
@@ -51,6 +53,7 @@ export interface GroomingSession {
   updatedAt?: string;
   pet: GroomingPet;
   staff: GroomingStaff | null;
+  branch: { id: string; name: string; code: string } | null;
   order?: {
     id: string;
     orderNumber: string;
@@ -62,6 +65,7 @@ export interface GetGroomingSessionsParams {
   staffId?: string;
   startDate?: string;
   endDate?: string;
+  omitBranchId?: boolean;
 }
 
 export type CreateGroomingPayload = {
@@ -73,6 +77,7 @@ export type CreateGroomingPayload = {
   startTime?: string;
   notes?: string;
   price?: number;
+  surcharge?: number;
 };
 
 export interface SpaPricePreview {
@@ -97,13 +102,17 @@ export type UpdateGroomingPayload = Partial<CreateGroomingPayload> & {
   status?: GroomingStatus;
   endTime?: string;
   price?: number;
+  surcharge?: number;
 };
 
 export const groomingApi = {
   getSessions: async (params?: GetGroomingSessionsParams) => {
-    const res = await api.get<ApiResponse<GroomingSession[]>>("/grooming", {
-      params,
-    });
+    const { omitBranchId, ...restParams } = params || {};
+    const config: any = { params: restParams };
+    if (omitBranchId) {
+      config.headers = { "X-Omit-Branch-ID": "true" };
+    }
+    const res = await api.get<ApiResponse<GroomingSession[]>>("/grooming", config);
     return res.data.data;
   },
 
@@ -127,6 +136,15 @@ export const groomingApi = {
     const res = await api.patch<ApiResponse<GroomingSession>>(
       `/grooming/${id}`,
       payload,
+    );
+    return res.data.data;
+  },
+
+  getPackages: async (species?: string) => {
+    const params = species ? { species } : {};
+    const res = await api.get<ApiResponse<{ code: string; label: string }[]>>(
+      "/grooming/packages",
+      { params },
     );
     return res.data.data;
   },
