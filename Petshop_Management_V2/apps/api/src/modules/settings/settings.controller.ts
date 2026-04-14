@@ -36,6 +36,7 @@ import {
   UpdateConfigDto,
   UpdatePaymentMethodDto,
   UpdatePaymentOptionsDto,
+  UpdatePrintTemplateDto,
 } from './settings.service'
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
@@ -100,6 +101,27 @@ export class SettingsController {
   @ApiOperation({ summary: 'Cập nhật cấu hình hệ thống' })
   updateConfigs(@Body() dto: UpdateConfigDto) {
     return this.settingsService.updateConfigs(dto)
+  }
+
+  @Get('settings/print-templates')
+  @Permissions('settings.app.read')
+  @ApiOperation({ summary: 'Lấy cấu hình mẫu in' })
+  getPrintTemplates() {
+    return this.settingsService.findAllPrintTemplates()
+  }
+
+  @Get('settings/print-templates/:type')
+  @Permissions('settings.app.read')
+  @ApiOperation({ summary: 'Lấy chi tiết mẫu in theo type' })
+  getPrintTemplateByType(@Param('type') type: string) {
+    return this.settingsService.getPrintTemplate(type)
+  }
+
+  @Put('settings/print-templates/:type')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Cập nhật cấu hình mẫu in' })
+  updatePrintTemplate(@Param('type') type: string, @Body() dto: UpdatePrintTemplateDto) {
+    return this.settingsService.updatePrintTemplate(type, dto)
   }
 
   @Get('settings/cashbook-categories')

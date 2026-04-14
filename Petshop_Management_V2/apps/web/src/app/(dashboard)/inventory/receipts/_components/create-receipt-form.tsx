@@ -1,19 +1,17 @@
-'use client'
+﻿'use client'
+
 
 import Link from 'next/link'
 import dayjs from 'dayjs'
 import {
   AlertTriangle,
   ArrowLeft,
-  CalendarDays,
   Building2,
+  CalendarDays,
   ChevronDown,
-  ChevronRight,
   Copy,
   FileDown,
   FileSpreadsheet,
-  History,
-  Info,
   Minus,
   Phone,
   Package2,
@@ -24,8 +22,10 @@ import {
   Trash2,
   UserPlus,
   X,
+  FileUp,
 } from 'lucide-react'
-import { exportAoaToExcel } from '@/lib/excel'
+
+import { exportReceiptToExcel } from './receipt/receipt-excel'
 import { ReceiptWorkspace } from './receipt-workspace'
 import { NumericFormat } from 'react-number-format'
 import { normalizeBranchCode, suggestBranchCodeFromName } from '@petshop/shared'
@@ -39,8 +39,6 @@ import type {
 import { SUPPLIER_RECEIPT_DRAFT_KEY } from './receipt/receipt.constants'
 import {
   fmt,
-  formatReceiptDateTime,
-  getPaymentMethodLabel,
   getItemIdentity,
   isConversionVariant,
   getTrueVariants,
@@ -48,12 +46,13 @@ import {
   findParentTrueVariant,
   getConversionVariants,
   getVariantSnapshot,
-  getReceiptStatusView,
 } from './receipt/receipt.utils'
 import { StockPopover } from './receipt/stock-popover'
 import { QuickSupplierModal } from './receipt/quick-supplier-modal'
 import { ReceiptPaymentModal } from './receipt/receipt-payment-modal'
 import { ReceiptReturnModal } from './receipt/receipt-return-modal'
+import { ReceiptExcelModal } from './receipt/receipt-excel-modal'
+import { SelectedItem } from './receipt/receipt.types'
 import { useReceiptForm } from './receipt/use-receipt-form'
 
 export function CreateReceiptForm({
@@ -85,22 +84,26 @@ export function CreateReceiptForm({
     isSuggestionOpen, setIsSuggestionOpen,
     highlightedIndex, setHighlightedIndex,
     items, setItems,
-    selectedLineIds,
     receiptDiscount, setReceiptDiscount,
     receiptTax, setReceiptTax,
     extraCosts,
     showExtraCosts, setShowExtraCosts,
     editingNoteForId, setEditingNoteForId,
     tempNote, setTempNote,
-    scanMode, setScanMode,
+    splitDuplicateLines, setSplitDuplicateLines,
     isEditingSession,
     editSessions,
     showPaymentModal, setShowPaymentModal,
     showReturnModal, setShowReturnModal,
     showExportMenu, setShowExportMenu,
+    showReceiptExcelModal, setShowReceiptExcelModal,
     paymentForm, setPaymentForm,
     returnForm, setReturnForm,
-    // derived
+    // derived (memoized in hook)
+    statusView,
+    creatorDisplayName,
+    canShowPaymentAction, canShowReceiveAction, canShowCancelAction, canShowReturnAction,
+    visibleProgressSteps, enhancedActivityTimelineEntries,
     resolvedReceiptId, isReceiptLocked, isReadOnly,
     isReceiveDone, isCancelled, isCompleted, isFullyPaid,
     hasAnyPayment, hasAnyReceive,
@@ -116,8 +119,8 @@ export function CreateReceiptForm({
     openPaymentModal, openReturnModal,
     // handlers
     addProductToReceipt, updateItem, updateItemNote, updateItemVariant,
-    removeItem, toggleLineSelection, toggleSelectAllLines, removeSelectedItems,
-    duplicateItem, mergeDuplicateItems, applyLatestSupplierPricesToItems,
+    removeItem,
+    duplicateItem, mergeDuplicateItems,
     updateExtraCost, addExtraCost, removeExtraCost,
     resolveProductSearch, handleSearchKeyDown,
     handleOpenQuickSupplier, handleSelectSupplier,
@@ -142,6 +145,33 @@ export function CreateReceiptForm({
       </div>
     )
   }
+  const handleExcelImport = (importedItems: SelectedItem[]) => {
+    setItems((prev) => {
+      if (splitDuplicateLines) {
+        return [...prev, ...importedItems]
+      }
+
+      const newItemsList = [...prev]
+
+      importedItems.forEach((imported) => {
+        const importedIdentity = getItemIdentity(imported.productId, imported.productVariantId)
+        const existingIdx = newItemsList.findIndex(
+          (item) => getItemIdentity(item.productId, item.productVariantId) === importedIdentity,
+        )
+        if (existingIdx !== -1) {
+          const existing = newItemsList[existingIdx]
+          newItemsList[existingIdx] = {
+            ...existing,
+            quantity: Number(existing.quantity ?? 0) + Number(imported.quantity ?? 0),
+          }
+        } else {
+          newItemsList.push(imported)
+        }
+      })
+
+      return newItemsList
+    })
+  }
 
   // Column layout:  del | stt | img | mã  | tên+ghi-chú | đvt | tồn | sl | đgiá | giảm | tiền
   if (isExistingReceipt && !receipt) {
@@ -155,195 +185,6 @@ export function CreateReceiptForm({
   }
 
   const cols = '36px 36px 52px 96px 1fr 64px 80px 112px 112px 88px 108px'
-  const allLinesSelected = items.length > 0 && selectedLineIds.length === items.length
-  const creatorDisplayName =
-    receipt?.createdBy?.fullName ||
-    receipt?.createdBy?.username ||
-    receipt?.createdBy?.name ||
-    user?.fullName ||
-    user?.username ||
-    'Chưa xác định'
-  const statusView = getReceiptStatusView(receipt)
-  const allocation: any = { payment: { transaction: null } }
-  const activityTimeline = [
-    {
-      title: 'Tạo phiếu đặt hàng',
-      detail: `Người tạo: ${creatorDisplayName}`,
-      time: receipt?.createdAt ? formatReceiptDateTime(receipt.createdAt) : dayjs().format('DD/MM/YYYY HH:mm'),
-      tone: 'text-primary-500',
-      linkLabel: allocation.payment?.transaction?.voucherNumber
-        ? `Phiếu chi: ${allocation.payment.transaction.voucherNumber}`
-        : null,
-      href: allocation.payment?.transaction?.voucherNumber
-        ? `/finance/${encodeURIComponent(allocation.payment.transaction.voucherNumber)}`
-        : null,
-    },
-    ...editSessions
-      .slice()
-      .sort((left, right) => new Date(right.editedAt).getTime() - new Date(left.editedAt).getTime())
-      .map((session) => ({
-        title: 'Cập nhật sản phẩm',
-        detail: `${session.itemCount} mặt hàng • ${session.totalQuantity} số lượng`,
-        time: `${formatReceiptDateTime(session.editedAt)} • ${session.editedBy}`,
-        tone: 'text-foreground',
-      })),
-  ]
-  const activityTimelineEntries = activityTimeline
-  const paymentHistoryEntries = (receipt?.paymentAllocations ?? [])
-    .slice()
-    .sort(
-      (left: any, right: any) =>
-        new Date(right?.payment?.paidAt ?? 0).getTime() - new Date(left?.payment?.paidAt ?? 0).getTime(),
-    )
-    .map((allocation: any) => ({
-      title: 'Thanh toán',
-      detail: [
-        `${fmt(Number(allocation.amount ?? 0))} đ`,
-        getPaymentMethodLabel(allocation.payment?.paymentMethod),
-      ]
-        .filter(Boolean)
-        .join(' • '),
-      time: `${formatReceiptDateTime(allocation.payment?.paidAt ?? receipt?.paymentDate ?? receipt?.updatedAt)}${
-        allocation.payment?.staff?.fullName ? ` • ${allocation.payment.staff.fullName}` : ''
-      }`,
-      tone: 'text-primary-500',
-    }))
-  const paymentTimelineEntries = paymentHistoryEntries.map((entry: any, index: number) => {
-    const linkedAllocation = (receipt?.paymentAllocations ?? [])
-      .slice()
-      .sort(
-        (left: any, right: any) =>
-          new Date(right?.payment?.paidAt ?? 0).getTime() - new Date(left?.payment?.paidAt ?? 0).getTime(),
-      )[index]
-    const voucherNumber = linkedAllocation?.payment?.transactionVoucherNumber || null
-
-    return {
-      ...entry,
-      linkLabel: voucherNumber ? `Phiếu chi: ${voucherNumber}` : null,
-      href: voucherNumber ? `/finance/${encodeURIComponent(voucherNumber)}` : null,
-    }
-  })
-  const fallbackPaymentEntries =
-    paymentTimelineEntries.length === 0 && hasAnyPayment
-      ? [
-          {
-            title: isFullyPaid ? 'Đã thanh toán' : 'Thanh toán 1 phần',
-            detail: [
-              `${fmt(currentReceiptPaidAmount)} đ`,
-              receipt?.paymentMethod ? getPaymentMethodLabel(receipt.paymentMethod) : null,
-            ]
-              .filter(Boolean)
-              .join(' • '),
-            time: formatReceiptDateTime(receipt?.paymentDate ?? receipt?.updatedAt),
-            tone: 'text-primary-500',
-          },
-        ]
-      : []
-  const receiveHistoryEntries = (receipt?.receiveEvents ?? [])
-    .slice()
-    .sort(
-      (left: any, right: any) =>
-        new Date(right?.receivedAt ?? 0).getTime() - new Date(left?.receivedAt ?? 0).getTime(),
-    )
-    .map((event: any) => ({
-      title: 'Nhập kho',
-      detail: `${Number(event.totalQuantity ?? 0)} số lượng • ${fmt(Number(event.totalAmount ?? 0))} đ`,
-      time: `${formatReceiptDateTime(event.receivedAt)}${event.staff?.fullName ? ` • ${event.staff.fullName}` : ''}`,
-      tone: 'text-sky-500',
-    }))
-  const fallbackReceiveEntries =
-    receiveHistoryEntries.length === 0 && hasAnyReceive
-      ? [
-          {
-            title: isReceiveDone ? 'Đã nhập kho' : 'Nhập kho 1 phần',
-            detail: `${Math.max(0, Number(receipt?.receivedQty ?? 0))} số lượng`,
-            time: formatReceiptDateTime(receipt?.receivedAt ?? receipt?.completedAt ?? receipt?.updatedAt),
-            tone: 'text-sky-500',
-          },
-        ]
-      : []
-  const returnHistoryEntries = (receipt?.supplierReturns ?? [])
-    .slice()
-    .sort(
-      (left: any, right: any) =>
-        new Date(right?.returnedAt ?? 0).getTime() - new Date(left?.returnedAt ?? 0).getTime(),
-    )
-    .map((supplierReturn: any) => ({
-      title: 'Hoàn trả nhà cung cấp',
-      detail: `${fmt(Number(supplierReturn.totalAmount ?? 0))} đ • ${Number(
-        supplierReturn.items?.reduce((sum: number, item: any) => sum + Number(item.quantity ?? 0), 0) ?? 0,
-      )} số lượng`,
-      time: formatReceiptDateTime(supplierReturn.returnedAt),
-      tone: 'text-orange-400',
-    }))
-  const hasAnyReturn =
-    Number(receipt?.returnedQty ?? 0) > 0 ||
-    receipt?.receiptStatus === 'RETURNED' ||
-    returnHistoryEntries.length > 0
-  const terminalProgressStep = isCancelled
-    ? {
-        title: 'Hủy',
-        meta: formatReceiptDateTime(receipt?.updatedAt),
-        state: 'alert',
-      }
-    : hasAnyReturn
-      ? {
-          title: 'Hoàn trả',
-          meta: returnHistoryEntries[0]?.time ?? formatReceiptDateTime(receipt?.updatedAt),
-          state: 'alert',
-        }
-      : {
-          title: 'Hoàn trả',
-          meta: '—',
-          state: 'hidden',
-        }
-  const enhancedActivityTimelineEntries = [
-    ...activityTimelineEntries,
-    ...paymentTimelineEntries,
-    ...fallbackPaymentEntries,
-    ...receiveHistoryEntries,
-    ...fallbackReceiveEntries,
-    ...returnHistoryEntries,
-  ]
-  const progressSteps = [
-    {
-      title: 'Đặt hàng',
-      meta: receipt?.createdAt ? formatReceiptDateTime(receipt.createdAt) : '—',
-      state: receipt ? 'completed' : 'active',
-    },
-    {
-      title: 'Thanh toán',
-      meta: hasAnyPayment
-        ? formatReceiptDateTime(receipt?.paymentDate ?? receipt?.updatedAt)
-        : '—',
-      state: isFullyPaid ? 'completed' : hasAnyPayment ? 'active' : 'pending',
-    },
-    {
-      title: 'Nhập kho',
-      meta: hasAnyReceive
-        ? formatReceiptDateTime(receipt?.receivedAt ?? receipt?.completedAt ?? receipt?.updatedAt)
-        : '—',
-      state: isReceiveDone ? 'completed' : hasAnyReceive ? 'active' : 'pending',
-    },
-    terminalProgressStep,
-  ] as const
-  const visibleProgressSteps = progressSteps.filter((step) => step.state !== 'hidden')
-  const canShowPaymentAction =
-    isExistingReceipt && canPayReceipt && !isCancelled && !isCompleted && currentDebt > 0
-  const canShowReceiveAction =
-    isExistingReceipt &&
-    canReceiveReceipt &&
-    !isCancelled &&
-    !isCompleted &&
-    !isReceiveDone
-  const canShowCancelAction =
-    isExistingReceipt &&
-    canCancelReceipt &&
-    !isCancelled &&
-    !hasAnyPayment &&
-    !hasAnyReceive
-  const canShowReturnAction =
-    isExistingReceipt && canReturnReceipt && isCompleted && returnableReceiptItems.length > 0
 
   // ── Print / Export handlers ───────────────────────────────────────────────────
   const handleDuplicateReceipt = () => {
@@ -479,43 +320,21 @@ export function CreateReceiptForm({
 
   const handleExportExcel = async () => {
     const receiptCode = receipt?.receiptNumber ?? receipt?.id ?? resolvedReceiptId ?? 'phieu-nhap'
-    const supplierName = displaySupplier?.name ?? ''
-    const createdAt = receipt?.createdAt ? dayjs(receipt.createdAt).format('DD/MM/YYYY HH:mm') : ''
-
-    const headerRows: Array<Array<string | number | null>> = [
-      ['PHIẾU NHẬP HÀNG'],
-      ['Mã phiếu:', receiptCode, '', 'Nhà cung cấp:', supplierName],
-      ['Ngày tạo:', createdAt, '', 'Chi nhánh:', currentBranch?.name ?? ''],
-      ['Trạng thái:', statusView.label],
-      [],
-    ]
-
-    const colHeaders = ['#', 'Mã SP (SKU)', 'Tên sản phẩm', 'Phiên bản', 'Đơn vị', 'Số lượng', 'Đơn giá nhập', 'Giảm giá', 'Thành tiền']
-
-    const itemRows: Array<Array<string | number | null>> = items.map((item, idx) => [
-      idx + 1,
-      item.sku ?? '',
-      item.name,
-      item.variantName ?? '',
-      item.unit ?? '',
-      item.quantity,
-      item.unitCost,
-      item.discount,
-      item.quantity * item.unitCost,
-    ])
-
-    const summaryRows: Array<Array<string | number | null>> = [
-      [],
-      ['', '', '', '', '', '', '', 'Tổng hàng hóa', merchandiseTotal],
-      ...(receiptDiscount > 0 ? [['', '', '', '', '', '', '', 'Giảm giá', -discountAmount]] : []),
-      ...(receiptTax > 0 ? [['', '', '', '', '', '', '', 'Thuế', taxAmount]] : []),
-      ['', '', '', '', '', '', '', 'Cần trả NCC', grandTotal],
-      ...(currentDebt > 0 ? [['', '', '', '', '', '', '', 'Còn nợ', currentDebt]] : []),
-    ]
-
-    const wsData = [...headerRows, colHeaders, ...itemRows, ...summaryRows]
-    const fileName = `phieu-nhap-${receiptCode}-${dayjs().format('YYYYMMDD')}.xlsx`
-    await exportAoaToExcel(wsData, 'Phiếu nhập', fileName, [8, 14, 36, 16, 10, 10, 16, 14, 16])
+    const fileName = await exportReceiptToExcel({
+      receiptCode,
+      supplierName: displaySupplier?.name ?? '',
+      createdAt: receipt?.createdAt,
+      branchName: currentBranch?.name ?? '',
+      statusLabel: statusView.label,
+      items,
+      merchandiseTotal,
+      receiptDiscount,
+      discountAmount,
+      receiptTax,
+      taxAmount,
+      grandTotal,
+      currentDebt,
+    })
     toast.success(`Đã xuất file ${fileName}`)
   }
 
@@ -588,8 +407,13 @@ export function CreateReceiptForm({
         onChangeQuantity={handleReturnItemQuantityChange}
         onConfirm={handleConfirmReturn}
       />
+      <ReceiptExcelModal
+        isOpen={showReceiptExcelModal}
+        onClose={() => setShowReceiptExcelModal(false)}
+        onImported={handleExcelImport}
+      />
       <div className="shrink-0 border-b border-border bg-[linear-gradient(135deg,rgba(14,165,233,0.08),rgba(255,255,255,0))]">
-        <div className="grid gap-3 px-5 py-4 xl:grid-cols-[minmax(240px,0.68fr)_minmax(420px,1.04fr)_minmax(560px,1.34fr)_minmax(220px,0.48fr)]">
+        <div className="grid gap-3 px-5 py-4 xl:grid-cols-[minmax(240px,0.68fr)_minmax(420px,1.04fr)_minmax(392px,0.94fr)_minmax(176px,0.38fr)]">
           <div className="flex items-start gap-3">
             <Link
               href="/inventory/receipts"
@@ -601,20 +425,7 @@ export function CreateReceiptForm({
               <div className="text-lg font-semibold text-foreground">
                 {isEditMode ? 'Cập nhật phiếu nhập' : 'Tạo phiếu nhập'}
               </div>
-              <div className="hidden mt-1 flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1">
-                  <Building2 size={12} className="text-primary-500" />
-                  {displaySupplier?.name || 'Chưa chọn nhà cung cấp'}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1">
-                  <CalendarDays size={12} className="text-primary-500" />
-                  {currentBranch?.name || 'Chưa chọn chi nhánh nhận hàng'}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1">
-                  <Info size={12} className="text-primary-500" />
-                  {items.length} mặt hàng • {totalQuantity} số lượng
-                </span>
-              </div>
+
               <div className="mt-3 flex flex-wrap items-start gap-3">
                 <div ref={supplierPanelRef} className="relative min-w-[200px] flex-1">
                   {displaySupplier ? (
@@ -735,29 +546,9 @@ export function CreateReceiptForm({
                   )}
                 </div>
 
-                <select
-                  className="hidden h-11 min-w-[220px] rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-all focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
-                  value={branchId}
-                  onChange={(e) => setBranchId(e.target.value)}
-                >
-                  <option value="">Chọn chi nhánh nhận hàng</option>
-                  {allowedBranches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
 
-                {selectedSupplier ? (
-                  <button
-                    type="button"
-                    onClick={applyLatestSupplierPricesToItems}
-                    className="hidden h-11 items-center gap-2 rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 text-sm font-semibold text-primary-500 transition-colors hover:border-primary-500/50 hover:bg-primary-500/15"
-                  >
-                    <History size={14} />
-                    Áp giá NCC gần nhất
-                  </button>
-                ) : null}
+
+
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground-muted">
@@ -817,9 +608,7 @@ export function CreateReceiptForm({
                     </option>
                   ))}
                 </select>
-                <div className="hidden mt-2 text-xs text-foreground-muted">
-                  {currentBranch?.name || 'Chưa chọn chi nhánh'}
-                </div>
+
               </div>
             </div>
           </div>
@@ -837,25 +626,23 @@ export function CreateReceiptForm({
                 >
                   <div className="relative flex w-full justify-center px-1">
                     <div
-                      className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${
-                        step.state === 'alert'
-                          ? 'border-rose-500/50 bg-rose-500/12 text-rose-300'
-                          : step.state === 'completed' || step.state === 'active'
-                            ? 'border-primary-500/50 bg-primary-500/10 text-primary-500'
-                            : 'border-border bg-background text-foreground-muted'
-                      }`}
+                      className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${step.state === 'alert'
+                        ? 'border-rose-500/50 bg-rose-500/12 text-rose-300'
+                        : step.state === 'completed' || step.state === 'active'
+                          ? 'border-primary-500/50 bg-primary-500/10 text-primary-500'
+                          : 'border-border bg-background text-foreground-muted'
+                        }`}
                     >
                       {index + 1}
                     </div>
                     {index < visibleProgressSteps.length - 1 ? (
                       <div
-                        className={`absolute left-1/2 top-1/2 h-px w-full -translate-y-1/2 ${
-                          visibleProgressSteps[index + 1]?.state === 'alert'
-                            ? 'bg-rose-500/35'
-                            : step.state === 'completed'
-                              ? 'bg-primary-500/50'
-                              : 'bg-border'
-                        }`}
+                        className={`absolute left-1/2 top-1/2 h-px w-full -translate-y-1/2 ${visibleProgressSteps[index + 1]?.state === 'alert'
+                          ? 'bg-rose-500/35'
+                          : step.state === 'completed'
+                            ? 'bg-primary-500/50'
+                            : 'bg-border'
+                          }`}
                       />
                     ) : null}
                   </div>
@@ -866,53 +653,18 @@ export function CreateReceiptForm({
                 </div>
               ))}
             </div>
-            <div className="hidden items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground-muted">
-              <span>Tiến trình đơn nhập</span>
-              <span>Giai đoạn 1/4</span>
-            </div>
-            <div className="hidden mt-3 grid-cols-2 gap-2 sm:grid-cols-4">
-              {['Tạo đơn', 'Thanh toán', 'Nhập kho', 'Hoàn tất'].map((step, index) => (
-                <div
-                  key={step}
-                  className={`rounded-xl border px-3 py-2 text-center text-xs font-semibold transition-colors ${
-                    index === 0
-                      ? 'border-primary-500/40 bg-primary-500/10 text-primary-600'
-                      : 'border-border bg-background text-foreground-muted'
-                  }`}
-                >
-                  <div className="text-[10px] uppercase tracking-[0.16em]">
-                    Bước {index + 1}
-                  </div>
-                  <div className="mt-1">{step}</div>
-                </div>
-              ))}
-            </div>
+
           </div>
 
-          <div className="flex min-w-[220px] flex-col gap-2 xl:items-end xl:justify-center">
-            <div className="hidden flex-wrap items-center gap-2">
-              <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground-muted">
-                Mã đặt hàng nhập: Tự động
-              </span>
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700">
-                Đặt hàng
-              </span>
-              <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground-muted">
-                {dayjs().format('DD/MM/YYYY HH:mm')}
-              </span>
-              {currentDebt > 0 ? (
-                <span className="rounded-full border border-error/20 bg-error/10 px-3 py-1 text-xs font-semibold text-error">
-                  Nợ NCC: {fmt(currentDebt)}
-                </span>
-              ) : null}
-            </div>
+          <div className="flex min-w-[176px] flex-col gap-2 xl:items-end xl:justify-center">
+
             <div className="flex flex-col gap-2 xl:items-end">
               {isCreateMode ? (
                 <button
                   type="button"
                   onClick={() => handleSubmit('draft')}
                   disabled={saveMutation.isPending || items.length === 0 || !branchId}
-                  className="btn-primary min-w-[220px] justify-center rounded-xl py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-primary min-w-[176px] justify-center rounded-xl py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saveMutation.isPending ? 'Đang xử lý...' : 'Tạo đơn nhập'}
                 </button>
@@ -927,7 +679,7 @@ export function CreateReceiptForm({
                     currentDebt <= 0 ||
                     receipt?.status === 'CANCELLED'
                   }
-                  className="btn-primary min-w-[220px] justify-center rounded-xl py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-primary min-w-[176px] justify-center rounded-xl py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {payMutation.isPending ? 'Đang xử lý...' : 'Thanh toán'}
                 </button>
@@ -937,7 +689,7 @@ export function CreateReceiptForm({
                   type="button"
                   onClick={() => receiveMutation.mutate()}
                   disabled={receiveMutation.isPending || !resolvedReceiptId}
-                  className="btn-primary min-w-[220px] justify-center rounded-xl py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-primary min-w-[176px] justify-center rounded-xl py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {receiveMutation.isPending ? 'Đang xử lý...' : 'Nhập kho'}
                 </button>
@@ -947,7 +699,7 @@ export function CreateReceiptForm({
                   type="button"
                   onClick={() => cancelMutation.mutate()}
                   disabled={cancelMutation.isPending || !resolvedReceiptId}
-                  className="btn-outline min-w-[220px] justify-center rounded-xl border-error/40 py-2.5 text-sm text-error disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-outline min-w-[176px] justify-center rounded-xl border-error/40 py-2.5 text-sm text-error disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {cancelMutation.isPending ? 'Đang xử lý...' : 'Hủy phiếu'}
                 </button>
@@ -957,87 +709,14 @@ export function CreateReceiptForm({
                   type="button"
                   onClick={openReturnModal}
                   disabled={returnMutation.isPending || !resolvedReceiptId}
-                  className="inline-flex min-w-[220px] items-center justify-center rounded-xl border border-amber-500/40 bg-amber-500/12 px-4 py-2.5 text-sm font-semibold text-amber-300 transition-colors hover:border-amber-500/60 hover:bg-amber-500/18 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-w-[176px] items-center justify-center rounded-xl border border-amber-500/40 bg-amber-500/12 px-4 py-2.5 text-sm font-semibold text-amber-300 transition-colors hover:border-amber-500/60 hover:bg-amber-500/18 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {returnMutation.isPending ? 'Đang xử lý...' : 'Hoàn trả'}
                 </button>
               ) : null}
 
-              {/* ── In / Xuất dropdown ── */}
-              {resolvedReceiptId ? (
-                <div className="hidden">
-                  <button
-                    type="button"
-                    onClick={() => setShowExportMenu((v) => !v)}
-                    className="inline-flex min-w-[220px] items-center justify-center gap-2 rounded-xl border border-border bg-background-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
-                  >
-                    <Printer size={15} />
-                    In / Xuất đơn
-                    <ChevronDown size={13} className={`ml-auto transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {showExportMenu && (
-                    <div className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-border bg-background shadow-lg">
-                      {/* Print group */}
-                      <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">In phiếu</div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowExportMenu(false)
-                          handlePrintReceipt('a4')
-                        }}
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                      >
-                        <Printer size={14} className="text-foreground-muted" />
-                        In khổ A4
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowExportMenu(false)
-                          handlePrintReceipt('k80')
-                        }}
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                      >
-                        <Printer size={14} className="text-foreground-muted" />
-                        In khổ K80 (nhiệt)
-                      </button>
-
-                      <div className="mx-3 my-1 border-t border-border" />
-
-                      {/* Export group */}
-                      <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Xuất đơn</div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowExportMenu(false)
-                          handlePrintReceipt('pdf')
-                        }}
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                      >
-                        <FileDown size={14} className="text-foreground-muted" />
-                        Xuất PDF
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowExportMenu(false)
-                          handleExportExcel()
-                        }}
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                      >
-                        <FileSpreadsheet size={14} className="text-foreground-muted" />
-                        Xuất Excel (.xlsx)
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : null}
             </div>
-            <div className="hidden text-xs text-foreground-muted">Chỉ lưu nháp ở giai đoạn này</div>
-            <div className="hidden text-xs text-foreground-muted">
-              Người tạo: {user?.fullName || user?.username || 'Chưa xác định'}
-            </div>
+
           </div>
         </div>
       </div>
@@ -1051,13 +730,7 @@ export function CreateReceiptForm({
             <div className="text-sm font-semibold text-foreground">Tìm sản phẩm</div>
           </div>
         </div>
-        <Link
-          href="/inventory/receipts"
-          className="hidden items-center gap-1.5 text-sm font-semibold text-foreground hover:text-primary-500 transition-colors"
-        >
-          <ArrowLeft size={16} />
-          Đặt hàng nhập
-        </Link>
+
 
         {/* Search bar */}
         <div ref={searchPanelRef} className="relative max-w-lg flex-1">
@@ -1095,11 +768,10 @@ export function CreateReceiptForm({
                   <button
                     key={product.id}
                     type="button"
-                    className={`flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left text-sm last:border-0 transition-colors ${
-                      index === highlightedIndex
-                        ? 'bg-primary-500/10 text-primary-600'
-                        : 'hover:bg-background-secondary'
-                    }`}
+                    className={`flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left text-sm last:border-0 transition-colors ${index === highlightedIndex
+                      ? 'bg-primary-500/10 text-primary-600'
+                      : 'hover:bg-background-secondary'
+                      }`}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => addProductToReceipt(product)}
                   >
@@ -1136,20 +808,22 @@ export function CreateReceiptForm({
               </div>
             </div>
           )}
-        </div>        <button
+        </div>
+        <button
           type="button"
           onClick={() => {
-            setScanMode((current) => !current)
+            setSplitDuplicateLines((current) => !current)
             window.setTimeout(() => searchInputRef.current?.focus(), 10)
           }}
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-all ${
-            scanMode
-              ? 'border-primary-500 bg-primary-500/10 text-primary-500'
-              : 'border-border bg-background-secondary text-foreground-muted hover:text-foreground'
-          }`}
-          title="Bật để máy quét barcode tự cộng dòng liên tục"
+          aria-pressed={splitDuplicateLines}
+          aria-label="Tách dòng sản phẩm trùng"
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-all ${splitDuplicateLines
+            ? 'border-primary-500 bg-primary-500/10 text-primary-500'
+            : 'border-border bg-background-secondary text-foreground-muted hover:text-foreground'
+            }`}
+          title={splitDuplicateLines ? 'Đang bật tách dòng sản phẩm trùng' : 'Đang tự gộp sản phẩm trùng vào cùng một dòng'}
         >
-          <ScanSearch size={14} />
+          <FileSpreadsheet size={14} />
         </button>
 
         {isExistingReceipt ? (
@@ -1178,6 +852,16 @@ export function CreateReceiptForm({
 
             {showExportMenu && (
               <div className="absolute left-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-border bg-background shadow-lg">
+                <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Thao tác Excel</div>
+                <button
+                  type="button"
+                  onClick={() => setShowReceiptExcelModal(true)}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
+                >
+                  <FileUp size={14} className="text-foreground-muted" />
+                  Nhập từ Excel
+                </button>
+                <div className="my-1 h-px bg-border" />
                 <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">In phiếu</div>
                 <button
                   type="button"
@@ -1247,117 +931,22 @@ export function CreateReceiptForm({
                 ? saveMutation.isPending || !hasPendingReceiptChanges || items.length === 0 || !branchId
                 : false
             }
-            className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-              isEditingSession
-                ? 'bg-primary-500 text-white shadow-[0_10px_30px_rgba(16,185,129,0.25)]'
-                : 'border border-border bg-background-secondary text-foreground hover:border-primary-500/30 hover:text-primary-500'
-            }`}
+            className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${isEditingSession
+              ? 'bg-primary-500 text-white shadow-[0_10px_30px_rgba(16,185,129,0.25)]'
+              : 'border border-border bg-background-secondary text-foreground hover:border-primary-500/30 hover:text-primary-500'
+              }`}
           >
             {isEditingSession ? (saveMutation.isPending ? 'Đang lưu...' : 'Lưu cập nhật') : 'Cập nhật'}
           </button>
         ) : null}
 
-        {selectedLineIds.length > 0 && !isReadOnly ? (
-          <button
-            type="button"
-            onClick={removeSelectedItems}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-error/30 bg-error/10 px-3 text-sm font-medium text-error transition-colors hover:bg-error/15"
-          >
-            <Trash2 size={14} />
-            Xóa {selectedLineIds.length} dòng đã chọn
-          </button>
-        ) : null}
 
-        <div className="hidden ml-auto items-center gap-2 text-xs text-foreground-muted">
-          <span className="font-medium text-foreground">{user?.fullName || user?.username}</span>
-          <span>·</span>
-          <span>{dayjs().format('DD/MM/YYYY HH:mm')}</span>
-        </div>
       </div>
 
       {/* ─── MAIN CONTENT ──────────────────────────────────────────────────────── */}
       <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_420px]">
         {/* ── LEFT: Product Table ─────────────────────────────────────────────── */}
-        <aside className="hidden min-h-0 flex-col border-r border-border bg-background-secondary/30">
-          <div className="border-b border-border px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-foreground">Danh sách sản phẩm</div>
-                <div className="mt-1 text-xs text-foreground-muted">
-                  {items.length} mặt hàng • {totalQuantity} số lượng
-                </div>
-              </div>
-              <div className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-semibold text-primary-600">
-                {items.length}
-              </div>
-            </div>
-          </div>
 
-          <div className="flex-1 overflow-y-auto px-3 py-3 custom-scrollbar">
-            {items.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-background px-4 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-background-secondary text-foreground-muted">
-                  <Package2 size={22} />
-                </div>
-                <div className="text-sm font-medium text-foreground">Chưa có sản phẩm</div>
-                <div className="text-xs text-foreground-muted">
-                  Tìm kiếm ở thanh trên để thêm hàng vào phiếu nhập.
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {items.map((item) => {
-                  const snapshot = getVariantSnapshot(item)
-                  const itemCode = snapshot.displaySku || snapshot.displayBarcode || '—'
-                  const itemImage = snapshot.selectedVariant?.image || item.image
-                  const lineAmount = item.quantity * item.unitCost - item.discount
-
-                  return (
-                    <div
-                      key={item.lineId}
-                      className="rounded-2xl border border-border bg-background px-3 py-3 shadow-sm"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-background-secondary">
-                          {itemImage ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={itemImage}
-                              alt={item.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <Package2 size={16} className="text-foreground-muted" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold text-foreground">
-                            {item.name}
-                          </div>
-                          <div className="mt-1 truncate text-[11px] text-foreground-muted">
-                            {itemCode}
-                          </div>
-                          <div className="mt-2 flex items-center justify-between text-[11px] text-foreground-muted">
-                            <span>SL: {item.quantity}</span>
-                            <span>{fmt(lineAmount)}</span>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeItem(item.lineId)}
-                          disabled={hasLockedReceiptQuantity(item)}
-                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-foreground-muted transition-colors hover:bg-error/10 hover:text-error"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </aside>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {/* Table header */}
           <div className="shrink-0 border-b border-border bg-background-secondary/60">
@@ -1365,15 +954,7 @@ export function CreateReceiptForm({
               className="grid items-center px-0 py-2.5 text-xs font-semibold uppercase tracking-wide text-foreground-muted"
               style={{ gridTemplateColumns: cols }}
             >
-              <div className="flex items-center justify-center">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-border bg-background text-primary-500 focus:ring-primary-500 outline-none accent-primary-500"
-                  checked={allLinesSelected}
-                  onChange={toggleSelectAllLines}
-                  aria-label="Chọn tất cả sản phẩm"
-                />
-              </div>
+              <div className="text-center">Xóa</div>
               <div className="text-center">STT</div>
               <div className="text-center">Ảnh</div>
               <div className="pl-1">Mã hàng</div>
@@ -1398,6 +979,12 @@ export function CreateReceiptForm({
                 <p className="text-xs text-foreground-muted">
                   Dùng thanh tìm kiếm phía trên để thêm sản phẩm
                 </p>
+                <button
+                  onClick={() => setShowReceiptExcelModal(true)}
+                  className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-primary-500 hover:text-primary-600 transition-colors bg-primary-500/10 hover:bg-primary-500/15 px-3 py-1.5 rounded-lg"
+                >
+                  <FileUp size={14} /> Hoặc nhập từ Excel
+                </button>
               </div>
             ) : (
               <div className="divide-y divide-border">
@@ -1414,6 +1001,7 @@ export function CreateReceiptForm({
                     : (trueVariants[0] ?? null)
                   const conversionVariants = getConversionVariants(variants, currentTrueVariant)
                   const itemCode = snapshot.displaySku || snapshot.displayBarcode || '—'
+                  const itemBarcode = snapshot.displayBarcode || '—'
                   const unitLabel =
                     currentVariant && isConversionVariant(currentVariant)
                       ? getVariantShortLabel(currentVariant.name) || item.baseUnit || item.unit || '—'
@@ -1446,14 +1034,18 @@ export function CreateReceiptForm({
                         className="grid items-center py-3"
                         style={{ gridTemplateColumns: cols }}
                       >
+                        {/* Xóa */}
                         <div className="flex justify-center">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-border bg-background text-primary-500 focus:ring-primary-500 outline-none accent-primary-500"
-                            checked={selectedLineIds.includes(item.lineId)}
-                            onChange={() => toggleLineSelection(item.lineId)}
-                            aria-label={`Chọn sản phẩm ${snapshot.displayName}`}
-                          />
+                          <button
+                            type="button"
+                            onClick={() => removeItem(item.lineId)}
+                            disabled={isReadOnly}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-30"
+                            title="Xóa khỏi giỏ hàng"
+                            aria-label="Xóa khỏi giỏ hàng"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
 
                         {/* STT */}
@@ -1502,13 +1094,13 @@ export function CreateReceiptForm({
                                   value={currentTrueVariant?.id ?? item.productVariantId ?? ''}
                                   disabled={isReadOnly || hasLockedReceiptQuantity(item)}
                                   onChange={(e) =>
-                                  updateItemVariant(
-                                    item.lineId,
-                                    e.target.value === 'base'
-                                      ? currentTrueVariant?.id ?? 'base'
-                                      : e.target.value,
-                                  )
-                                }
+                                    updateItemVariant(
+                                      item.lineId,
+                                      e.target.value === 'base'
+                                        ? currentTrueVariant?.id ?? 'base'
+                                        : e.target.value,
+                                    )
+                                  }
                                 >
                                   {trueVariants.map((variant) => (
                                     <option key={variant.id} value={variant.id}>
@@ -1529,7 +1121,7 @@ export function CreateReceiptForm({
 
                           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-foreground-muted">
                             <span className="truncate font-medium uppercase tracking-wide">
-                              {itemCode}
+                              {itemBarcode}
                             </span>
                             {!isReadOnly && duplicateCount > 0 ? (
                               <button
@@ -1588,36 +1180,9 @@ export function CreateReceiptForm({
                                 <X size={10} />
                               </button>
                             </div>
-                          ) : (
-                            <button
-                              type="button"
-                              className="hidden mt-0.5 text-[11px] text-foreground-muted hover:text-primary-500 transition-colors"
-                              onClick={() => {
-                                setTempNote(item.note)
-                                setEditingNoteForId(item.lineId)
-                              }}
-                            >
-                              {item.note ? (
-                                <span className="italic">{item.note}</span>
-                              ) : (
-                                <span className="opacity-60">Ghi chú...</span>
-                              )}
-                            </button>
-                          )}
-
-                          {!isReadOnly && duplicateCount > 0 ? (
-                            <div className="hidden mt-1 items-center gap-1.5 text-[11px] text-warning">
-                              <AlertTriangle size={11} />
-                              <span>{duplicateCount} dong cung ma</span>
-                              <button
-                                type="button"
-                                onClick={() => mergeDuplicateItems(item.lineId)}
-                                className="font-semibold text-primary-500 transition-colors hover:text-primary-600"
-                              >
-                                Gop dong
-                              </button>
-                            </div>
                           ) : null}
+
+
                         </div>
 
                         {/* ĐVT */}
@@ -1658,13 +1223,12 @@ export function CreateReceiptForm({
                         <div className="text-center">
                           {currentBranchStock !== null && currentBranchStock !== undefined ? (
                             <span
-                              className={`text-xs font-semibold tabular-nums ${
-                                currentBranchStock <= 0
-                                  ? 'text-error'
-                                  : currentBranchStock <= 10
-                                    ? 'text-warning'
-                                    : 'text-foreground-muted'
-                              }`}
+                              className={`text-xs font-semibold tabular-nums ${currentBranchStock <= 0
+                                ? 'text-error'
+                                : currentBranchStock <= 10
+                                  ? 'text-warning'
+                                  : 'text-foreground-muted'
+                                }`}
                             >
                               {currentBranchStock}
                             </span>
@@ -1687,9 +1251,33 @@ export function CreateReceiptForm({
                             <input
                               type="number"
                               min={1}
+                              data-quantity-input={idx}
                               className="h-7 w-11 border-x border-border bg-transparent p-0 text-center text-sm font-semibold text-foreground outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               value={item.quantity}
                               onChange={(e) => updateItem(item.lineId, 'quantity', Number(e.target.value))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowUp') {
+                                  e.preventDefault()
+                                  if (idx > 0) {
+                                    const prev = document.querySelector(`[data-quantity-input="${idx - 1}"]`) as HTMLInputElement
+                                    prev?.focus()
+                                  }
+                                } else if (e.key === 'ArrowDown') {
+                                  e.preventDefault()
+                                  if (idx < items.length - 1) {
+                                    const next = document.querySelector(`[data-quantity-input="${idx + 1}"]`) as HTMLInputElement
+                                    next?.focus()
+                                  }
+                                } else if (e.key === 'ArrowLeft') {
+                                  e.preventDefault()
+                                  if (item.quantity > 1) {
+                                    updateItem(item.lineId, 'quantity', item.quantity - 1)
+                                  }
+                                } else if (e.key === 'ArrowRight') {
+                                  e.preventDefault()
+                                  updateItem(item.lineId, 'quantity', item.quantity + 1)
+                                }
+                              }}
                             />
                             <button
                               type="button"
@@ -1743,256 +1331,9 @@ export function CreateReceiptForm({
 
         {/* ── RIGHT SIDEBAR ──────────────────────────────────────────────────── */}
         <div className="flex min-h-0 w-[420px] shrink-0 flex-col overflow-y-auto border-l border-border bg-background custom-scrollbar">
-          {/* Supplier card */}
-          <div className="hidden p-3 border-b border-border">
-            {selectedSupplier ? (
-              <div className="group relative rounded-xl border border-border bg-background-secondary p-3 transition-colors hover:border-primary-500/30">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSupplierId('')
-                    setSupplierQuery('')
-                  }}
-                  className="absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full text-foreground-muted opacity-0 transition-all group-hover:opacity-100 hover:bg-error/10 hover:text-error"
-                >
-                  <X size={12} />
-                </button>
-                <div className="pr-6">
-                  <div className="text-sm font-bold text-primary-500 leading-tight">
-                    {selectedSupplier.name}
-                  </div>
-                  {selectedSupplier.phone && (
-                    <div className="mt-0.5 text-xs text-foreground-muted">
-                      {selectedSupplier.phone}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={applyLatestSupplierPricesToItems}
-                  className="mt-2 inline-flex items-center gap-1 rounded-lg border border-primary-500/30 bg-primary-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-primary-500 transition-colors hover:border-primary-500/50 hover:bg-primary-500/15"
-                >
-                  <History size={11} />
-                  Ap gia NCC gan nhat
-                </button>
-                {currentDebt > 0 && (
-                  <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-error/8 px-2.5 py-1.5">
-                    <span className="text-xs text-foreground-muted">Công nợ:</span>
-                    <span className="text-xs font-bold text-error">{fmt(currentDebt)}</span>
-                  </div>
-                )}
 
-                <div className="mt-3 overflow-hidden rounded-lg border border-border bg-background">
-                  <div className="flex items-center gap-2 border-b border-border px-2.5 py-2">
-                    <History size={12} className="text-primary-500" />
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground-muted">
-                      Lich su nhap gan day
-                    </span>
-                  </div>
 
-                  {supplierReceipts.length > 0 ? (
-                    <div className="divide-y divide-border">
-                      {supplierReceipts.slice(0, 4).map((receipt: any) => (
-                        <Link
-                          key={receipt.id}
-                          href={`/dashboard/inventory/receipts/${receipt.receiptNumber || receipt.id}`}
-                          className="flex items-center justify-between gap-3 px-2.5 py-2 transition-colors hover:bg-background-secondary"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-[11px] font-semibold text-foreground">
-                              {receipt.receiptNumber || receipt.id?.slice(0, 8)?.toUpperCase()}
-                            </div>
-                            <div className="mt-0.5 text-[10px] text-foreground-muted">
-                              {dayjs(receipt.createdAt).format('DD/MM/YYYY HH:mm')}
-                            </div>
-                          </div>
-                          <div className="text-right text-[11px] font-semibold text-primary-500">
-                            {fmt(Number(receipt.totalAmount ?? 0))}
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="px-2.5 py-2.5 text-[11px] text-foreground-muted">
-                      Chua co lich su nhap voi nha cung cap nay.
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="relative">
-                <Building2
-                  size={14}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted"
-                />
-                <input
-                  type="text"
-                  className="h-10 w-full rounded-xl border border-border bg-background-secondary pl-9 pr-10 text-sm text-foreground placeholder:text-foreground-muted outline-none transition-all focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
-                  placeholder="Tìm nhà cung cấp"
-                  value={supplierQuery}
-                  onChange={(e) => {
-                    setSupplierQuery(e.target.value)
-                    setShowSupplierSearch(true)
-                  }}
-                  onFocus={() => setShowSupplierSearch(true)}
-                />
-                <button
-                  type="button"
-                  onClick={handleOpenQuickSupplier}
-                  className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-background hover:text-primary-500"
-                  title="Thêm nhà cung cấp nhanh"
-                >
-                  <UserPlus size={14} />
-                </button>
 
-                {showSupplierSearch ? (
-                  <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
-                    <div className="max-h-72 overflow-y-auto custom-scrollbar">
-                      {filteredSuppliers.map((supplier: any) => (
-                        <button
-                          key={supplier.id}
-                          type="button"
-                          className="flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left transition-colors last:border-0 hover:bg-background-secondary"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleSelectSupplier(supplier)}
-                        >
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-500/10 text-primary-500">
-                            <Building2 size={15} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium text-foreground">
-                              {supplier.name}
-                            </div>
-                            <div className="mt-0.5 flex items-center gap-2 text-[11px] text-foreground-muted">
-                              {supplier.phone ? (
-                                <span className="inline-flex items-center gap-1">
-                                  <Phone size={11} />
-                                  {supplier.phone}
-                                </span>
-                              ) : (
-                                <span>Không có SĐT</span>
-                              )}
-                            </div>
-                          </div>
-                          {Number(supplier.debt ?? 0) > 0 ? (
-                            <div className="text-right text-[11px] font-semibold text-error">
-                              {fmt(Number(supplier.debt ?? 0))}
-                            </div>
-                          ) : null}
-                        </button>
-                      ))}
-
-                      {supplierQuery.trim() && filteredSuppliers.length === 0 ? (
-                        <div className="space-y-3 px-3 py-4">
-                          <div className="text-sm text-foreground-muted">
-                            Không tìm thấy nhà cung cấp phù hợp
-                          </div>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={handleOpenQuickSupplier}
-                            className="btn-primary w-full justify-center rounded-xl py-2 text-sm"
-                          >
-                            <Plus size={14} />
-                            Thêm nhanh &quot;{supplierQuery.trim()}&quot;
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-
-              <select
-                className="hidden"
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-              >
-                <option value="">— Chọn nhà cung cấp —</option>
-                {suppliers.map((s: any) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                    {s.phone ? ` · ${s.phone}` : ''}
-                  </option>
-                ))}
-              </select>
-              </div>
-            )}
-
-            {/* Branch */}
-            <div className="mt-2">
-              <select
-                className="form-input h-10 cursor-pointer"
-                value={branchId}
-                onChange={(e) => setBranchId(e.target.value)}
-              >
-                <option value="">Chọn chi nhánh nhận hàng</option>
-                {allowedBranches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="hidden border-b border-border px-3 py-3">
-            <div className="rounded-xl border border-border bg-background-secondary p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                    Nhà cung cấp
-                  </div>
-                  <div className="mt-2 truncate text-sm font-semibold text-foreground">
-                    {selectedSupplier?.name || 'Chưa chọn nhà cung cấp'}
-                  </div>
-                  <div className="mt-1 truncate text-xs text-foreground-muted">
-                    {selectedSupplier?.phone || currentBranch?.name || 'Chọn NCC ở thanh trên'}
-                  </div>
-                </div>
-                {currentDebt > 0 ? (
-                  <div className="rounded-lg bg-error/10 px-2 py-1 text-[11px] font-semibold text-error">
-                    Nợ: {fmt(currentDebt)}
-                  </div>
-                ) : null}
-              </div>
-
-              {supplierReceipts.length > 0 ? (
-                <div className="mt-3 space-y-2 border-t border-border pt-3">
-                  {supplierReceipts.slice(0, 3).map((receipt: any) => (
-                    <Link
-                      key={receipt.id}
-                      href={`/dashboard/inventory/receipts/${receipt.receiptNumber || receipt.id}`}
-                      className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-background"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-[11px] font-semibold text-foreground">
-                          {receipt.receiptNumber || receipt.id?.slice(0, 8)?.toUpperCase()}
-                        </div>
-                        <div className="text-[10px] text-foreground-muted">
-                          {dayjs(receipt.createdAt).format('DD/MM/YYYY HH:mm')}
-                        </div>
-                      </div>
-                      <div className="text-[11px] font-semibold text-primary-500">
-                        {fmt(Number(receipt.totalAmount ?? 0))}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Order meta */}
-          <div className="hidden border-b border-border px-3 py-2.5 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-foreground-muted">Mã đặt hàng nhập</span>
-              <span className="text-xs italic text-foreground-muted">Tự động</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-foreground-muted">Trạng thái</span>
-              <span className="badge badge-warning text-[11px]">Đặt hàng</span>
-            </div>
-          </div>
 
           {/* Totals */}
           <div className="border-b border-border px-3 py-3 space-y-2.5">
@@ -2071,46 +1412,6 @@ export function CreateReceiptForm({
             </div>
           </div>
 
-          <div className="hidden border-b border-border px-3 py-3">
-            <div className="rounded-xl border border-border bg-background-secondary p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                  Lịch sử
-                </div>
-          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusView.toneClass}`}>
-            {statusView.label}
-          </span>
-              </div>
-
-              <div className="mt-3 space-y-3">
-          {enhancedActivityTimelineEntries.map((entry, index) => (
-                  <div key={`${entry.title}-${entry.time}-${entry.detail}-${index}`} className="grid grid-cols-[18px_1fr] gap-3">
-                    <div className="flex flex-col items-center">
-                      <span className={`mt-1 h-2.5 w-2.5 rounded-full ${entry.tone === 'text-primary-500' ? 'bg-primary-500' : entry.tone === 'text-amber-500' ? 'bg-amber-500' : 'bg-border'}`} />
-                {index < enhancedActivityTimelineEntries.length - 1 ? (
-                        <span className="mt-1 h-full w-px bg-border" />
-                      ) : null}
-                    </div>
-                    <div className="pb-1">
-                      <div className={`text-sm font-semibold ${entry.tone}`}>{entry.title}</div>
-                      <div className="mt-0.5 text-xs text-foreground">{entry.detail}</div>
-                      {entry.href && entry.linkLabel ? (
-                        <Link
-                          href={entry.href}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 inline-flex text-[11px] font-medium text-amber-400 transition-colors hover:text-amber-300"
-                        >
-                          {entry.linkLabel}
-                        </Link>
-                      ) : null}
-                      <div className="mt-0.5 text-[11px] text-foreground-muted">{entry.time}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
 
           {/* Notes */}
           <div className="px-3 py-2.5">
@@ -2133,23 +1434,26 @@ export function CreateReceiptForm({
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">
                   Lịch sử
                 </div>
-          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusView.toneClass}`}>
-            {statusView.label}
-          </span>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusView.toneClass}`}>
+                  {statusView.label}
+                </span>
               </div>
 
               <div className="mt-3 space-y-3">
-          {enhancedActivityTimelineEntries.map((entry, index) => (
+                {enhancedActivityTimelineEntries.map((entry, index) => (
                   <div key={`${entry.title}-${entry.time}-${entry.detail}-${index}`} className="grid grid-cols-[18px_1fr] gap-3">
                     <div className="flex flex-col items-center">
                       <span className={`mt-1 h-2.5 w-2.5 rounded-full ${entry.tone === 'text-primary-500' ? 'bg-primary-500' : entry.tone === 'text-amber-500' ? 'bg-amber-500' : 'bg-border'}`} />
-                {index < enhancedActivityTimelineEntries.length - 1 ? (
+                      {index < enhancedActivityTimelineEntries.length - 1 ? (
                         <span className="mt-1 h-full w-px bg-border" />
                       ) : null}
                     </div>
                     <div className="pb-1">
                       <div className={`text-sm font-semibold ${entry.tone}`}>{entry.title}</div>
-                      <div className="mt-0.5 text-xs text-foreground">{entry.detail}</div>
+                      <div className="mt-0.5 text-xs text-foreground flex items-center gap-2">
+                        <span>{entry.detail}</span>
+                        <span className="text-[11px] text-foreground-muted whitespace-nowrap ml-auto">{entry.time}</span>
+                      </div>
                       {entry.href && entry.linkLabel ? (
                         <Link
                           href={entry.href}
@@ -2160,7 +1464,6 @@ export function CreateReceiptForm({
                           {entry.linkLabel}
                         </Link>
                       ) : null}
-                      <div className="mt-0.5 text-[11px] text-foreground-muted">{entry.time}</div>
                     </div>
                   </div>
                 ))}
@@ -2168,17 +1471,6 @@ export function CreateReceiptForm({
             </div>
           </div>
 
-          {/* Action buttons */}
-          <div className="hidden shrink-0 border-t border-border p-3 flex gap-2.5">
-            <button
-              type="button"
-              onClick={() => handleSubmit('draft')}
-              disabled={saveMutation.isPending || items.length === 0 || !branchId}
-              className="btn-primary flex-1 rounded-xl py-2.5 text-sm justify-center disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saveMutation.isPending ? 'Đang xử lý...' : isEditMode ? 'Cập nhật phiếu nháp' : 'Tạo đơn nhập'}
-            </button>
-          </div>
         </div>
       </div>
     </ReceiptWorkspace>

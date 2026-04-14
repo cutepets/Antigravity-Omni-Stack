@@ -1,7 +1,7 @@
 /**
  * excel.ts — ExcelJS helper
  * Replaces the vulnerable `xlsx` (SheetJS) library.
- * Exposes a thin, browser-compatible API for exporting .xlsx files.
+ * Exposes a thin, browser-compatible API for exporting/importing .xlsx files.
  */
 import ExcelJS from 'exceljs'
 
@@ -81,6 +81,43 @@ export async function exportAoaToExcel(
   }
 
   await triggerDownload(workbook, fileName)
+}
+
+/**
+ * Read the first sheet of an Excel File into an Array of Arrays.
+ * This skips empty rows and maps cells to their actual values.
+ * 
+ * @param file The uploaded File object
+ * @returns 2D array of rows
+ */
+export async function importExcelToAoa(file: File): Promise<any[][]> {
+  const arrayBuffer = await file.arrayBuffer()
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(arrayBuffer)
+  
+  const worksheet = workbook.worksheets[0]
+  if (!worksheet) return []
+
+  const result: any[][] = []
+  
+  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    // row.values usually starts at index 1 for ExcelJS
+    const rowValues = Array.isArray(row.values) ? row.values.slice(1) : []
+    // Map objects if cell is formulated, etc.
+    const mapped = rowValues.map((cell: any) => {
+      if (cell && typeof cell === 'object' && cell.result !== undefined) {
+        return cell.result
+      }
+      return cell
+    })
+    
+    // Fill the empty elements to make the array length match
+    if (mapped.length > 0) {
+       result.push(mapped)
+    }
+  })
+  
+  return result
 }
 
 // ── Internal ────────────────────────────────────────────────────────────────

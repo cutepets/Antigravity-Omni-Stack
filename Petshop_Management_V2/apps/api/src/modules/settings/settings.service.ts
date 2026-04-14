@@ -31,6 +31,11 @@ export interface UpdateConfigDto {
   loyaltyTierRules?: string
 }
 
+export interface UpdatePrintTemplateDto {
+  content: string
+  paperSize: string
+}
+
 export type CashbookCategoryType = 'INCOME' | 'EXPENSE'
 
 export interface CreateCashbookCategoryDto {
@@ -109,6 +114,224 @@ export interface UpdateBankTransferAccountDto {
   isDefault?: boolean
   isActive?: boolean
 }
+
+const DEFAULT_TEMPLATES = [
+  {
+    type: 'pos_receipt_k80',
+    name: 'Mẫu in bán hàng (K80)',
+    paperSize: 'k80',
+    content: `<div class="p-4 text-sm font-mono max-w-[80mm] mx-auto text-black">
+  <div class="text-center font-bold text-xl mb-1">{{shopName}}</div>
+  <div class="text-center mb-1">Đ/c: {{shopAddress}}</div>
+  <div class="text-center mb-3 border-b border-dashed border-gray-400 pb-2">ĐT: {{shopPhone}}</div>
+  
+  <div class="text-center font-bold text-lg mb-2">HÓA ĐƠN BÁN HÀNG</div>
+  <div class="mb-2">Mã HĐ: {{orderCode}}</div>
+  <div class="mb-2">Ngày: {{orderDate}}</div>
+  
+  <table class="w-full mb-3 text-sm">
+    <thead>
+      <tr class="border-b border-dashed border-gray-400">
+        <th class="text-left py-1">SP</th>
+        <th class="text-right py-1 w-12">SL</th>
+        <th class="text-right py-1 w-20">TTien</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{items_html}}
+    </tbody>
+  </table>
+  
+  <div class="border-t border-dashed border-gray-400 pt-2 mb-1 flex justify-between">
+    <span>Tổng tiền:</span>
+    <span class="font-bold">{{totalAmount}}</span>
+  </div>
+  <div class="flex justify-between">
+    <span>Chiết khấu:</span>
+    <span>{{discountAmount}}</span>
+  </div>
+  <div class="border-t border-dashed border-gray-400 mt-2 pt-2 mb-4 flex justify-between font-bold text-lg">
+    <span>Thanh toán:</span>
+    <span>{{finalAmount}}</span>
+  </div>
+  
+  <div class="text-center mb-1 text-xs">Cảm ơn quý khách và hẹn gặp lại!</div>
+  <div class="text-center text-xs text-gray-500 italic">Wifi: Nhap pass wifi</div>
+</div>`,
+  },
+  {
+    type: 'inventory_receipt_a4',
+    name: 'Mẫu phiếu nhập kho (A4)',
+    paperSize: 'a4',
+    content: `<div class="p-8 font-sans max-w-[210mm] mx-auto text-black">
+  <div class="flex justify-between items-start mb-6">
+    <div>
+      <div class="font-bold text-2xl uppercase">{{shopName}}</div>
+      <div>{{shopAddress}}</div>
+      <div>{{shopPhone}}</div>
+    </div>
+    <div class="text-right">
+      <div class="font-bold text-2xl text-gray-700">PHIẾU NHẬP KHO</div>
+      <div class="text-gray-500">Mã: {{receiptCode}}</div>
+      <div class="text-gray-500">Ngày: {{receiptDate}}</div>
+    </div>
+  </div>
+  
+  <div class="mb-6 grid grid-cols-2 gap-4">
+    <div>
+      <div><strong>Nhà cung cấp:</strong> {{supplierName}}</div>
+      <div><strong>Người giao:</strong> {{delivererName}}</div>
+    </div>
+    <div>
+      <div><strong>Người nhận:</strong> {{receiverName}}</div>
+      <div><strong>Ghi chú:</strong> {{notes}}</div>
+    </div>
+  </div>
+  
+  <table class="w-full border-collapse border border-gray-800 mb-6">
+    <thead class="bg-gray-100">
+      <tr>
+        <th class="border border-gray-800 px-3 py-2 text-left w-12">STT</th>
+        <th class="border border-gray-800 px-3 py-2 text-left">Sản phẩm</th>
+        <th class="border border-gray-800 px-3 py-2 text-right">SL</th>
+        <th class="border border-gray-800 px-3 py-2 text-right">Đơn giá</th>
+        <th class="border border-gray-800 px-3 py-2 text-right">Thành tiền</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{items_html}}
+    </tbody>
+  </table>
+  
+  <div class="flex justify-end mb-16">
+    <div class="w-64 text-right">
+      <div class="flex justify-between mb-2">
+        <span class="font-bold">Tổng cộng:</span>
+        <span class="font-bold text-lg">{{totalAmount}}</span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="grid grid-cols-3 text-center">
+    <div>
+      <div class="font-bold mb-16">Người giao hàng</div>
+      <div>(Ký, ghi rõ họ tên)</div>
+    </div>
+    <div>
+      <div class="font-bold mb-16">Người nhận</div>
+      <div>(Ký, ghi rõ họ tên)</div>
+    </div>
+    <div>
+      <div class="font-bold mb-16">Thủ kho</div>
+      <div>(Ký, ghi rõ họ tên)</div>
+    </div>
+  </div>
+</div>`,
+  },
+  {
+    type: 'spa_receipt_k80',
+    name: 'Mẫu SPA & Grooming (K80)',
+    paperSize: 'k80',
+    content: `<div class="p-4 text-sm font-mono max-w-[80mm] mx-auto text-black">
+  <div class="text-center font-bold text-xl mb-1">{{shopName}}</div>
+  <div class="text-center mb-1">Đ/c: {{shopAddress}}</div>
+  <div class="text-center mb-3 border-b border-dashed border-gray-400 pb-2">ĐT: {{shopPhone}}</div>
+  
+  <div class="text-center font-bold text-lg mb-2">PHIẾU DỊCH VỤ SPA</div>
+  <div class="mb-1"><strong>Mã phiếu:</strong> {{receiptCode}}</div>
+  <div class="mb-1"><strong>Khách hàng:</strong> {{customerName}}</div>
+  <div class="mb-2"><strong>Thú cưng:</strong> {{petName}} ({{petBreed}} - {{petWeight}})</div>
+  <div class="mb-2">Ngày thực hiện: {{serviceDate}}</div>
+  
+  <table class="w-full mb-3 text-sm">
+    <thead>
+      <tr class="border-b border-dashed border-gray-400">
+        <th class="text-left py-1">Dịch vụ</th>
+        <th class="text-right py-1 w-20">TTien</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{services_html}}
+    </tbody>
+  </table>
+  
+  <div class="border-t border-dashed border-gray-400 pt-2 mb-1 flex justify-between">
+    <span>Cộng:</span>
+    <span class="font-bold">{{totalAmount}}</span>
+  </div>
+  <div class="flex justify-between">
+    <span>Chiết khấu/Voucher:</span>
+    <span>{{discountAmount}}</span>
+  </div>
+  <div class="border-t border-dashed border-gray-400 mt-2 pt-2 mb-4 flex justify-between font-bold text-lg">
+    <span>Thanh toán:</span>
+    <span>{{finalAmount}}</span>
+  </div>
+  
+  <div class="text-center mb-1 text-xs font-bold">Lưu ý sau khi Spa:</div>
+  <div class="text-xs mb-3 text-justify">Vui lòng theo dõi bé trong 24h đầu. Không nên tắm ngay sau khi về hoặc thay đổi thức ăn quá đột ngột.</div>
+  
+  <div class="text-center mb-1 text-xs">Cảm ơn quý khách và hẹn gặp lại!</div>
+</div>`,
+  },
+  {
+    type: 'hotel_receipt_k80',
+    name: 'Mẫu Khách sạn (Hotel K80)',
+    paperSize: 'k80',
+    content: `<div class="p-4 text-sm font-mono max-w-[80mm] mx-auto text-black">
+  <div class="text-center font-bold text-xl mb-1">{{shopName}}</div>
+  <div class="text-center mb-1">Đ/c: {{shopAddress}}</div>
+  <div class="text-center mb-3 border-b border-dashed border-gray-400 pb-2">ĐT: {{shopPhone}}</div>
+  
+  <div class="text-center font-bold text-lg mb-2">PHIẾU LƯU CHUỒNG (HOTEL)</div>
+  <div class="mb-1"><strong>Mã phiếu:</strong> {{receiptCode}}</div>
+  <div class="mb-1"><strong>Khách hàng:</strong> {{customerName}}</div>
+  <div class="mb-2"><strong>Thú cưng:</strong> {{petName}} ({{petBreed}})</div>
+  
+  <div class="border-t border-b border-dashed border-gray-400 py-2 mb-3">
+    <div class="flex justify-between mb-1">
+      <span>Check-in:</span>
+      <span>{{checkInDate}}</span>
+    </div>
+    <div class="flex justify-between mb-1">
+      <span>Check-out:</span>
+      <span>{{checkOutDate}}</span>
+    </div>
+    <div class="flex justify-between font-bold">
+      <span>Số ngày/đêm:</span>
+      <span>{{totalDuration}}</span>
+    </div>
+  </div>
+  
+  <table class="w-full mb-3 text-sm">
+    <thead>
+      <tr class="border-b border-dashed border-gray-400">
+        <th class="text-left py-1">Hạng phong</th>
+        <th class="text-right py-1 w-20">TTien</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{rooms_html}}
+    </tbody>
+  </table>
+  
+  <div class="border-t border-dashed border-gray-400 pt-2 mb-1 flex justify-between">
+    <span>Tạm tính:</span>
+    <span class="font-bold">{{totalAmount}}</span>
+  </div>
+  <div class="flex justify-between mb-1">
+    <span>Phụ phí:</span>
+    <span>{{surchargeAmount}}</span>
+  </div>
+  <div class="border-t border-dashed border-gray-400 mt-2 pt-2 mb-4 flex justify-between font-bold text-lg">
+    <span>Tổng phải thu:</span>
+    <span>{{finalAmount}}</span>
+  </div>
+  
+  <div class="text-center mb-1 text-xs">Cảm ơn quý khách và hẹn gặp lại!</div>
+</div>`,
+  },
+]
 
 @Injectable()
 export class SettingsService {
@@ -621,6 +844,91 @@ export class SettingsService {
 
     const updated = await this.db.$queryRaw<any[]>`SELECT * FROM system_configs LIMIT 1`
     return { success: true, data: updated[0] }
+  }
+
+  // ─── Print Templates ───────────────────────────────────────────────────────
+
+  async findAllPrintTemplates() {
+    const templates = await this.db.printTemplate.findMany({
+      orderBy: { createdAt: 'asc' },
+    })
+    
+    // Auto-seed if empty
+    if (templates.length === 0) {
+      const seeded = await Promise.all(
+        DEFAULT_TEMPLATES.map((t) =>
+          this.db.printTemplate.create({
+            data: {
+              ...t,
+              isSystem: true,
+            },
+          })
+        )
+      )
+      return { success: true, data: seeded }
+    }
+    
+    // Ensure missing default templates are added
+    const existingTypes = new Set(templates.map((t) => t.type))
+    const missingTemplates = DEFAULT_TEMPLATES.filter((t) => !existingTypes.has(t.type))
+    
+    if (missingTemplates.length > 0) {
+      const added = await Promise.all(
+        missingTemplates.map((t) =>
+          this.db.printTemplate.create({
+            data: {
+              ...t,
+              isSystem: true,
+            },
+          })
+        )
+      )
+      return { success: true, data: [...templates, ...added] }
+    }
+
+    return { success: true, data: templates }
+  }
+
+  async getPrintTemplate(type: string) {
+    let template = await this.db.printTemplate.findUnique({
+      where: { type },
+    })
+
+    if (!template) {
+      const defaultValue = DEFAULT_TEMPLATES.find((t) => t.type === type)
+      if (defaultValue) {
+        template = await this.db.printTemplate.create({
+          data: {
+            ...defaultValue,
+            isSystem: true,
+          },
+        })
+      } else {
+        throw new NotFoundException('Template not found')
+      }
+    }
+
+    return { success: true, data: template }
+  }
+
+  async updatePrintTemplate(type: string, dto: UpdatePrintTemplateDto) {
+    const template = await this.db.printTemplate.findUnique({
+      where: { type },
+    })
+
+    if (!template) {
+      throw new NotFoundException('Template not found')
+    }
+
+    const updated = await this.db.printTemplate.update({
+      where: { type },
+      data: {
+        content: dto.content,
+        paperSize: dto.paperSize,
+      },
+    })
+
+    return { success: true, data: updated }
   }
 
   async getPaymentOptions() {

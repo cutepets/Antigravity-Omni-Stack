@@ -140,7 +140,33 @@ export type SettingsBranch = {
   isActive?: boolean
 }
 
+export type PrintTemplate = {
+  id: string
+  type: string
+  name: string
+  content: string
+  paperSize: string
+  isSystem: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export const settingsApi = {
+  getPrintTemplates: async (): Promise<PrintTemplate[]> => {
+    const { data } = await api.get('/settings/print-templates')
+    return data.data ?? []
+  },
+
+  getPrintTemplateByType: async (type: string): Promise<PrintTemplate> => {
+    const { data } = await api.get(`/settings/print-templates/${type}`)
+    return data.data
+  },
+
+  updatePrintTemplate: async (type: string, payload: { content: string; paperSize: string }): Promise<PrintTemplate> => {
+    const { data } = await api.put(`/settings/print-templates/${type}`, payload)
+    return data.data
+  },
+
   getConfigs: async (keys?: string[]): Promise<Record<string, any>> => {
     const { data } = await api.get('/settings', { params: { keys: keys?.join(',') } })
     if (data.success) {

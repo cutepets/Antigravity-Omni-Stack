@@ -1,7 +1,7 @@
 import { api } from '@/lib/api'
 
 export const inventoryApi = {
-  getProducts: (params?: any) => api.get('/inventory/products', { params }).then(res => res.data),
+  getProducts: (params?: any, config?: any) => api.get('/inventory/products', { params, ...config }).then(res => res.data),
   getProduct: (id: string) => api.get(`/inventory/products/${id}`).then(res => res.data),
   createProduct: (data: any) => api.post('/inventory/products', data).then(res => res.data),
   updateProduct: (id: string, data: any) => api.put(`/inventory/products/${id}`, data).then(res => res.data),

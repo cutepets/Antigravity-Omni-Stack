@@ -1797,3 +1797,17 @@ model StockCountItem {
   @@index([productVariantId])
   @@map("stock_count_items")
 }
+
+model PrintTemplate {
+  id          String   @id @default(cuid())
+  type        String   @unique
+  name        String
+  content     String
+  paperSize   String
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("print_templates")
+}
+

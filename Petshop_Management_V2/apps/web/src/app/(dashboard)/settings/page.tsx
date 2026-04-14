@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRightLeft, Bell, Check, CheckCircle2, History, MapPin, Moon, Palette, Save, Settings, Store, Zap } from 'lucide-react'
+import { ArrowRightLeft, Bell, Check, CheckCircle2, History, MapPin, Moon, Palette, Printer, Save, Settings, Store, Zap } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { cn } from '@/lib/utils'
@@ -15,6 +15,7 @@ import { TabBranches } from './components/TabBranches'
 import { TabGeneral } from './components/TabGeneral'
 import { TabHistory } from './components/TabHistory'
 import { TabNotifications } from './components/TabNotifications'
+import { TabPrintTemplates } from './components/TabPrintTemplates'
 
 
 type SettingsTabConfig = {
@@ -51,6 +52,7 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
   { id: 'general', label: 'Cửa hàng', icon: Store, anyPermissions: ['settings.app.read', 'settings.app.update'] },
   { id: 'branches', label: 'Chi nhánh', icon: MapPin, anyPermissions: ['branch.read', 'branch.create', 'branch.update', 'branch.delete'] },
   { id: 'payments', label: 'Thanh toán', icon: ArrowRightLeft, anyPermissions: ['settings.payment.manage'] },
+  { id: 'print-templates', label: 'Mẫu in', icon: Printer, anyPermissions: ['settings.template.manage'] },
   { id: 'theme', label: 'Giao diện', icon: Palette },
   { id: 'notifications', label: 'Thông báo', icon: Bell, anyPermissions: ['settings.app.read', 'settings.app.update'] },
   { id: 'history', label: 'Lịch sử thao tác', icon: History, anyPermissions: ['settings.audit_log.read'] },
@@ -102,7 +104,10 @@ export default function SettingsPage() {
         return <TabGeneral />
       case 'branches':
         return <TabBranches />
+      case 'print-templates':
+        return <TabPrintTemplates />
       case 'notifications':
+
         return <TabNotifications />
       case 'history':
         return <TabHistory />

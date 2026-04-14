@@ -4,7 +4,7 @@ import { getReceiptStatusView, fmt } from './receipt.utils';
 import dayjs from 'dayjs';
 import React from 'react';
 
-import { useDeferredValue, useEffect, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
@@ -37,7 +37,9 @@ import {
   createSupplierDraft,
   filterSuppliers,
   findExactProductMatch,
+  formatReceiptDateTime,
   getItemIdentity,
+  getPaymentMethodLabel,
   getProducts,
   getReceipts,
   getReceiptRedirectId,
@@ -113,20 +115,21 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   const [isSuggestionOpen, setIsSuggestionOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const [items, setItems] = useState<SelectedItem[]>([])
-  const [selectedLineIds, setSelectedLineIds] = useState<string[]>([])
   const [receiptDiscount, setReceiptDiscount] = useState(0)
   const [receiptTax, setReceiptTax] = useState(0)
   const [extraCosts, setExtraCosts] = useState<ExtraCostRow[]>([])
   const [showExtraCosts, setShowExtraCosts] = useState(false)
   const [editingNoteForId, setEditingNoteForId] = useState<string | null>(null)
   const [tempNote, setTempNote] = useState('')
-  const [scanMode, setScanMode] = useState(false)
+  const [splitDuplicateLines, setSplitDuplicateLines] = useState(false)
   const [isEditingSession, setIsEditingSession] = useState(false)
   const [editBaseSignature, setEditBaseSignature] = useState('')
   const [editSessions, setEditSessions] = useState<ReceiptEditSession[]>([])
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showReturnModal, setShowReturnModal] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showReceiptExcelModal, setShowReceiptExcelModal] = useState(false)
+
   const [paymentForm, setPaymentForm] = useState<ReceiptPaymentFormState>({
     amount: 0,
     paymentMethod: 'BANK',
@@ -345,6 +348,222 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     latestProductPriceMap.get(productId) ??
     null
 
+  // ── Memoized display derived values ──────────────────────────────────────────
+
+  const statusView = useMemo(() => getReceiptStatusView(receipt), [receipt])
+
+  const creatorDisplayName = useMemo(
+    () =>
+      receipt?.createdBy?.fullName ||
+      receipt?.createdBy?.username ||
+      receipt?.createdBy?.name ||
+      'Chưa xác định',
+    [receipt],
+  )
+
+  const activityTimeline = useMemo(
+    () => [
+      {
+        title: 'Tạo phiếu đặt hàng',
+        detail: `Người tạo: ${creatorDisplayName}`,
+        time: receipt?.createdAt ? formatReceiptDateTime(receipt.createdAt) : dayjs().format('DD/MM/YYYY HH:mm'),
+        tone: 'text-primary-500',
+        linkLabel: null,
+        href: null,
+      },
+      ...editSessions
+        .slice()
+        .sort((a, b) => new Date(b.editedAt).getTime() - new Date(a.editedAt).getTime())
+        .map((session) => ({
+          title: 'Cập nhật sản phẩm',
+          detail: `${session.itemCount} mặt hàng • ${session.totalQuantity} số lượng`,
+          time: `${formatReceiptDateTime(session.editedAt)} • ${session.editedBy}`,
+          tone: 'text-foreground',
+          linkLabel: null,
+          href: null,
+        })),
+    ],
+    [creatorDisplayName, editSessions, receipt?.createdAt],
+  )
+
+  const paymentTimelineEntries = useMemo(() => {
+    const sorted = (receipt?.paymentAllocations ?? [])
+      .slice()
+      .sort(
+        (a: any, b: any) =>
+          new Date(b?.payment?.paidAt ?? 0).getTime() - new Date(a?.payment?.paidAt ?? 0).getTime(),
+      )
+    return sorted.map((allocation: any, index: number) => {
+      const voucherNumber = sorted[index]?.payment?.transactionVoucherNumber || null
+      return {
+        title: 'Thanh toán',
+        detail: [
+          `${fmt(Number(allocation.amount ?? 0))} đ`,
+          getPaymentMethodLabel(allocation.payment?.paymentMethod),
+        ]
+          .filter(Boolean)
+          .join(' • '),
+        time: `${formatReceiptDateTime(allocation.payment?.paidAt ?? receipt?.paymentDate ?? receipt?.updatedAt)}${
+          allocation.payment?.staff?.fullName ? ` • ${allocation.payment.staff.fullName}` : ''
+        }`,
+        tone: 'text-primary-500',
+        linkLabel: voucherNumber ? `Phiếu chi: ${voucherNumber}` : null,
+        href: voucherNumber ? `/finance/${encodeURIComponent(voucherNumber)}` : null,
+      }
+    })
+  }, [receipt?.paymentAllocations, receipt?.paymentDate, receipt?.updatedAt])
+
+  const fallbackPaymentEntries = useMemo(
+    () =>
+      paymentTimelineEntries.length === 0 && hasAnyPayment
+        ? [
+            {
+              title: isFullyPaid ? 'Đã thanh toán' : 'Thanh toán 1 phần',
+              detail: [
+                `${fmt(currentReceiptPaidAmount)} đ`,
+                receipt?.paymentMethod ? getPaymentMethodLabel(receipt.paymentMethod) : null,
+              ]
+                .filter(Boolean)
+                .join(' • '),
+              time: formatReceiptDateTime(receipt?.paymentDate ?? receipt?.updatedAt),
+              tone: 'text-primary-500',
+              linkLabel: null,
+              href: null,
+            },
+          ]
+        : [],
+    [currentReceiptPaidAmount, hasAnyPayment, isFullyPaid, paymentTimelineEntries.length, receipt],
+  )
+
+  const receiveHistoryEntries = useMemo(
+    () =>
+      (receipt?.receiveEvents ?? [])
+        .slice()
+        .sort(
+          (a: any, b: any) =>
+            new Date(b?.receivedAt ?? 0).getTime() - new Date(a?.receivedAt ?? 0).getTime(),
+        )
+        .map((event: any) => ({
+          title: 'Nhập kho',
+          detail: `${Number(event.totalQuantity ?? 0)} số lượng • ${fmt(Number(event.totalAmount ?? 0))} đ`,
+          time: `${formatReceiptDateTime(event.receivedAt)}${event.staff?.fullName ? ` • ${event.staff.fullName}` : ''}`,
+          tone: 'text-sky-500',
+          linkLabel: null,
+          href: null,
+        })),
+    [receipt?.receiveEvents],
+  )
+
+  const fallbackReceiveEntries = useMemo(
+    () =>
+      receiveHistoryEntries.length === 0 && hasAnyReceive
+        ? [
+            {
+              title: isReceiveDone ? 'Đã nhập kho' : 'Nhập kho 1 phần',
+              detail: `${Math.max(0, Number(receipt?.receivedQty ?? 0))} số lượng`,
+              time: formatReceiptDateTime(receipt?.receivedAt ?? receipt?.completedAt ?? receipt?.updatedAt),
+              tone: 'text-sky-500',
+              linkLabel: null,
+              href: null,
+            },
+          ]
+        : [],
+    [hasAnyReceive, isReceiveDone, receiveHistoryEntries.length, receipt],
+  )
+
+  const returnHistoryEntries = useMemo(
+    () =>
+      (receipt?.supplierReturns ?? [])
+        .slice()
+        .sort(
+          (a: any, b: any) =>
+            new Date(b?.returnedAt ?? 0).getTime() - new Date(a?.returnedAt ?? 0).getTime(),
+        )
+        .map((supplierReturn: any) => ({
+          title: 'Hoàn trả nhà cung cấp',
+          detail: `${fmt(Number(supplierReturn.totalAmount ?? 0))} đ • ${Number(
+            supplierReturn.items?.reduce((sum: number, item: any) => sum + Number(item.quantity ?? 0), 0) ?? 0,
+          )} số lượng`,
+          time: formatReceiptDateTime(supplierReturn.returnedAt),
+          tone: 'text-orange-400',
+          linkLabel: null,
+          href: null,
+        })),
+    [receipt?.supplierReturns],
+  )
+
+  const hasAnyReturn = useMemo(
+    () =>
+      Number(receipt?.returnedQty ?? 0) > 0 ||
+      receipt?.receiptStatus === 'RETURNED' ||
+      returnHistoryEntries.length > 0,
+    [receipt?.returnedQty, receipt?.receiptStatus, returnHistoryEntries.length],
+  )
+
+  const enhancedActivityTimelineEntries = useMemo(
+    () => [
+      ...activityTimeline,
+      ...paymentTimelineEntries,
+      ...fallbackPaymentEntries,
+      ...receiveHistoryEntries,
+      ...fallbackReceiveEntries,
+      ...returnHistoryEntries,
+    ],
+    [activityTimeline, fallbackPaymentEntries, fallbackReceiveEntries, paymentTimelineEntries, receiveHistoryEntries, returnHistoryEntries],
+  )
+
+  const progressSteps = useMemo(() => {
+    const terminalStep = isCancelled
+      ? { title: 'Hủy', meta: formatReceiptDateTime(receipt?.updatedAt), state: 'alert' as const }
+      : hasAnyReturn
+        ? {
+            title: 'Hoàn trả',
+            meta: returnHistoryEntries[0]?.time ?? formatReceiptDateTime(receipt?.updatedAt),
+            state: 'alert' as const,
+          }
+        : { title: 'Hoàn trả', meta: '—', state: 'hidden' as const }
+    return [
+      {
+        title: 'Đặt hàng',
+        meta: receipt?.createdAt ? formatReceiptDateTime(receipt.createdAt) : '—',
+        state: (receipt ? 'completed' : 'active') as 'completed' | 'active',
+      },
+      {
+        title: 'Thanh toán',
+        meta: hasAnyPayment ? formatReceiptDateTime(receipt?.paymentDate ?? receipt?.updatedAt) : '—',
+        state: (isFullyPaid ? 'completed' : hasAnyPayment ? 'active' : 'pending') as 'completed' | 'active' | 'pending',
+      },
+      {
+        title: 'Nhập kho',
+        meta: hasAnyReceive ? formatReceiptDateTime(receipt?.receivedAt ?? receipt?.completedAt ?? receipt?.updatedAt) : '—',
+        state: (isReceiveDone ? 'completed' : hasAnyReceive ? 'active' : 'pending') as 'completed' | 'active' | 'pending',
+      },
+      terminalStep,
+    ]
+  }, [hasAnyPayment, hasAnyReceive, hasAnyReturn, isCancelled, isFullyPaid, isReceiveDone, receipt, returnHistoryEntries])
+
+  const visibleProgressSteps = useMemo(
+    () => progressSteps.filter((step) => step.state !== 'hidden'),
+    [progressSteps],
+  )
+
+  const canShowPaymentAction = useMemo(
+    () => isExistingReceipt && canPayReceipt && !isCancelled && !isCompleted && currentDebt > 0,
+    [canPayReceipt, currentDebt, isCancelled, isCompleted, isExistingReceipt],
+  )
+  const canShowReceiveAction = useMemo(
+    () => isExistingReceipt && canReceiveReceipt && !isCancelled && !isCompleted && !isReceiveDone,
+    [canReceiveReceipt, isCancelled, isCompleted, isExistingReceipt, isReceiveDone],
+  )
+  const canShowCancelAction = useMemo(
+    () => isExistingReceipt && canCancelReceipt && !isCancelled && !hasAnyPayment && !hasAnyReceive,
+    [canCancelReceipt, hasAnyPayment, hasAnyReceive, isCancelled, isExistingReceipt],
+  )
+  const canShowReturnAction = useMemo(
+    () => isExistingReceipt && canReturnReceipt && isCompleted && returnableReceiptItems.length > 0,
+    [canReturnReceipt, isCompleted, isExistingReceipt, returnableReceiptItems.length],
+  )
+
   // ── Query helpers ─────────────────────────────────────────────────────────────
 
   const invalidateCurrentReceiptQueries = () => {
@@ -468,7 +687,6 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     setItems(
       Array.isArray(receipt.items) ? receipt.items.map((item: any) => normalizeReceiptItem(item)) : [],
     )
-    setSelectedLineIds([])
     setReceiptDiscount(parsedNotes.discount)
     setReceiptTax(parsedNotes.tax)
     setExtraCosts(parsedNotes.extraCosts)
@@ -531,13 +749,10 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   }, [productResults, search])
 
   useEffect(() => {
-    setSelectedLineIds((current) =>
-      current.filter((lineId) => items.some((item) => item.lineId === lineId)),
-    )
+    // Only highlight if items exist but input is blurred
   }, [items])
 
   useEffect(() => {
-    if (!scanMode) return
     const query = search.trim()
     if (query.length < 3 || manualSearching) return
 
@@ -551,7 +766,6 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
         lastAutoScannedRef.current = normalizedQuery
         addProductToReceipt(localExact.product, {
           productVariantId: localExact.productVariantId,
-          mergeIdentity: true,
         })
         return
       }
@@ -570,16 +784,15 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
         lastAutoScannedRef.current = normalizedQuery
         addProductToReceipt(exact.product, {
           productVariantId: exact.productVariantId,
-          mergeIdentity: true,
         })
       } catch {
-        // keep scan mode non-blocking
+        // Keep barcode scanning non-blocking.
       }
     }, 120)
 
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branchId, manualSearching, productResults, scanMode, search])
+  }, [branchId, manualSearching, productResults, search])
 
   // ── Item handlers ─────────────────────────────────────────────────────────────
 
@@ -595,7 +808,8 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     nextItem = applyLatestSupplierPrice(nextItem)
 
     setItems((current) => {
-      if (options?.mergeIdentity) {
+      const shouldMergeIdentity = options?.mergeIdentity ?? !splitDuplicateLines
+      if (shouldMergeIdentity) {
         const identity = getItemIdentity(nextItem.productId, nextItem.productVariantId)
         const existingIndex = current.findIndex(
           (item) => getItemIdentity(item.productId, item.productVariantId) === identity,
@@ -662,31 +876,6 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     setItems((current) =>
       current.filter((item) => item.lineId !== lineId || hasLockedReceiptQuantity(item)),
     )
-  }
-
-  const toggleLineSelection = (lineId: string) => {
-    if (isReadOnly) return
-    setSelectedLineIds((current) =>
-      current.includes(lineId) ? current.filter((id) => id !== lineId) : [...current, lineId],
-    )
-  }
-
-  const toggleSelectAllLines = () => {
-    if (isReadOnly) return
-    setSelectedLineIds((current) =>
-      current.length === items.length ? [] : items.map((item) => item.lineId),
-    )
-  }
-
-  const removeSelectedItems = () => {
-    if (isReadOnly) return
-    if (selectedLineIds.length === 0) return
-    setItems((current) =>
-      current.filter(
-        (item) => !selectedLineIds.includes(item.lineId) || hasLockedReceiptQuantity(item),
-      ),
-    )
-    setSelectedLineIds([])
   }
 
   const duplicateItem = (lineId: string) => {
@@ -796,7 +985,6 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     if (localExact) {
       addProductToReceipt(localExact.product, {
         productVariantId: localExact.productVariantId,
-        mergeIdentity: true,
       })
       return
     }
@@ -816,7 +1004,6 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       if (exact) {
         addProductToReceipt(exact.product, {
           productVariantId: exact.productVariantId,
-          mergeIdentity: true,
         })
         return
       }
@@ -859,7 +1046,6 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     if (localExact) {
       addProductToReceipt(localExact.product, {
         productVariantId: localExact.productVariantId,
-        mergeIdentity: true,
       })
       return
     }
@@ -1179,75 +1365,6 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     returnMutation.mutate(returnForm)
   }
 
-  
-  
-  // ── Derived View State ────────────────────────────────────────────────────────
-  const statusView = getReceiptStatusView(receipt)
-
-  const canShowPaymentAction =
-    receipt?.status !== 'CANCELLED' && receipt?.status !== 'DRAFT' && !isFullyPaid
-
-  const canShowReceiveAction =
-    receipt?.status !== 'CANCELLED' && receipt?.status !== 'DRAFT' && !isReceiveDone
-
-  const canShowCancelAction =
-    receipt?.status !== 'CANCELLED' && receipt?.status !== 'COMPLETED'
-
-  const canShowReturnAction =
-    receipt?.status === 'COMPLETED'
-
-  const visibleProgressSteps = (() => {
-    if (receipt?.status === 'CANCELLED') {
-      return [
-        { title: 'Tạo đơn', state: 'alert', meta: 'Đã hủy' },
-      ]
-    }
-    const steps = [
-      { title: 'Tạo đơn', state: 'completed', meta: '' },
-      {
-        title: 'Thanh toán',
-        state: hasAnyPayment ? (isFullyPaid ? 'completed' : 'active') : 'pending',
-        meta: isFullyPaid ? 'Hoàn tất' : hasAnyPayment ? 'Một phần' : 'Chờ TT',
-      },
-      {
-        title: 'Nhập kho',
-        state: hasAnyReceive ? (isReceiveDone ? 'completed' : 'active') : 'pending',
-        meta: isReceiveDone ? 'Hoàn tất' : hasAnyReceive ? 'Một phần' : 'Chờ nhập',
-      },
-      {
-        title: 'Hoàn thành',
-        state: isCompleted ? 'completed' : 'pending',
-        meta: isCompleted ? 'Hoàn thành' : '',
-      },
-    ]
-    return steps
-  })()
-
-  const enhancedActivityTimelineEntries = React.useMemo(() => {
-    if (!receipt) return []
-    const _entries: any[] = []
-    
-    receipt.payments?.forEach((p: any) => {
-      _entries.push({
-        title: 'Thanh toán ' + (p.paymentMethod || 'Tiền mặt'),
-        time: dayjs(p.createdAt || new Date()).format('DD/MM/YYYY HH:mm'),
-        detail: fmt(Number(p.amount)),
-        tone: 'text-primary-500',
-        timestamp: p.createdAt || new Date().toISOString()
-      })
-    })
-
-    if (receipt.activityTimeline) {
-      receipt.activityTimeline.forEach((t: any) => {
-         _entries.push({
-           ...t,
-           timestamp: t.createdAt
-         })
-      })
-    }
-
-    return _entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-  }, [receipt])
 
   // ── Extra cost helpers ──────────────────────────────────────────────────────── 
 
@@ -1305,24 +1422,25 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     isSuggestionOpen, setIsSuggestionOpen,
     highlightedIndex, setHighlightedIndex,
     items, setItems,
-    selectedLineIds, setSelectedLineIds,
     receiptDiscount, setReceiptDiscount,
     receiptTax, setReceiptTax,
     extraCosts, setExtraCosts,
     showExtraCosts, setShowExtraCosts,
     editingNoteForId, setEditingNoteForId,
     tempNote, setTempNote,
-    scanMode, setScanMode,
+    splitDuplicateLines, setSplitDuplicateLines,
     isEditingSession,
     editSessions,
     showPaymentModal, setShowPaymentModal,
     showReturnModal, setShowReturnModal,
     showExportMenu, setShowExportMenu,
+    showReceiptExcelModal, setShowReceiptExcelModal,
     paymentForm, setPaymentForm,
     returnForm, setReturnForm,
 
     // derived
     statusView,
+    creatorDisplayName,
     canShowPaymentAction,
     canShowReceiveAction,
     canShowCancelAction,
@@ -1370,9 +1488,6 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     updateItemNote,
     updateItemVariant,
     removeItem,
-    toggleLineSelection,
-    toggleSelectAllLines,
-    removeSelectedItems,
     duplicateItem,
     mergeDuplicateItems,
     applyLatestSupplierPricesToItems,
