@@ -285,7 +285,7 @@ export function GroomingSessionDialog({
   };
 
   const petInfo = getPetInfo();
-  const sessionLabel = isEditing ? (session.sessionCode || session.id.slice(-8).toUpperCase()) : "Tạo mới";
+  const sessionLabel = isEditing ? (session!.sessionCode || session!.id.slice(-8).toUpperCase()) : "Tạo mới";
 
   return (
     <>
@@ -385,16 +385,16 @@ export function GroomingSessionDialog({
                     {isEditing && (
                       <div className="mt-2 space-y-1">
                         <p className="text-xs text-foreground-muted">
-                          Tạo lúc: {formatGroomingDateTime(session.createdAt)}
+                          Tạo lúc: {formatGroomingDateTime(session!.createdAt)}
                         </p>
-                        {session.branch && (
+                        {session!.branch && (
                           <p className="text-xs text-foreground-muted">
-                            Chi nhánh: <span className="font-medium text-foreground">{session.branch.name}</span>
+                            Chi nhánh: <span className="font-medium text-foreground">{session!.branch.name}</span>
                           </p>
                         )}
-                        {session.staff && (
+                        {session!.staff && (
                           <p className="text-xs text-foreground-muted">
-                            Người tạo: <span className="font-medium text-foreground">{session.staff.fullName}</span>
+                            Người tạo: <span className="font-medium text-foreground">{session!.staff.fullName}</span>
                           </p>
                         )}
                       </div>

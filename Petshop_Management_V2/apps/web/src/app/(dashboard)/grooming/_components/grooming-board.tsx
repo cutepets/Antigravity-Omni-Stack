@@ -331,7 +331,7 @@ export function GroomingBoard() {
                     columns={TABLE_COLUMNS.map(c => ({...c}))}
                     columnOrder={columnOrder}
                     visibleColumns={visibleColumns}
-                    sortInfo={{}}
+                    sortInfo={{ columnId: 'index', direction: 'asc' }}
                     sortableColumns={new Set()}
                     draggingColumnId={draggingColumnId}
                     onToggle={(id) => dataListState.toggleColumn(id as DisplayColumnId)}

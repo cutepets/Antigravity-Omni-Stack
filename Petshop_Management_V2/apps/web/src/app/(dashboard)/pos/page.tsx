@@ -25,7 +25,7 @@ import { Menu, X, Plus, Minus, Trash2, Home, NotebookText, Info, FileText, Setti
 import Link from 'next/link';
 import Image from 'next/image';
 import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { orderApi } from '@/lib/api/order.api';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
 import { usePaymentIntentStream } from '@/hooks/use-payment-intent-stream';
@@ -262,6 +262,7 @@ function resolveCartItemStockState(item: any, branchId?: string) {
 }
 
 function PosPageContent() {
+  const router = useRouter()
   const queryClient = useQueryClient();
   const [showHotelCheckout, setShowHotelCheckout] = useState(false);
   const [noteEditingId, setNoteEditingId] = useState<string | null>(null);
@@ -915,6 +916,11 @@ function PosPageContent() {
         paidAmount: orderResult?.paidAmount ?? orderResult?.amountPaid ?? payload.payments?.reduce((sum: number, payment: any) => sum + payment.amount, 0) ?? 0,
       });
       setCustomerMoneyInput('');
+
+      // Redirect to order detail page
+      if (orderResult?.id) {
+        router.push(`/orders/${orderResult.id}`)
+      }
     },
     [
       activeTab,
@@ -924,6 +930,7 @@ function PosPageContent() {
       handleGenerateQrPayment,
       isQrBankPayment,
       preferredPaymentMethod,
+      router,
       store,
     ],
   );
@@ -1353,8 +1360,8 @@ function PosPageContent() {
                       <div className="flex items-center justify-center">
                         <div
                           className={`flex items-center rounded overflow-hidden h-8 transition-colors ${isOverSellableQty
-                              ? 'border border-red-500 bg-red-50'
-                              : 'border border-gray-300 bg-white focus-within:border-primary-500'
+                            ? 'border border-red-500 bg-red-50'
+                            : 'border border-gray-300 bg-white focus-within:border-primary-500'
                             }`}
                         >
                           <button
@@ -1487,8 +1494,8 @@ function PosPageContent() {
                       <div className="absolute bottom-2 right-2">
                         <div
                           className={`flex items-center rounded overflow-hidden h-[32px] transition-colors ${isOverSellableQty
-                              ? 'border border-red-500 bg-red-50 text-red-600'
-                              : 'border border-gray-300 bg-white text-gray-700'
+                            ? 'border border-red-500 bg-red-50 text-red-600'
+                            : 'border border-gray-300 bg-white text-gray-700'
                             }`}
                         >
                           <button
@@ -1623,7 +1630,7 @@ function PosPageContent() {
                       const method =
                         (payment.paymentAccountId
                           ? visiblePaymentMethods.find((item) => item.id === payment.paymentAccountId) ??
-                            paymentMethods.find((item) => item.id === payment.paymentAccountId)
+                          paymentMethods.find((item) => item.id === payment.paymentAccountId)
                           : null) ?? null;
                       const colorClasses = getPaymentMethodColorClasses(method?.type ?? 'CASH', method?.colorKey);
 
@@ -1663,9 +1670,8 @@ function PosPageContent() {
                         <button
                           type="button"
                           onClick={() => setIsPaymentMenuOpen((current) => !current)}
-                          className={`inline-flex items-center max-w-[130px] sm:max-w-[160px] lg:max-w-[140px] gap-1 sm:gap-2 rounded-full border px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold shadow-sm overflow-hidden ${
-                            getPaymentMethodColorClasses(currentSinglePaymentMethod?.type ?? 'CASH', currentSinglePaymentMethod?.colorKey).chip
-                          }`}
+                          className={`inline-flex items-center max-w-[130px] sm:max-w-[160px] lg:max-w-[140px] gap-1 sm:gap-2 rounded-full border px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold shadow-sm overflow-hidden ${getPaymentMethodColorClasses(currentSinglePaymentMethod?.type ?? 'CASH', currentSinglePaymentMethod?.colorKey).chip
+                            }`}
                         >
                           <span className="truncate">{currentSinglePaymentMethod?.name ?? 'Chọn...'}</span>
                           <ChevronDown size={14} className="shrink-0" />
@@ -1750,87 +1756,87 @@ function PosPageContent() {
                   ) : null}
                 </div>
               )}
-          </div>
+            </div>
 
-          <div className="flex justify-between items-center py-1">
-            <span className="text-[15px] text-gray-500">
-              {isMultiPaymentSummary ? 'Trạng thái thanh toán' : 'Tiền thừa trả khách'}
-            </span>
-            <span className={`text-[15px] font-bold ${isMultiPaymentSummary
+            <div className="flex justify-between items-center py-1">
+              <span className="text-[15px] text-gray-500">
+                {isMultiPaymentSummary ? 'Trạng thái thanh toán' : 'Tiền thừa trả khách'}
+              </span>
+              <span className={`text-[15px] font-bold ${isMultiPaymentSummary
                 ? multiPaymentTotal >= cartTotal
                   ? 'text-emerald-600'
                   : 'text-rose-500'
                 : returnMoney > 0
                   ? 'text-gray-800'
                   : 'text-gray-400'
-              }`}>
-              {isMultiPaymentSummary
-                ? multiPaymentTotal >= cartTotal
-                  ? 'Đã đủ'
-                  : `Còn thiếu ${moneyRaw(cartTotal - multiPaymentTotal)}`
-                : guestMoney === 0
-                  ? '0'
-                  : moneyRaw(returnMoney)}
-            </span>
+                }`}>
+                {isMultiPaymentSummary
+                  ? multiPaymentTotal >= cartTotal
+                    ? 'Đã đủ'
+                    : `Còn thiếu ${moneyRaw(cartTotal - multiPaymentTotal)}`
+                  : guestMoney === 0
+                    ? '0'
+                    : moneyRaw(returnMoney)}
+              </span>
+            </div>
           </div>
+
         </div>
 
-    </div>
-
-        {/* 5. BUTTONS AREA (Mobile: 5th, Desktop: Right Col, Row 3) */ }
-  <div className="order-5 lg:col-start-2 lg:row-start-3 bg-gray-50 border-t border-b lg:border-b-0 lg:border-l border-gray-200 z-20 p-4 flex flex-col gap-3 shadow-[0_-4px_15px_rgba(0,0,0,0.03)]">
-    <div className="grid grid-cols-1 gap-3">
-      <button
-        className="py-2.5 bg-white border border-gray-300 hover:border-primary-500 text-gray-700 rounded-lg text-[13px] font-bold uppercase transition-colors flex items-center justify-center shadow-sm"
-        onClick={() => setShowBookingModal(true)}
-        disabled={cartCount === 0}
-      >
-        ĐẶT HÀNG
-      </button>
-    </div>
-    <button
-      className={`w-full py-4 text-white text-lg font-bold rounded-lg uppercase shadow-lg transition-transform active:scale-[0.98] ${cartCount > 0 ? 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/30' : 'bg-gray-400 cursor-not-allowed shadow-none'}`}
-      onClick={() => {
-        const method = activeTab.payments && activeTab.payments.length > 0 ? activeTab.payments[0].method : preferredPaymentMethod?.type ?? 'CASH';
-        handleCheckout(method as string);
-      }}
-      disabled={cartCount === 0 || isQrIntentPending}
-    >
-      Thanh Toán (F9)
-    </button>
-  </div>
+        {/* 5. BUTTONS AREA (Mobile: 5th, Desktop: Right Col, Row 3) */}
+        <div className="order-5 lg:col-start-2 lg:row-start-3 bg-gray-50 border-t border-b lg:border-b-0 lg:border-l border-gray-200 z-20 p-4 flex flex-col gap-3 shadow-[0_-4px_15px_rgba(0,0,0,0.03)]">
+          <div className="grid grid-cols-1 gap-3">
+            <button
+              className="py-2.5 bg-white border border-gray-300 hover:border-primary-500 text-gray-700 rounded-lg text-[13px] font-bold uppercase transition-colors flex items-center justify-center shadow-sm"
+              onClick={() => setShowBookingModal(true)}
+              disabled={cartCount === 0}
+            >
+              ĐẶT HÀNG
+            </button>
+          </div>
+          <button
+            className={`w-full py-4 text-white text-lg font-bold rounded-lg uppercase shadow-lg transition-transform active:scale-[0.98] ${cartCount > 0 ? 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/30' : 'bg-gray-400 cursor-not-allowed shadow-none'}`}
+            onClick={() => {
+              const method = activeTab.payments && activeTab.payments.length > 0 ? activeTab.payments[0].method : preferredPaymentMethod?.type ?? 'CASH';
+              handleCheckout(method as string);
+            }}
+            disabled={cartCount === 0 || isQrIntentPending}
+          >
+            Thanh Toán (F9)
+          </button>
+        </div>
 
       </main >
 
-    {/* â•â•â• MODALS â•â•â• */ }
-  <HotelCheckoutModal
-isOpen = { showHotelCheckout }
-onClose = {() => setShowHotelCheckout(false)}
-customerId = { activeTab?.customerId }
-onConfirm = {(checkoutInfo) => {
-  store.addItem(checkoutInfo);
-  setShowHotelCheckout(false);
-}}
+      {/* â•â•â• MODALS â•â•â• */}
+      <HotelCheckoutModal
+        isOpen={showHotelCheckout}
+        onClose={() => setShowHotelCheckout(false)}
+        customerId={activeTab?.customerId}
+        onConfirm={(checkoutInfo) => {
+          store.addItem(checkoutInfo);
+          setShowHotelCheckout(false);
+        }}
       />
 
-  <ReceiptModal
-isOpen = {!!store.receiptData}
-orderData = { store.receiptData }
-onClose = {() => {
-  store.setReceiptData(null);
-  store.resetActiveTab();
-}}
+      <ReceiptModal
+        isOpen={!!store.receiptData}
+        orderData={store.receiptData}
+        onClose={() => {
+          store.setReceiptData(null);
+          store.resetActiveTab();
+        }}
       />
 
-  <PosPaymentModal
-    isOpen={showPaymentModal}
-    onClose={() => setShowPaymentModal(false)}
-    cartTotal={cartTotal}
-    paymentMethods={visiblePaymentMethods}
-    initialPayments={activeTab?.payments ?? []}
-    minimumMethods={2}
-    onConfirm={handleMultiPaymentConfirm}
-  />
+      <PosPaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        cartTotal={cartTotal}
+        paymentMethods={visiblePaymentMethods}
+        initialPayments={activeTab?.payments ?? []}
+        minimumMethods={2}
+        onConfirm={handleMultiPaymentConfirm}
+      />
 
       <PosShiftClosingModal
         isOpen={showShiftClosingModal}
@@ -1850,14 +1856,14 @@ onClose = {() => {
         isRefreshing={isQrIntentPending}
       />
 
-      <PosOrderBookingModal 
+      <PosOrderBookingModal
         isOpen={showBookingModal}
         onClose={() => setShowBookingModal(false)}
         cartTotal={cartTotal}
         cartCount={cartCount}
         onConfirm={(date, note) => {
           const finalNote = `[HẸN ĐẾN: ${date.replace('T', ' ')}] ${note}`.trim();
-          handleCheckout('UNPAID', finalNote); 
+          handleCheckout('UNPAID', finalNote);
           setShowBookingModal(false);
         }}
       />

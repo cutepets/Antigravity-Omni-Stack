@@ -15,6 +15,8 @@ import { settingsApi } from '@/lib/api/settings.api'
 import { filterVisiblePaymentMethods } from '@/lib/payment-methods'
 import { formatDateTime, formatCurrency } from '@/lib/utils'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
+import { printOrderA4 } from '@/lib/order-print-a4'
+import { printOrderK80 } from '@/lib/order-print-k80'
 import { PosPaymentModal } from '../../pos/components/PosPaymentModal'
 import { OrderSettlementModal } from '../_components/order-settlement-modal'
 import { ApproveOrderModal } from '../_components/approve-order-modal'
@@ -349,10 +351,78 @@ function OrderDetailContent({ id }: { id: string }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => toast.success('Tính năng in đang được hoàn thiện.')} title="In đơn"
-            className="flex items-center gap-2 px-3 py-2 bg-background-secondary border border-border rounded-xl text-sm font-semibold text-foreground-secondary hover:bg-background-tertiary transition-colors">
-            <Printer size={16} /> In
-          </button>
+          <div className="relative group">
+            <button className="flex items-center gap-2 px-3 py-2 bg-background-secondary border border-border rounded-xl text-sm font-semibold text-foreground-secondary hover:bg-background-tertiary transition-colors">
+              <Printer size={16} /> In ▾
+            </button>
+            <div className="absolute right-0 top-full mt-1 w-40 rounded-xl border border-border bg-background shadow-lg z-50 hidden group-hover:block">
+              <button onClick={() => {
+                const printData = {
+                  orderNumber: order.orderNumber,
+                  createdAt: formatDateTime(order.createdAt),
+                  customerName: order.customer?.name || order.customer?.fullName || order.customerName || 'Khách lẻ',
+                  customerPhone: order.customer?.phone,
+                  branchName: order.branch?.name,
+                  staffName: order.staff?.fullName || order.staff?.name,
+                  status: order.status,
+                  paymentStatus: order.paymentStatus,
+                  items: items.map((item: any) => ({
+                    description: item.name || item.productName || item.serviceName || item.description || '—',
+                    quantity: item.quantity ?? 1,
+                    unitPrice: item.unitPrice ?? item.price ?? 0,
+                    subtotal: (item.quantity ?? 1) * (item.unitPrice ?? item.price ?? 0),
+                    sku: item.sku,
+                    type: item.type,
+                  })),
+                  subtotal,
+                  discount,
+                  shippingFee: order.shippingFee,
+                  total,
+                  paidAmount: amountPaid,
+                  remainingAmount: remainingDebt,
+                  notes: order.notes,
+                  payments: order.payments?.map((p: any) => ({
+                    method: p.method,
+                    amount: p.amount,
+                    createdAt: p.createdAt,
+                  })),
+                }
+                printOrderA4(printData)
+              }} className="w-full text-left px-3 py-2 text-sm hover:bg-background-secondary flex items-center gap-2">
+                <FileText size={14} /> In A4
+              </button>
+              <button onClick={() => {
+                const printData = {
+                  orderNumber: order.orderNumber,
+                  createdAt: formatDateTime(order.createdAt),
+                  customerName: order.customer?.name || order.customer?.fullName || order.customerName || 'Khách lẻ',
+                  customerPhone: order.customer?.phone,
+                  branchName: order.branch?.name,
+                  staffName: order.staff?.fullName || order.staff?.name,
+                  items: items.map((item: any) => ({
+                    description: item.name || item.productName || item.serviceName || item.description || '—',
+                    quantity: item.quantity ?? 1,
+                    unitPrice: item.unitPrice ?? item.price ?? 0,
+                    subtotal: (item.quantity ?? 1) * (item.unitPrice ?? item.price ?? 0),
+                  })),
+                  subtotal,
+                  discount,
+                  shippingFee: order.shippingFee,
+                  total,
+                  paidAmount: amountPaid,
+                  remainingAmount: remainingDebt,
+                  notes: order.notes,
+                  payments: order.payments?.map((p: any) => ({
+                    method: p.method,
+                    amount: p.amount,
+                  })),
+                }
+                printOrderK80(printData)
+              }} className="w-full text-left px-3 py-2 text-sm hover:bg-background-secondary flex items-center gap-2 border-t border-border">
+                <Receipt size={14} /> In K80
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -494,7 +564,7 @@ function OrderDetailContent({ id }: { id: string }) {
                             <OrderStatusBadge status={entry.toStatus} />
                           </div>
                         )}
-                        {entry.note && <p className="text-xs text-foreground-muted mt-2 italic">"{entry.note}"</p>}
+                        {entry.note && <p className="text-xs text-foreground-muted mt-2 italic">&ldquo;{entry.note}&rdquo;</p>}
                         <p className="text-[11px] text-foreground-muted mt-1">Bởi: {entry.performedByUser?.fullName ?? entry.performedByUser?.staffCode ?? '—'}</p>
                       </div>
                     </div>

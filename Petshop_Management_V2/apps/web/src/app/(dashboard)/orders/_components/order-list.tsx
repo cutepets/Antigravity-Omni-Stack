@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation'
 import { orderApi } from '@/lib/api/order.api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { exportOrdersToExcel } from '@/lib/order-export'
 import {
   DataListShell,
   DataListToolbar,
@@ -176,6 +177,35 @@ export function OrderList() {
     dataListState.toggleColumnSort(columnId)
   }
 
+  const { mutate: exportSelectedOrders } = useMutation({
+    mutationFn: async () => {
+      const selectedIds = Array.from(selectedRowIds).map((id) => id.replace('o:', ''))
+      const ordersToExport = processedOrders.filter((o: any) => selectedIds.includes(o.id))
+      const exportData = ordersToExport.map((o: any) => ({
+        orderNumber: o.orderNumber,
+        createdAt: o.createdAt,
+        customerName: o.customer?.name || o.customer?.fullName || 'Khách lẻ',
+        customerPhone: o.customer?.phone,
+        branchName: o.branch?.name,
+        staffName: o.staff?.fullName || o.staff?.name,
+        status: o.status,
+        paymentStatus: o.paymentStatus,
+        subtotal: o.subtotal,
+        discount: o.discount,
+        total: o.total,
+        paidAmount: o.paidAmount,
+        remainingAmount: o.remainingAmount,
+        notes: o.notes,
+        itemCount: o.items?.length || 0,
+        stockExportedAt: o.stockExportedAt,
+        settledAt: o.settledAt,
+      }))
+      return exportOrdersToExcel(exportData)
+    },
+    onSuccess: () => toast.success(`Đã export ${selectedRowIds.size} đơn hàng`),
+    onError: () => toast.error('Lỗi khi export'),
+  })
+
   const clearFilters = () => {
     setPaymentStatus('')
     setOrderStatus('')
@@ -195,7 +225,7 @@ export function OrderList() {
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rawOrders.length)
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // Render────────────────────────────────────────────────────
   return (
     <DataListShell>
       {/* Toolbar */}
@@ -349,11 +379,9 @@ export function OrderList() {
               <button
                 type="button"
                 className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
-                onClick={() => {
-                  toast.success('Tính năng in đang được phát triển')
-                }}
+                onClick={() => exportSelectedOrders()}
               >
-                <Printer size={13} /> In {selectedRowIds.size} đơn
+                <Download size={13} /> Export {selectedRowIds.size} đơn
               </button>
             </DataListBulkBar>
           ) : undefined

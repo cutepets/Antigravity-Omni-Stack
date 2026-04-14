@@ -1023,7 +1023,7 @@ export function SupplierDetailDrawer({
                   </div>
                 </div>
               )}
-              {false ? (
+              {(!receipts || receipts.length === 0) ? (
                 <p className="text-sm text-foreground-muted">Chưa có lịch sử nhập hàng với NCC này.</p>
               ) : (
                 receipts.map((receipt: any) => (
@@ -1148,7 +1148,7 @@ export function SupplierDetailDrawer({
                   })}
                 </DataListTable>
               </DataListShell>
-              {false ? (
+              {(!products || products.length === 0) ? (
                 <p className="text-sm text-foreground-muted">Chưa có dữ liệu mặt hàng để đánh giá.</p>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2">

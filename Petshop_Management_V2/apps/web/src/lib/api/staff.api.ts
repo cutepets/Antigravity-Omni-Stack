@@ -58,6 +58,7 @@ export interface StaffPerformance {
   monthlyOrders: number
   month: number
   year: number
+  chartData?: { month: number; year: number; revenue: number; orders: number; spaSessions: number }[]
 }
 
 export interface BranchRole {
