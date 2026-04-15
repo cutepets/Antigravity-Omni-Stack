@@ -1,10 +1,17 @@
 'use client'
 
-import { Calendar, MessageSquare } from 'lucide-react'
+import { Calendar, ExternalLink, FileText, MessageSquare } from 'lucide-react'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { PaymentStatusBadge, OrderStatusBadge } from './order-badges'
-import { ORDER_ACTION_LABELS } from './order.constants'
+import { ORDER_ACTION_LABELS, ORDER_STATUS_LABEL } from './order.constants'
 import type { OrderWorkspaceMode } from './order.types'
+
+interface RelatedDocument {
+  id: string
+  label: string
+  href: string
+  tone?: string
+}
 
 interface OrderRightPanelProps {
   mode: OrderWorkspaceMode
@@ -21,8 +28,67 @@ interface OrderRightPanelProps {
   notes: string
   onNotesChange: (v: string) => void
   timeline: any[]
+  relatedDocuments: RelatedDocument[]
   itemsCount: number
   orderStatus?: string
+}
+
+function buildHistorySummary(entry: any) {
+  const actorName =
+    entry.performedByUser?.fullName ?? entry.performedByUser?.staffCode ?? 'Chưa xác định'
+  const statusLabel =
+    entry.fromStatus || entry.toStatus
+      ? [
+          entry.fromStatus ? ORDER_STATUS_LABEL[entry.fromStatus] ?? entry.fromStatus : null,
+          entry.toStatus ? `→ ${ORDER_STATUS_LABEL[entry.toStatus] ?? entry.toStatus}` : null,
+        ]
+          .filter(Boolean)
+          .join(' ')
+      : null
+
+  return [actorName, statusLabel, entry.note].filter(Boolean).join(' • ')
+}
+
+function getDocumentToneClass(tone?: string) {
+  if (tone === 'income') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+  if (tone === 'expense') return 'border-rose-500/20 bg-rose-500/10 text-rose-300'
+  if (tone === 'grooming') return 'border-sky-500/20 bg-sky-500/10 text-sky-300'
+  if (tone === 'hotel') return 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+  return 'border-border bg-background text-foreground'
+}
+
+function RelatedDocumentsSection({ relatedDocuments }: { relatedDocuments: RelatedDocument[] }) {
+  return (
+    <div className="px-4 py-4">
+      <div className="rounded-2xl border border-border bg-background-secondary p-4">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-foreground-muted">
+          <FileText size={13} />
+          Phiếu liên quan
+        </div>
+
+        {relatedDocuments.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {relatedDocuments.map((document) => (
+              <a
+                key={document.id}
+                href={document.href}
+                target="_blank"
+                rel="noreferrer"
+                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors hover:border-primary-500/35 hover:text-primary-500 ${getDocumentToneClass(document.tone)}`}
+              >
+                <span>{document.label}</span>
+                <ExternalLink size={12} />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-4 text-sm text-foreground-muted">
+            Đơn hàng này chưa có phiếu liên kết.
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatus?: string }) {
@@ -37,45 +103,28 @@ function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatu
         </div>
 
         {timeline.length > 0 ? (
-          <div className="mt-4 space-y-4">
-            {timeline.map((entry: any, index: number) => {
-              const actorName =
-                entry.performedByUser?.fullName ?? entry.performedByUser?.staffCode ?? 'Chưa xác định'
-
-              return (
-                <div key={entry.id} className="grid grid-cols-[18px_1fr] gap-3">
-                  <div className="flex flex-col items-center">
-                    <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary-500" />
-                    {index < timeline.length - 1 ? <span className="mt-1 h-full w-px bg-border" /> : null}
+          <div className="mt-4 space-y-3">
+            {timeline.map((entry: any, index: number) => (
+              <div key={entry.id} className="grid grid-cols-[16px_1fr] gap-3">
+                <div className="flex flex-col items-center">
+                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary-500" />
+                  {index < timeline.length - 1 ? <span className="mt-1 h-full w-px bg-border" /> : null}
+                </div>
+                <div className="rounded-xl border border-border/70 bg-background px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="truncate text-sm font-semibold text-primary-400">
+                      {ORDER_ACTION_LABELS[entry.action] ?? entry.action}
+                    </div>
+                    <div className="shrink-0 whitespace-nowrap text-[11px] text-foreground-muted">
+                      {formatDateTime(entry.createdAt)}
+                    </div>
                   </div>
-                  <div className="pb-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="text-sm font-semibold text-primary-400">
-                        {ORDER_ACTION_LABELS[entry.action] ?? entry.action}
-                      </div>
-                      <div className="whitespace-nowrap text-[11px] text-foreground-muted">
-                        {formatDateTime(entry.createdAt)}
-                      </div>
-                    </div>
-
-                    <div className="mt-1 text-sm text-foreground">
-                      {actorName}
-                    </div>
-
-                    {entry.note ? (
-                      <div className="mt-1 text-xs text-foreground-muted">{entry.note}</div>
-                    ) : null}
-
-                    {entry.fromStatus || entry.toStatus ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        {entry.fromStatus ? <OrderStatusBadge status={entry.fromStatus} /> : null}
-                        {entry.toStatus ? <OrderStatusBadge status={entry.toStatus} /> : null}
-                      </div>
-                    ) : null}
+                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-foreground-muted">
+                    {buildHistorySummary(entry) || 'Không có thêm thông tin'}
                   </div>
                 </div>
-              )
-            })}
+              </div>
+            ))}
           </div>
         ) : (
           <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-5 text-sm text-foreground-muted">
@@ -102,12 +151,13 @@ export function OrderRightPanel({
   notes,
   onNotesChange,
   timeline,
+  relatedDocuments,
   itemsCount,
   orderStatus,
 }: OrderRightPanelProps) {
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-border px-4 py-4 space-y-3">
+      <div className="space-y-3 border-b border-border px-4 py-4">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2 text-sm text-foreground-muted">
             Tổng tiền hàng
@@ -159,7 +209,7 @@ export function OrderRightPanel({
       </div>
 
       {mode === 'detail' ? (
-        <div className="border-b border-border px-4 py-4 space-y-2.5">
+        <div className="space-y-2.5 border-b border-border px-4 py-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-foreground-muted">Trạng thái thanh toán</span>
             <PaymentStatusBadge status={paymentStatus} />
@@ -194,7 +244,12 @@ export function OrderRightPanel({
         />
       </div>
 
-      {mode === 'detail' ? <HistorySection timeline={timeline} orderStatus={orderStatus} /> : null}
+      {mode === 'detail' ? (
+        <>
+          <RelatedDocumentsSection relatedDocuments={relatedDocuments} />
+          <HistorySection timeline={timeline} orderStatus={orderStatus} />
+        </>
+      ) : null}
 
       {mode !== 'detail' ? (
         <div className="px-4 py-4">

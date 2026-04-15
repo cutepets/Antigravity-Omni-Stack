@@ -4,12 +4,14 @@ import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
+import { formatDateTime } from '@/lib/utils'
 import {
   orderApi,
   type CompleteOrderPayload,
   type CreateOrderPayload,
   type UpdateOrderPayload,
 } from '@/lib/api/order.api'
+import { buildFinanceVoucherHref } from '@/lib/finance-routes'
 import { settingsApi } from '@/lib/api/settings.api'
 import { filterVisiblePaymentMethods } from '@/lib/payment-methods'
 import { useAuthorization } from '@/hooks/useAuthorization'
@@ -31,18 +33,32 @@ import {
   parseDecimalInput,
 } from './order.utils'
 import type { OrderDraft, OrderPrintPayload, OrderWorkspaceMode } from './order.types'
+import { useBranches } from '@/app/(dashboard)/pos/_hooks/use-pos-queries'
 import {
-  useBranches,
   useCustomerDetail,
   useCustomerSearch,
   usePosProducts as useOrderProducts,
   usePosServices as useOrderServices,
-} from '@/app/(dashboard)/pos/_hooks/use-pos-queries'
+} from '@/components/search/use-commerce-search'
+
+function findTimelineActionTime(timeline: any[], actions: string[]) {
+  return timeline.find((entry) => actions.includes(String(entry?.action ?? '').toUpperCase()))?.createdAt
+}
+
+function buildSearchHref(basePath: string, params: Record<string, string | null | undefined>) {
+  const query = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (!value) return
+    query.set(key, value)
+  })
+  const search = query.toString()
+  return search ? `${basePath}?${search}` : basePath
+}
 
 export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; orderId?: string }) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { activeBranchId, isLoading: isAuthLoading, hasAnyPermission, hasPermission } = useAuthorization()
+  const { user, activeBranchId, isLoading: isAuthLoading, hasAnyPermission, hasPermission } = useAuthorization()
 
   const canAccessOrders =
     mode === 'create' ? hasPermission('order.create') : hasAnyPermission(['order.read.all', 'order.read.assigned'])
@@ -62,6 +78,8 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   const [showSettleModal, setShowSettleModal] = useState(false)
   const [hotelServiceDraft, setHotelServiceDraft] = useState<any | null>(null)
   const [groomingServiceDraft, setGroomingServiceDraft] = useState<any | null>(null)
+  const [selectedRowIndex, setSelectedRowIndex] = useState(-1)
+  const [pendingProductEntry, setPendingProductEntry] = useState<any | null>(null)
   const initializedOrderVersionRef = useRef<string | null>(null)
 
   const deferredItemSearch = useDeferredValue(itemSearch)
@@ -103,10 +121,22 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     initializedOrderVersionRef.current = orderVersion
   }, [draft.items.length, isEditing, mode, order])
 
+  const orderNeedsBranch = (items: any[]) =>
+    items.some((item) => item.productVariantId || (item.variants && item.variants.length > 0))
+
   useEffect(() => {
     if (mode !== 'create' || draft.branchId || !activeBranchId) return
+    if (draft.items.length > 0 && !orderNeedsBranch(draft.items)) return
     setDraft((current) => ({ ...current, branchId: activeBranchId }))
-  }, [activeBranchId, draft.branchId, mode])
+  }, [activeBranchId, draft.branchId, draft.items, mode])
+
+  useEffect(() => {
+    setSelectedRowIndex((current) => {
+      if (draft.items.length === 0) return -1
+      if (current < 0) return 0
+      return Math.min(current, draft.items.length - 1)
+    })
+  }, [draft.items.length])
 
   const branchName = useMemo(
     () =>
@@ -115,26 +145,75 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     [branches, draft.branchId, order?.branchId],
   )
 
+  const showBranch = useMemo(() => {
+    if (mode === 'detail' && order?.branchId) return true
+    const items = mode === 'detail' ? (order?.items ?? []) : draft.items
+    return items.some((item: any) => item.productVariantId || (item.variants && item.variants.length > 0))
+  }, [mode, order?.branchId, order?.items, draft.items])
+
+  const operatorName = user?.fullName || user?.username || 'NHÂN VIÊN'
+  const operatorCode = user?.staffCode || ''
+
   const visibleProgressSteps = useMemo(() => {
     const currentStatus = order?.status ?? (mode === 'create' ? 'DRAFT' : undefined)
+    const currentStage =
+      currentStatus === 'COMPLETED'
+        ? 3
+        : currentStatus === 'PROCESSING'
+          ? 2
+          : currentStatus === 'CONFIRMED'
+            ? 1
+            : 0
+    const approvedAt = order?.approvedAt ?? findTimelineActionTime(timeline, ['APPROVED'])
+    const exportedAt = order?.stockExportedAt ?? findTimelineActionTime(timeline, ['STOCK_EXPORTED'])
+    const settledAt =
+      order?.settledAt ??
+      order?.completedAt ??
+      findTimelineActionTime(timeline, ['SETTLED', 'COMPLETED'])
     const steps = [
       { key: 'DRAFT', label: 'Tạo đơn', state: 'pending' as const },
       { key: 'CONFIRMED', label: 'Xác nhận', state: 'pending' as const },
       { key: 'PROCESSING', label: 'Xuất kho', state: 'pending' as const },
       { key: 'COMPLETED', label: 'Hoàn thành', state: 'pending' as const },
     ]
-    const statusOrder = ['DRAFT', 'PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED']
-    const currentIdx = statusOrder.indexOf(currentStatus ?? '')
     return steps.map((step) => {
-      const stepIdx = statusOrder.indexOf(step.key)
+      const stepIdx =
+        step.key === 'COMPLETED'
+          ? 3
+          : step.key === 'PROCESSING'
+            ? 2
+            : step.key === 'CONFIRMED'
+              ? 1
+              : 0
+      const stepMeta =
+        step.key === 'COMPLETED'
+          ? settledAt
+          : step.key === 'PROCESSING'
+            ? exportedAt
+            : step.key === 'CONFIRMED'
+              ? approvedAt
+              : order?.createdAt
       if (currentStatus === 'CANCELLED') {
-        return { ...step, state: 'alert' as const }
+        return { ...step, meta: stepMeta ? formatDateTime(stepMeta) : '—', state: 'alert' as const }
       }
-      if (stepIdx < currentIdx) return { ...step, state: 'done' as const }
-      if (stepIdx === currentIdx) return { ...step, state: 'active' as const }
-      return step
+      if (stepIdx < currentStage) {
+        return { ...step, meta: stepMeta ? formatDateTime(stepMeta) : '—', state: 'done' as const }
+      }
+      if (stepIdx === currentStage) {
+        return { ...step, meta: stepMeta ? formatDateTime(stepMeta) : '—', state: 'active' as const }
+      }
+      return { ...step, meta: stepMeta ? formatDateTime(stepMeta) : '—' }
     })
-  }, [mode, order?.status])
+  }, [
+    mode,
+    order?.approvedAt,
+    order?.completedAt,
+    order?.createdAt,
+    order?.settledAt,
+    order?.status,
+    order?.stockExportedAt,
+    timeline,
+  ])
   const subtotal = useMemo(
     () =>
       draft.items.reduce(
@@ -168,6 +247,64 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   )
   const selectedPets = (customerDetail?.pets as any[]) ?? []
   const selectedCustomerName = customerDetail?.fullName || customerDetail?.name || draft.customerName
+  const selectedCustomerPhone = customerDetail?.phone || order?.customer?.phone || ''
+  const selectedCustomerAddress = customerDetail?.address || order?.customer?.address || ''
+  const relatedDocuments = useMemo(() => {
+    if (!order) return []
+
+    const documents = new Map<string, { id: string; label: string; href: string; tone: string }>()
+
+    for (const transaction of order.transactions ?? []) {
+      if (!transaction?.voucherNumber) continue
+      const prefix = transaction.type === 'EXPENSE' ? 'PC' : 'PT'
+      const key = `finance:${transaction.voucherNumber}`
+      documents.set(key, {
+        id: key,
+        label: `${prefix}: ${transaction.voucherNumber}`,
+        href: buildFinanceVoucherHref(transaction.voucherNumber),
+        tone: transaction.type === 'EXPENSE' ? 'expense' : 'income',
+      })
+    }
+
+    for (const item of order.items ?? []) {
+      const groomingId = item?.groomingSessionId
+      if (groomingId) {
+        const sessionCode = item?.groomingSession?.sessionCode || null
+        const searchValue = sessionCode || groomingId
+        const key = `grooming:${groomingId}`
+        documents.set(key, {
+          id: key,
+          label: `SPA: ${sessionCode || groomingId.slice(-6).toUpperCase()}`,
+          href: buildSearchHref('/grooming', {
+            view: 'list',
+            search: searchValue,
+            sessionId: groomingId,
+          }),
+          tone: 'grooming',
+        })
+      }
+
+      const hotelStay = item?.hotelStay
+      const hotelStayId = hotelStay?.id || item?.hotelStayId
+      if (hotelStayId) {
+        const stayCode = hotelStay?.stayCode || null
+        const searchValue = stayCode || hotelStayId
+        const key = `hotel:${hotelStayId}`
+        documents.set(key, {
+          id: key,
+          label: `HOTEL: ${stayCode || hotelStayId.slice(-6).toUpperCase()}`,
+          href: buildSearchHref('/hotel', {
+            view: 'list',
+            search: searchValue,
+            stayId: hotelStayId,
+          }),
+          tone: 'hotel',
+        })
+      }
+    }
+
+    return Array.from(documents.values())
+  }, [order])
 
   const canEditCurrentOrder =
     mode === 'detail' && canUpdateOrder && !isOrderReadonly(order?.status)
@@ -276,6 +413,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
         : -1
 
       if (existingIndex >= 0) {
+        setSelectedRowIndex(existingIndex)
         const nextItems = [...current.items]
         nextItems[existingIndex] = {
           ...nextItems[existingIndex],
@@ -284,6 +422,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
         return { ...current, items: nextItems }
       }
 
+      setSelectedRowIndex(current.items.length)
       return { ...current, items: [...current.items, item] }
     })
   }
@@ -292,6 +431,15 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     if (!isEditing) return
 
     if (entry.entryType?.startsWith('product') || entry.productId) {
+      const rawVariants = Array.isArray(entry.variants) ? entry.variants : []
+      const productVariants = rawVariants.filter((v: any) => !v.conversions || !Array.isArray(v.conversions) || v.conversions.length === 0)
+      const hasVariants = productVariants.length > 0
+
+      if (hasVariants) {
+        setPendingProductEntry(entry)
+        return
+      }
+
       mergeItemIntoDraft(buildProductCartItem(entry))
       setItemSearch('')
       return
@@ -317,6 +465,35 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
 
     mergeItemIntoDraft(buildDirectServiceCartItem(entry))
     setItemSearch('')
+  }
+
+  const handleSelectProductVariant = (variant: any) => {
+    if (!pendingProductEntry || !isEditing) {
+      setPendingProductEntry(null)
+      return
+    }
+
+    const variantEntry = {
+      ...pendingProductEntry,
+      id: `product:${pendingProductEntry.productId}:${variant.id}`,
+      entryId: `product:${pendingProductEntry.productId}:${variant.id}`,
+      entryType: 'product-variant',
+      productVariantId: variant.id,
+      variantLabel: variant.name,
+      sku: variant.sku ?? pendingProductEntry.sku,
+      barcode: variant.barcode ?? pendingProductEntry.barcode,
+      image: variant.image ?? pendingProductEntry.image,
+      price: variant.sellingPrice ?? variant.price ?? pendingProductEntry.sellingPrice,
+      sellingPrice: variant.sellingPrice ?? variant.price ?? pendingProductEntry.sellingPrice,
+    }
+
+    mergeItemIntoDraft(buildProductCartItem(variantEntry))
+    setPendingProductEntry(null)
+    setItemSearch('')
+  }
+
+  const handleCloseVariantSelector = () => {
+    setPendingProductEntry(null)
   }
 
   const handleHotelBookingConfirm = (payload: any) => {
@@ -417,7 +594,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       order,
       branchName,
       customerName: selectedCustomerName || 'Khách lẻ',
-      customerPhone: customerDetail?.phone,
+      customerPhone: selectedCustomerPhone || undefined,
       items: draft.items,
       subtotal,
       discount: draft.discount,
@@ -432,7 +609,6 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   }, [
     amountPaid,
     branchName,
-    customerDetail?.phone,
     draft.discount,
     draft.items,
     draft.notes,
@@ -441,6 +617,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     order,
     remainingAmount,
     selectedCustomerName,
+    selectedCustomerPhone,
     subtotal,
     total,
   ])
@@ -478,11 +655,19 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     serviceMatches,
     selectedPets,
     selectedCustomerName,
+    selectedCustomerPhone,
+    selectedCustomerAddress,
+    relatedDocuments,
     branchName,
+    showBranch,
+    operatorName,
+    operatorCode,
     subtotal,
     total,
     amountPaid,
     remainingAmount,
+    selectedRowIndex,
+    setSelectedRowIndex,
     visiblePaymentMethods,
     actionFlags,
     pendingAction,
@@ -538,12 +723,12 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
         items: current.items.map((entry, itemIndex) =>
           itemIndex === index
             ? {
-                ...entry,
-                quantity: Math.max(
-                  entry.type === 'hotel' ? 0.5 : 1,
-                  parseDecimalInput(value, entry.quantity),
-                ),
-              }
+              ...entry,
+              quantity: Math.max(
+                entry.type === 'hotel' ? 0.5 : 1,
+                parseDecimalInput(value, entry.quantity),
+              ),
+            }
             : entry,
         ),
       })),
@@ -553,16 +738,41 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
         items: current.items.map((entry, itemIndex) =>
           itemIndex === index
             ? {
-                ...entry,
-                unitPrice: Math.max(0, parseDecimalInput(value, entry.unitPrice)),
-              }
+              ...entry,
+              unitPrice: Math.max(0, parseDecimalInput(value, entry.unitPrice)),
+            }
+            : entry,
+        ),
+      })),
+    handleChangeItemDiscount: (index: number, value: string) =>
+      setDraft((current) => ({
+        ...current,
+        items: current.items.map((entry, itemIndex) =>
+          itemIndex === index
+            ? {
+              ...entry,
+              discountItem: Math.max(0, parseDecimalInput(value, entry.discountItem ?? 0)),
+            }
             : entry,
         ),
       })),
     handleRemoveItem: (index: number) =>
-      setDraft((current) => ({
-        ...current,
-        items: current.items.filter((_, itemIndex) => itemIndex !== index),
-      })),
+      setDraft((current) => {
+        setSelectedRowIndex((selectedIndex) => {
+          const nextLength = current.items.length - 1
+          if (nextLength <= 0) return -1
+          if (selectedIndex > index) return selectedIndex - 1
+          if (selectedIndex === index) return Math.max(0, index - 1)
+          return Math.min(selectedIndex, nextLength - 1)
+        })
+
+        return {
+          ...current,
+          items: current.items.filter((_, itemIndex) => itemIndex !== index),
+        }
+      }),
+    pendingProductEntry,
+    handleSelectProductVariant,
+    handleCloseVariantSelector,
   }
 }

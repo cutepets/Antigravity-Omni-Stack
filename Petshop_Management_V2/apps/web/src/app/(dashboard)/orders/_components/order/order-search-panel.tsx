@@ -1,7 +1,7 @@
 'use client'
 
 import { Search } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { CatalogSearchResults } from '@/components/search/catalog-search-results'
 import { isGroomingService, isHotelService } from './order.utils'
 
 interface OrderSearchPanelProps {
@@ -41,70 +41,31 @@ export function OrderSearchPanel({
       {hasSuggestions ? (
         <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
           <div className="max-h-72 overflow-y-auto custom-scrollbar">
-            {productMatches.length > 0 ? (
-              <div className="mb-1">
-                <div className="px-3 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                  Sản phẩm
-                </div>
-                {productMatches.map((entry: any) => (
-                  <button
-                    key={entry.entryId ?? entry.id}
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => onAddCatalogItem(entry)}
-                    className="flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left text-sm last:border-0 transition-colors hover:bg-background-secondary"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-foreground">
-                        {entry.productName ?? entry.name}
-                      </div>
-                      <div className="text-[11px] text-foreground-muted mt-0.5">
-                        {[entry.variantLabel, entry.sku].filter(Boolean).join(' • ') || 'Không có mã SKU'}
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-sm font-semibold text-primary-500">
-                      {formatCurrency(Number(entry.sellingPrice ?? entry.price ?? 0))}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <CatalogSearchResults
+              sections={[
+                { key: 'products', label: 'Sản phẩm', entries: productMatches },
+                { key: 'services', label: 'Dịch vụ', entries: serviceMatches },
+              ]}
+              query={itemSearch}
+              variant="order"
+              onSelect={onAddCatalogItem}
+              getEntryMeta={(entry) => {
+                if (entry.duration === undefined) {
+                  return [entry.variantLabel, entry.sku].filter(Boolean).join(' • ') || 'Không có mã SKU'
+                }
 
-            {serviceMatches.length > 0 ? (
-              <div>
-                <div className="px-3 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                  Dịch vụ
-                </div>
-                {serviceMatches.map((entry: any) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => onAddCatalogItem(entry)}
-                    className="flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left text-sm last:border-0 transition-colors hover:bg-background-secondary"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-foreground">{entry.name}</div>
-                      <div className="text-[11px] text-foreground-muted mt-0.5">
-                        {[
-                          isHotelService(entry)
-                            ? 'Hotel'
-                            : isGroomingService(entry)
-                              ? 'Grooming'
-                              : 'Dịch vụ',
-                          entry.sku,
-                        ]
-                          .filter(Boolean)
-                          .join(' • ')}
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-sm font-semibold text-primary-500">
-                      {formatCurrency(Number(entry.sellingPrice ?? entry.price ?? 0))}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : null}
+                return [
+                  isHotelService(entry)
+                    ? 'Hotel'
+                    : isGroomingService(entry)
+                      ? 'Grooming'
+                      : 'Dịch vụ',
+                  entry.sku,
+                ]
+                  .filter(Boolean)
+                  .join(' • ')
+              }}
+            />
           </div>
         </div>
       ) : null}

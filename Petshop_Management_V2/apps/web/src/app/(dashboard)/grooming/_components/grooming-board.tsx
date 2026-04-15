@@ -1,7 +1,7 @@
 'use client'
 
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, LayoutGrid, List, Pencil, Plus, RefreshCw, Table, Tag, Trash2, UserRound, XCircle } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
@@ -62,6 +62,7 @@ function getDateKey(value?: string | null) {
 
 function getSearchText(session: GroomingSession) {
   return [
+    session.sessionCode,
     session.petName,
     session.pet?.breed,
     session.pet?.species,
@@ -147,6 +148,7 @@ function KanbanCard({
 
 export function GroomingBoard() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const { hasPermission, hasAnyPermission, isLoading: isAuthLoading } = useAuthorization()
   const activeBranchId = useAuthStore((s) => s.activeBranchId)
@@ -161,9 +163,13 @@ export function GroomingBoard() {
   const [dialogMode, setDialogMode] = useState<'create' | 'detail' | null>(null)
   const [selectedSession, setSelectedSession] = useState<GroomingSession | null>(null)
   const [cancelSessionData, setCancelSessionData] = useState<{ id: string; session: GroomingSession } | null>(null)
+  const autoOpenedSessionIdRef = useRef<string | null>(null)
   const canReadGrooming = hasPermission('grooming.read')
   const canCreateGrooming = hasPermission('grooming.create')
   const canManageSessions = hasAnyPermission(['grooming.update', 'grooming.start', 'grooming.complete', 'grooming.cancel'])
+  const initialSearch = searchParams.get('search')?.trim() ?? ''
+  const initialView = searchParams.get('view')
+  const focusSessionId = searchParams.get('sessionId')
 
   const dataListState = useDataListCore<DisplayColumnId, never>({
     initialColumnOrder: TABLE_COLUMNS.map((col) => col.id as DisplayColumnId),
@@ -207,6 +213,16 @@ export function GroomingBoard() {
     return () => window.removeEventListener('openGroomingSettings', handleOpenSettings)
   }, [])
 
+  useEffect(() => {
+    if (initialSearch) {
+      setSearch(initialSearch)
+      setPage(1)
+    }
+    if (initialView === 'list' || focusSessionId) {
+      setViewMode('list')
+    }
+  }, [focusSessionId, initialSearch, initialView])
+
   const sessionsQuery = useQuery({
     queryKey: ['grooming-sessions'],
     queryFn: () => groomingApi.getSessions({ omitBranchId: true }),
@@ -219,8 +235,18 @@ export function GroomingBoard() {
     enabled: !isAuthLoading && canReadGrooming,
   })
 
-  const sessions = sessionsQuery.data ?? []
+  const sessions = useMemo(() => sessionsQuery.data ?? [], [sessionsQuery.data])
   const staffOptions = (staffQuery.data ?? []).filter((staff) => !['RESIGNED', 'QUIT'].includes(staff.status))
+
+  useEffect(() => {
+    if (!focusSessionId || autoOpenedSessionIdRef.current === focusSessionId || sessions.length === 0) return
+    const matchedSession = sessions.find((session) => session.id === focusSessionId)
+    if (!matchedSession) return
+    autoOpenedSessionIdRef.current = focusSessionId
+    setSelectedSession(matchedSession)
+    setDialogMode('detail')
+    setViewMode('list')
+  }, [focusSessionId, sessions])
 
   const filteredSessions = useMemo(() => {
     const normalizedSearch = deferredSearch.trim().toLowerCase()

@@ -716,8 +716,12 @@ export function CreateReceiptForm({
           </div>
         </div>
       </div>
-      {/* ─── TOP BAR ─────────────────────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-4 py-2.5">
+
+      {/* ── SEARCH BAR + MAIN BODY IN ONE BLOCK ───────────────────────────── */}
+      <div className="m-4 mt-2 mb-4 flex flex-1 flex-col overflow-hidden rounded-[26px] border border-border bg-background-secondary/35 shadow-sm">
+      
+        {/* ─── TOP BAR ─────────────────────────────────────────────────────────── */}
+        <div className="flex shrink-0 items-center gap-3 border-b border-border/60 bg-background/50 px-4 py-2.5">
         {/* Search bar */}
         <div ref={searchPanelRef} className="relative max-w-lg flex-1">
           <Search
@@ -1458,6 +1462,8 @@ export function CreateReceiptForm({
           </div>
 
         </div>
+      </div>
+      
       </div>
     </ReceiptWorkspace>
   )

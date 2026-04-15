@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search, X, User, Plus, Pencil, PawPrint, Medal } from 'lucide-react';
+import { Search, X, Plus, Pencil, PawPrint, Medal } from 'lucide-react';
 import { usePosStore, useActiveTab } from '@/stores/pos.store';
-import { useCustomerSearch } from '../_hooks/use-pos-queries';
+import { CustomerSearchResults } from '@/components/search/customer-search-results';
+import { useCustomerSearch } from '@/components/search/use-commerce-search';
 import { api } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { PosAddCustomerModal } from './PosAddCustomerModal';
@@ -215,48 +216,18 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
 
       {showCustomerSearch && !hasCustomer && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 shadow-xl overflow-hidden z-50 flex flex-col">
-          <div className="overflow-y-auto max-h-[300px]">
-            <button
-              className="flex items-center gap-3 w-full p-3 hover:bg-primary-50 text-left transition-colors border-b border-gray-100"
-              onClick={() => {
-                store.setCustomer(undefined, 'Khách lẻ');
-                setShowCustomerSearch(false);
-              }}
-            >
-              <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
-                <User size={16} />
-              </div>
-              <span className="font-medium text-sm text-gray-700">Khách lẻ</span>
-            </button>
-
-            {(customers as any[]).map((c: any) => (
-              <button
-                key={c.id}
-                className="flex items-center gap-3 w-full p-3 hover:bg-primary-50 text-left transition-colors border-b border-gray-100 last:border-0"
-                onClick={() => handleSelectCustomer(c)}
-              >
-                <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
-                  <User size={16} />
-                </div>
-                <div className="flex flex-col overflow-hidden">
-                  <span className="font-medium text-sm text-gray-800 truncate">{c.fullName}</span>
-                  <span className="text-xs text-gray-500">{c.phone}</span>
-                </div>
-              </button>
-            ))}
-
-            {customerQuery.length > 0 && customers.length === 0 && (
-              <div className="p-4 flex flex-col gap-3 items-start border-t border-gray-100">
-                <div className="text-sm text-gray-500">Không tìm thấy</div>
-                <button
-                  className="text-[15px] font-semibold text-primary-600 hover:text-primary-700 flex items-center gap-1.5 bg-primary-50 px-3 py-1.5 rounded-lg w-full justify-center transition-colors hover:bg-primary-100 border border-primary-100"
-                  onClick={handleQuickAddClick}
-                >
-                  <Plus size={18} /> Thêm nhanh &quot;{customerQuery}&quot;
-                </button>
-              </div>
-            )}
-          </div>
+          <CustomerSearchResults
+            customers={customers as any[]}
+            query={customerQuery}
+            variant="pos"
+            guestLabel="Khách lẻ"
+            onSelectGuest={() => {
+              store.setCustomer(undefined, 'Khách lẻ');
+              setShowCustomerSearch(false);
+            }}
+            onSelectCustomer={handleSelectCustomer}
+            onQuickAdd={handleQuickAddClick}
+          />
         </div>
       )}
 

@@ -1,6 +1,7 @@
 'use client'
 
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertCircle, ChevronDown, Loader2, Printer } from 'lucide-react'
 import { ServiceBookingModal } from '@/app/(dashboard)/pos/components/ServiceBookingModal'
 import { ApproveOrderModal } from './approve-order-modal'
 import { ExportStockModal } from './export-stock-modal'
@@ -11,14 +12,29 @@ import { OrderTopBar } from './order/order-top-bar'
 import { OrderSearchPanel } from './order/order-search-panel'
 import { OrderItemsTable } from './order/order-items-table'
 import { OrderRightPanel } from './order/order-right-panel'
+import { ProductVariantSelector } from './order/product-variant-selector'
 import { printOrderA4, printOrderK80, printOrderPdf } from './order/order-print'
 import type { OrderWorkspaceMode } from './order/order.types'
 import { useOrderWorkspace } from './order/use-order-workspace'
 
 export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; orderId?: string }) {
   const workspace = useOrderWorkspace({ mode, orderId })
+  const [showPrintMenu, setShowPrintMenu] = useState(false)
+  const printMenuRef = useRef<HTMLDivElement | null>(null)
+  const showPrintActions = mode === 'detail' && Boolean(workspace.printPayload)
 
-  // ── Loading ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!showPrintMenu) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (printMenuRef.current?.contains(event.target as Node)) return
+      setShowPrintMenu(false)
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showPrintMenu])
+
   if (workspace.showLoading) {
     return (
       <div className="-mx-6 -mt-2 -mb-6 flex h-[calc(100vh-56px)] items-center justify-center">
@@ -59,19 +75,21 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
     )
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="-mx-6 -mt-2 -mb-6 flex h-[calc(100vh-56px)] flex-col overflow-hidden rounded-[24px] border border-border/70 bg-background shadow-[0_30px_80px_-45px_rgba(15,23,42,0.65)]">
-
-      {/* ── HEADER BAR: 4 cột ────────────────────────────────────────────── */}
       <OrderTopBar
         mode={mode}
         order={workspace.order}
         draft={workspace.draft}
-        branches={workspace.branches}
         customerSearch={workspace.customerSearch}
         customerResults={workspace.customerResults}
         selectedCustomerName={workspace.selectedCustomerName}
+        selectedCustomerPhone={workspace.selectedCustomerPhone}
+        selectedCustomerAddress={workspace.selectedCustomerAddress}
+        branchName={workspace.branchName}
+        showBranch={workspace.showBranch}
+        operatorName={workspace.operatorName}
+        operatorCode={workspace.operatorCode}
         isEditing={workspace.isEditing}
         pendingAction={workspace.pendingAction}
         canEdit={workspace.actionFlags.canEditCurrentOrder}
@@ -84,7 +102,6 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
         onEdit={workspace.handleStartEdit}
         onSave={workspace.handleSave}
         onCancelEdit={workspace.handleCancelEdit}
-        onBranchChange={workspace.handleChangeBranch}
         onCustomerSearchChange={workspace.setCustomerSearch}
         onSelectCustomer={workspace.handleSelectCustomer}
         onClearCustomer={workspace.handleClearCustomer}
@@ -97,61 +114,109 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
           workspace.cancelOrderMutation.mutate()
         }}
         onOpenPos={workspace.handleGoPos}
-        onPrintA4={() => workspace.printPayload && printOrderA4(workspace.printPayload)}
-        onPrintK80={() => workspace.printPayload && printOrderK80(workspace.printPayload)}
-        onPrintPdf={() => workspace.printPayload && printOrderPdf(workspace.printPayload)}
       />
 
-      {/* ── SEARCH BAR (giống receipt top bar) ───────────────────────────── */}
-      <div className="shrink-0 flex items-center gap-3 border-b border-border bg-background-secondary/40 px-5 py-2.5">
-        <OrderSearchPanel
-          itemSearch={workspace.itemSearch}
-          isEditing={workspace.isEditing}
-          productMatches={workspace.productMatches}
-          serviceMatches={workspace.serviceMatches}
-          onSearchChange={workspace.setItemSearch}
-          onAddCatalogItem={workspace.addCatalogItem}
-        />
-      </div>
-
-      {/* ── MAIN BODY: Table + Sidebar ────────────────────────────────────── */}
-      <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px] rounded-[26px] border border-border bg-background-secondary/35 m-4 mt-0">
-
-        {/* ── LEFT: Bảng sản phẩm ─────────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-col overflow-hidden border-r border-border/60">
-          <OrderItemsTable
-            items={workspace.draft.items}
+      <div className="relative z-10 m-4 mb-4 mt-2 flex flex-1 flex-col overflow-hidden rounded-[26px] border border-border bg-background-secondary/35 shadow-sm">
+        <div className="shrink-0 flex items-center gap-3 border-b border-border/60 bg-background/50 px-5 py-2.5">
+          <OrderSearchPanel
+            itemSearch={workspace.itemSearch}
             isEditing={workspace.isEditing}
-            onChangeQuantity={workspace.handleChangeItemQuantity}
-            onChangeUnitPrice={workspace.handleChangeItemUnitPrice}
-            onRemoveItem={workspace.handleRemoveItem}
+            productMatches={workspace.productMatches}
+            serviceMatches={workspace.serviceMatches}
+            onSearchChange={workspace.setItemSearch}
+            onAddCatalogItem={workspace.addCatalogItem}
           />
+
+          {showPrintActions ? (
+            <div className="relative shrink-0" ref={printMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowPrintMenu((current) => !current)}
+                className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
+              >
+                <Printer size={14} />
+                In đơn
+                <ChevronDown size={12} className={`transition-transform ${showPrintMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showPrintMenu ? (
+                <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-44 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPrintMenu(false)
+                      if (workspace.printPayload) printOrderA4(workspace.printPayload)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-background-secondary"
+                  >
+                    <Printer size={13} className="text-foreground-muted" />
+                    In khổ A4
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPrintMenu(false)
+                      if (workspace.printPayload) printOrderK80(workspace.printPayload)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-background-secondary"
+                  >
+                    <Printer size={13} className="text-foreground-muted" />
+                    In K80
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPrintMenu(false)
+                      if (workspace.printPayload) printOrderPdf(workspace.printPayload)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-background-secondary"
+                  >
+                    <Printer size={13} className="text-foreground-muted" />
+                    Xuất PDF
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
-        {/* ── RIGHT: Tổng tiền + Ghi chú + Timeline ───────────────────────── */}
-        <div className="flex min-h-0 flex-col overflow-y-auto custom-scrollbar">
-          <OrderRightPanel
-            mode={mode}
-            subtotal={workspace.subtotal}
-            discount={workspace.draft.discount}
-            shippingFee={workspace.draft.shippingFee}
-            total={workspace.total}
-            isEditing={workspace.isEditing}
-            onDiscountChange={workspace.handleChangeDiscount}
-            onShippingFeeChange={workspace.handleChangeShippingFee}
-            paymentStatus={workspace.order?.paymentStatus}
-            amountPaid={workspace.amountPaid}
-            remainingAmount={workspace.remainingAmount}
-            notes={workspace.draft.notes}
-            onNotesChange={workspace.handleChangeNotes}
-            timeline={workspace.timeline as any[]}
-            itemsCount={workspace.draft.items.length}
-            orderStatus={workspace.order?.status}
-          />
+        <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="flex min-h-0 flex-col overflow-hidden border-r border-border/60">
+            <OrderItemsTable
+              items={workspace.draft.items}
+              isEditing={workspace.isEditing}
+              selectedRowIndex={workspace.selectedRowIndex}
+              onSelectRow={workspace.setSelectedRowIndex}
+              onChangeQuantity={workspace.handleChangeItemQuantity}
+              onChangeItemDiscount={workspace.handleChangeItemDiscount}
+              onRemoveItem={workspace.handleRemoveItem}
+            />
+          </div>
+
+          <div className="flex min-h-0 flex-col overflow-y-auto custom-scrollbar">
+            <OrderRightPanel
+              mode={mode}
+              subtotal={workspace.subtotal}
+              discount={workspace.draft.discount}
+              shippingFee={workspace.draft.shippingFee}
+              total={workspace.total}
+              isEditing={workspace.isEditing}
+              onDiscountChange={workspace.handleChangeDiscount}
+              onShippingFeeChange={workspace.handleChangeShippingFee}
+              paymentStatus={workspace.order?.paymentStatus}
+              amountPaid={workspace.amountPaid}
+              remainingAmount={workspace.remainingAmount}
+              notes={workspace.draft.notes}
+              onNotesChange={workspace.handleChangeNotes}
+              timeline={workspace.timeline as any[]}
+              relatedDocuments={workspace.relatedDocuments}
+              itemsCount={workspace.draft.items.length}
+              orderStatus={workspace.order?.status}
+            />
+          </div>
         </div>
       </div>
 
-      {/* ── MODALS ───────────────────────────────────────────────────────── */}
       {mode === 'detail' ? (
         <>
           <OrderPaymentModal
@@ -210,6 +275,15 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             ? `Chọn pet cho ${workspace.groomingServiceDraft.name}`
             : 'Chọn thú cưng'
         }
+      />
+      <ProductVariantSelector
+        isOpen={Boolean(workspace.pendingProductEntry)}
+        productName={workspace.pendingProductEntry?.productName ?? workspace.pendingProductEntry?.name ?? ''}
+        variants={(workspace.pendingProductEntry?.variants ?? []).filter(
+          (v: any) => !v.conversions || !Array.isArray(v.conversions) || v.conversions.length === 0,
+        )}
+        onSelect={workspace.handleSelectProductVariant}
+        onClose={workspace.handleCloseVariantSelector}
       />
     </div>
   )

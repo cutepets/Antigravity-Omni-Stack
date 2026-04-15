@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { LayoutGrid, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DataListShell } from '@petshop/ui/data-list'
@@ -14,9 +14,12 @@ type ViewMode = 'kanban' | 'list' | 'pricing'
 
 export default function HotelWorkspace() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
   const canReadHotel = hasPermission('hotel.read')
+  const initialSearch = searchParams.get('search')?.trim() ?? ''
+  const focusStayId = searchParams.get('stayId')
 
   useEffect(() => {
     if (isAuthLoading) return
@@ -35,6 +38,12 @@ export default function HotelWorkspace() {
       window.removeEventListener('closeHotelSettings', handleCloseSettings)
     }
   }, [])
+
+  useEffect(() => {
+    if (initialSearch || focusStayId) {
+      setViewMode('list')
+    }
+  }, [focusStayId, initialSearch])
 
   if (isAuthLoading) {
     return <div className="flex h-64 items-center justify-center text-gray-400">Đang kiểm tra quyền truy cập...</div>
@@ -79,7 +88,7 @@ export default function HotelWorkspace() {
         ) : (
           <div className="flex-1 min-h-0 bg-background-base rounded-3xl border border-border overflow-y-auto flex flex-col">
             {viewMode === 'kanban' && <div className="p-4 flex-1 min-h-0 flex flex-col"><CageGrid /></div>}
-            {viewMode === 'list' && <StayList />}
+            {viewMode === 'list' && <StayList initialSearch={initialSearch} focusStayId={focusStayId ?? undefined} />}
           </div>
         )}
       </div>

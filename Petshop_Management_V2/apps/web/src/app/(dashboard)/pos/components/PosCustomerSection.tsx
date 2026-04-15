@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { User, ChevronDown } from 'lucide-react';
 import { usePosStore, useActiveTab } from '@/stores/pos.store';
-import { useCustomerSearch } from '../_hooks/use-pos-queries';
+import { useCustomerSearch } from '@/components/search/use-commerce-search';
 
 export function PosCustomerSection() {
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);

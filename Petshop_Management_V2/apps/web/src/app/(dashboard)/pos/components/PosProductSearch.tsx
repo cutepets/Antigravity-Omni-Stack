@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search, Package, Scissors, ArrowLeft, ArrowLeftCircle, Check } from 'lucide-react';
-import { usePosProducts, usePosServices } from '../_hooks/use-pos-queries';
+import { Search, ArrowLeft } from 'lucide-react';
+import { CatalogSearchResults } from '@/components/search/catalog-search-results';
+import { usePosProducts, usePosServices } from '@/components/search/use-commerce-search';
 import { useActiveTab, usePosStore } from '@/stores/pos.store';
 
 export interface PosProductSearchProps {
@@ -221,90 +222,31 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
           </div>
 
           <div className="flex-1 lg:block overflow-y-auto w-full bg-white flex flex-col relative no-scrollbar lg:max-h-[400px]">
-            {loading && (
-               <div className="p-6 text-[14px] text-gray-500 text-center">Đang tìm kiếm...</div>
-            )}
-            
-            {!loading && query.length > 0 && results.length === 0 && (
-               <div className="p-6 text-[14px] text-gray-500 text-center">Không tìm thấy &quot;{query}&quot;</div>
-            )}
+            <CatalogSearchResults
+              sections={[{ key: 'catalog', entries: results }]}
+              query={query}
+              loading={loading}
+              variant="pos"
+              showSectionLabels={false}
+              loadingText="Đang tìm kiếm..."
+              emptyText={<>Không tìm thấy &quot;{query}&quot;</>}
+              bottomSpacer
+              onSelect={handleSelect}
+              formatPrice={(value) => money(value)}
+              getEntryState={(item) => {
+                const entryId = item.entryId ?? item.id;
+                const qty = getCartQty(item);
+                const availableStock = getSellableQuantity(item, activeTab.branchId);
 
-            {!loading && results.length > 0 && (
-              <ul className="w-full">
-                {results.map((item: any) => {
-                  const entryId = item.entryId ?? item.id;
-                  const isService = item.duration !== undefined;
-                  const qty = getCartQty(item);
-                  const isSelected = qty > 0;
-                  const displayName = item.productName ?? item.name;
-                  const displaySku = item.sku;
-                  const variantLabel = item.variantLabel;
-                  
-                  const availableStock = getSellableQuantity(item, activeTab.branchId);
-                  const hasStock = availableStock !== null;
-                  
-                  return (
-                    <li key={entryId}>
-                      <button
-                        className={`w-full text-left px-4 py-3 border-b border-gray-100 flex items-start gap-4 transition-all duration-300 last:border-0 group bg-white ${errorId === entryId ? 'bg-red-50 translate-x-2' : isSelected && isMultiSelect ? 'bg-primary-50/20' : 'hover:bg-[#f0f9fa]'}`}
-                        onClick={() => handleSelect(item)}
-                      >
-                        <div className="relative w-[50px] h-[50px] lg:w-[48px] lg:h-[48px] rounded-md overflow-visible bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center text-gray-400 mt-0.5">
-                          {item.image ? (
-                             <img src={item.image} alt={item.name} className="w-[85%] h-[85%] object-cover rounded-sm" />
-                          ) : (
-                             isService ? <Scissors size={20} className="text-amber-500/50" /> : <Package size={20} className="text-orange-400/50" />
-                          )}
-                          
-                          {/* Selected Badge */}
-                          {isSelected && isMultiSelect && (
-                            <div className={`absolute -top-1.5 -right-1.5 w-5 h-5 text-white text-[11px] font-bold rounded-full flex items-center justify-center shadow-sm border-2 border-white transition-colors duration-300 ${errorId === entryId ? 'bg-red-500' : 'bg-primary-500'}`}>
-                              {qty > 99 ? '99+' : qty}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex-1 flex flex-col justify-start overflow-hidden pt-0.5 min-w-0">
-                          <span className={`${errorId === entryId ? 'text-red-600 font-bold' : 'text-[#333333] font-medium'} text-[15px] lg:text-[14px] leading-snug pr-2 transition-colors duration-300`}>
-                            {displayName}
-                            {variantLabel ? (
-                              <span className="ml-2 text-[12px] font-medium text-[#0089A1]">
-                                {variantLabel}
-                              </span>
-                            ) : null}
-                          </span>
-                          {displaySku ? (
-                            <div className="mt-1">
-                              <span className="block text-[12px] font-semibold uppercase tracking-wide text-gray-400 truncate">
-                                {displaySku}
-                              </span>
-                            </div>
-                          ) : null}
-                        </div>
-                        
-                        <div className="flex-shrink-0 flex flex-col items-end justify-start pt-0.5 min-w-[70px]">
-                          <span className="text-[15px] lg:text-[14px] font-bold text-[#333333] tracking-tight">{money(item.sellingPrice ?? item.price ?? 0)}</span>
-                          {hasStock ? (
-                            <span
-                              className={`mt-1 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors duration-300 ${
-                                errorId === entryId || availableStock <= 0
-                                  ? 'bg-red-50 text-red-600'
-                                  : 'bg-emerald-50 text-emerald-700'
-                              }`}
-                            >
-                              Có thể bán: {availableStock}
-                            </span>
-                          ) : null}
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            
-            {/* Some padding at the bottom on mobile to ensure last item is readable above sticky footer */}
-            <div className="h-[80px] lg:hidden w-full"></div>
+                return {
+                  isSelected: qty > 0 && isMultiSelect,
+                  selectedCount: qty,
+                  isError: errorId === entryId,
+                  availableStock,
+                  stockLabel: `Có thể bán: ${availableStock}`,
+                };
+              }}
+            />
           </div>
 
           {/* Sticky Bottom Actions inside the modal/dropdown (shows heavily on Mobile or when Multi-select is active on Desktop) */}

@@ -1,22 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   CheckCircle2,
   CheckSquare,
-  ChevronDown,
   CreditCard,
   Loader2,
   Package,
   PencilLine,
-  Printer,
   Save,
   Scissors,
   Search,
   User,
   XCircle,
 } from 'lucide-react'
+import { CustomerSearchResults } from '@/components/search/customer-search-results'
+import { PosAddCustomerModal } from '@/app/(dashboard)/pos/components/PosAddCustomerModal'
 import { formatDateTime } from '@/lib/utils'
 import { OrderStatusBadge } from './order-badges'
 import type { OrderWorkspaceMode } from './order.types'
@@ -27,16 +27,22 @@ interface ProgressStep {
   key: string
   label: string
   state: StepState
+  meta?: string
 }
 
 interface OrderTopBarProps {
   mode: OrderWorkspaceMode
   order?: any
   draft: any
-  branches: any[]
   customerSearch: string
   customerResults: any[]
   selectedCustomerName: string
+  selectedCustomerPhone?: string
+  selectedCustomerAddress?: string
+  branchName: string
+  showBranch?: boolean
+  operatorName: string
+  operatorCode?: string
   isEditing: boolean
   pendingAction: boolean
   canEdit: boolean
@@ -46,7 +52,6 @@ interface OrderTopBarProps {
   onEdit: () => void
   onSave: () => void
   onCancelEdit: () => void
-  onBranchChange: (branchId?: string) => void
   onCustomerSearchChange: (value: string) => void
   onSelectCustomer: (customer: any) => void
   onClearCustomer: () => void
@@ -56,19 +61,40 @@ interface OrderTopBarProps {
   onOpenSettle: () => void
   onCancelOrder: () => void
   onOpenPos: () => void
-  onPrintA4?: () => void
-  onPrintK80?: () => void
-  onPrintPdf?: () => void
+}
+
+function InfoRow({
+  label,
+  value,
+  valueClassName = 'text-sm font-semibold text-foreground',
+}: {
+  label: string
+  value: string
+  valueClassName?: string
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
+        {label}
+      </span>
+      <span className={`text-right ${valueClassName}`}>{value}</span>
+    </div>
+  )
 }
 
 export function OrderTopBar({
   mode,
   order,
   draft,
-  branches,
   customerSearch,
   customerResults,
   selectedCustomerName,
+  selectedCustomerPhone,
+  selectedCustomerAddress,
+  branchName,
+  showBranch,
+  operatorName,
+  operatorCode,
   isEditing,
   pendingAction,
   canEdit,
@@ -78,7 +104,6 @@ export function OrderTopBar({
   onEdit,
   onSave,
   onCancelEdit,
-  onBranchChange,
   onCustomerSearchChange,
   onSelectCustomer,
   onClearCustomer,
@@ -88,20 +113,44 @@ export function OrderTopBar({
   onOpenSettle,
   onCancelOrder,
   onOpenPos,
-  onPrintA4,
-  onPrintK80,
-  onPrintPdf,
 }: OrderTopBarProps) {
-  const [showPrintMenu, setShowPrintMenu] = useState(false)
+  const [showCustomerSearch, setShowCustomerSearch] = useState(false)
+  const [showCustomerModal, setShowCustomerModal] = useState(false)
+  const [customerModalData, setCustomerModalData] = useState<any>(null)
+  const customerSearchRef = useRef<HTMLDivElement | null>(null)
+  const customerLabel = selectedCustomerName || draft.customerName || 'Khách lẻ'
+  const customerPhoneLabel = selectedCustomerPhone || 'Chưa có SĐT'
+  const customerAddressLabel = selectedCustomerAddress || 'Chưa có địa chỉ'
+  const operatorLabel = operatorCode ? `${operatorName} • ${operatorCode}` : operatorName
 
-  const showPrintActions = mode === 'detail' && Boolean(order?.id)
+  const handleQuickAddClick = () => {
+    const normalizedSearch = customerSearch.trim()
+    const isPhone = /^[0-9\-+\s]+$/.test(normalizedSearch)
+    setCustomerModalData({
+      fullName: isPhone ? '' : normalizedSearch,
+      phone: isPhone ? normalizedSearch.replace(/[^0-9]/g, '') : '',
+      address: '',
+    })
+    setShowCustomerSearch(false)
+    setShowCustomerModal(true)
+  }
+
+  useEffect(() => {
+    if (!showCustomerSearch) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customerSearchRef.current?.contains(event.target as Node)) return
+      setShowCustomerSearch(false)
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showCustomerSearch])
 
   return (
-    <div className="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm">
-      <div className="grid xl:grid-cols-[minmax(220px,1.1fr)_minmax(180px,0.9fr)_minmax(280px,1.4fr)_minmax(200px,auto)] items-stretch divide-x divide-border/70">
-
-        {/* ── Cột 1: Back + Tiêu đề + Khách hàng ─────────────────────────── */}
-        <div className="flex flex-col justify-center gap-1.5 px-5 py-4">
+    <div className="relative z-30 shrink-0 border-b border-border bg-background/80 backdrop-blur-sm">
+      <div className="grid items-stretch divide-y divide-border/70 xl:grid-cols-[minmax(260px,1.15fr)_minmax(230px,0.9fr)_minmax(320px,1.45fr)_minmax(220px,auto)] xl:divide-x xl:divide-y-0">
+        <div className="flex flex-col justify-center gap-2 px-5 py-4">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -115,36 +164,37 @@ export function OrderTopBar({
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">
                 {mode === 'create' ? 'Tạo đơn hàng mới' : 'Chi tiết đơn hàng'}
               </div>
-              {mode === 'detail' && order?.orderNumber ? (
-                <div className="truncate text-sm font-bold text-foreground">
-                  {order.orderNumber}
-                </div>
-              ) : null}
+              <div className="truncate text-sm font-bold text-foreground">
+                {mode === 'detail' ? order?.orderNumber || 'Đơn hàng' : 'Đơn bán hàng'}
+              </div>
             </div>
           </div>
 
-          {/* Customer area */}
-          <div className="mt-1">
+          <div className="mt-1" ref={customerSearchRef}>
             {draft.customerId ? (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-border bg-background-secondary/60 px-3 py-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <User size={13} className="shrink-0 text-primary-500" />
-                  <span className="truncate text-sm font-semibold text-foreground">
-                    {selectedCustomerName || 'Khách lẻ'}
-                  </span>
+              <div className="flex items-start justify-between gap-3 rounded-2xl border border-border bg-background-secondary/60 px-3 py-3">
+                <div className="flex min-w-0 gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
+                    <User size={14} />
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <div className="truncate text-sm font-semibold text-foreground">{customerLabel}</div>
+                    <div className="truncate text-xs text-foreground-muted">{customerPhoneLabel}</div>
+                    <div className="truncate text-xs text-foreground-muted">{customerAddressLabel}</div>
+                  </div>
                 </div>
                 {isEditing ? (
                   <button
                     type="button"
                     onClick={onClearCustomer}
-                    className="shrink-0 text-foreground-muted transition-colors hover:text-error"
+                    className="shrink-0 rounded-lg p-1 text-foreground-muted transition-colors hover:bg-error/10 hover:text-error"
                     title="Xóa khách hàng"
                   >
                     <XCircle size={14} />
                   </button>
                 ) : null}
               </div>
-            ) : (
+            ) : isEditing ? (
               <div className="relative">
                 <Search
                   size={13}
@@ -153,102 +203,69 @@ export function OrderTopBar({
                 <input
                   type="text"
                   value={customerSearch}
-                  disabled={!isEditing}
                   onChange={(event) => onCustomerSearchChange(event.target.value)}
+                  onFocus={() => setShowCustomerSearch(true)}
                   placeholder="Tìm khách hàng..."
-                  className="h-9 w-full rounded-xl border border-border bg-background pl-8 pr-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:bg-background-secondary disabled:text-foreground-muted"
+                  className="h-10 w-full rounded-xl border border-border bg-background pl-8 pr-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500/20"
                 />
-                {isEditing && customerSearch.trim().length >= 2 && customerResults.length > 0 ? (
-                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
-                    {customerResults.slice(0, 5).map((customer: any) => (
-                      <button
-                        key={customer.id}
-                        type="button"
-                        onClick={() => onSelectCustomer(customer)}
-                        className="flex w-full items-center justify-between gap-3 border-b border-border/60 px-3 py-2.5 text-left text-sm transition-colors last:border-b-0 hover:bg-background-secondary"
-                      >
-                        <div>
-                          <div className="font-semibold text-foreground text-sm">
-                            {customer.fullName || customer.name}
-                          </div>
-                          <div className="text-xs text-foreground-muted">
-                            {customer.phone || 'Không có SĐT'}
-                          </div>
-                        </div>
-                        <User size={14} className="text-foreground-muted" />
-                      </button>
-                    ))}
+
+                {showCustomerSearch ? (
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[80] overflow-hidden rounded-xl border border-border bg-background shadow-xl">
+                    <CustomerSearchResults
+                      customers={customerResults}
+                      query={customerSearch}
+                      variant="order"
+                      maxResults={5}
+                      guestLabel="Khách lẻ"
+                      onSelectGuest={() => {
+                        onClearCustomer()
+                        setShowCustomerSearch(false)
+                      }}
+                      onSelectCustomer={(customer) => {
+                        onSelectCustomer(customer)
+                        setShowCustomerSearch(false)
+                      }}
+                      onQuickAdd={handleQuickAddClick}
+                    />
                   </div>
                 ) : null}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border bg-background-secondary/45 px-3 py-3 text-sm text-foreground-muted">
+                Chưa chọn khách hàng cho đơn này.
               </div>
             )}
           </div>
         </div>
 
-        {/* ── Cột 2: Mã đơn + Chi nhánh + Nhân viên ──────────────────────── */}
-        <div className="flex flex-col justify-center gap-3 px-5 py-4">
-          {mode === 'detail' ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                  Mã đơn
-                </span>
-                <span className="font-mono text-sm font-bold text-foreground">
-                  {order?.orderNumber || '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                  Ngày tạo
-                </span>
-                <span className="text-xs text-foreground-muted">
-                  {formatDateTime(order?.createdAt)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                  Nhân viên
-                </span>
-                <span className="text-sm font-semibold text-foreground">
-                  {order?.staff?.fullName || order?.staff?.name || '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                  Trạng thái
-                </span>
-                <OrderStatusBadge status={order?.status} />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                Chi nhánh
-              </div>
-              <select
-                value={draft.branchId ?? ''}
-                disabled={!isEditing}
-                onChange={(event) => onBranchChange(event.target.value || undefined)}
-                className="h-9 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:bg-background-secondary disabled:text-foreground-muted"
-              >
-                <option value="">Chọn chi nhánh</option>
-                {branches.map((branch: any) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+        <div className="flex flex-col justify-center px-5 py-4">
+          <div className="space-y-2.5">
+            {showBranch !== false && <InfoRow label="Chi nhánh" value={branchName || '—'} />}
+            <InfoRow label="Nhân viên thao tác" value={operatorLabel || '—'} />
+            {mode === 'detail' ? (
+              <>
+                <InfoRow
+                  label="Ngày tạo"
+                  value={formatDateTime(order?.createdAt)}
+                  valueClassName="text-xs text-foreground-muted"
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
+                    Trạng thái
+                  </span>
+                  <OrderStatusBadge status={order?.status} />
+                </div>
+              </>
+            ) : null}
+          </div>
         </div>
 
-        {/* ── Cột 3: Progress Stepper ──────────────────────────────────────── */}
         <div className="flex items-center px-6 py-4">
-          <div className="flex w-full items-start justify-between">
+          <div className="flex w-full items-start justify-between gap-2">
             {visibleProgressSteps.map((step, index) => (
               <div
                 key={`${step.key}-${index}`}
-                className="relative flex flex-1 min-w-0 flex-col items-center justify-start gap-1.5 py-1 text-center"
+                className="relative flex min-w-0 flex-1 flex-col items-center justify-start gap-1 py-1 text-center"
               >
                 <div className="relative flex w-full justify-center px-1">
                   <div
@@ -275,9 +292,9 @@ export function OrderTopBar({
                     />
                   ) : null}
                 </div>
-                <div className="mt-0.5 text-[11px] font-semibold leading-tight text-center">
-                  <span
-                    className={
+                <div className="mt-0.5 min-w-0">
+                  <div
+                    className={`text-[11px] font-semibold leading-tight ${
                       step.state === 'alert'
                         ? 'text-rose-300'
                         : step.state === 'active'
@@ -285,19 +302,20 @@ export function OrderTopBar({
                           : step.state === 'done'
                             ? 'text-foreground'
                             : 'text-foreground-muted'
-                    }
+                    }`}
                   >
                     {step.label}
-                  </span>
+                  </div>
+                  <div className="mt-1 truncate text-[10px] text-foreground-muted">
+                    {step.meta || '—'}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── Cột 4: Actions ──────────────────────────────────────────────── */}
         <div className="flex flex-col items-end justify-center gap-2 px-5 py-4">
-          {/* Save / Edit */}
           {isEditing ? (
             <button
               type="button"
@@ -319,7 +337,6 @@ export function OrderTopBar({
             </button>
           ) : null}
 
-          {/* Cancel edit */}
           {mode === 'detail' && isEditing ? (
             <button
               type="button"
@@ -331,7 +348,6 @@ export function OrderTopBar({
             </button>
           ) : null}
 
-          {/* Workflow actions */}
           <div className="flex flex-wrap justify-end gap-1.5">
             {actionFlags.canPayCurrentOrder ? (
               <button
@@ -399,51 +415,19 @@ export function OrderTopBar({
                 POS bán nhanh
               </button>
             ) : null}
-
-            {showPrintActions ? (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowPrintMenu((current) => !current)}
-                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-primary-500/40"
-                >
-                  <Printer size={13} />
-                  In đơn
-                  <ChevronDown size={11} className={`transition-transform ${showPrintMenu ? 'rotate-180' : ''}`} />
-                </button>
-                {showPrintMenu ? (
-                  <div className="absolute right-0 top-[calc(100%+4px)] z-50 w-40 overflow-hidden rounded-xl border border-border bg-background shadow-lg">
-                    <button
-                      type="button"
-                      onClick={() => { setShowPrintMenu(false); onPrintA4?.() }}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                    >
-                      <Printer size={13} className="text-foreground-muted" />
-                      In khổ A4
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setShowPrintMenu(false); onPrintK80?.() }}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                    >
-                      <Printer size={13} className="text-foreground-muted" />
-                      In K80 (nhiệt)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setShowPrintMenu(false); onPrintPdf?.() }}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                    >
-                      <Printer size={13} className="text-foreground-muted" />
-                      Xuất PDF
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         </div>
       </div>
+
+      <PosAddCustomerModal
+        isOpen={showCustomerModal}
+        onClose={() => setShowCustomerModal(false)}
+        initialData={customerModalData}
+        onSaved={(customer) => {
+          onSelectCustomer(customer)
+          setShowCustomerModal(false)
+        }}
+      />
     </div>
   )
 }
