@@ -35,9 +35,9 @@ import {
   useBranches,
   useCustomerDetail,
   useCustomerSearch,
-  useOrderProducts,
-  useOrderServices,
-} from './use-order-queries'
+  usePosProducts as useOrderProducts,
+  usePosServices as useOrderServices,
+} from '@/app/(dashboard)/pos/_hooks/use-pos-queries'
 
 export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; orderId?: string }) {
   const router = useRouter()

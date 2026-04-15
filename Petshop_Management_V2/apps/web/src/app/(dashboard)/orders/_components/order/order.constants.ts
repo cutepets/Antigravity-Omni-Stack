@@ -7,11 +7,11 @@ export const PAYMENT_STATUS_BADGE: Record<string, string> = {
 }
 
 export const PAYMENT_STATUS_LABEL: Record<string, string> = {
-  UNPAID: 'Chua thanh toan',
-  PARTIAL: 'Thanh toan 1 phan',
-  PAID: 'Da thanh toan',
-  COMPLETED: 'Hoan thanh',
-  REFUNDED: 'Da hoan tien',
+  UNPAID: 'Chưa thanh toán',
+  PARTIAL: 'Thanh toán 1 phần',
+  PAID: 'Đã thanh toán',
+  COMPLETED: 'Hoàn thành',
+  REFUNDED: 'Đã hoàn tiền',
 }
 
 export const ORDER_STATUS_BADGE: Record<string, string> = {
@@ -24,26 +24,26 @@ export const ORDER_STATUS_BADGE: Record<string, string> = {
 }
 
 export const ORDER_STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Cho duyet',
-  CONFIRMED: 'Da duyet',
-  PROCESSING: 'Dang xu ly',
-  COMPLETED: 'Hoan thanh',
-  CANCELLED: 'Da huy',
-  REFUNDED: 'Da hoan tien',
+  PENDING: 'Chờ duyệt',
+  CONFIRMED: 'Đã duyệt',
+  PROCESSING: 'Đang xử lý',
+  COMPLETED: 'Hoàn thành',
+  CANCELLED: 'Đã hủy',
+  REFUNDED: 'Đã hoàn tiền',
 }
 
 export const ORDER_ACTION_LABELS: Record<string, string> = {
-  CREATED: 'Tao don hang',
-  APPROVED: 'Duyet don',
-  PAYMENT_ADDED: 'Them thanh toan',
-  PAID: 'Thanh toan',
-  STOCK_EXPORTED: 'Xuat kho',
-  COMPLETED: 'Hoan thanh',
-  CANCELLED: 'Huy don',
-  REFUNDED: 'Hoan tien',
-  NOTE_UPDATED: 'Cap nhat ghi chu',
-  ITEM_ADDED: 'Them san pham',
-  ITEM_REMOVED: 'Xoa san pham',
-  DISCOUNT_APPLIED: 'Ap dung chiet khau',
-  SETTLED: 'Quyet toan',
+  CREATED: 'Tạo đơn hàng',
+  APPROVED: 'Duyệt đơn',
+  PAYMENT_ADDED: 'Thêm thanh toán',
+  PAID: 'Thanh toán',
+  STOCK_EXPORTED: 'Xuất kho',
+  COMPLETED: 'Hoàn thành',
+  CANCELLED: 'Hủy đơn',
+  REFUNDED: 'Hoàn tiền',
+  NOTE_UPDATED: 'Cập nhật ghi chú',
+  ITEM_ADDED: 'Thêm sản phẩm',
+  ITEM_REMOVED: 'Xóa sản phẩm',
+  DISCOUNT_APPLIED: 'Áp dụng chiết khấu',
+  SETTLED: 'Quyết toán',
 }

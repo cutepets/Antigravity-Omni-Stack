@@ -115,10 +115,10 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
       </div>
 
       {/* ── MAIN BODY: Table + Sidebar ────────────────────────────────────── */}
-      <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px] gap-4 p-4 pt-4">
 
         {/* ── LEFT: Bảng sản phẩm ─────────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-col overflow-hidden border-r border-border/60">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-[20px] border border-border bg-background-secondary/20 shadow-sm">
           <OrderItemsTable
             items={workspace.draft.items}
             isEditing={workspace.isEditing}
@@ -129,7 +129,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
         </div>
 
         {/* ── RIGHT: Tổng tiền + Ghi chú + Timeline ───────────────────────── */}
-        <div className="flex min-h-0 flex-col overflow-y-auto custom-scrollbar">
+        <div className="flex min-h-0 flex-col overflow-y-auto custom-scrollbar rounded-[20px] border border-border bg-background-secondary/20 shadow-sm">
           <OrderRightPanel
             mode={mode}
             subtotal={workspace.subtotal}
