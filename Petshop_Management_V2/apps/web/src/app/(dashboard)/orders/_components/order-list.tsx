@@ -1,24 +1,22 @@
 ﻿'use client'
 
 import { useState, useMemo } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import {
-  AlertCircle,
   Download,
-  ExternalLink,
-  Trash2,
   Pin,
   PinOff,
   ShoppingBag,
   CreditCard,
   CalendarDays,
-  Printer
+  ArrowRight
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { orderApi } from '@/lib/api/order.api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { exportOrdersToExcel } from '@/lib/order-export'
+import { OrderStatusBadge, PaymentStatusBadge } from './order/order-badges'
 import {
   DataListShell,
   DataListToolbar,
@@ -62,52 +60,6 @@ const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
   COLUMN_OPTIONS.filter((c) => c.sortable).map((c) => c.id)
 )
 
-const PAYMENT_STATUS_BADGE: Record<string, string> = {
-  UNPAID: 'badge badge-warning',
-  PARTIAL: 'badge badge-accent',
-  PAID: 'badge badge-success',
-  COMPLETED: 'badge badge-info',
-  REFUNDED: 'badge badge-ghost',
-}
-
-const PAYMENT_STATUS_LABEL: Record<string, string> = {
-  UNPAID: 'Chưa thanh toán',
-  PARTIAL: 'TT 1 phần',
-  PAID: 'Đã thanh toán',
-  COMPLETED: 'Hoàn thành',
-  REFUNDED: 'Đã hoàn tiền',
-}
-
-const ORDER_STATUS_BADGE: Record<string, string> = {
-  PENDING: 'badge badge-warning',
-  CONFIRMED: 'badge badge-info',
-  PROCESSING: 'badge badge-accent',
-  COMPLETED: 'badge badge-success',
-  CANCELLED: 'badge badge-ghost',
-  REFUNDED: 'badge badge-error',
-}
-
-const ORDER_STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Chờ duyệt',
-  CONFIRMED: 'Đã duyệt',
-  PROCESSING: 'Đang xử lý',
-  COMPLETED: 'Hoàn thành',
-  CANCELLED: 'Đã hủy',
-  REFUNDED: 'Đã hoàn tiền',
-}
-
-function PaymentStatusBadge({ status }: { status: string }) {
-  const lbl = PAYMENT_STATUS_LABEL[status] ?? status;
-  const cls = PAYMENT_STATUS_BADGE[status] ?? 'badge badge-gray';
-  return <span className={cls}>{lbl}</span>
-}
-
-function OrderStatusBadge({ status }: { status: string }) {
-  const lbl = ORDER_STATUS_LABEL[status] ?? status;
-  const cls = ORDER_STATUS_BADGE[status] ?? 'badge badge-gray';
-  return <span className={cls}>{lbl}</span>
-}
-
 function StockStatusBadge({ stockExportedAt, status }: { stockExportedAt?: string | null; status?: string }) {
   if (stockExportedAt) {
     return <span className="badge badge-success badge-sm">Đã xuất</span>
@@ -120,7 +72,6 @@ function StockStatusBadge({ stockExportedAt, status }: { stockExportedAt?: strin
 
 export function OrderList() {
   const router = useRouter()
-  const queryClient = useQueryClient()
 
   const [search, setSearch] = useState('')
   const [paymentStatus, setPaymentStatus] = useState('')
@@ -292,7 +243,7 @@ export function OrderList() {
               onClick={() => router.push('/orders/new')}
               className="flex h-8 items-center gap-1.5 rounded-lg bg-primary-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-600 shadow-sm"
             >
-              + Tạo đơn Orders
+              + Tao don nhieu buoc
             </button>
             <button
               type="button"
@@ -413,12 +364,34 @@ export function OrderList() {
                 switch (columnId) {
                   case 'code': return (
                     <td key={columnId} className="px-3 py-3 w-24">
-                      <span
-                        onClick={() => router.push(`/orders/${o.id}`)}
-                        className="font-mono text-xs font-bold text-primary-500 hover:underline cursor-pointer transition-colors"
-                      >
-                        {o.orderNumber || '--'}
-                      </span>
+                      <div className="flex flex-col gap-2">
+                        <span
+                          onClick={() => router.push(`/orders/${o.id}`)}
+                          className="font-mono text-xs font-bold text-primary-500 hover:underline cursor-pointer transition-colors"
+                        >
+                          {o.orderNumber || '--'}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/orders/${o.id}`)}
+                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold text-foreground-muted transition-colors hover:border-primary-500/30 hover:text-primary-500"
+                          >
+                            <ArrowRight size={11} />
+                            Chi tiet
+                          </button>
+                          {!['PAID', 'COMPLETED'].includes(o.paymentStatus ?? '') ? (
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/orders/${o.id}`)}
+                              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold text-foreground-muted transition-colors hover:border-primary-500/30 hover:text-primary-500"
+                            >
+                              <CreditCard size={11} />
+                              Thu tien
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
                     </td>
                   );
                   case 'customer': return (

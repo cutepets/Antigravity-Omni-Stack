@@ -442,9 +442,6 @@ export function CreateReceiptForm({
                         <div className="truncate text-sm font-semibold text-foreground group-hover:text-primary-500 transition-colors">
                           {displaySupplier.name}
                         </div>
-                        <div className="truncate text-[11px] text-foreground-muted">
-                          {displaySupplier.code ? displaySupplier.code : displaySupplier.phone || 'Nhà cung cấp đã chọn'}
-                        </div>
                       </a>
                       {!isReadOnly ? (
                         <button

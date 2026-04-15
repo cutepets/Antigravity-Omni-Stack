@@ -89,11 +89,6 @@ export interface ExportStockPayload {
   note?: string;
 }
 
-export interface SettleOrderPayload {
-  note?: string;
-  additionalPayments?: PayOrderPayload['payments'];
-}
-
 export interface OrderTimelineEntry {
   id: string;
   orderId: string;
@@ -201,9 +196,6 @@ export const orderApi = {
 
   exportStock: (id: string, data?: ExportStockPayload) =>
     api.post(`/orders/${id}/export-stock`, data ?? {}).then((r) => r.data),
-
-  settle: (id: string, data?: SettleOrderPayload) =>
-    api.post(`/orders/${id}/settle`, data ?? {}).then((r) => r.data),
 
   getTimeline: (id: string): Promise<OrderTimelineEntry[]> =>
     api.get(`/orders/${id}/timeline`).then((r) => r.data),
