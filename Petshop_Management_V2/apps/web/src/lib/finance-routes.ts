@@ -1,3 +1,3 @@
 export function buildFinanceVoucherHref(voucherNumber: string) {
-  return `/finance/${encodeURIComponent(voucherNumber)}`
+  return `/finance?voucher=${encodeURIComponent(voucherNumber)}`
 }

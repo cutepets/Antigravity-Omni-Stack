@@ -20,3 +20,7 @@ The application utilizes Next.js App Router. Pages are segregated under domain-s
 
 ## Global Behaviors
 Includes client-side routing, shared layouts for dashboard, server-side data mutations via hooks/api integration, and unified auth guard context.
+
+## Navigation Patterns
+- **Standard Routing:** Handled exclusively via Next.js App Router (`next/navigation`).
+- **Modal View State (Local Routing):** Certain list/detail screens (like Pets, Finance Vouchers) bypass Next.js Router for opening modals. They use `window.history.pushState` with query params (e.g. `?voucher=123`) and local `useState` synchronization to preserve list state and avoid remounting the layout or resetting table filters. On such screens, standard `next/link` is avoided strictly to prevent route conflicts and Next.js re-syncing behavior during soft navigation.

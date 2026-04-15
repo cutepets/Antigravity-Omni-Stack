@@ -237,9 +237,9 @@ export function CreateTransactionModal({
   })
 
   // Chỉ hiển thị các danh mục đang active hoặc danh mục đang được chọn
-  const categories = rawCategories.filter((c) => c.isActive || c.name === form.category)
-  const filteredCategories = categories.filter((c) => c.name.toLowerCase().includes((form.category ?? '').toLowerCase()))
-  const showQuickAdd = form.category && form.category.trim() !== '' && !categories.some((c) => c.name.toLowerCase() === form.category?.toLowerCase())
+  const categories = rawCategories.filter((c) => c?.isActive || c?.name === form.category)
+  const filteredCategories = categories.filter((c) => (c?.name || '').toLowerCase().includes((form.category ?? '').toLowerCase()))
+  const showQuickAdd = form.category && form.category.trim() !== '' && !categories.some((c) => (c?.name || '').toLowerCase() === form.category?.toLowerCase())
   const paymentMethods = filterVisiblePaymentMethods(rawPaymentMethods, {
     branchId: form.branchId || defaultBranchId,
     amount: form.amount,
@@ -398,22 +398,22 @@ export function CreateTransactionModal({
         const payload =
           editScope === 'FULL'
             ? {
-                amount: Number(form.amount),
-                description: form.description,
-                category: form.category,
-                paymentMethod: form.paymentMethod,
-                paymentAccountId: form.paymentAccountId,
-                paymentAccountLabel: form.paymentAccountLabel,
-                branchId: form.branchId || undefined,
-                payerName: form.payerName,
-                payerId: form.payerId,
-                refType: manualReferenceType,
-                refNumber: normalizedRefNumber,
-                notes: form.notes,
-                tags: normalizedTags ?? '',
-                date: form.date,
-                attachmentUrl: form.attachmentUrl,
-              }
+              amount: Number(form.amount),
+              description: form.description,
+              category: form.category,
+              paymentMethod: form.paymentMethod,
+              paymentAccountId: form.paymentAccountId,
+              paymentAccountLabel: form.paymentAccountLabel,
+              branchId: form.branchId || undefined,
+              payerName: form.payerName,
+              payerId: form.payerId,
+              refType: manualReferenceType,
+              refNumber: normalizedRefNumber,
+              notes: form.notes,
+              tags: normalizedTags ?? '',
+              date: form.date,
+              attachmentUrl: form.attachmentUrl,
+            }
             : {}
 
         return financeApi.update(transaction.id, payload)
@@ -452,14 +452,14 @@ export function CreateTransactionModal({
   const canSubmit = transaction
     ? editScope === 'FULL'
       ? Number(form.amount) > 0 &&
-        form.description.trim().length > 0 &&
-        hasPaymentAccount &&
-        (form.manualReferenceKind === 'NONE' || Boolean(form.refNumber?.trim()))
-      : false
-    : Number(form.amount) > 0 &&
       form.description.trim().length > 0 &&
       hasPaymentAccount &&
       (form.manualReferenceKind === 'NONE' || Boolean(form.refNumber?.trim()))
+      : false
+    : Number(form.amount) > 0 &&
+    form.description.trim().length > 0 &&
+    hasPaymentAccount &&
+    (form.manualReferenceKind === 'NONE' || Boolean(form.refNumber?.trim()))
 
   const title = isCreate ? getTypeLabel(form.type) : isEdit ? `Sửa ${getTypeLabel(form.type).toLowerCase()}` : getTypeLabel(form.type)
   const handlePrint = () => {
@@ -483,12 +483,13 @@ export function CreateTransactionModal({
               <div className="flex flex-wrap items-center gap-2.5">
                 <h2 className="text-lg font-semibold text-foreground">{title}</h2>
                 {headerCode ? (
-                  <Link
+                  <a
                     href={buildFinanceVoucherHref(headerCode)}
+                    onClick={(e) => e.preventDefault()}
                     className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${theme.accentBorder} ${theme.accentStrong}`}
                   >
                     {headerCode}
-                  </Link>
+                  </a>
                 ) : null}
               </div>
             </div>
@@ -677,7 +678,7 @@ export function CreateTransactionModal({
                       ) : (
                         !showQuickAdd && <p className="px-3 py-2 text-sm text-foreground-muted">Không tìm thấy danh mục</p>
                       )}
-                      
+
                       {showQuickAdd && (
                         <button
                           type="button"
@@ -765,7 +766,7 @@ export function CreateTransactionModal({
                   ))}
                 </div>
               ) : (
-                <div 
+                <div
                   className="mt-2 rounded-xl border border-dashed border-border bg-background-secondary/30 py-3 px-4 text-center text-sm text-foreground-muted"
                 >
                   Kéo thả ảnh hoặc dán (Ctrl+V) vào đây
