@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 
 import Link from 'next/link'
@@ -634,12 +634,13 @@ export function CreateReceiptForm({
                     </div>
                     {index < visibleProgressSteps.length - 1 ? (
                       <div
-                        className={`absolute left-1/2 top-1/2 h-px w-full -translate-y-1/2 ${visibleProgressSteps[index + 1]?.state === 'alert'
+                        className={`absolute top-1/2 h-px -translate-y-1/2 ${visibleProgressSteps[index + 1]?.state === 'alert'
                           ? 'bg-rose-500/35'
                           : step.state === 'completed'
                             ? 'bg-primary-500/50'
                             : 'bg-border'
                           }`}
+                        style={{ left: 'calc(50% + 18px)', right: 'calc(-50% + 18px)' }}
                       />
                     ) : null}
                   </div>
@@ -711,24 +712,12 @@ export function CreateReceiptForm({
                   {returnMutation.isPending ? 'Đang xử lý...' : 'Hoàn trả'}
                 </button>
               ) : null}
-
             </div>
-
           </div>
         </div>
       </div>
       {/* ─── TOP BAR ─────────────────────────────────────────────────────────── */}
       <div className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-4 py-2.5">
-        <div className="flex min-w-[180px] items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-background-secondary text-primary-500">
-            <Package2 size={18} />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-foreground">Tìm sản phẩm</div>
-          </div>
-        </div>
-
-
         {/* Search bar */}
         <div ref={searchPanelRef} className="relative max-w-lg flex-1">
           <Search

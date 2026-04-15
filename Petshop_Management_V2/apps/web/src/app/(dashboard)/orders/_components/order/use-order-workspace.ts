@@ -111,9 +111,30 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   const branchName = useMemo(
     () =>
       branches.find((branch: any) => branch.id === (order?.branchId ?? draft.branchId))?.name ??
-      'Chua chon chi nhanh',
+      'Chưa chọn chi nhánh',
     [branches, draft.branchId, order?.branchId],
   )
+
+  const visibleProgressSteps = useMemo(() => {
+    const currentStatus = order?.status ?? (mode === 'create' ? 'DRAFT' : undefined)
+    const steps = [
+      { key: 'DRAFT', label: 'Tạo đơn', state: 'pending' as const },
+      { key: 'CONFIRMED', label: 'Xác nhận', state: 'pending' as const },
+      { key: 'PROCESSING', label: 'Xuất kho', state: 'pending' as const },
+      { key: 'COMPLETED', label: 'Hoàn thành', state: 'pending' as const },
+    ]
+    const statusOrder = ['DRAFT', 'PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED']
+    const currentIdx = statusOrder.indexOf(currentStatus ?? '')
+    return steps.map((step) => {
+      const stepIdx = statusOrder.indexOf(step.key)
+      if (currentStatus === 'CANCELLED') {
+        return { ...step, state: 'alert' as const }
+      }
+      if (stepIdx < currentIdx) return { ...step, state: 'done' as const }
+      if (stepIdx === currentIdx) return { ...step, state: 'active' as const }
+      return step
+    })
+  }, [mode, order?.status])
   const subtotal = useMemo(
     () =>
       draft.items.reduce(
@@ -178,73 +199,73 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   const createOrderMutation = useMutation({
     mutationFn: () => orderApi.create(buildOrderPayload(draft) as CreateOrderPayload),
     onSuccess: (createdOrder) => {
-      toast.success('Da tao don hang')
+      toast.success('Đã tạo đơn hàng thành công')
       invalidateOrderQueries()
       startTransition(() => router.replace(`/orders/${createdOrder.id}`))
     },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Khong the tao don hang'),
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể tạo đơn hàng'),
   })
 
   const updateOrderMutation = useMutation({
     mutationFn: () => orderApi.update(orderId!, buildOrderPayload(draft) as UpdateOrderPayload),
     onSuccess: (updatedOrder) => {
-      toast.success('Da cap nhat don hang')
+      toast.success('Đã cập nhật đơn hàng')
       invalidateOrderQueries()
       setDraft(buildDraftFromOrder(updatedOrder))
       setIsEditing(false)
       initializedOrderVersionRef.current = `${updatedOrder.id}:${updatedOrder.updatedAt ?? updatedOrder.createdAt ?? ''}`
     },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Khong the cap nhat don hang'),
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể cập nhật đơn hàng'),
   })
 
   const payOrderMutation = useMutation({
     mutationFn: (payload: { payments: Array<{ method: string; amount: number; paymentAccountId?: string; paymentAccountLabel?: string }> }) =>
       orderApi.pay(orderId!, payload),
     onSuccess: () => {
-      toast.success('Da ghi nhan thanh toan')
+      toast.success('Đã ghi nhận thanh toán')
       setShowPayModal(false)
       invalidateOrderQueries()
     },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Khong the thanh toan don'),
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể thanh toán đơn'),
   })
 
   const approveOrderMutation = useMutation({
     mutationFn: (payload: { note?: string }) => orderApi.approve(orderId!, payload),
     onSuccess: () => {
-      toast.success('Da duyet don hang')
+      toast.success('Đã duyệt đơn hàng')
       setShowApproveModal(false)
       invalidateOrderQueries()
     },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Khong the duyet don'),
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể duyệt đơn'),
   })
 
   const exportStockMutation = useMutation({
     mutationFn: (payload: { note?: string }) => orderApi.exportStock(orderId!, payload),
     onSuccess: () => {
-      toast.success('Da xuat kho don hang')
+      toast.success('Đã xuất kho đơn hàng')
       setShowExportStockModal(false)
       invalidateOrderQueries()
     },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Khong the xuat kho'),
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể xuất kho'),
   })
 
   const settleOrderMutation = useMutation({
     mutationFn: (payload: CompleteOrderPayload) => orderApi.complete(orderId!, payload),
     onSuccess: () => {
-      toast.success('Da quyet toan don hang')
+      toast.success('Đã quyết toán đơn hàng')
       setShowSettleModal(false)
       invalidateOrderQueries()
     },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Khong the quyet toan'),
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể quyết toán'),
   })
 
   const cancelOrderMutation = useMutation({
-    mutationFn: () => orderApi.cancel(orderId!, { reason: 'Huy tu Order Workspace' }),
+    mutationFn: () => orderApi.cancel(orderId!, { reason: 'Hủy từ Order Workspace' }),
     onSuccess: () => {
-      toast.success('Da huy don hang')
+      toast.success('Đã hủy đơn hàng')
       invalidateOrderQueries()
     },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Khong the huy don'),
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể hủy đơn'),
   })
 
   const mergeItemIntoDraft = (item: any) => {
@@ -278,7 +299,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
 
     if (isHotelService(entry)) {
       if (!draft.customerId) {
-        toast.error('Can chon khach hang truoc khi them dich vu hotel')
+        toast.error('Cần chọn khách hàng trước khi thêm dịch vụ hotel')
         return
       }
       setHotelServiceDraft(entry)
@@ -287,7 +308,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
 
     if (isGroomingService(entry)) {
       if (!draft.customerId) {
-        toast.error('Can chon khach hang truoc khi them dich vu grooming')
+        toast.error('Cần chọn khách hàng trước khi thêm dịch vụ grooming')
         return
       }
       setGroomingServiceDraft(entry)
@@ -358,7 +379,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
 
   const handleSave = () => {
     if (draft.items.length === 0) {
-      toast.error('Don hang phai co it nhat mot san pham hoac dich vu')
+      toast.error('Đơn hàng phải có ít nhất một sản phẩm hoặc dịch vụ')
       return
     }
 
@@ -395,7 +416,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     return {
       order,
       branchName,
-      customerName: selectedCustomerName || 'Khach le',
+      customerName: selectedCustomerName || 'Khách lẻ',
       customerPhone: customerDetail?.phone,
       items: draft.items,
       subtotal,
@@ -429,6 +450,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     orderId,
     order,
     draft,
+    visibleProgressSteps,
     setDraft,
     itemSearch,
     setItemSearch,
@@ -486,12 +508,12 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       setDraft((current) => ({
         ...current,
         customerId: customer.id,
-        customerName: customer.fullName || customer.name || 'Khach le',
+        customerName: customer.fullName || customer.name || 'Khách lẻ',
       }))
       setCustomerSearch('')
     },
     handleClearCustomer: () => {
-      setDraft((current) => ({ ...current, customerId: undefined, customerName: 'Khach le' }))
+      setDraft((current) => ({ ...current, customerId: undefined, customerName: 'Khách lẻ' }))
       setCustomerSearch('')
     },
     handleChangeBranch: (branchId?: string) =>
