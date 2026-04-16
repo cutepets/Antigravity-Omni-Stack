@@ -161,6 +161,10 @@ export class CreateOrderItemDto {
   petId?: string;
 
   @IsString()
+  @IsOptional()
+  sku?: string;
+
+  @IsString()
   @IsNotEmpty()
   description!: string;
 

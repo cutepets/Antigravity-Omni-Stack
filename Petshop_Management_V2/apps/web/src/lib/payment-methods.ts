@@ -213,7 +213,7 @@ export function filterVisiblePaymentMethods(methods: PaymentMethod[], params: Pa
     .sort((left, right) => {
       if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder
       if (left.isDefault !== right.isDefault) return left.isDefault ? -1 : 1
-      return left.name.localeCompare(right.name, 'vi')
+      return (left.name || '').localeCompare(right.name || '', 'vi')
     })
 }
 

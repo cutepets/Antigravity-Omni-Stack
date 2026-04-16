@@ -292,7 +292,7 @@ export function SupplierFormModal({ isOpen, onClose, initialData }: Props) {
 
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6">
-      <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" />
 
       <div className="card relative z-[81] flex max-h-[92vh] w-full max-w-[1440px] flex-col overflow-hidden p-0 shadow-2xl animate-in fade-in zoom-in duration-200">
         <div className="flex items-center justify-between border-b border-border bg-background-tertiary px-6 py-5">

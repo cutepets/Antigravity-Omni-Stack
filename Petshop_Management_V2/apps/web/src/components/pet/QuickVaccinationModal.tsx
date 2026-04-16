@@ -22,7 +22,7 @@ export function QuickVaccinationModal({ isOpen, petId, onClose, onSaved }: Quick
   const queryClient = useQueryClient()
   const [mounted, setMounted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  
+
   const [vaccineOptions, setVaccineOptions] = useState<VaccineOption[]>([])
   const [vaccineName, setVaccineName] = useState('')
   const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
@@ -69,12 +69,12 @@ export function QuickVaccinationModal({ isOpen, petId, onClose, onSaved }: Quick
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!vaccineName) {
       toast.error('Vui lòng chọn loại vaccine')
       return
     }
-    
+
     if (!date) {
       toast.error('Vui lòng chọn ngày tiêm')
       return
@@ -95,12 +95,12 @@ export function QuickVaccinationModal({ isOpen, petId, onClose, onSaved }: Quick
         ...(notes ? { notes } : {}),
         ...(photoUrl ? { photoUrl } : {})
       })
-      
+
       toast.success('Thêm mũi tiêm thành công')
-      
+
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['pet', petId] })
-      
+
       onSaved?.()
       onClose()
     } catch (error) {
@@ -121,7 +121,6 @@ export function QuickVaccinationModal({ isOpen, petId, onClose, onSaved }: Quick
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
             className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm"
           />
 
@@ -155,7 +154,7 @@ export function QuickVaccinationModal({ isOpen, petId, onClose, onSaved }: Quick
               {/* Body */}
               <form onSubmit={handleSubmit} className="p-6">
                 <div className="space-y-4">
-                  
+
                   {/* Vaccine Name */}
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-foreground-muted">Tên / Loại Vaccine</label>
@@ -214,14 +213,14 @@ export function QuickVaccinationModal({ isOpen, petId, onClose, onSaved }: Quick
                       className="w-full rounded-xl border border-border bg-background-secondary px-4 py-2.5 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                     />
                   </div>
-                  
+
                   {/* Image Upload */}
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-foreground-muted flex items-center justify-between">
                       <span>Ảnh sổ tiêm (tuỳ chọn)</span>
                       <span className="text-xs text-foreground-muted/50">Dán (Ctrl+V) hoặc Kéo thả</span>
                     </label>
-                    <div 
+                    <div
                       className="relative flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/80 bg-background-secondary/50 py-6 transition-colors hover:border-primary-500/50 hover:bg-primary-500/5"
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
@@ -229,9 +228,9 @@ export function QuickVaccinationModal({ isOpen, petId, onClose, onSaved }: Quick
                         if (e.dataTransfer.files?.length) setPhotoFile(e.dataTransfer.files[0])
                       }}
                     >
-                      <input 
-                        type="file" 
-                        accept="image/*" 
+                      <input
+                        type="file"
+                        accept="image/*"
                         onChange={(e) => {
                           if (e.target.files?.length) setPhotoFile(e.target.files[0])
                         }}

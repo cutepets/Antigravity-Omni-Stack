@@ -320,6 +320,8 @@ export function ProductDetailView({ productId }: { productId: string }) {
 
   const product = data?.data
   const detailTree = useMemo(() => (product ? buildDetailTree(product) : null), [product])
+  const hasComplexVariants = detailTree ? (detailTree.groups.length > 1 || (detailTree.groups[0]?.children.length ?? 0) > 0 || detailTree.looseConversions.length > 0) : false
+  const visualCount = hasComplexVariants && detailTree ? detailTree.count : 1
 
   if (isAuthLoading) {
     return <div className="p-6 text-foreground-muted flex items-center justify-center h-40">Dang kiem tra quyen truy cap...</div>
@@ -346,8 +348,8 @@ export function ProductDetailView({ productId }: { productId: string }) {
   const activeItem = detailTree.itemMap.get(selectedItemKey) ?? detailTree.rootItem
   const branches = Array.isArray(branchesData)
     ? branchesData
-        .filter((branch: any) => branch?.id && branch?.name)
-        .map((branch: any) => ({ id: branch.id, name: branch.name } satisfies BranchOption))
+      .filter((branch: any) => branch?.id && branch?.name)
+      .map((branch: any) => ({ id: branch.id, name: branch.name } satisfies BranchOption))
     : []
   const priceBooks = pbData?.data || []
 
@@ -507,7 +509,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                 <Layers size={16} className="text-primary-500" /> Phiên bản & Quy đổi
               </div>
               <span className="w-5 h-5 rounded-full bg-background-tertiary border border-border flex items-center justify-center text-xs text-foreground">
-                {detailTree.count}
+                {visualCount}
               </span>
             </div>
 
@@ -549,7 +551,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                   )}
                 </button>
 
-                {(detailTree.groups.length > 0 || detailTree.looseConversions.length > 0) && (
+                {hasComplexVariants && (
                   <div className="mt-4 flex flex-col gap-3 pl-5 relative">
                     <div className="absolute top-0 bottom-0 left-0 w-px bg-border" />
 
@@ -597,7 +599,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                                     </div>
                                     <div className="flex flex-col leading-tight overflow-hidden">
                                       <div className={`text-sm font-medium truncate ${activeItem.key === child.key ? 'text-primary-500' : 'text-foreground'}`}>{child.name}</div>
-                                      <div className="text-[10px] text-foreground-muted mt-0.5 truncate">{child.formula || child.sku || 'Quy đổi'}</div>
+                                      <div className="text-[10px] text-foreground-muted mt-0.5 truncate">{(child.sku ? child.sku + ' • ' : '') + (child.formula || 'Quy đổi')}</div>
                                     </div>
                                   </div>
                                   {priceBooks.length > 0 && (

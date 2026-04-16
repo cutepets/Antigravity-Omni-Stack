@@ -91,7 +91,7 @@ export function CustomerSearchResults({
       {hasEmptySearch && onQuickAdd ? (
         <div className={variant === 'pos' ? 'flex flex-col items-start gap-3 border-t border-gray-100 p-4' : 'space-y-3 px-3 py-3'}>
           <div className={variant === 'pos' ? 'text-sm text-gray-500' : 'text-sm text-foreground-muted'}>
-            Không tìm thấy khách hàng "{query}".
+            Không tìm thấy khách hàng &quot;{query}&quot;.
           </div>
           <button
             type="button"
@@ -103,7 +103,7 @@ export function CustomerSearchResults({
             }
           >
             <Plus size={variant === 'pos' ? 18 : 15} />
-            Thêm nhanh "{query}"
+            Thêm nhanh &quot;{query}&quot;
           </button>
         </div>
       ) : null}

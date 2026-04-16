@@ -19,6 +19,8 @@ import {
   RefreshCw,
   Coins,
 } from "lucide-react";
+import { format } from "date-fns";
+import * as Tabs from "@radix-ui/react-tabs";
 import { customToast as toast } from "@/components/ui/toast-with-copy";
 import {
   groomingApi,
@@ -38,7 +40,68 @@ import {
   GROOMING_STATUS_ORDER,
   toDateTimeLocalValue,
 } from "./grooming-status";
+import { formatDateTime } from "@/lib/utils";
 import { CancelNotesModal } from "./cancel-notes-modal";
+
+function buildHistorySummary(entry: any) {
+  const actorName =
+    entry.performedByUser?.fullName ?? entry.performedByUser?.staffCode ?? 'Chưa xác định';
+  const statusLabel =
+    entry.fromStatus || entry.toStatus
+      ? [
+        entry.fromStatus ? entry.fromStatus : null,
+        entry.toStatus ? `→ ${entry.toStatus}` : null,
+      ]
+        .filter(Boolean)
+        .join(' ')
+      : null;
+
+  return [actorName, statusLabel, entry.note].filter(Boolean).join(' • ');
+}
+
+function HistorySection({ timeline }: { timeline: any[] }) {
+  return (
+    <div className="py-2">
+      <div className="rounded-2xl border border-border/60 bg-background-secondary/30 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-foreground-muted">
+            Lịch sử thao tác
+          </div>
+        </div>
+
+        {timeline && timeline.length > 0 ? (
+          <div className="mt-4 space-y-4">
+            {timeline.map((entry: any, index: number) => (
+              <div key={entry.id} className="grid grid-cols-[16px_1fr] gap-4">
+                <div className="flex flex-col items-center">
+                  <span className="mt-1.5 h-2 w-2 rounded-full bg-primary-500 ring-4 ring-primary-500/10" />
+                  {index < timeline.length - 1 ? <span className="mt-2 h-full w-px bg-border/60" /> : null}
+                </div>
+                <div className="rounded-xl border border-border/40 bg-background-base px-3.5 py-3 transition-colors duration-150 hover:bg-primary-500/4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="truncate text-sm font-semibold text-primary-400">
+                      {entry.action}
+                    </div>
+                    <div className="shrink-0 whitespace-nowrap text-[11px] text-foreground-muted">
+                      {formatDateTime(entry.createdAt)}
+                    </div>
+                  </div>
+                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-foreground-muted">
+                    {buildHistorySummary(entry) || 'Không có thêm thông tin'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-5 text-center text-sm text-foreground-muted">
+            Chưa có lịch sử thao tác cho dịch vụ này.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 
 
@@ -289,343 +352,368 @@ export function GroomingSessionDialog({
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 flex justify-end bg-black/45 backdrop-blur-[2px]"
-        onClick={onClose}
-      >
+
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm sm:p-0">
         <aside
-          className="flex h-full w-full max-w-[500px] flex-col border-l border-border bg-background-base shadow-2xl"
+          className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-start justify-between border-b border-border px-6 py-5">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                {isEditing ? (
-                  <GroomingStatusBadge status={watchStatus || "PENDING"} />
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary-500/20 bg-primary-500/10 px-2.5 py-1 text-xs font-semibold text-primary-500">
-                    <PawPrint size={12} /> Tạo mới
+          <Tabs.Root defaultValue="info" className="flex h-full flex-col">
+            <div className="flex items-start justify-between border-b border-border px-6 py-5">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  {isEditing ? (
+                    <GroomingStatusBadge status={watchStatus || "PENDING"} />
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary-500/20 bg-primary-500/10 px-2.5 py-1 text-xs font-semibold text-primary-500">
+                      <PawPrint size={12} /> Tạo mới
+                    </span>
+                  )}
+                  <span className="rounded-full border border-border bg-background-secondary px-2 py-1 font-mono text-[11px] text-foreground-muted">
+                    {sessionLabel}
                   </span>
-                )}
-                <span className="rounded-full border border-border bg-background-secondary px-2 py-1 font-mono text-[11px] text-foreground-muted">
-                  {sessionLabel}
-                </span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">
+                    {petInfo.name}
+                  </h2>
+                  {petInfo.label && (
+                    <p className="text-sm text-foreground-muted">{petInfo.label}</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-foreground">
-                  {petInfo.name}
-                </h2>
-                {petInfo.label && (
-                  <p className="text-sm text-foreground-muted">{petInfo.label}</p>
+
+              <div className="flex items-start gap-4">
+                {session && (
+                  <Tabs.List className="flex items-center gap-1 rounded-xl bg-background-secondary/50 p-1">
+                    <Tabs.Trigger
+                      value="info"
+                      className="rounded-lg px-3 py-1.5 text-sm font-medium text-foreground-muted transition-all duration-150 hover:text-foreground data-[state=active]:bg-background-base data-[state=active]:text-primary-600 data-[state=active]:shadow-sm outline-none"
+                    >
+                      Thông tin
+                    </Tabs.Trigger>
+                    <Tabs.Trigger
+                      value="history"
+                      className="rounded-lg px-3 py-1.5 text-sm font-medium text-foreground-muted transition-all duration-150 hover:text-foreground data-[state=active]:bg-background-base data-[state=active]:text-primary-600 data-[state=active]:shadow-sm outline-none"
+                    >
+                      Lịch sử
+                    </Tabs.Trigger>
+                  </Tabs.List>
                 )}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background-secondary text-foreground-muted transition-colors hover:text-foreground"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <form
-            id="grooming-form"
-            onSubmit={handleSubmit((data) => saveMutation.mutate(data))}
-            className="custom-scrollbar flex-1 space-y-6 overflow-y-auto px-6 py-5"
-          >
-            {mode === "create" && (
-              <label className="space-y-2 block">
-                <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                  <PawPrint size={14} />
-                  Chọn thú cưng
-                </span>
-                <select
-                  {...register("petId")}
-                  className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                >
-                  <option value="">-- Chọn thú cưng --</option>
-                  {pets.map((pet) => (
-                    <option key={pet.id} value={pet.id}>
-                      {pet.name} · {pet.customer?.fullName || "Khách lẻ"}
-                    </option>
-                  ))}
-                </select>
-                {errors.petId && (
-                  <p className="text-xs font-medium text-error">{errors.petId.message}</p>
-                )}
-              </label>
-            )}
-
-            {(mode === "detail" || watchPetId) && (
-              <>
-                <section className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-border bg-card/80 p-4">
-                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                      <UserRound size={14} />
-                      Khách hàng
-                    </div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {petInfo.customerName}
-                    </p>
-                    <p className="mt-1 text-sm text-foreground-muted">
-                      {petInfo.customerPhone}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-border bg-card/80 p-4">
-                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                      <Tag size={14} />
-                      Mã thú cưng
-                    </div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {petInfo.code}
-                    </p>
-                    {isEditing && (
-                      <div className="mt-2 space-y-1">
-                        <p className="text-xs text-foreground-muted">
-                          Tạo lúc: {formatGroomingDateTime(session!.createdAt)}
-                        </p>
-                        {session!.branch && (
-                          <p className="text-xs text-foreground-muted">
-                            Chi nhánh: <span className="font-medium text-foreground">{session!.branch.name}</span>
-                          </p>
-                        )}
-                        {session!.staff && (
-                          <p className="text-xs text-foreground-muted">
-                            Người tạo: <span className="font-medium text-foreground">{session!.staff.fullName}</span>
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                <section className="space-y-4 rounded-2xl border border-border bg-card/80 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        Thông tin dịch vụ
-                      </p>
-                      <p className="text-xs text-foreground-muted">
-                        Thiết lập dịch vụ và người phụ trách
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4">
-                    {isEditing && (
-                      <label className="space-y-2">
-                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                          Trạng thái
-                        </span>
-                        <div className="grid grid-cols-2 gap-2">
-                          {GROOMING_STATUS_ORDER.map((status) => {
-                            const meta = GROOMING_STATUS_META[status];
-                            const Icon = meta.icon;
-                            const isSelected = watchStatus === status;
-
-                            return (
-                              <button
-                                key={status}
-                                type="button"
-                                onClick={() => {
-                                  if (!canUpdateSession) return;
-                                  if (status === "CANCELLED") {
-                                    setShowCancelModal(true);
-                                  } else {
-                                    setValue("status", status, { shouldDirty: true });
-                                  }
-                                }}
-                                disabled={!canUpdateSession}
-                                className={`inline-flex items-center justify-start gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
-                                  isSelected
-                                    ? `${meta.chipClassName} shadow-sm`
-                                    : "border-border bg-background-secondary text-foreground-muted hover:text-foreground"
-                                } disabled:cursor-not-allowed disabled:opacity-50`}
-                              >
-                                <Icon size={14} className="shrink-0" />
-                                <span className="truncate">{meta.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </label>
-                    )}
-
-                    <label className="space-y-2">
-                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                        Mã gói / Package
-                      </span>
-                      <select
-                        {...register("packageCode")}
-                        disabled={!canUpdateSession}
-                        className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                      >
-                        <option value="">-- Không chọn (Tự nhập giá) --</option>
-                        {availablePackages.map((pkg: { code: string; label: string }) => (
-                          <option key={pkg.code} value={pkg.code}>
-                            {pkg.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                        Nhân viên phụ trách
-                      </span>
-                      <select
-                        {...register("staffId")}
-                        disabled={!canUpdateSession}
-                        className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                      >
-                        <option value="">Chưa phân công</option>
-                        {staffOptions.map((staff) => (
-                          <option key={staff.id} value={staff.id}>
-                            {staff.fullName}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="space-y-2">
-                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                          Bắt đầu
-                        </span>
-                        <input
-                          type="datetime-local"
-                          {...register("startTime")}
-                          disabled={!canUpdateSession}
-                          className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                        />
-                      </label>
-
-                      {isEditing && (
-                        <label className="space-y-2">
-                          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                            Kết thúc
-                          </span>
-                          <input
-                            type="datetime-local"
-                            {...register("endTime")}
-                            disabled={!canUpdateSession}
-                            className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                          />
-                        </label>
-                      )}
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                            <Tag size={14} /> Giá dịch vụ
-                          </span>
-                          {mode === "create" && watchPackageCode && (
-                            <button
-                              type="button"
-                              disabled={calculateMutation.isPending}
-                              onClick={() => calculateMutation.mutate()}
-                              className="text-primary-500 hover:text-primary-600 outline-none"
-                              title="Tính lại giá"
-                            >
-                              <RefreshCw size={14} className={calculateMutation.isPending ? "animate-spin" : ""} />
-                            </button>
-                          )}
-                        </div>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1000"
-                          {...register("price")}
-                          disabled={!canUpdateSession}
-                          placeholder="0"
-                          className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                        />
-                        {errors.price && <p className="text-xs text-error">{errors.price.message}</p>}
-                      </label>
-
-                      <label className="space-y-2">
-                        <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                          <Coins size={14} /> Phụ phí
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1000"
-                          {...register("surcharge")}
-                          disabled={!canUpdateSession}
-                          placeholder="Ví dụ: Phí hung dữ, phí gỡ rối..."
-                          className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                        />
-                        {errors.surcharge && <p className="text-xs text-error">{errors.surcharge.message}</p>}
-                      </label>
-                    </div>
-
-                    <label className="space-y-2">
-                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                        Ghi chú
-                      </span>
-                      <textarea
-                        rows={3}
-                        {...register("notes")}
-                        disabled={!canUpdateSession}
-                        placeholder="Lưu ý về thú cưng, yêu cầu khách, ghi chú nội bộ..."
-                        className="w-full rounded-2xl border border-border bg-background-secondary px-3 py-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                      />
-                    </label>
-                  </div>
-                </section>
-              </>
-            )}
-          </form>
-
-          <footer className="border-t border-border bg-background-base px-6 py-4">
-            <div className="flex items-center justify-between">
-              {canDeleteSession ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm("Bạn có chắc muốn xóa phiên này?")) {
-                      deleteMutation.mutate();
-                    }
-                  }}
-                  disabled={deleteMutation.isPending}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-medium text-error transition-colors hover:bg-error/10 px-4"
-                >
-                  <Trash2 size={16} />
-                  Xóa
-                </button>
-              ) : (
-                <div />
-              )}
-              <div className="flex gap-3 [&>*]:flex-1">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex h-11 min-w-[100px] items-center justify-center rounded-xl bg-background-secondary text-sm font-medium text-foreground transition-colors hover:bg-background-tertiary"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background-secondary text-foreground-muted transition-colors hover:text-foreground"
                 >
-                  Đóng
+                  <X size={18} />
                 </button>
-                {canUpdateSession && (
-                  <button
-                    type="submit"
-                    form="grooming-form"
-                    disabled={saveMutation.isPending}
-                    className="inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/50"
-                  >
-                    <Save size={16} />
-                    {saveMutation.isPending ? "Đang lưu..." : "Lưu"}
-                  </button>
-                )}
               </div>
             </div>
-          </footer>
-        </aside>
-      </div>
+
+            <Tabs.Content value="info" className="flex-1 overflow-y-auto outline-none flex flex-col">
+              <form
+                id="grooming-form"
+                onSubmit={handleSubmit((data) => saveMutation.mutate(data))}
+                className="custom-scrollbar flex-1 space-y-6 overflow-y-auto px-6 py-5"
+              >
+                {mode === "create" && (
+                  <label className="space-y-2 block">
+                    <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                      <PawPrint size={14} />
+                      Chọn thú cưng
+                    </span>
+                    <select
+                      {...register("petId")}
+                      className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                    >
+                      <option value="">-- Chọn thú cưng --</option>
+                      {pets.map((pet) => (
+                        <option key={pet.id} value={pet.id}>
+                          {pet.name} · {pet.customer?.fullName || "Khách lẻ"}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.petId && (
+                      <p className="text-xs font-medium text-error">{errors.petId.message}</p>
+                    )}
+                  </label>
+                )}
+
+                {(mode === "detail" || watchPetId) && (
+                  <>
+                    <section className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-border bg-card/80 p-4">
+                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                          <UserRound size={14} />
+                          Khách hàng
+                        </div>
+                        <p className="text-sm font-semibold text-foreground">
+                          {petInfo.customerName}
+                        </p>
+                        <p className="mt-1 text-sm text-foreground-muted">
+                          {petInfo.customerPhone}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-border bg-card/80 p-4">
+                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                          <Tag size={14} />
+                          Mã thú cưng
+                        </div>
+                        <p className="text-sm font-semibold text-foreground">
+                          {petInfo.code}
+                        </p>
+                        {isEditing && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-xs text-foreground-muted">
+                              Tạo lúc: {formatGroomingDateTime(session!.createdAt)}
+                            </p>
+                            {session!.branch && (
+                              <p className="text-xs text-foreground-muted">
+                                Chi nhánh: <span className="font-medium text-foreground">{session!.branch.name}</span>
+                              </p>
+                            )}
+                            {session!.staff && (
+                              <p className="text-xs text-foreground-muted">
+                                Người tạo: <span className="font-medium text-foreground">{session!.staff.fullName}</span>
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="space-y-4 rounded-2xl border border-border bg-card/80 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            Thông tin dịch vụ
+                          </p>
+                          <p className="text-xs text-foreground-muted">
+                            Thiết lập dịch vụ và người phụ trách
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4">
+                        {isEditing && (
+                          <label className="space-y-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                              Trạng thái
+                            </span>
+                            <div className="grid grid-cols-2 gap-2">
+                              {GROOMING_STATUS_ORDER.map((status) => {
+                                const meta = GROOMING_STATUS_META[status];
+                                const Icon = meta.icon;
+                                const isSelected = watchStatus === status;
+
+                                return (
+                                  <button
+                                    key={status}
+                                    type="button"
+                                    onClick={() => {
+                                      if (!canUpdateSession) return;
+                                      if (status === "CANCELLED") {
+                                        setShowCancelModal(true);
+                                      } else {
+                                        setValue("status", status, { shouldDirty: true });
+                                      }
+                                    }}
+                                    disabled={!canUpdateSession}
+                                    className={`inline-flex items-center justify-start gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${isSelected
+                                      ? `${meta.chipClassName} shadow-sm`
+                                      : "border-border bg-background-secondary text-foreground-muted hover:text-foreground"
+                                      } disabled:cursor-not-allowed disabled:opacity-50`}
+                                  >
+                                    <Icon size={14} className="shrink-0" />
+                                    <span className="truncate">{meta.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </label>
+                        )}
+
+                        <label className="space-y-2">
+                          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                            Mã gói / Package
+                          </span>
+                          <select
+                            {...register("packageCode")}
+                            disabled={!canUpdateSession}
+                            className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                          >
+                            <option value="">-- Không chọn (Tự nhập giá) --</option>
+                            {availablePackages.map((pkg: { code: string; label: string }) => (
+                              <option key={pkg.code} value={pkg.code}>
+                                {pkg.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="space-y-2">
+                          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                            Nhân viên phụ trách
+                          </span>
+                          <select
+                            {...register("staffId")}
+                            disabled={!canUpdateSession}
+                            className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                          >
+                            <option value="">Chưa phân công</option>
+                            {staffOptions.map((staff) => (
+                              <option key={staff.id} value={staff.id}>
+                                {staff.fullName}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="space-y-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                              Bắt đầu
+                            </span>
+                            <input
+                              type="datetime-local"
+                              {...register("startTime")}
+                              disabled={!canUpdateSession}
+                              className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                            />
+                          </label>
+
+                          {isEditing && (
+                            <label className="space-y-2">
+                              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                                Kết thúc
+                              </span>
+                              <input
+                                type="datetime-local"
+                                {...register("endTime")}
+                                disabled={!canUpdateSession}
+                                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                              />
+                            </label>
+                          )}
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                                <Tag size={14} /> Giá dịch vụ
+                              </span>
+                              {mode === "create" && watchPackageCode && (
+                                <button
+                                  type="button"
+                                  disabled={calculateMutation.isPending}
+                                  onClick={() => calculateMutation.mutate()}
+                                  className="text-primary-500 hover:text-primary-600 outline-none"
+                                  title="Tính lại giá"
+                                >
+                                  <RefreshCw size={14} className={calculateMutation.isPending ? "animate-spin" : ""} />
+                                </button>
+                              )}
+                            </div>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1000"
+                              {...register("price")}
+                              disabled={!canUpdateSession}
+                              placeholder="0"
+                              className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                            />
+                            {errors.price && <p className="text-xs text-error">{errors.price.message}</p>}
+                          </label>
+
+                          <label className="space-y-2">
+                            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                              <Coins size={14} /> Phụ phí
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1000"
+                              {...register("surcharge")}
+                              disabled={!canUpdateSession}
+                              placeholder="Ví dụ: Phí hung dữ, phí gỡ rối..."
+                              className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                            />
+                            {errors.surcharge && <p className="text-xs text-error">{errors.surcharge.message}</p>}
+                          </label>
+                        </div>
+
+                        <label className="space-y-2">
+                          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                            Ghi chú
+                          </span>
+                          <textarea
+                            rows={3}
+                            {...register("notes")}
+                            disabled={!canUpdateSession}
+                            placeholder="Lưu ý về thú cưng, yêu cầu khách, ghi chú nội bộ..."
+                            className="w-full rounded-2xl border border-border bg-background-secondary px-3 py-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                          />
+                        </label>
+                      </div>
+                    </section>
+                  </>
+                )}
+              </form>
+
+              <footer className="border-t border-border bg-background-base px-6 py-4">
+                <div className="flex items-center justify-between">
+                  {canDeleteSession ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm("Bạn có chắc muốn xóa phiên này?")) {
+                          deleteMutation.mutate();
+                        }
+                      }}
+                      disabled={deleteMutation.isPending}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-medium text-error transition-colors hover:bg-error/10 px-4"
+                    >
+                      <Trash2 size={16} />
+                      Xóa
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+                  <div className="flex gap-3 [&>*]:flex-1">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="inline-flex h-11 min-w-[100px] items-center justify-center rounded-xl bg-background-secondary text-sm font-medium text-foreground transition-colors hover:bg-background-tertiary"
+                    >
+                      Đóng
+                    </button>
+                    {canUpdateSession && (
+                      <button
+                        type="submit"
+                        form="grooming-form"
+                        disabled={saveMutation.isPending}
+                        className="inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/50"
+                      >
+                        <Save size={16} />
+                        {saveMutation.isPending ? "Đang lưu..." : "Lưu"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </footer>
+            </Tabs.Content >
+            {
+              session ? (
+                <Tabs.Content value="history" className="flex-1 overflow-y-auto outline-none" >
+                  <HistorySection timeline={(session as any).timeline || []} />
+                </Tabs.Content >
+              ) : null}
+          </Tabs.Root >
+        </aside >
+      </div >
 
       <CancelNotesModal
         isOpen={showCancelModal}

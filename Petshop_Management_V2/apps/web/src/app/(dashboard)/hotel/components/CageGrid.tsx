@@ -1,7 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { hotelApi, Cage, HotelStay } from '@/lib/api/hotel.api'
+import { hotelApi, HotelStay } from '@/lib/api/hotel.api'
 import { useState, useCallback, useMemo } from 'react'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { useAuthStore } from '@/stores/auth.store'
@@ -9,7 +9,6 @@ import { format, isToday, differenceInDays } from 'date-fns'
 
 import CheckInDialog from './CheckInDialog'
 import StayDetailsDialog from './StayDetailsDialog'
-import ManageCagesDialog from './ManageCagesDialog'
 
 // ---- Utility helpers ----
 
@@ -42,12 +41,12 @@ interface BookedDragData {
   stayId: string
 }
 
-interface CageDragData {
-  type: 'cage'
-  cageId: string
+interface SlotDragData {
+  type: 'slot'
+  slotIndex: number
 }
 
-type DragData = BookedDragData | CageDragData
+type DragData = BookedDragData | SlotDragData
 
 // ---- Small pet card for booked / checked-out panels ----
 
@@ -124,7 +123,7 @@ function SmallPetCard({
 // ---- Cage cell in main grid ----
 
 function CageCell({
-  cage,
+  slotIndex,
   stay,
   onDragStart,
   onDragOver,
@@ -134,7 +133,7 @@ function CageCell({
   isDragging,
   onClick,
 }: {
-  cage: Cage
+  slotIndex: number
   stay?: HotelStay
   onDragStart?: (e: React.DragEvent, data: DragData) => void
   onDragOver?: (e: React.DragEvent) => void
@@ -167,7 +166,7 @@ function CageCell({
         <button
           type="button"
           draggable
-          onDragStart={(e) => onDragStart?.(e, { type: 'cage', cageId: cage.id })}
+          onDragStart={(e) => onDragStart?.(e, { type: 'slot', slotIndex })}
           onClick={onClick}
           className="flex h-full w-full cursor-grab flex-col items-center justify-center rounded-xl bg-background-base p-2 text-center active:cursor-grabbing hover:shadow-lg"
         >
@@ -197,23 +196,19 @@ function CageCell({
               {stay.stayCode.slice(-6).toUpperCase()}
             </p>
           )}
-
-          {/* Cage name */}
-          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-600">
-            <span className="h-1 w-1 rounded-full bg-amber-500" />
-            {cage.name}
-          </span>
         </button>
       ) : (
-        /* Empty cage — drop target for booked stays */
+        /* Empty slot — drop target for booked stays */
         <div className="flex h-full w-full flex-col items-center justify-center rounded-xl p-2 text-center">
           <span className="text-lg text-foreground-muted/30">+</span>
-          <p className="mt-0.5 text-[9px] font-medium text-foreground-muted/50">{cage.name}</p>
         </div>
       )}
     </div>
   )
 }
+
+const GRID_SIZE = 50;
+const SLOTS = Array.from({ length: GRID_SIZE }, (_, i) => i);
 
 // ---- Main component ----
 
@@ -224,25 +219,17 @@ export default function CageGrid() {
 
   // Drag state
   const [draggedData, setDraggedData] = useState<DragData | null>(null)
-  const [dragOverCageId, setDragOverCageId] = useState<string | null>(null)
+  const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null)
   const [dragOverCenter, setDragOverCenter] = useState(false)
 
   // Modal states
-  const [selectedCage, setSelectedCage] = useState<Cage | null>(null)
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null)
   const [selectedStay, setSelectedStay] = useState<HotelStay | null>(null)
-  const [isCheckInOpen, setIsCheckInOpen] = useState(false)
   const [isStayDetailsOpen, setIsStayDetailsOpen] = useState(false)
-  const [isManageCagesOpen, setIsManageCagesOpen] = useState(false)
 
   const canCheckIn = hasAnyPermission(['hotel.create', 'hotel.checkin'])
-  const canManageCages = hasAnyPermission(['hotel.create', 'hotel.update', 'hotel.cancel'])
 
   // ---- Data fetching ----
-
-  const { data: cages = [], isLoading: cagesLoading } = useQuery({
-    queryKey: ['cages', activeBranchId],
-    queryFn: hotelApi.getCages,
-  })
 
   const { data: stays = [], isLoading: staysLoading } = useQuery({
     queryKey: ['stays', activeBranchId],
@@ -272,33 +259,23 @@ export default function CageGrid() {
     return { bookedStays: booked, boardingStays: boarding, checkedOutToday: checkedOut }
   }, [stays, activeBranchId])
 
-  // Build cage→stay map for boarding stays
-  const cageStayMap = useMemo(() => {
-    const map = new Map<string, HotelStay>()
+  // Build slot→stay map for boarding stays
+  const slotStayMap = useMemo(() => {
+    const map = new Map<number, HotelStay>()
     for (const stay of boardingStays) {
-      if (stay.cageId) map.set(stay.cageId, stay)
+      if (stay.slotIndex != null) map.set(stay.slotIndex, stay)
     }
     return map
   }, [boardingStays])
 
-  // Active cages only
-  const activeCages = useMemo(() => {
-    return cages.filter((c) => c.isActive !== false)
-  }, [cages])
-
-  // Sort cages by position
-  const sortedCages = useMemo(() => {
-    return [...activeCages].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-  }, [activeCages])
-
-  const isLoading = cagesLoading || staysLoading
+  const isLoading = staysLoading
 
   // ---- Mutations ----
 
-  const reorderMutation = useMutation({
-    mutationFn: (cageIds: string[]) => hotelApi.reorderCages(cageIds),
+  const updateStayMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: any }) => hotelApi.updateStay(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cages', activeBranchId] })
+      queryClient.invalidateQueries({ queryKey: ['stays'] })
     },
   })
 
@@ -312,18 +289,18 @@ export default function CageGrid() {
 
   const handleDragEnd = useCallback(() => {
     setDraggedData(null)
-    setDragOverCageId(null)
+    setDragOverSlotIndex(null)
     setDragOverCenter(false)
   }, [])
 
-  const handleCageDragOver = useCallback((e: React.DragEvent, cageId: string) => {
+  const handleSlotDragOver = useCallback((e: React.DragEvent, slotIndex: number) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    setDragOverCageId(cageId)
+    setDragOverSlotIndex(slotIndex)
   }, [])
 
-  const handleCageDragLeave = useCallback(() => {
-    setDragOverCageId(null)
+  const handleSlotDragLeave = useCallback(() => {
+    setDragOverSlotIndex(null)
   }, [])
 
   const handleCenterDragOver = useCallback((e: React.DragEvent) => {
@@ -336,54 +313,45 @@ export default function CageGrid() {
     setDragOverCenter(false)
   }, [])
 
-  const handleCageDrop = useCallback(
-    (e: React.DragEvent, targetCage: Cage) => {
+  const handleSlotDrop = useCallback(
+    (e: React.DragEvent, targetSlotIndex: number) => {
       e.preventDefault()
-      setDragOverCageId(null)
+      setDragOverSlotIndex(null)
       setDragOverCenter(false)
 
       if (!draggedData) return
 
       if (draggedData.type === 'booked') {
-        // Check in a booked stay into this cage
         const bookedStay = bookedStays.find((s) => s.id === draggedData.stayId)
         if (!bookedStay) return
 
-        // Update stay: set cageId and status to CHECKED_IN
-        // This would need an API call — for now open the check-in dialog
-        setSelectedCage(targetCage)
+        setSelectedSlot(targetSlotIndex)
         setSelectedStay(bookedStay)
-        setIsCheckInOpen(true)
-      } else if (draggedData.type === 'cage') {
-        // Reorder cages
-        const sourceIndex = sortedCages.findIndex((c) => c.id === draggedData.cageId)
-        const targetIndex = sortedCages.findIndex((c) => c.id === targetCage.id)
-        if (sourceIndex === -1 || targetIndex === -1) return
-
-        const newOrder = [...sortedCages]
-        const [moved] = newOrder.splice(sourceIndex, 1)
-        newOrder.splice(targetIndex, 0, moved)
-        reorderMutation.mutate(newOrder.map((c) => c.id))
+        setIsStayDetailsOpen(true)
+      } else if (draggedData.type === 'slot') {
+        // Move an existing stay to a new slot
+        const sourceStay = boardingStays.find(s => s.slotIndex === draggedData.slotIndex)
+        if (sourceStay && !slotStayMap.has(targetSlotIndex)) {
+          updateStayMutation.mutate({ id: sourceStay.id, data: { slotIndex: targetSlotIndex } })
+        }
       }
 
       setDraggedData(null)
     },
-    [draggedData, bookedStays, sortedCages, reorderMutation],
+    [draggedData, bookedStays, boardingStays, slotStayMap, updateStayMutation],
   )
 
-  const handleCageClick = useCallback(
-    (cage: Cage) => {
-      setSelectedCage(cage)
-      const stay = cageStayMap.get(cage.id)
+  const handleSlotClick = useCallback(
+    (slotIndex: number) => {
+      setSelectedSlot(slotIndex)
+      const stay = slotStayMap.get(slotIndex)
       if (stay) {
         setSelectedStay(stay)
         setIsStayDetailsOpen(true)
-      } else if (canCheckIn) {
-        setSelectedStay(null)
-        setIsCheckInOpen(true)
+        // CheckIn dialog removed, wait for user to select a pet or create new order in POS
       }
     },
-    [cageStayMap, canCheckIn],
+    [slotStayMap, canCheckIn],
   )
 
   // ---- Loading / empty states ----
@@ -410,16 +378,15 @@ export default function CageGrid() {
               draggable={canCheckIn}
               onDragStart={handleDragStart}
               onClick={() => {
-                // Open check-in for this booked stay — pick a cage
-                const emptyCage = sortedCages.find((c) => !cageStayMap.has(c.id))
-                if (emptyCage) {
-                  setSelectedCage(emptyCage)
+                const emptySlot = SLOTS.find((i) => !slotStayMap.has(i))
+                if (emptySlot !== undefined) {
+                  setSelectedSlot(emptySlot)
                   setSelectedStay(stay)
                 } else {
-                  setSelectedCage(null)
+                  setSelectedSlot(null)
                   setSelectedStay(stay)
                 }
-                setIsCheckInOpen(true)
+                setIsStayDetailsOpen(true)
               }}
               variant="booked"
             />
@@ -431,9 +398,8 @@ export default function CageGrid() {
             <button
               type="button"
               onClick={() => {
-                setSelectedCage(null)
-                setSelectedStay(null)
-                setIsCheckInOpen(true)
+                // Should navigate to POS
+                window.location.href = '/pos?tab=hotel'
               }}
               className="flex h-16 w-full items-center justify-center rounded-xl border-2 border-dashed border-border/50 text-2xl text-foreground-muted/30 transition-colors hover:border-primary-500/30 hover:bg-primary-500/5"
             >
@@ -451,14 +417,14 @@ export default function CageGrid() {
         onDrop={(e) => {
           e.preventDefault()
           setDragOverCenter(false)
-          // Dropping booked stay anywhere in center — pick first empty cage
+          // Dropping booked stay anywhere in center — pick first empty slot
           if (draggedData?.type === 'booked') {
-            const emptyCage = sortedCages.find((c) => !cageStayMap.has(c.id))
-            if (emptyCage) {
-              setSelectedCage(emptyCage)
+            const emptySlot = SLOTS.find((i) => !slotStayMap.has(i))
+            if (emptySlot !== undefined) {
+              setSelectedSlot(emptySlot)
               const bookedStay = bookedStays.find((s) => s.id === draggedData.stayId)
               if (bookedStay) setSelectedStay(bookedStay)
-              setIsCheckInOpen(true)
+              setIsStayDetailsOpen(true)
             }
           }
         }}
@@ -470,65 +436,53 @@ export default function CageGrid() {
           </h2>
           <div className="flex items-center gap-3">
             <span className="text-xs text-foreground-muted">
-              {boardingStays.length}/{sortedCages.length}
+              {boardingStays.length}/{SLOTS.length}
             </span>
-            <button
-              onClick={() => canManageCages && setIsManageCagesOpen(true)}
-              disabled={!canManageCages}
-              className="rounded-lg border border-border px-2.5 py-1 text-[10px] font-bold text-foreground-muted transition hover:border-primary-500/40 hover:text-foreground disabled:opacity-50"
-            >
-              + Chuồng
-            </button>
           </div>
         </div>
 
-        {/* Cage grid */}
-        {sortedCages.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center">
-            <div className="rounded-2xl border-2 border-dashed border-border/50 p-12 text-center">
-              <p className="text-3xl mb-3">🏠</p>
-              <p className="text-sm font-bold text-foreground">Chưa có chuồng nào</p>
-              <p className="mt-1 text-xs text-foreground-muted">Thêm chuồng để bắt đầu trông giữ.</p>
-              {canManageCages && (
-                <button
-                  onClick={() => setIsManageCagesOpen(true)}
-                  className="mt-4 rounded-xl bg-primary-500 px-4 py-2 text-xs font-bold text-white hover:opacity-90"
-                >
-                  Thêm chuồng
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="custom-scrollbar flex-1 overflow-y-auto">
-            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
-              {sortedCages.map((cage) => {
-                const stay = cageStayMap.get(cage.id)
-                const isDragTarget = dragOverCageId === cage.id && draggedData?.type === 'cage' && draggedData.cageId !== cage.id
-                const isDragging = draggedData?.type === 'cage' && draggedData.cageId === cage.id
+        <div className="custom-scrollbar flex-1 overflow-y-auto w-full max-w-full">
+          {/* Responsive grid up to 10 cols for largest screens to accomplish '10x5' */}
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 2xl:grid-cols-10 gap-2">
+            {SLOTS.map((slotIndex) => {
+              const stay = slotStayMap.get(slotIndex)
+              const isDragTarget = dragOverSlotIndex === slotIndex && draggedData?.type === 'slot' && draggedData.slotIndex !== slotIndex
+              const isDragging = draggedData?.type === 'slot' && draggedData.slotIndex === slotIndex
 
-                return (
-                  <CageCell
-                    key={cage.id}
-                    cage={cage}
-                    stay={stay}
-                    onDragStart={handleDragStart}
-                    onDragOver={(e) => handleCageDragOver(e, cage.id)}
-                    onDragLeave={handleCageDragLeave}
-                    onDrop={(e) => handleCageDrop(e, cage)}
-                    isDragTarget={isDragTarget}
-                    isDragging={isDragging}
-                    onClick={() => handleCageClick(cage)}
-                  />
-                )
-              })}
-            </div>
+              return (
+                <CageCell
+                  key={slotIndex}
+                  slotIndex={slotIndex}
+                  stay={stay}
+                  onDragStart={handleDragStart}
+                  onDragOver={(e) => handleSlotDragOver(e, slotIndex)}
+                  onDragLeave={handleSlotDragLeave}
+                  onDrop={(e) => handleSlotDrop(e, slotIndex)}
+                  isDragTarget={isDragTarget}
+                  isDragging={isDragging}
+                  onClick={() => handleSlotClick(slotIndex)}
+                />
+              )
+            })}
           </div>
-        )}
+        </div>
       </main>
 
       {/* ===== RIGHT PANEL: ĐÃ TRẢ HÔM NAY ===== */}
-      <aside className="flex w-36 shrink-0 flex-col rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
+      <aside
+        className="flex w-36 shrink-0 flex-col rounded-2xl border border-emerald-500/20 bg-emerald-500/10"
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+        onDrop={(e) => {
+          e.preventDefault()
+          if (draggedData?.type === 'slot') {
+            const stay = boardingStays.find(s => s.slotIndex === draggedData.slotIndex)
+            if (stay) {
+              setSelectedStay(stay)
+              setIsStayDetailsOpen(true)
+            }
+          }
+        }}
+      >
         <div className="flex items-center justify-between border-b border-emerald-500/20 px-3 py-2.5">
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-600">Đã trả</h3>
@@ -549,34 +503,16 @@ export default function CageGrid() {
       </aside>
 
       {/* ===== MODALS ===== */}
-      {canCheckIn && (
-        <CheckInDialog
-          cage={selectedCage}
-          bookedStay={selectedStay}
-          isOpen={isCheckInOpen}
-          onClose={() => {
-            setIsCheckInOpen(false)
-            setSelectedCage(null)
-            setSelectedStay(null)
-          }}
-        />
-      )}
       <StayDetailsDialog
-        cage={selectedCage}
         stay={selectedStay}
+        actionSlotIndex={selectedSlot}
         isOpen={isStayDetailsOpen}
         onClose={() => {
           setIsStayDetailsOpen(false)
-          setSelectedCage(null)
+          setSelectedSlot(null)
           setSelectedStay(null)
         }}
       />
-      {canManageCages && (
-        <ManageCagesDialog
-          isOpen={isManageCagesOpen}
-          onClose={() => setIsManageCagesOpen(false)}
-        />
-      )}
     </div>
   )
 }

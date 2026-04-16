@@ -44,6 +44,27 @@ Thumbs.db
 check-*.js
 debug-*.js
 
+# Temporary scripts & logs (root level)
+*.txt
+*-log.txt
+api-*.log
+dev_log*.txt
+tsc_log.txt
+lint.log
+eslint-report.json
+ts_errors.txt
+compile-errors.txt
+build_output.txt
+test-*.js
+test-*.ts
+script*.py
+fix*.js
+update.py
+replace.js
+test-db.js
+out.txt
+fix_roles.js
+
 # SSL certs
 infra/nginx/ssl/
 

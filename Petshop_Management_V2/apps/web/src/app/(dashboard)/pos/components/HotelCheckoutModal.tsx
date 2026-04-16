@@ -20,6 +20,7 @@ export interface HotelCheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   customerId?: string;
+  initialSelectedPet?: string;
   onConfirm: (checkoutDetails: any) => void;
 }
 
@@ -27,6 +28,7 @@ export function HotelCheckoutModal({
   isOpen,
   onClose,
   customerId,
+  initialSelectedPet,
   onConfirm,
 }: HotelCheckoutModalProps) {
   const [selectedPet, setSelectedPet] = useState<string>('');
@@ -37,7 +39,10 @@ export function HotelCheckoutModal({
   useEffect(() => {
     if (!isOpen) return;
     setCheckoutAt(new Date().toISOString());
-  }, [isOpen, selectedPet]);
+    if (initialSelectedPet) {
+      setSelectedPet(initialSelectedPet);
+    }
+  }, [isOpen, selectedPet, initialSelectedPet]);
 
   const selectedPetProfile = (pets as any[]).find((pet) => pet.id === selectedPet);
   const petWeight = Number(selectedPetProfile?.weight ?? Number.NaN);

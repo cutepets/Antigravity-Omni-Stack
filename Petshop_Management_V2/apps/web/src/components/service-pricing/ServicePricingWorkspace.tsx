@@ -932,7 +932,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const [species, setSpecies] = useState(SPECIES_OPTIONS[0].value)
   const [year, setYear] = useState(currentYear)
   const [dayType, setDayType] = useState<PricingDayType>('REGULAR')
-  const [selectedBranchId, setSelectedBranchId] = useState('')
   const [bandDrafts, setBandDrafts] = useState<BandDraft[]>([])
   const [spaServiceColumns, setSpaServiceColumns] = useState<SpaServiceColumn[]>([])
   const [spaDrafts, setSpaDrafts] = useState<Record<string, SpaDraft>>({})
@@ -971,14 +970,8 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   })
 
   const hotelRulesQuery = useQuery({
-    queryKey: ['pricing', 'hotel-rules', year, selectedBranchId],
-    queryFn: () => pricingApi.getHotelRules({ year, branchId: selectedBranchId || undefined, isActive: true }),
-    enabled: mode === 'HOTEL',
-  })
-
-  const branchesQuery = useQuery({
-    queryKey: ['settings', 'branches', 'hotel-pricing'],
-    queryFn: () => settingsApi.getBranches(),
+    queryKey: ['pricing', 'hotel-rules', year],
+    queryFn: () => pricingApi.getHotelRules({ year, isActive: true }),
     enabled: mode === 'HOTEL',
   })
 
@@ -992,19 +985,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const spaRules = useMemo(() => spaRulesQuery.data ?? [], [spaRulesQuery.data])
   const hotelRules = useMemo(() => hotelRulesQuery.data ?? [], [hotelRulesQuery.data])
   const holidays = useMemo(() => holidaysQuery.data ?? [], [holidaysQuery.data])
-  const pricingBranches = useMemo(
-    () => (branchesQuery.data ?? []).filter((branch) => branch.isActive !== false),
-    [branchesQuery.data],
-  )
-
-  useEffect(() => {
-    if (mode !== 'HOTEL') return
-    if (!pricingBranches.length) return
-    if (selectedBranchId && pricingBranches.some((branch) => branch.id === selectedBranchId)) return
-    setSelectedBranchId(activeBranchId && pricingBranches.some((branch) => branch.id === activeBranchId)
-      ? activeBranchId
-      : pricingBranches[0]?.id ?? '')
-  }, [activeBranchId, mode, pricingBranches, selectedBranchId])
 
   const bands = useMemo(() => {
     if (mode !== 'HOTEL') return rawBands
@@ -1197,7 +1177,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       return hotelApi.calculatePrice({
         species: previewForm.species,
         weight,
-        branchId: selectedBranchId || undefined,
         checkIn: new Date(previewForm.checkIn).toISOString(),
         checkOut: new Date(previewForm.checkOut).toISOString(),
       })
@@ -1321,6 +1300,16 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
         return
       }
       duplicateServiceNames.add(normalizedName)
+
+      const hasPrice = bandDrafts.some((band) => {
+        const draft = spaDrafts[getSpaRuleKey(band.key, column.key)]
+        const price = parseCurrencyInput(draft?.price ?? '')
+        return price !== null && price > 0
+      })
+      if (!hasPrice) {
+        toast.error(`Dịch vụ "${column.packageCode}" chưa có giá nào. Vui lòng nhập giá cho ít nhất một hạng cân hoặc xóa dịch vụ.`)
+        return
+      }
     }
 
     setIsSavingGrooming(true)
@@ -1389,72 +1378,75 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
 
     setIsSavingHotel(true)
     return (async () => {
-        try {
-          const bandIdByKey = new Map<string, string>()
-          for (let index = 0; index < bandDrafts.length; index += 1) {
-            const draft = bandDrafts[index]
-            const savedBand = await pricingApi.upsertWeightBand({
-              id: draft.id || undefined,
-              serviceType: 'HOTEL',
-              species: null,
-              label: draft.label.trim(),
-              minWeight: parseWeightInput(draft.minWeight) ?? 0,
-              maxWeight: parseWeightInput(draft.maxWeight),
-              sortOrder: index,
-              isActive: true,
-            })
-            bandIdByKey.set(draft.key, savedBand.id)
-          }
-
-          const rules = bandDrafts.flatMap((band) =>
-            DAY_TYPE_OPTIONS.flatMap((option) =>
-              HOTEL_SPECIES_COLUMNS.flatMap((speciesOption) => {
-                const weightBandId = bandIdByKey.get(band.key)
-                if (!weightBandId) return []
-                const draft = hotelDrafts[getHotelRuleKey(band.key, option.value, speciesOption.value)]
-                const fullDayPrice = parseCurrencyInput(draft?.fullDayPrice ?? '')
-                if (fullDayPrice === null || fullDayPrice === 0) return []
-                return [{
-                  id: draft?.id,
-                  year,
-                  species: speciesOption.value,
-                  branchId: selectedBranchId || null,
-                  weightBandId,
-                  dayType: option.value,
-                  sku: hotelDrafts[getHotelRuleKey(band.key, 'REGULAR', speciesOption.value)]?.sku || draft?.sku || null,
-                  halfDayPrice: deriveHalfDayPrice(fullDayPrice) ?? undefined,
-                  fullDayPrice,
-                  isActive: true,
-                }]
-              }),
-            ),
-          )
-
-          if (rules.length === 0) {
-            toast.error('Chưa có giá Hotel nào để lưu')
-            return false
-          }
-
-          await pricingApi.bulkUpsertHotelRules(rules)
-          for (const bandId of removedBandIds) {
-            await pricingApi.deactivateWeightBand(bandId)
-          }
-          setRemovedBandIds([])
-          invalidatePricing()
-          toast.success('Đã lưu bảng giá Hotel')
-          return true
-        } catch (error: any) {
-          toast.error(error?.response?.data?.message || 'Không lưu được bảng giá Hotel')
-          return false
-        } finally {
-          setIsSavingHotel(false)
+      try {
+        const bandIdByKey = new Map<string, string>()
+        for (let index = 0; index < bandDrafts.length; index += 1) {
+          const draft = bandDrafts[index]
+          const savedBand = await pricingApi.upsertWeightBand({
+            id: draft.id || undefined,
+            serviceType: 'HOTEL',
+            species: null,
+            label: draft.label.trim(),
+            minWeight: parseWeightInput(draft.minWeight) ?? 0,
+            maxWeight: parseWeightInput(draft.maxWeight),
+            sortOrder: index,
+            isActive: true,
+          })
+          bandIdByKey.set(draft.key, savedBand.id)
         }
-      })()
+
+        const rules = bandDrafts.flatMap((band) =>
+          DAY_TYPE_OPTIONS.flatMap((option) =>
+            HOTEL_SPECIES_COLUMNS.flatMap((speciesOption) => {
+              const weightBandId = bandIdByKey.get(band.key)
+              if (!weightBandId) return []
+              const draft = hotelDrafts[getHotelRuleKey(band.key, option.value, speciesOption.value)]
+              const fullDayPrice = parseCurrencyInput(draft?.fullDayPrice ?? '')
+              if (fullDayPrice === null || fullDayPrice === 0) return []
+              return [{
+                id: draft?.id,
+                year,
+                species: speciesOption.value,
+                branchId: null,
+                weightBandId,
+                dayType: option.value,
+                sku: hotelDrafts[getHotelRuleKey(band.key, 'REGULAR', speciesOption.value)]?.sku || draft?.sku || null,
+                halfDayPrice: deriveHalfDayPrice(fullDayPrice) ?? undefined,
+                fullDayPrice,
+                isActive: true,
+              }]
+            }),
+          ),
+        )
+
+        if (rules.length === 0) {
+          toast.error('Chưa có giá Hotel nào để lưu')
+          return false
+        }
+
+        await pricingApi.bulkUpsertHotelRules(rules)
+        for (const bandId of removedBandIds) {
+          await pricingApi.deactivateWeightBand(bandId)
+        }
+        setRemovedBandIds([])
+        invalidatePricing()
+        toast.success('Đã lưu bảng giá Hotel')
+        return true
+      } catch (error: any) {
+        toast.error(error?.response?.data?.message || 'Không lưu được bảng giá Hotel')
+        return false
+      } finally {
+        setIsSavingHotel(false)
+      }
+    })()
   }
 
   const updateSpaDraft = (bandKey: string, serviceKey: string, patch: Partial<SpaDraft>) => {
     const key = getSpaRuleKey(bandKey, serviceKey)
-    setSpaDrafts((current) => ({ ...current, [key]: { ...current[key], ...patch } }))
+    setSpaDrafts((current) => {
+      const existing = current[key] || {}
+      return { ...current, [key]: { ...(existing as any), sku: existing.sku || '', price: existing.price || '', durationMinutes: existing.durationMinutes || '', ...patch } }
+    })
   }
 
   const updateHotelDraft = (bandId: string, nextDayType: PricingDayType, nextSpecies: string, patch: Partial<HotelDraft>) => {
@@ -1463,11 +1455,14 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       if ('sku' in patch) {
         const regularKey = getHotelRuleKey(bandId, 'REGULAR', nextSpecies)
         const holidayKey = getHotelRuleKey(bandId, 'HOLIDAY', nextSpecies)
-        updates[regularKey] = { ...(updates[regularKey] || { fullDayPrice: '' }), sku: patch.sku ?? '' }
-        updates[holidayKey] = { ...(updates[holidayKey] || { fullDayPrice: '' }), sku: patch.sku ?? '' }
+        const existingRegular = updates[regularKey] || {}
+        const existingHoliday = updates[holidayKey] || {}
+        updates[regularKey] = { ...(existingRegular as any), fullDayPrice: existingRegular.fullDayPrice || '', sku: patch.sku ?? '' }
+        updates[holidayKey] = { ...(existingHoliday as any), fullDayPrice: existingHoliday.fullDayPrice || '', sku: patch.sku ?? '' }
       }
       const key = getHotelRuleKey(bandId, nextDayType, nextSpecies)
-      updates[key] = { ...(updates[key] || { fullDayPrice: '' }), ...patch }
+      const existing = updates[key] || {}
+      updates[key] = { ...(existing as any), sku: existing.sku || '', fullDayPrice: existing.fullDayPrice || '', ...patch }
       return updates
     })
   }
@@ -1531,9 +1526,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
             }}
             isSaving={isSavingHotel}
             isCreatingPreset={presetBandsMutation.isPending}
-            branches={pricingBranches}
-            selectedBranchId={selectedBranchId}
-            onSelectBranch={setSelectedBranchId}
             holidays={holidays}
             newHoliday={newHoliday}
             editingHolidayId={editingHolidayId}
@@ -1589,9 +1581,6 @@ function UnifiedHotelPricingPanel({
   onCreatePresetBands,
   isSaving,
   isCreatingPreset,
-  branches,
-  selectedBranchId,
-  onSelectBranch,
   holidays,
   newHoliday,
   editingHolidayId,
@@ -1621,9 +1610,6 @@ function UnifiedHotelPricingPanel({
   onCreatePresetBands: () => void
   isSaving: boolean
   isCreatingPreset: boolean
-  branches: Array<{ id: string; name: string; code: string }>
-  selectedBranchId: string
-  onSelectBranch: (value: string) => void
   holidays: HolidayCalendarDate[]
   newHoliday: HolidayDraft
   editingHolidayId: string | null
@@ -1668,17 +1654,6 @@ function UnifiedHotelPricingPanel({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={selectedBranchId}
-              onChange={(event) => onSelectBranch(event.target.value)}
-              className="h-10 rounded-xl border border-border bg-background-base px-3 text-sm font-semibold text-foreground"
-            >
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name} ({branch.code})
-                </option>
-              ))}
-            </select>
             {canEditHotelPricing ? (
               <button
                 type="button"
@@ -1828,29 +1803,30 @@ function UnifiedHotelPricingPanel({
                           <input
                             value={skuValue}
                             onChange={(e) => onDraftChange(band.key, 'REGULAR', speciesOption.value, { sku: e.target.value })}
-                            placeholder={buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label, speciesOption.value)}
-                            className="w-[100%] max-w-[80px] rounded border border-border bg-background-base py-1 text-center text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 placeholder:text-primary-500/30 outline-none transition-colors hover:border-primary-500 focus:border-primary-500"
+                            placeholder="-"
+                            className="w-[100%] max-w-[80px] rounded border border-border bg-background-base py-1 text-center text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 placeholder:text-foreground-muted/30 outline-none transition-colors hover:border-primary-500 focus:border-primary-500"
                           />
                         ) : (
                           <span className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 whitespace-nowrap">
-                            {skuValue || buildServicePricingSku('HOTEL', 'Hotel lưu trú', band.label, speciesOption.value)}
+                            {skuValue || '-'}
                           </span>
                         )}
                       </td>,
-                    ...DAY_TYPE_OPTIONS.map((option, dayIdx) => {
-                      const draft = drafts[getHotelRuleKey(band.key, option.value, speciesOption.value)] ?? { fullDayPrice: '' }
-                      return (
-                        <td key={`${band.key}:${speciesOption.value}:${option.value}`} className="border-b border-border px-3 py-3 align-top">
-                          <PriceInput
-                            value={draft.fullDayPrice}
-                            onChange={(value) => onDraftChange(band.key, option.value, speciesOption.value, { fullDayPrice: value })}
-                            placeholder=""
-                            disabled={!canEditHotelPricing}
-                          />
-                        </td>
-                      )
-                    })
-                  ]})}
+                      ...DAY_TYPE_OPTIONS.map((option, dayIdx) => {
+                        const draft = drafts[getHotelRuleKey(band.key, option.value, speciesOption.value)] ?? { sku: '', fullDayPrice: '' }
+                        return (
+                          <td key={`${band.key}:${speciesOption.value}:${option.value}`} className="border-b border-border px-3 py-3 align-top">
+                            <PriceInput
+                              value={draft.fullDayPrice}
+                              onChange={(value) => onDraftChange(band.key, option.value, speciesOption.value, { fullDayPrice: value })}
+                              placeholder=""
+                              disabled={!canEditHotelPricing}
+                            />
+                          </td>
+                        )
+                      })
+                    ]
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -2195,7 +2171,7 @@ function GroomingPricingMatrix({
                 {serviceColumns.length === 0 ? (
                   <td className="border-b border-border px-4 py-3 text-sm text-foreground-muted">Chưa có dịch vụ nào cho ma trận này.</td>
                 ) : serviceColumns.flatMap((column) => {
-                  const draft = drafts[getSpaRuleKey(band.key, column.key)] ?? { price: '', durationMinutes: '' }
+                  const draft = drafts[getSpaRuleKey(band.key, column.key)] ?? { sku: '', price: '', durationMinutes: '' }
                   const sku = buildServicePricingSku('SPA', column.packageCode, band.label)
                   return (
                     <td key={`${band.key}:${column.key}`} className="border-b border-r border-border px-2 py-2 align-middle">
@@ -2204,12 +2180,12 @@ function GroomingPricingMatrix({
                           <input
                             value={draft.sku}
                             onChange={(e) => onDraftChange(band.key, column.key, { sku: e.target.value })}
-                            placeholder={sku}
-                            className="w-[70px] shrink-0 rounded border border-border bg-background-base py-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500 placeholder:text-primary-500/30 outline-none hover:border-primary-500 focus:border-primary-500"
+                            placeholder="-"
+                            className="w-[70px] shrink-0 rounded border border-border bg-background-base py-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500 placeholder:text-foreground-muted/30 outline-none hover:border-primary-500 focus:border-primary-500"
                           />
                         ) : (
                           <span className="w-[70px] shrink-0 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500">
-                            {draft.sku || sku}
+                            {draft.sku || '-'}
                           </span>
                         )}
                         <div className="w-[90px] shrink-0">

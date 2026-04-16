@@ -47,7 +47,6 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
 const SPECIES_OPTIONS: { value: SpeciesFilter; label: string }[] = [
   { value: 'Chó', label: 'Chó' },
   { value: 'Mèo', label: 'Mèo' },
-  { value: 'Chim', label: 'Chim' },
   { value: 'Khác', label: 'Khác' },
 ]
 
@@ -79,13 +78,13 @@ export function PetList() {
   const [viewingPetCode, setViewingPetCode] = useState<string | null>(() => getPetIdFromLocation())
 
   const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
-  const canReadPets   = hasPermission('pet.read')
-  const canCreatePet  = hasPermission('pet.create')
-  const canDeletePet  = hasPermission('pet.delete')
+  const canReadPets = hasPermission('pet.read')
+  const canCreatePet = hasPermission('pet.create')
+  const canDeletePet = hasPermission('pet.delete')
 
-  const [q, setQ]             = useState('')
+  const [q, setQ] = useState('')
   const [species, setSpecies] = useState<SpeciesFilter>('')
-  const [page, setPage]       = useState(1)
+  const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
   // Reset page when filter changes
@@ -201,7 +200,7 @@ export function PetList() {
   }
 
   const openPetDetail = (petKey: string) => {
-    window.history.pushState(null, '', `/pets?petId=${encodeURIComponent(petKey)}`)
+    router.push(`/pets?petId=${encodeURIComponent(petKey)}`)
     setViewingPetCode(petKey)
     void queryClient.prefetchQuery({
       queryKey: ['pet', petKey],
@@ -291,9 +290,8 @@ export function PetList() {
             <button
               type="button"
               onClick={() => dataListState.toggleTopFilterVisibility('species')}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                topFilterVisibility.species ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-              }`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.species ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                }`}
             >
               {topFilterVisibility.species ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
@@ -344,7 +342,7 @@ export function PetList() {
         {sortedPets.map((p: any) => {
           const rowId = `pet:${p.id}`
           const isSelected = selectedRowIds.has(rowId)
-          
+
           return (
             <tr
               key={p.id}
@@ -419,9 +417,9 @@ export function PetList() {
                     <td key={colId} className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         {p.customer?.fullName ? (
-                           <div className="w-6 h-6 rounded bg-linear-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
-                             {p.customer.fullName.charAt(0).toUpperCase()}
-                           </div>
+                          <div className="w-6 h-6 rounded bg-linear-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                            {p.customer.fullName.charAt(0).toUpperCase()}
+                          </div>
                         ) : null}
                         <div className="text-sm text-foreground space-x-1">
                           <span className="font-medium">{p.customer?.fullName || '-'}</span>
@@ -522,7 +520,7 @@ export function PetList() {
           isOpen={true}
           hideSuggestions={true}
           onClose={() => {
-            window.history.pushState(null, '', `/pets`)
+            router.push(`/pets`)
             setViewingPetCode(null)
           }}
         />

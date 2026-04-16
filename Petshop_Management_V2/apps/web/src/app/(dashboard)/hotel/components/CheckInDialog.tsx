@@ -8,13 +8,13 @@ import { hotelApi, Cage, HotelStay } from '@/lib/api/hotel.api'
 import { format } from 'date-fns'
 
 interface CheckInDialogProps {
-  cage: Cage | null
+  slotIndex?: number | null
   bookedStay?: HotelStay | null
   isOpen: boolean
   onClose: () => void
 }
 
-export default function CheckInDialog({ cage, bookedStay, isOpen, onClose }: CheckInDialogProps) {
+export default function CheckInDialog({ slotIndex, bookedStay, isOpen, onClose }: CheckInDialogProps) {
   const queryClient = useQueryClient()
   const { hasAnyPermission } = useAuthorization()
 
@@ -43,15 +43,16 @@ export default function CheckInDialog({ cage, bookedStay, isOpen, onClose }: Che
   }, [bookedStay, isOpen])
 
   const checkInMutation = useMutation({
-    mutationFn: hotelApi.createStay,
+    mutationFn: (data: any) =>
+      bookedStay
+        ? hotelApi.updateStay(bookedStay.id, { status: 'CHECKED_IN', slotIndex: data.slotIndex, notes: data.notes, estimatedCheckOut: data.estimatedCheckOut })
+        : hotelApi.createStay(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cages'] })
       queryClient.invalidateQueries({ queryKey: ['stays'] })
       // Reset form state
-      setPetName('')
       setNotes('')
       setEstCheckOut('')
-      setLineType('REGULAR')
       onClose()
     },
   })
@@ -61,10 +62,10 @@ export default function CheckInDialog({ cage, bookedStay, isOpen, onClose }: Che
     if (!canCheckIn) return
 
     checkInMutation.mutate({
-      cageId: cage?.id,
+      slotIndex: slotIndex ?? null,
       petId,
-      petName: petName || bookedStay?.petName || '',
-      lineType,
+      petName: bookedStay?.petName || '',
+      lineType: 'REGULAR',
       checkIn: new Date().toISOString(),
       estimatedCheckOut: estCheckOut ? new Date(estCheckOut).toISOString() : undefined,
       notes,
@@ -77,9 +78,12 @@ export default function CheckInDialog({ cage, bookedStay, isOpen, onClose }: Che
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background-base p-6 shadow-lg duration-200 sm:rounded-lg">
+        <Dialog.Content
+          onInteractOutside={(e) => e.preventDefault()}
+          className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background-base p-6 shadow-lg duration-200 sm:rounded-lg"
+        >
           <Dialog.Title className="text-lg font-semibold leading-none tracking-tight">
-            Check-in cho chuồng: {cage?.name}
+            Xác nhận Check-in
           </Dialog.Title>
           <Dialog.Description className="text-sm text-foreground-muted">
             Điền thông tin thú cưng để bắt đầu gửi tại khách sạn.
@@ -88,27 +92,9 @@ export default function CheckInDialog({ cage, bookedStay, isOpen, onClose }: Che
           <form onSubmit={handleSubmit} className="py-4 space-y-4">
             <div className="grid gap-2">
               <label className="text-sm font-medium leading-none text-foreground">Tên thú cưng</label>
-              <input
-                required
-                value={petName}
-                disabled={!canCheckIn}
-                onChange={(e) => setPetName(e.target.value)}
-                placeholder="Ví dụ: Milu"
-                className="flex h-10 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-sm font-medium leading-none text-foreground">Loại gói lưu trú</label>
-              <select
-                value={lineType}
-                disabled={!canCheckIn}
-                onChange={(e) => setLineType(e.target.value as Cage['type'])}
-                className="flex h-10 w-full rounded-md border border-border bg-background-base px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="REGULAR">Gói Thường</option>
-                <option value="HOLIDAY">Gói Lễ/Tết</option>
-              </select>
+              <div className="flex h-10 w-full items-center rounded-md border border-border bg-background-secondary px-3 py-2 text-sm text-foreground-muted">
+                {bookedStay?.petName || 'Chưa chọn'}
+              </div>
             </div>
 
             <div className="grid gap-2">

@@ -1373,8 +1373,13 @@ export class OrdersService {
   }
 
   private async loadOrderOrThrow(id: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+    const order = await this.prisma.order.findFirst({
+      where: {
+        OR: [
+          { id },
+          { orderNumber: id },
+        ],
+      },
       include: {
         customer: true,
         payments: true,
@@ -1510,10 +1515,11 @@ export class OrdersService {
               discountItem: item.discountItem ?? 0,
               vatRate: item.vatRate ?? 0,
               subtotal: item.unitPrice * item.quantity - (item.discountItem ?? 0),
-              pricingSnapshot: (buildHotelOrderItemPricingSnapshot(item) ?? buildGroomingOrderItemPricingSnapshot(item)) as any,
+              pricingSnapshot: ((buildHotelOrderItemPricingSnapshot(item) ?? buildGroomingOrderItemPricingSnapshot(item)) ?? null) as any,
               type: item.type,
               productId: item.productId ?? null,
               productVariantId: item.productVariantId ?? null,
+              sku: item.sku ?? null,
               serviceId: item.serviceId ?? null,
               serviceVariantId: item.serviceVariantId ?? null,
               petId: item.petId ?? null,
@@ -1609,6 +1615,22 @@ export class OrdersService {
         }
 
         // â”€â”€ Hotel stay creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if (item.type === 'hotel' && !item.hotelDetails && item.petId) {
+          const checkIn = new Date(order.createdAt);
+          const checkOut = new Date(order.createdAt);
+          checkOut.setDate(checkOut.getDate() + (item.quantity ?? 1));
+
+          item.hotelDetails = {
+            petId: item.petId,
+            checkIn: checkIn.toISOString(),
+            checkOut: checkOut.toISOString(),
+            checkInDate: checkIn.toISOString(),
+            checkOutDate: checkOut.toISOString(),
+            chargeQuantityDays: item.quantity ?? 1,
+            lineType: 'REGULAR',
+          } as any;
+        }
+
         if (item.hotelDetails && orderItem) {
           const groupKey = item.hotelDetails.bookingGroupKey ?? orderItem.id;
           const group = hotelStayGroups.get(groupKey) ?? [];
@@ -1803,8 +1825,13 @@ export class OrdersService {
   // â”€â”€â”€ payOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Collect additional payment for SERVICE orders (multi-payment support)
   async updateOrder(id: string, data: UpdateOrderDto, staffId: string, user?: AccessUser): Promise<any> {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+    const order = await this.prisma.order.findFirst({
+      where: {
+        OR: [
+          { id },
+          { orderNumber: id },
+        ],
+      },
       include: {
         items: true,
         customer: true,
@@ -1813,6 +1840,8 @@ export class OrdersService {
     if (order) this.assertOrderScope(order, user);
 
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    id = order.id; // Resolve to internal UUID
+
     if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
       throw new BadRequestException('Không thể sửa đơn đã hoàn tất hoặc đã huỷ');
     }
@@ -2053,7 +2082,7 @@ export class OrdersService {
             data: {
               stayCode: await this.generateHotelStayCode(tx as any, order.createdAt, branch.code),
               ...stayPayload,
-              status: 'BOOKED',
+              status: 'CHECKED_IN',
               paymentStatus: 'UNPAID',
             } as any,
           });
@@ -2878,8 +2907,13 @@ export class OrdersService {
 
   // â”€â”€â”€ findOne â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async findOne(id: string, user?: AccessUser): Promise<any> {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+    const order = await this.prisma.order.findFirst({
+      where: {
+        OR: [
+          { id },
+          { orderNumber: id },
+        ],
+      },
       include: {
         customer: { include: { pets: true } },
         staff: { select: { id: true, fullName: true } },

@@ -105,8 +105,8 @@ function KanbanCard({
         canInteract
           ? 'cursor-grab border-border hover:-translate-y-0.5 hover:border-primary-500/35 hover:shadow-lg active:cursor-grabbing'
           : isCancelled
-          ? 'cursor-default border-rose-500/20 opacity-70'
-          : 'cursor-pointer border-border hover:-translate-y-0.5 hover:border-primary-500/35 hover:shadow-lg',
+            ? 'cursor-default border-rose-500/20 opacity-70'
+            : 'cursor-pointer border-border hover:-translate-y-0.5 hover:border-primary-500/35 hover:shadow-lg',
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -272,7 +272,7 @@ export function GroomingBoard() {
   const selectedSessionIds = useMemo(() => Array.from(selectedRowIds).map((rowId) => rowId.replace(/^g:/, '')), [selectedRowIds])
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status, notes }: { id: string; status: GroomingStatus; notes?: string }) => 
+    mutationFn: ({ id, status, notes }: { id: string; status: GroomingStatus; notes?: string }) =>
       groomingApi.updateSession({ id, status, ...(notes !== undefined ? { notes } : {}) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['grooming-sessions'] }),
     onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể cập nhật trạng thái'),
@@ -354,7 +354,7 @@ export function GroomingBoard() {
               columnPanelContent={
                 viewMode === 'list' && (
                   <DataListColumnPanel
-                    columns={TABLE_COLUMNS.map(c => ({...c}))}
+                    columns={TABLE_COLUMNS.map(c => ({ ...c }))}
                     columnOrder={columnOrder}
                     visibleColumns={visibleColumns}
                     sortInfo={{ columnId: 'index', direction: 'asc' }}
@@ -398,98 +398,98 @@ export function GroomingBoard() {
             </DataListFilterPanel>
 
             {viewMode === 'kanban' ? (
-          <div className="custom-scrollbar flex min-h-0 flex-1 gap-4 overflow-x-auto pb-2">
-            {GROOMING_STATUS_ORDER.map((status) => {
-              const meta = GROOMING_STATUS_META[status]
-              const Icon = meta.icon
-              const isFlexibleColumn = status === 'PENDING' || status === 'IN_PROGRESS';
-              
-              const columnSessions = filteredSessions.filter((session) => {
-                if (session.status !== status) return false;
-                if (session.branchId !== activeBranchId) return false;
+              <div className="custom-scrollbar flex min-h-0 flex-1 gap-4 overflow-x-auto pb-2">
+                {GROOMING_STATUS_ORDER.map((status) => {
+                  const meta = GROOMING_STATUS_META[status]
+                  const Icon = meta.icon
+                  const isFlexibleColumn = status === 'PENDING' || status === 'IN_PROGRESS';
 
-                if (!dateFilter && (status === 'COMPLETED' || status === 'CANCELLED')) {
-                  const todayStr = getDateKey(new Date().toISOString());
-                  const sessionDateStr = getDateKey(session.createdAt);
-                  if (todayStr !== sessionDateStr) return false;
-                }
+                  const columnSessions = filteredSessions.filter((session) => {
+                    if (session.status !== status) return false;
+                    if (session.branchId !== activeBranchId) return false;
 
-                return true;
-              })
+                    if (!dateFilter && (status === 'COMPLETED' || status === 'CANCELLED')) {
+                      const todayStr = getDateKey(new Date().toISOString());
+                      const sessionDateStr = getDateKey(session.createdAt);
+                      if (todayStr !== sessionDateStr) return false;
+                    }
 
-              const chunks: GroomingSession[][] = [];
-              if (isFlexibleColumn && columnSessions.length > 0) {
-                for (let i = 0; i < columnSessions.length; i += itemsPerColumn) {
-                  chunks.push(columnSessions.slice(i, i + itemsPerColumn));
-                }
-              }
+                    return true;
+                  })
 
-              return (
-                <section key={status} className={cn('flex flex-col rounded-[28px] border shrink-0', meta.columnClassName, isFlexibleColumn ? 'w-auto min-w-[320px]' : 'w-[320px] min-w-[320px] overflow-hidden')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleDrop(event, status)}>
-                  <div className={cn('flex items-center justify-between px-4 py-3 shrink-0', meta.headerClassName)}>
-                    <div className="flex items-center gap-2 text-sm font-bold"><Icon size={16} />{meta.columnTitle}</div>
-                    <span className="rounded-full border border-current/15 bg-white/10 px-2 py-1 text-xs font-semibold">{columnSessions.length}</span>
-                  </div>
-                  <div className={cn("flex flex-1 min-h-0", isFlexibleColumn ? "flex-row p-3 gap-4 overflow-hidden" : "custom-scrollbar flex-col gap-3 p-3 overflow-y-auto overflow-x-hidden")}>
-                    {sessionsQuery.isLoading ? (
-                      <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-[296px]">Đang tải dữ liệu...</div>
-                    ) : columnSessions.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-[296px]">Không có phiên nào trong cột này.</div>
-                    ) : isFlexibleColumn ? (
-                      chunks.map((chunk, idx) => (
-                        <div key={idx} className="flex flex-col gap-3 w-[296px] shrink-0">
-                          {chunk.map((session) => <KanbanCard key={session.id} session={session} onOpen={(s) => { setSelectedSession(s); setDialogMode('detail'); }} />)}
-                        </div>
-                      ))
-                    ) : (
-                      columnSessions.map((session) => <KanbanCard key={session.id} session={session} onOpen={(s) => { setSelectedSession(s); setDialogMode('detail'); }} />)
-                    )}
-                  </div>
-                </section>
-              )
-            })}
-          </div>
-        ) : (
-          <>
-            <DataListTable
-              columns={renderActiveColumns()}
-              isLoading={sessionsQuery.isLoading}
-              isEmpty={!sessionsQuery.isLoading && paginatedSessions.length === 0}
-              emptyText="Không có phiên grooming phù hợp."
-              allSelected={allVisibleSelected}
-              onSelectAll={() => {
-                if (!canManageSessions) return
-                toggleSelectAllVisible()
-              }}
-              bulkBar={selectedSessionIds.length > 0 ? <DataListBulkBar selectedCount={selectedSessionIds.length} onClear={clearSelection}><button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'IN_PROGRESS' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 text-sm font-semibold text-sky-500 transition-opacity hover:opacity-90 disabled:opacity-50">Đang làm</button><button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'CANCELLED' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-error/20 bg-error/10 px-4 text-sm font-semibold text-error transition-opacity hover:opacity-90 disabled:opacity-50"><Trash2 size={14} />Hủy phiên</button></DataListBulkBar> : undefined}
-            >
-              {paginatedSessions.map((session) => {
-                const rowId = `g:${session.id}`
-                const isSelected = selectedRowIds.has(rowId)
-                return (
-                  <tr key={session.id} onClick={() => { setSelectedSession(session); setDialogMode('detail') }} className={cn('border-b border-border/50 transition-colors hover:bg-background-secondary/40 cursor-pointer', isSelected ? 'bg-primary-500/5' : '')}>
-                    <td className="w-12 px-3 py-3" onClick={(e) => e.stopPropagation()}><TableCheckbox checked={isSelected} onCheckedChange={(_, shiftKey) => { if (!canManageSessions) return; toggleRowSelection(rowId, shiftKey) }} /></td>
-                    {orderedVisibleColumns.map(columnId => {
-                      switch (columnId) {
-                        case 'session': return <td key={columnId} className="px-3 py-3"><span className="font-mono text-xs font-semibold text-primary-500">{session.sessionCode || session.id.slice(-6).toUpperCase()}</span></td>;
-                        case 'pet': return <td key={columnId} className="px-3 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-sm font-black uppercase text-primary-500">{session.petName?.charAt(0) || 'P'}</div><div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{session.petName}</p><p className="truncate text-xs text-foreground-muted">{session.pet?.breed || session.pet?.species || 'Không rõ giống'}</p></div></div></td>;
-                        case 'customer': return <td key={columnId} className="px-3 py-3"><p className="text-sm font-medium text-foreground">{session.pet?.customer?.fullName || 'Khách lẻ'}</p><p className="mt-1 text-xs text-foreground-muted">{session.pet?.customer?.phone || '—'}</p></td>;
-                        case 'branch': return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{(session as any).branch?.name || session.branchId || '—'}</td>;
-                        case 'staff': return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{session.staff?.fullName || 'Chưa phân công'}</td>;
-                        case 'status': return <td key={columnId} className="px-3 py-3"><GroomingStatusBadge status={session.status} /></td>;
-                        case 'start': return <td key={columnId} className="px-3 py-3 text-sm text-foreground-muted">{session.startTime ? formatGroomingDateTime(session.startTime) : '—'}</td>;
-                        case 'price': return <td key={columnId} className="px-3 py-3 text-sm font-semibold text-primary-500 text-right">{formatGroomingMoney(session.price)}</td>;
-                        case 'created': return <td key={columnId} className="px-3 py-3 text-xs text-foreground-muted">{formatGroomingDateTime(session.createdAt)}</td>;
-                        default: return null;
-                      }
-                    })}
-                  </tr>
-                )
-              })}
-            </DataListTable>
-            <DataListPagination page={page} totalPages={totalPages} pageSize={pageSize} total={filteredSessions.length} rangeStart={rangeStart} rangeEnd={rangeEnd} onPageChange={setPage} onPageSizeChange={setPageSize} pageSizeOptions={[12, 24, 48]} />
-          </>
-        )}
+                  const chunks: GroomingSession[][] = [];
+                  if (isFlexibleColumn && columnSessions.length > 0) {
+                    for (let i = 0; i < columnSessions.length; i += itemsPerColumn) {
+                      chunks.push(columnSessions.slice(i, i + itemsPerColumn));
+                    }
+                  }
+
+                  return (
+                    <section key={status} className={cn('flex flex-col rounded-[28px] border shrink-0', meta.columnClassName, isFlexibleColumn ? 'w-auto min-w-[320px]' : 'w-[320px] min-w-[320px] overflow-hidden')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleDrop(event, status)}>
+                      <div className={cn('flex items-center justify-between px-4 py-3 shrink-0', meta.headerClassName)}>
+                        <div className="flex items-center gap-2 text-sm font-bold"><Icon size={16} />{meta.columnTitle}</div>
+                        <span className="rounded-full border border-current/15 bg-white/10 px-2 py-1 text-xs font-semibold">{columnSessions.length}</span>
+                      </div>
+                      <div className={cn("flex flex-1 min-h-0", isFlexibleColumn ? "flex-row p-3 gap-4 overflow-hidden" : "custom-scrollbar flex-col gap-3 p-3 overflow-y-auto overflow-x-hidden")}>
+                        {sessionsQuery.isLoading ? (
+                          <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-[296px]">Đang tải dữ liệu...</div>
+                        ) : columnSessions.length === 0 ? (
+                          <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-[296px]">Không có phiên nào trong cột này.</div>
+                        ) : isFlexibleColumn ? (
+                          chunks.map((chunk, idx) => (
+                            <div key={idx} className="flex flex-col gap-3 w-[296px] shrink-0">
+                              {chunk.map((session) => <KanbanCard key={session.id} session={session} onOpen={(s) => { setSelectedSession(s); setDialogMode('detail'); }} />)}
+                            </div>
+                          ))
+                        ) : (
+                          columnSessions.map((session) => <KanbanCard key={session.id} session={session} onOpen={(s) => { setSelectedSession(s); setDialogMode('detail'); }} />)
+                        )}
+                      </div>
+                    </section>
+                  )
+                })}
+              </div>
+            ) : (
+              <>
+                <DataListTable
+                  columns={renderActiveColumns()}
+                  isLoading={sessionsQuery.isLoading}
+                  isEmpty={!sessionsQuery.isLoading && paginatedSessions.length === 0}
+                  emptyText="Không có phiên grooming phù hợp."
+                  allSelected={allVisibleSelected}
+                  onSelectAll={() => {
+                    if (!canManageSessions) return
+                    toggleSelectAllVisible()
+                  }}
+                  bulkBar={selectedSessionIds.length > 0 ? <DataListBulkBar selectedCount={selectedSessionIds.length} onClear={clearSelection}><button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'IN_PROGRESS' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 text-sm font-semibold text-sky-500 transition-opacity hover:opacity-90 disabled:opacity-50">Đang làm</button><button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'CANCELLED' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-error/20 bg-error/10 px-4 text-sm font-semibold text-error transition-opacity hover:opacity-90 disabled:opacity-50"><Trash2 size={14} />Hủy phiên</button></DataListBulkBar> : undefined}
+                >
+                  {paginatedSessions.map((session) => {
+                    const rowId = `g:${session.id}`
+                    const isSelected = selectedRowIds.has(rowId)
+                    return (
+                      <tr key={session.id} onClick={() => { setSelectedSession(session); setDialogMode('detail'); }} className={cn('border-b border-border/50 transition-colors hover:bg-background-secondary/40 cursor-pointer', isSelected ? 'bg-primary-500/5' : '')}>
+                        <td className="w-12 px-3 py-3" onClick={(e) => e.stopPropagation()}><TableCheckbox checked={isSelected} onCheckedChange={(_, shiftKey) => { if (!canManageSessions) return; toggleRowSelection(rowId, shiftKey) }} /></td>
+                        {orderedVisibleColumns.map(columnId => {
+                          switch (columnId) {
+                            case 'session': return <td key={columnId} className="px-3 py-3"><span className="font-mono text-xs font-semibold text-primary-500">{session.sessionCode || session.id.slice(-6).toUpperCase()}</span></td>;
+                            case 'pet': return <td key={columnId} className="px-3 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-sm font-black uppercase text-primary-500">{session.petName?.charAt(0) || 'P'}</div><div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{session.petName}</p><p className="truncate text-xs text-foreground-muted">{session.pet?.breed || session.pet?.species || 'Không rõ giống'}</p></div></div></td>;
+                            case 'customer': return <td key={columnId} className="px-3 py-3"><p className="text-sm font-medium text-foreground">{session.pet?.customer?.fullName || 'Khách lẻ'}</p><p className="mt-1 text-xs text-foreground-muted">{session.pet?.customer?.phone || '—'}</p></td>;
+                            case 'branch': return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{(session as any).branch?.name || session.branchId || '—'}</td>;
+                            case 'staff': return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{session.staff?.fullName || 'Chưa phân công'}</td>;
+                            case 'status': return <td key={columnId} className="px-3 py-3"><GroomingStatusBadge status={session.status} /></td>;
+                            case 'start': return <td key={columnId} className="px-3 py-3 text-sm text-foreground-muted">{session.startTime ? formatGroomingDateTime(session.startTime) : '—'}</td>;
+                            case 'price': return <td key={columnId} className="px-3 py-3 text-sm font-semibold text-primary-500 text-right">{formatGroomingMoney(session.price)}</td>;
+                            case 'created': return <td key={columnId} className="px-3 py-3 text-xs text-foreground-muted">{formatGroomingDateTime(session.createdAt)}</td>;
+                            default: return null;
+                          }
+                        })}
+                      </tr>
+                    )
+                  })}
+                </DataListTable>
+                <DataListPagination page={page} totalPages={totalPages} pageSize={pageSize} total={filteredSessions.length} rangeStart={rangeStart} rangeEnd={rangeEnd} onPageChange={setPage} onPageSizeChange={setPageSize} pageSizeOptions={[12, 24, 48]} />
+              </>
+            )}
           </>
         )}
 

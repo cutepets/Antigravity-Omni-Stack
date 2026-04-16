@@ -7,7 +7,7 @@ import { CalculateSpaPriceDto, CreateGroomingDto, UpdateGroomingDto } from './dt
 
 @Injectable()
 export class GroomingService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   private async generateSessionCode(date: Date, branchCode: string): Promise<string> {
     const start = new Date(date.getFullYear(), date.getMonth(), 1)
@@ -40,17 +40,17 @@ export class GroomingService {
     const pet = await this.db.pet.findFirst({
       where: scopedBranchIds
         ? {
-            id: petId,
-            OR: [
-              { branchId: { in: scopedBranchIds } },
-              {
-                AND: [
-                  { branchId: null },
-                  { customer: { is: { branchId: { in: scopedBranchIds } } } },
-                ],
-              },
-            ],
-          }
+          id: petId,
+          OR: [
+            { branchId: { in: scopedBranchIds } },
+            {
+              AND: [
+                { branchId: null },
+                { customer: { is: { branchId: { in: scopedBranchIds } } } },
+              ],
+            },
+          ],
+        }
         : { id: petId },
       include: { customer: true },
     })
@@ -157,8 +157,8 @@ export class GroomingService {
     // Keep rules that match the species (case-insensitive) OR have no species restriction
     const filtered = normalizedInput
       ? rules.filter(
-          (r) => !r.species || r.species.trim().toLowerCase() === normalizedInput,
-        )
+        (r) => !r.species || r.species.trim().toLowerCase() === normalizedInput,
+      )
       : rules
 
     // Deduplicate and return sorted packageCodes
@@ -181,12 +181,12 @@ export class GroomingService {
     const sessionDate = dto.startTime ? new Date(dto.startTime) : new Date()
     const pricingPreview = dto.packageCode
       ? await this.buildSpaPricingPreview(
-          {
-            petId: dto.petId,
-            packageCode: dto.packageCode,
-          },
-          user,
-        )
+        {
+          petId: dto.petId,
+          packageCode: dto.packageCode,
+        },
+        user,
+      )
       : null
 
     const session = await this.db.groomingSession.create({
@@ -207,6 +207,16 @@ export class GroomingService {
         price: dto.price ?? pricingPreview?.price ?? null,
         surcharge: dto.surcharge ?? 0,
         status: 'PENDING',
+        ...(user?.userId ? {
+          timeline: {
+            create: {
+              action: 'Tạo phiếu',
+              toStatus: 'PENDING',
+              note: dto.notes?.trim() || 'Khởi tạo phiếu',
+              performedBy: user.userId,
+            }
+          }
+        } : {}),
       },
       include: {
         pet: {
@@ -263,8 +273,13 @@ export class GroomingService {
   }
 
   async findOne(id: string, user?: BranchScopedUser): Promise<any> {
-    const session = await this.db.groomingSession.findUnique({
-      where: { id },
+    const session = await this.db.groomingSession.findFirst({
+      where: {
+        OR: [
+          { id },
+          { sessionCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
       include: {
         pet: {
           select: {
@@ -279,6 +294,10 @@ export class GroomingService {
         staff: { select: { id: true, fullName: true, avatar: true } },
         order: { select: { id: true, orderNumber: true } },
         branch: { select: { id: true, name: true, code: true } },
+        timeline: {
+          include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
+          orderBy: { createdAt: 'desc' as const }
+        },
       },
     })
 
@@ -287,9 +306,53 @@ export class GroomingService {
     return { success: true, data: session }
   }
 
-  async update(id: string, dto: UpdateGroomingDto, user?: BranchScopedUser, requestedBranchId?: string): Promise<any> {
-    const session = await this.db.groomingSession.findUnique({ where: { id } })
+  async findByCode(code: string, user?: BranchScopedUser): Promise<any> {
+    const include = {
+      pet: {
+        select: {
+          id: true,
+          petCode: true,
+          name: true,
+          species: true,
+          breed: true,
+          customer: { select: { id: true, fullName: true, phone: true } },
+        },
+      },
+      staff: { select: { id: true, fullName: true, avatar: true } },
+      order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
+      branch: { select: { id: true, name: true, code: true } },
+      timeline: {
+        include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
+        orderBy: { createdAt: 'desc' as const }
+      },
+    }
+
+    const session = await this.db.groomingSession.findFirst({
+      where: {
+        OR: [
+          { sessionCode: { equals: code, mode: 'insensitive' } },
+          { id: code },
+        ],
+      },
+      include,
+    })
+
     if (!session) throw new NotFoundException('Khong tim thay phien grooming')
+    assertBranchAccess(session.branchId, user)
+    return { success: true, data: session }
+  }
+
+  async update(id: string, dto: UpdateGroomingDto, user?: BranchScopedUser, requestedBranchId?: string): Promise<any> {
+    const session = await this.db.groomingSession.findFirst({
+      where: {
+        OR: [
+          { id },
+          { sessionCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
+    })
+    if (!session) throw new NotFoundException('Khong tim thay phien grooming')
+    id = session.id; // Resolve to internal UUID
     assertBranchAccess(session.branchId, user)
 
     const dataToUpdate: any = { ...dto }
@@ -309,6 +372,18 @@ export class GroomingService {
     }
     if (dto.status === 'IN_PROGRESS' && !dto.startTime && !session.startTime) {
       dataToUpdate.startTime = new Date()
+    }
+
+    if (user?.userId) {
+      dataToUpdate.timeline = {
+        create: {
+          action: dto.status && dto.status !== session.status ? 'Cập nhật trạng thái' : 'Cập nhật thông tin',
+          fromStatus: session.status,
+          toStatus: dto.status ?? session.status,
+          note: dto.notes?.trim() || null,
+          performedBy: user.userId,
+        }
+      }
     }
 
     const updated = await this.db.groomingSession.update({
@@ -335,8 +410,16 @@ export class GroomingService {
   }
 
   async remove(id: string, user?: BranchScopedUser): Promise<any> {
-    const session = await this.db.groomingSession.findUnique({ where: { id } })
+    const session = await this.db.groomingSession.findFirst({
+      where: {
+        OR: [
+          { id },
+          { sessionCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
+    })
     if (!session) throw new NotFoundException('Khong tim thay phien grooming')
+    id = session.id; // Resolve to internal UUID
     assertBranchAccess(session.branchId, user)
 
     await this.db.groomingSession.delete({ where: { id } })

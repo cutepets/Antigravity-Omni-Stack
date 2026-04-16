@@ -4,6 +4,10 @@ describe('CustomerService', () => {
   it('creates the next sequential customer code from the last valid numeric suffix', async () => {
     const db = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([{ maxNumber: 4 }]),
+      branch: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'branch-main', code: 'HCM', name: 'HCM', isMain: true }),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       customer: {
         findUnique: jest.fn().mockResolvedValue(null),
         findFirst: jest.fn().mockResolvedValue(null),

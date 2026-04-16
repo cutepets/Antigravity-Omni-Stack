@@ -408,7 +408,6 @@ export function CashbookSettingsDrawer({ isOpen, onClose }: CashbookSettingsDraw
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
             className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
           />
 

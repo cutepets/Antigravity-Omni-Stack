@@ -349,6 +349,7 @@ export function ProductList() {
         groups,
         looseConversions,
         hasChildren: hasVariants,
+        isExpandable: totalChildren > 1,
         totalStock,
         sellableStock,
         minStock,
@@ -569,9 +570,8 @@ export function ProductList() {
             <button
               type="button"
               onClick={() => dataListState.toggleTopFilterVisibility('category')}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                topFilterVisibility.category ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-              }`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.category ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                }`}
             >
               {topFilterVisibility.category ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
@@ -612,9 +612,8 @@ export function ProductList() {
             <button
               type="button"
               onClick={() => dataListState.toggleTopFilterVisibility('stock')}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                topFilterVisibility.stock ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-              }`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.stock ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                }`}
             >
               {topFilterVisibility.stock ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
@@ -640,9 +639,8 @@ export function ProductList() {
             <button
               type="button"
               onClick={() => dataListState.toggleTopFilterVisibility('sale')}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
-                topFilterVisibility.sale ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-              }`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.sale ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                }`}
             >
               {topFilterVisibility.sale ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
@@ -718,22 +716,22 @@ export function ProductList() {
       {/* ── Pagination — rendered outside DataListTable so it sits below ── */}
       <div className="-mt-3">
         <div className="rounded-b-2xl border border-t-0 border-border bg-card/95">
-            <DataListPagination
-              page={page}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              total={total}
-              rangeStart={visibleRangeStart}
-              rangeEnd={visibleRangeEnd}
-              onPageChange={setPage}
-              onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
-              totalItemText={
-                <p className="shrink-0 text-xs text-foreground-muted">
-                  Tổng <strong className="text-foreground">{total}</strong> sản phẩm
-                  {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
-                </p>
-              }
-            />
+          <DataListPagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            total={total}
+            rangeStart={visibleRangeStart}
+            rangeEnd={visibleRangeEnd}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+            totalItemText={
+              <p className="shrink-0 text-xs text-foreground-muted">
+                Tổng <strong className="text-foreground">{total}</strong> sản phẩm
+                {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
+              </p>
+            }
+          />
         </div>
       </div>
 
@@ -880,9 +878,8 @@ function BulkEditProductsModal({
               label="Ảnh"
               onToggle={() => setEnabledFields((current) => ({ ...current, image: !current.image }))}
             >
-              <label className={`inline-flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-dashed px-4 text-sm font-medium transition-colors ${
-                enabledFields.image ? 'border-primary-500/60 text-foreground' : 'border-border text-foreground-muted'
-              }`}>
+              <label className={`inline-flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-dashed px-4 text-sm font-medium transition-colors ${enabledFields.image ? 'border-primary-500/60 text-foreground' : 'border-border text-foreground-muted'
+                }`}>
                 <ImagePlus size={18} />
                 <span>{formData.image ? 'Đổi ảnh' : 'Chọn ảnh'}</span>
                 <input
@@ -1032,47 +1029,47 @@ function BulkEditProductsModal({
               onToggle={() => setEnabledFields((current) => ({ ...current, lastCountShift: !current.lastCountShift }))}
             >
               <div className="flex gap-2">
-                <select 
-                   value={formData.lastCountShift?.split('_')[0] || ''} 
-                   onChange={e => {
-                      const day = e.target.value;
-                      if (!day) {
-                         setFormData((current) => ({ ...current, lastCountShift: '' }))
-                      } else {
-                         const shift = formData.lastCountShift?.split('_')[1] || 'A';
-                         setFormData((current) => ({ ...current, lastCountShift: `${day}_${shift}` }))
-                      }
-                   }} 
-                   disabled={!enabledFields.lastCountShift}
-                   className="h-11 w-1/2 rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                <select
+                  value={formData.lastCountShift?.split('_')[0] || ''}
+                  onChange={e => {
+                    const day = e.target.value;
+                    if (!day) {
+                      setFormData((current) => ({ ...current, lastCountShift: '' }))
+                    } else {
+                      const shift = formData.lastCountShift?.split('_')[1] || 'A';
+                      setFormData((current) => ({ ...current, lastCountShift: `${day}_${shift}` }))
+                    }
+                  }}
+                  disabled={!enabledFields.lastCountShift}
+                  className="h-11 w-1/2 rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
                 >
-                   <option value="">Ngày</option>
-                   <option value="MON">Thứ 2</option>
-                   <option value="TUE">Thứ 3</option>
-                   <option value="WED">Thứ 4</option>
-                   <option value="THU">Thứ 5</option>
-                   <option value="FRI">Thứ 6</option>
-                   <option value="SAT">Thứ 7</option>
+                  <option value="">Ngày</option>
+                  <option value="MON">Thứ 2</option>
+                  <option value="TUE">Thứ 3</option>
+                  <option value="WED">Thứ 4</option>
+                  <option value="THU">Thứ 5</option>
+                  <option value="FRI">Thứ 6</option>
+                  <option value="SAT">Thứ 7</option>
                 </select>
-                <select 
-                   value={formData.lastCountShift?.split('_')[1] || ''} 
-                   onChange={e => {
-                      const shift = e.target.value;
-                      if (!shift) {
-                         setFormData((current) => ({ ...current, lastCountShift: '' }))
-                      } else {
-                         const day = formData.lastCountShift?.split('_')[0] || 'MON';
-                         setFormData((current) => ({ ...current, lastCountShift: `${day}_${shift}` }))
-                      }
-                   }}
-                   disabled={!enabledFields.lastCountShift || !formData.lastCountShift?.split('_')[0]}
-                   className="h-11 w-1/2 rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                <select
+                  value={formData.lastCountShift?.split('_')[1] || ''}
+                  onChange={e => {
+                    const shift = e.target.value;
+                    if (!shift) {
+                      setFormData((current) => ({ ...current, lastCountShift: '' }))
+                    } else {
+                      const day = formData.lastCountShift?.split('_')[0] || 'MON';
+                      setFormData((current) => ({ ...current, lastCountShift: `${day}_${shift}` }))
+                    }
+                  }}
+                  disabled={!enabledFields.lastCountShift || !formData.lastCountShift?.split('_')[0]}
+                  className="h-11 w-1/2 rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
                 >
-                   <option value="">Ca</option>
-                   <option value="A">Ca A</option>
-                   <option value="B">Ca B</option>
-                   <option value="C">Ca C</option>
-                   <option value="D">Ca D</option>
+                  <option value="">Ca</option>
+                  <option value="A">Ca A</option>
+                  <option value="B">Ca B</option>
+                  <option value="C">Ca C</option>
+                  <option value="D">Ca D</option>
                 </select>
               </div>
             </BulkEditField>
@@ -1172,7 +1169,7 @@ function ProductRowBlock({
                     name={product.name}
                     href={`/products/${product.id}`}
                     toggle={
-                      product.hasChildren ? (
+                      product.isExpandable ? (
                         <button
                           type="button"
                           onClick={() => onToggleExpanded(product.id)}
@@ -1222,11 +1219,10 @@ function ProductRowBlock({
               }
               return (
                 <td key={columnId} className="px-3 py-3">
-                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    product.isActive ?? true
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${product.isActive ?? true
                       ? 'bg-emerald-500/15 text-emerald-300'
                       : 'bg-white/8 text-foreground-muted'
-                  }`}>
+                    }`}>
                     {product.isActive ?? true ? 'Đang bán' : 'Ngưng bán'}
                   </span>
                 </td>

@@ -354,7 +354,7 @@ export function OrderList() {
               key={o.id}
               className={`border-b border-border/50 transition-colors hover:bg-background-secondary/40 ${isSelected ? 'bg-primary-500/5' : ''}`}
             >
-              <td className="w-12 px-3 py-3 w-10">
+              <td className="w-12 px-3 py-3">
                 <TableCheckbox
                   checked={isSelected}
                   onCheckedChange={(checked, shiftKey) => toggleRowSelection(rowId, shiftKey)}
@@ -366,7 +366,7 @@ export function OrderList() {
                     <td key={columnId} className="px-3 py-3 w-24">
                       <div className="flex flex-col gap-2">
                         <span
-                          onClick={() => router.push(`/orders/${o.id}`)}
+                          onClick={() => router.push(`/orders/${o.orderNumber}`)}
                           className="font-mono text-xs font-bold text-primary-500 hover:underline cursor-pointer transition-colors"
                         >
                           {o.orderNumber || '--'}
@@ -374,7 +374,7 @@ export function OrderList() {
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => router.push(`/orders/${o.id}`)}
+                            onClick={() => router.push(`/orders/${o.orderNumber}`)}
                             className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold text-foreground-muted transition-colors hover:border-primary-500/30 hover:text-primary-500"
                           >
                             <ArrowRight size={11} />

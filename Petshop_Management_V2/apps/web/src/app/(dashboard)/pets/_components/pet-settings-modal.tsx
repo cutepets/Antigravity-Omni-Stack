@@ -56,19 +56,19 @@ const DEFAULT_VACCINES: VaccineOption[] = [
 ]
 
 // ─── Config Keys (DB) ────────────────────────────────────────────────────────
-const KEY_BREEDS   = 'pet-breeds-v2'
-const KEY_TEMPERS  = 'pet-temperaments'
+const KEY_BREEDS = 'pet-breeds-v2'
+const KEY_TEMPERS = 'pet-temperaments'
 const KEY_VACCINES = 'pet-vaccine-opts'
 
 // ─── Save → chỉ lưu DB ────────────────────────────────────────────────────────
 export function saveBreeds(b: BreedEntry[]) {
-  settingsApi.updateConfigs({ [KEY_BREEDS]: JSON.stringify(b) }).catch(() => {})
+  settingsApi.updateConfigs({ [KEY_BREEDS]: JSON.stringify(b) }).catch(() => { })
 }
 export function saveTempers(t: TemperEntry[]) {
-  settingsApi.updateConfigs({ [KEY_TEMPERS]: JSON.stringify(t) }).catch(() => {})
+  settingsApi.updateConfigs({ [KEY_TEMPERS]: JSON.stringify(t) }).catch(() => { })
 }
 export function saveVaccineOptions(v: VaccineOption[]) {
-  settingsApi.updateConfigs({ [KEY_VACCINES]: JSON.stringify(v) }).catch(() => {})
+  settingsApi.updateConfigs({ [KEY_VACCINES]: JSON.stringify(v) }).catch(() => { })
 }
 
 // ─── Load từ DB (async, dùng trong useEffect) ─────────────────────────────────
@@ -85,8 +85,8 @@ export async function loadTempsFromDB(): Promise<TemperEntry[]> {
   try {
     const configs = await settingsApi.getConfigs()
     if (configs[KEY_TEMPERS]) {
-       const parsed = JSON.parse(configs[KEY_TEMPERS])
-       return parsed.map((t: any) => typeof t === 'string' ? { name: t, color: 'gray' } : t)
+      const parsed = JSON.parse(configs[KEY_TEMPERS])
+      return parsed.map((t: any) => typeof t === 'string' ? { name: t, color: 'gray' } : t)
     }
   } catch {
     // Fall back to defaults
@@ -157,10 +157,10 @@ export function PetSettingsModal({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) return
     settingsApi.getConfigs().then(configs => {
-      if (configs[KEY_BREEDS])   setBreeds(JSON.parse(configs[KEY_BREEDS]))
-      if (configs[KEY_TEMPERS])  setTempers(JSON.parse(configs[KEY_TEMPERS]))
+      if (configs[KEY_BREEDS]) setBreeds(JSON.parse(configs[KEY_BREEDS]))
+      if (configs[KEY_TEMPERS]) setTempers(JSON.parse(configs[KEY_TEMPERS]))
       if (configs[KEY_VACCINES]) setVaccines(JSON.parse(configs[KEY_VACCINES]))
-    }).catch(() => {})
+    }).catch(() => { })
   }, [open])
 
   // ── Breed actions ───────────────────────────────────────────────────────────
@@ -210,7 +210,6 @@ export function PetSettingsModal({ open, onClose }: Props) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
             className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50"
           />
 
@@ -232,7 +231,7 @@ export function PetSettingsModal({ open, onClose }: Props) {
                   <p className="text-sm text-foreground-muted">Quản lý giống, tính cách và mũi tiêm</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={onClose}
                 className="p-2 rounded-full hover:bg-white/10 text-foreground-muted transition-colors"
                 title="Đóng"
@@ -243,15 +242,15 @@ export function PetSettingsModal({ open, onClose }: Props) {
 
             <div className="p-6 flex-1 space-y-8 pb-12">
               <div className="grid gap-5 xl:grid-cols-2">
-                
+
                 {/* Breeds Card */}
                 <div data-hotkey-scope className="flex flex-col overflow-hidden rounded-3xl border border-border/70 bg-background-secondary shadow-sm">
                   <CardHeader title="Giống thú cưng" subtitle="Phân loại theo loài" count={breeds.length} icon={Dog} />
                   <div className="flex-1 space-y-3 p-5 overflow-y-auto">
                     <div className="rounded-2xl border border-primary-500/30 bg-primary-500/5 p-2">
                       <div className="flex items-center gap-2">
-                        <select 
-                          value={breedSpecies} 
+                        <select
+                          value={breedSpecies}
                           onChange={e => setBreedSpecies(e.target.value)}
                           className="h-11 w-28 rounded-xl border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-primary-500"
                         >
@@ -343,45 +342,45 @@ export function PetSettingsModal({ open, onClose }: Props) {
                         <div className="flex flex-wrap gap-1 px-1">
                           {TEMPER_COLORS.map(c => (
                             <button key={c.id} onClick={() => setNewTemperColor(c.id)} title={c.label} className={`w-6 h-6 rounded-full border-2 transition-transform ${newTemperColor === c.id ? 'border-primary-500 scale-110' : 'border-transparent hover:scale-110'} ${c.bg} flex items-center justify-center`}>
-                              {newTemperColor === c.id && <div className={`w-3 h-3 rounded-full ${c.bg.replace('/10', '')}`} style={{backgroundColor: c.value}} />}
+                              {newTemperColor === c.id && <div className={`w-3 h-3 rounded-full ${c.bg.replace('/10', '')}`} style={{ backgroundColor: c.value }} />}
                             </button>
                           ))}
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-wrap gap-2 pt-2">
                         {tempers.map((t, i) => {
-                           const cInfo = getTemperStyle(t.color)
-                           return (
-                             <div key={t.name} className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${cInfo.bg} ${cInfo.border} ${cInfo.text}`}>
-                                {editTemperIdx === i ? (
-                                  <div className="flex items-center gap-1">
-                                    <input value={editTemperVal} onChange={e => setEditTemperVal(e.target.value)}
-                                      onKeyDown={e => { if (e.key === 'Enter') saveEditTemper(i); if (e.key === 'Escape') setEditTemperIdx(null) }}
-                                      className="h-7 w-24 rounded bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-primary-500" autoFocus />
-                                    <select value={editTemperColor} onChange={e => setEditTemperColor(e.target.value)} className="h-7 rounded bg-background px-1 text-sm outline-none">
-                                      {TEMPER_COLORS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                                    </select>
-                                    <button onClick={() => saveEditTemper(i)} className="text-primary-500 hover:text-primary-400 ml-1"><Check size={14} /></button>
-                                    <button onClick={() => setEditTemperIdx(null)} className="text-foreground-muted hover:text-foreground"><X size={14} /></button>
+                          const cInfo = getTemperStyle(t.color)
+                          return (
+                            <div key={t.name} className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${cInfo.bg} ${cInfo.border} ${cInfo.text}`}>
+                              {editTemperIdx === i ? (
+                                <div className="flex items-center gap-1">
+                                  <input value={editTemperVal} onChange={e => setEditTemperVal(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') saveEditTemper(i); if (e.key === 'Escape') setEditTemperIdx(null) }}
+                                    className="h-7 w-24 rounded bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-primary-500" autoFocus />
+                                  <select value={editTemperColor} onChange={e => setEditTemperColor(e.target.value)} className="h-7 rounded bg-background px-1 text-sm outline-none">
+                                    {TEMPER_COLORS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                  </select>
+                                  <button onClick={() => saveEditTemper(i)} className="text-primary-500 hover:text-primary-400 ml-1"><Check size={14} /></button>
+                                  <button onClick={() => setEditTemperIdx(null)} className="text-foreground-muted hover:text-foreground"><X size={14} /></button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="truncate font-medium">{t.name}</span>
+                                  <div className="-mr-1.5 ml-1 flex items-center gap-0.5">
+                                    <button onClick={() => { setEditTemperIdx(i); setEditTemperVal(t.name); setEditTemperColor(t.color) }}
+                                      className="flex h-5 w-5 items-center justify-center rounded-full opacity-70 hover:opacity-100 hover:bg-black/10">
+                                      <Pencil size={11} />
+                                    </button>
+                                    <button onClick={() => deleteTemper(i)}
+                                      className="flex h-5 w-5 items-center justify-center rounded-full opacity-70 hover:opacity-100 hover:bg-red-500/20 text-red-500">
+                                      <Trash2 size={11} />
+                                    </button>
                                   </div>
-                                ) : (
-                                  <>
-                                    <span className="truncate font-medium">{t.name}</span>
-                                    <div className="-mr-1.5 ml-1 flex items-center gap-0.5">
-                                      <button onClick={() => { setEditTemperIdx(i); setEditTemperVal(t.name); setEditTemperColor(t.color) }}
-                                        className="flex h-5 w-5 items-center justify-center rounded-full opacity-70 hover:opacity-100 hover:bg-black/10">
-                                        <Pencil size={11} />
-                                      </button>
-                                      <button onClick={() => deleteTemper(i)}
-                                        className="flex h-5 w-5 items-center justify-center rounded-full opacity-70 hover:opacity-100 hover:bg-red-500/20 text-red-500">
-                                        <Trash2 size={11} />
-                                      </button>
-                                    </div>
-                                  </>
-                                )}
-                             </div>
-                           )
+                                </>
+                              )}
+                            </div>
+                          )
                         })}
                       </div>
                     </div>
@@ -409,34 +408,34 @@ export function PetSettingsModal({ open, onClose }: Props) {
                           </button>
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-wrap gap-2 pt-2">
                         {vaccines.map(v => (
-                           <div key={v.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-1.5 text-sm">
-                              {editVaccineId === v.id ? (
-                                <div className="flex items-center gap-1">
-                                  <input value={editVaccineVal} onChange={e => setEditVaccineVal(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter') saveEditVaccine(v.id); if (e.key === 'Escape') setEditVaccineId(null) }}
-                                    className="h-7 w-32 rounded bg-background-secondary px-2 text-sm outline-none focus:ring-1 focus:ring-primary-500" autoFocus />
-                                  <button onClick={() => saveEditVaccine(v.id)} className="text-primary-500 hover:text-primary-400"><Check size={14} /></button>
-                                  <button onClick={() => setEditVaccineId(null)} className="text-foreground-muted hover:text-foreground"><X size={14} /></button>
+                          <div key={v.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-1.5 text-sm">
+                            {editVaccineId === v.id ? (
+                              <div className="flex items-center gap-1">
+                                <input value={editVaccineVal} onChange={e => setEditVaccineVal(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') saveEditVaccine(v.id); if (e.key === 'Escape') setEditVaccineId(null) }}
+                                  className="h-7 w-32 rounded bg-background-secondary px-2 text-sm outline-none focus:ring-1 focus:ring-primary-500" autoFocus />
+                                <button onClick={() => saveEditVaccine(v.id)} className="text-primary-500 hover:text-primary-400"><Check size={14} /></button>
+                                <button onClick={() => setEditVaccineId(null)} className="text-foreground-muted hover:text-foreground"><X size={14} /></button>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="truncate font-medium text-foreground">{v.name}</span>
+                                <div className="-mr-1.5 ml-1 flex items-center gap-0.5">
+                                  <button onClick={() => { setEditVaccineId(v.id); setEditVaccineVal(v.name) }}
+                                    className="flex h-5 w-5 items-center justify-center rounded-full text-foreground-muted hover:bg-background-secondary hover:text-foreground">
+                                    <Pencil size={11} />
+                                  </button>
+                                  <button onClick={() => deleteVaccine(v.id)}
+                                    className="flex h-5 w-5 items-center justify-center rounded-full text-foreground-muted hover:bg-red-500/10 hover:text-red-400">
+                                    <Trash2 size={11} />
+                                  </button>
                                 </div>
-                              ) : (
-                                <>
-                                  <span className="truncate font-medium text-foreground">{v.name}</span>
-                                  <div className="-mr-1.5 ml-1 flex items-center gap-0.5">
-                                    <button onClick={() => { setEditVaccineId(v.id); setEditVaccineVal(v.name) }}
-                                      className="flex h-5 w-5 items-center justify-center rounded-full text-foreground-muted hover:bg-background-secondary hover:text-foreground">
-                                      <Pencil size={11} />
-                                    </button>
-                                    <button onClick={() => deleteVaccine(v.id)}
-                                      className="flex h-5 w-5 items-center justify-center rounded-full text-foreground-muted hover:bg-red-500/10 hover:text-red-400">
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </div>
-                                </>
-                              )}
-                           </div>
+                              </>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </div>

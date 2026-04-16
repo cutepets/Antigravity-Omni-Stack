@@ -409,7 +409,7 @@ export class StockService {
     let candidate = baseCode
     let suffix = 1
 
-    while (true) {
+    for (; ;) {
       const existing = await this.db.supplier.findFirst({
         where: {
           code: candidate,

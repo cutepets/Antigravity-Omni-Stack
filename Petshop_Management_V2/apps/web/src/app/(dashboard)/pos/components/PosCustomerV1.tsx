@@ -220,6 +220,7 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
             customers={customers as any[]}
             query={customerQuery}
             variant="pos"
+            showGuest={false}
             guestLabel="Khách lẻ"
             onSelectGuest={() => {
               store.setCustomer(undefined, 'Khách lẻ');

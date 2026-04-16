@@ -30,8 +30,7 @@ const calculateCartSubtotal = (cart: OrderTab['cart']) =>
   cart.reduce(
     (sum, item) =>
       sum +
-      toFiniteNumber(item.unitPrice) * Math.max(0, toFiniteNumber(item.quantity)) -
-      toFiniteNumber(item.discountItem),
+      (toFiniteNumber(item.unitPrice) - toFiniteNumber(item.discountItem)) * Math.max(0, toFiniteNumber(item.quantity)),
     0,
   );
 
@@ -87,7 +86,7 @@ interface PosStore {
   setOutOfStockHidden: (hidden: boolean) => void;
   isMultiSelect: boolean;
   setIsMultiSelect: (val: boolean) => void;
-  
+
   autoFocusSearch: boolean;
   setAutoFocusSearch: (val: boolean) => void;
   barcodeMode: boolean;
@@ -181,10 +180,10 @@ function updateActiveTab(
     tabs: state.tabs.map((tab) =>
       tab.id === state.activeTabId
         ? reconcileTabDiscounts(
-            { ...tab, ...updater(tab) },
-            state.roundingEnabled,
-            state.roundingUnit,
-          )
+          { ...tab, ...updater(tab) },
+          state.roundingEnabled,
+          state.roundingUnit,
+        )
         : tab,
     ),
   };
@@ -336,7 +335,7 @@ export const usePosStore = create<PosStore>()(
               ),
             })),
           ),
-          
+
         updateItemVariant: (itemId, variantId) =>
           set((s) =>
             updateActiveTab(s, (tab) => ({
@@ -358,26 +357,37 @@ export const usePosStore = create<PosStore>()(
                       baseUnitPrice,
                     };
                   }
-                  
-                   if (c.variants) {
-                     const variant = c.variants.find(v => v.id === variantId);
-                     if (variant) {
-                       return {
-                         ...c,
-                         productVariantId: variant.id,
-                         variantName: variant.name,
-                         sku: variant.sku ?? baseSku,
-                         unitPrice: variant.sellingPrice ?? variant.price ?? baseUnitPrice,
-                         stock: variant.stock ?? c.stock,
-                         availableStock: variant.availableStock ?? c.availableStock,
-                         trading: variant.trading ?? c.trading,
-                         reserved: variant.reserved ?? c.reserved,
-                         branchStocks: variant.branchStocks ?? c.branchStocks,
-                         baseSku,
-                         baseUnitPrice,
-                       };
-                     }
-                   }
+
+                  if (c.variants) {
+                    let variant: any = c.variants.find((v: any) => v.id === variantId);
+                    if (!variant) {
+                      for (const v of c.variants as any[]) {
+                        if (v.children) {
+                          const child = v.children.find((ch: any) => ch.id === variantId);
+                          if (child) {
+                            variant = child;
+                            break;
+                          }
+                        }
+                      }
+                    }
+                    if (variant) {
+                      return {
+                        ...c,
+                        productVariantId: variant.id,
+                        variantName: variant.name,
+                        sku: variant.sku ?? baseSku,
+                        unitPrice: variant.sellingPrice ?? variant.price ?? baseUnitPrice,
+                        stock: variant.stock ?? c.stock,
+                        availableStock: variant.availableStock ?? c.availableStock,
+                        trading: variant.trading ?? c.trading,
+                        reserved: variant.reserved ?? c.reserved,
+                        branchStocks: variant.branchStocks ?? c.branchStocks,
+                        baseSku,
+                        baseUnitPrice,
+                      };
+                    }
+                  }
                 }
                 return c;
               }),
@@ -505,8 +515,8 @@ export const usePosStore = create<PosStore>()(
       partialize: (state) => {
         const draftTabs = state.tabs.filter(t => !t.linkedOrderId);
         const persistTabs = draftTabs.length > 0 ? draftTabs : [createNewTab(`tab-${Date.now()}`)];
-        const persistActiveTabId = persistTabs.find(t => t.id === state.activeTabId) 
-          ? state.activeTabId 
+        const persistActiveTabId = persistTabs.find(t => t.id === state.activeTabId)
+          ? state.activeTabId
           : persistTabs[0].id;
 
         return {

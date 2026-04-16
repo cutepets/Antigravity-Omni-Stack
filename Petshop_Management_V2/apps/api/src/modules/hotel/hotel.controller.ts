@@ -112,6 +112,12 @@ export class HotelController {
     return this.hotelService.findAllStays(query, req.user, getRequestedBranchId(req))
   }
 
+  @Get('stays/code/:code')
+  @Permissions('hotel.read')
+  findStayByCode(@Param('code') code: string, @Req() req: AuthenticatedRequest): Promise<any> {
+    return this.hotelService.findStayByCode(code, req.user)
+  }
+
   @Get('stays/:id')
   @Permissions('hotel.read')
   findStayById(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {

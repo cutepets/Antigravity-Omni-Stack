@@ -117,6 +117,10 @@ export class HotelService {
         remainingAmount: true,
       },
     },
+    timeline: {
+      include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
+      orderBy: [{ createdAt: 'desc' as const }],
+    },
   } satisfies Prisma.HotelStayInclude;
 
   private getDateKey(date: Date) {
@@ -1039,6 +1043,18 @@ export class HotelService {
         });
       }
 
+      if (user?.userId) {
+        await tx.hotelStayTimeline.create({
+          data: {
+            stayId: stay.id,
+            action: 'Tạo phiếu',
+            toStatus: stay.status,
+            note: data.notes?.trim() || 'Khởi tạo phiếu',
+            performedBy: user.userId,
+          }
+        });
+      }
+
       return tx.hotelStay.findUniqueOrThrow({
         where: { id: stay.id },
         include: this.stayInclude,
@@ -1060,8 +1076,28 @@ export class HotelService {
   }
 
   async findStayById(id: string, user?: BranchScopedUser) {
-    const stay = await this.prisma.hotelStay.findUnique({
-      where: { id },
+    const stay = await this.prisma.hotelStay.findFirst({
+      where: {
+        OR: [
+          { id },
+          { stayCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
+      include: this.stayInclude,
+    });
+    if (!stay) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
+    assertBranchAccess(stay.branchId, user);
+    return this.mapStay(stay);
+  }
+
+  async findStayByCode(code: string, user?: BranchScopedUser) {
+    const stay = await this.prisma.hotelStay.findFirst({
+      where: {
+        OR: [
+          { stayCode: { equals: code, mode: 'insensitive' } },
+          { id: code },
+        ],
+      },
       include: this.stayInclude,
     });
     if (!stay) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
@@ -1070,11 +1106,17 @@ export class HotelService {
   }
 
   async updateStay(id: string, data: UpdateHotelStayDto, user?: BranchScopedUser, requestedBranchId?: string) {
-    const stay = await this.prisma.hotelStay.findUnique({
-      where: { id },
+    const stay = await this.prisma.hotelStay.findFirst({
+      where: {
+        OR: [
+          { id },
+          { stayCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
       include: this.stayInclude,
     });
     if (!stay) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
+    id = stay.id; // Resolve to internal UUID
 
     assertBranchAccess(stay.branchId, user);
     const updateData: Prisma.HotelStayUpdateInput = {};
@@ -1240,6 +1282,19 @@ export class HotelService {
         });
       }
 
+      if (user?.userId) {
+        await tx.hotelStayTimeline.create({
+          data: {
+            stayId: id,
+            action: statusTransition ? 'Cập nhật trạng thái' : 'Cập nhật thông tin',
+            fromStatus: stay.status,
+            toStatus: (data.status ?? stay.status),
+            note: data.notes?.trim() || null,
+            performedBy: user.userId,
+          }
+        });
+      }
+
       return tx.hotelStay.findUniqueOrThrow({
         where: { id },
         include: this.stayInclude,
@@ -1396,11 +1451,17 @@ export class HotelService {
   }
 
   async updateStayPayment(id: string, paymentStatus: PaymentStatus, user?: BranchScopedUser) {
-    const existing = await this.prisma.hotelStay.findUnique({
-      where: { id },
-      select: { branchId: true },
+    const existing = await this.prisma.hotelStay.findFirst({
+      where: {
+        OR: [
+          { id },
+          { stayCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
+      select: { branchId: true, id: true },
     });
     if (!existing) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
+    id = existing.id; // Resolve to internal UUID
     assertBranchAccess(existing.branchId, user);
 
     const stay = await this.prisma.hotelStay.update({
@@ -1413,11 +1474,17 @@ export class HotelService {
   }
 
   async checkoutStay(id: string, data: CheckoutHotelStayDto, user?: BranchScopedUser) {
-    const stay = await this.prisma.hotelStay.findUnique({
-      where: { id },
+    const stay = await this.prisma.hotelStay.findFirst({
+      where: {
+        OR: [
+          { id },
+          { stayCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
       include: this.stayInclude,
     });
     if (!stay) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
+    id = stay.id; // Resolve to internal UUID
     if (stay.status === 'CHECKED_OUT') throw new BadRequestException('Lượt lưu trú đã checkout');
     if (stay.status === 'CANCELLED') throw new BadRequestException('Lượt lưu trú đã bị hủy');
 
@@ -1488,6 +1555,19 @@ export class HotelService {
         });
       }
 
+      if (user?.userId) {
+        await tx.hotelStayTimeline.create({
+          data: {
+            stayId: id,
+            action: 'Trả phòng',
+            fromStatus: stay.status,
+            toStatus: 'CHECKED_OUT',
+            note: data.notes?.trim() || null,
+            performedBy: user.userId,
+          }
+        });
+      }
+
       return tx.hotelStay.findUniqueOrThrow({
         where: { id },
         include: this.stayInclude,
@@ -1529,8 +1609,13 @@ export class HotelService {
   }
 
   async findStayTimeline(id: string, user?: BranchScopedUser) {
-    const stay = await this.prisma.hotelStay.findUnique({
-      where: { id },
+    const stay = await this.prisma.hotelStay.findFirst({
+      where: {
+        OR: [
+          { id },
+          { stayCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
       select: {
         id: true,
         stayCode: true,
@@ -1546,6 +1631,7 @@ export class HotelService {
       },
     });
     if (!stay) throw new NotFoundException('Khong tim thay ky luu tru');
+    id = stay.id; // Resolve to internal UUID
     assertBranchAccess(stay.branchId, user);
 
     const activityLogs = await this.prisma.activityLog.findMany({
@@ -1596,8 +1682,13 @@ export class HotelService {
   }
 
   async deleteStay(id: string, user?: BranchScopedUser) {
-    const stay = await this.prisma.hotelStay.findUnique({
-      where: { id },
+    const stay = await this.prisma.hotelStay.findFirst({
+      where: {
+        OR: [
+          { id },
+          { stayCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
       select: {
         id: true,
         orderId: true,
@@ -1606,6 +1697,7 @@ export class HotelService {
       },
     });
     if (!stay) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
+    id = stay.id; // Resolve to internal UUID
     assertBranchAccess(stay.branchId, user);
     if (stay.orderId && stay.status !== 'CANCELLED') {
       throw new BadRequestException('Không thể xóa kỳ lưu trú đang gắn với đơn hàng, hãy hủy trước');

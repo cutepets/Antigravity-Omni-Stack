@@ -110,9 +110,8 @@ function OwnerCombobox({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`form-input w-full flex items-center gap-2.5 text-left ${
-          error ? 'border-error focus:ring-error/20' : ''
-        }`}
+        className={`form-input w-full flex items-center gap-2.5 text-left ${error ? 'border-error focus:ring-error/20' : ''
+          }`}
       >
         {selected ? (
           <>
@@ -161,9 +160,8 @@ function OwnerCombobox({
                   key={c.id}
                   type="button"
                   onClick={() => { onChange(c.id); setOpen(false); setSearch('') }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-background-tertiary transition-colors ${
-                    c.id === value ? 'bg-primary-500/10 text-primary-400' : ''
-                  }`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-background-tertiary transition-colors ${c.id === value ? 'bg-primary-500/10 text-primary-400' : ''
+                    }`}
                 >
                   <div className="w-8 h-8 rounded-lg bg-linear-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
                     {c.fullName?.charAt(0)?.toUpperCase()}
@@ -228,10 +226,10 @@ function BreedAutocomplete({
           placeholder="Chọn hoặc nhập giống..."
           className="form-input w-full pr-8"
         />
-        <ChevronDown 
-          size={15} 
-          onClick={() => setOpen(o => !o)} 
-          className={`absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted cursor-pointer transition-transform ${open ? 'rotate-180' : ''}`} 
+        <ChevronDown
+          size={15}
+          onClick={() => setOpen(o => !o)}
+          className={`absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted cursor-pointer transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </div>
 
@@ -261,7 +259,7 @@ function BreedAutocomplete({
           )}
 
           {filtered.length === 0 && !value.trim() && (
-             <div className="py-4 text-center text-xs text-foreground-muted">Không có dữ liệu giống</div>
+            <div className="py-4 text-center text-xs text-foreground-muted">Không có dữ liệu giống</div>
           )}
         </div>
       )}
@@ -279,7 +277,7 @@ export function PetFormModal({ isOpen, onClose, initialData, fixedCustomerId }: 
   const [tempers, setTempers] = useState<TemperEntry[]>([])
   const [breedInput, setBreedInput] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  
+
   // Populate avatar from initialData when opening edit modal
   useEffect(() => {
     if (isOpen) {
@@ -298,8 +296,8 @@ export function PetFormModal({ isOpen, onClose, initialData, fixedCustomerId }: 
   useEffect(() => {
     setMounted(true)
     if (isOpen) {
-      loadBreedsFromDB().then(setBreeds).catch(() => {})
-      loadTempsFromDB().then(setTempers).catch(() => {})
+      loadBreedsFromDB().then(setBreeds).catch(() => { })
+      loadTempsFromDB().then(setTempers).catch(() => { })
     }
   }, [isOpen])
 
@@ -390,7 +388,7 @@ export function PetFormModal({ isOpen, onClose, initialData, fixedCustomerId }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" />
 
       <div className="card p-0 relative w-full flex flex-col max-w-2xl max-h-[92vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
 
@@ -431,7 +429,7 @@ export function PetFormModal({ isOpen, onClose, initialData, fixedCustomerId }: 
                   ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-foreground-muted">
                       <Camera size={18} className="group-hover:text-primary-400 transition-colors" />
-                      <span className="text-[10px] text-center leading-tight">Ảnh<br/>đại diện</span>
+                      <span className="text-[10px] text-center leading-tight">Ảnh<br />đại diện</span>
                     </div>
                   )}
                   <div className="absolute inset-0 hidden items-center justify-center bg-background-base/60 text-[10px] font-bold uppercase tracking-wider text-white group-hover:flex">
@@ -493,11 +491,10 @@ export function PetFormModal({ isOpen, onClose, initialData, fixedCustomerId }: 
                         key={s.value}
                         type="button"
                         onClick={() => { setValue('species', s.value); setBreedInput('') }}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl border text-sm font-medium transition-all whitespace-nowrap ${
-                          currentSpecies === s.value
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl border text-sm font-medium transition-all whitespace-nowrap ${currentSpecies === s.value
                             ? 'bg-primary-500 border-primary-500 text-white shadow-sm shadow-primary-500/25'
                             : 'border-border bg-background-tertiary text-foreground-muted hover:border-primary-500/40 hover:text-foreground'
-                        }`}
+                          }`}
                       >
                         <span>{s.emoji}</span> {s.label}
                       </button>
@@ -536,15 +533,14 @@ export function PetFormModal({ isOpen, onClose, initialData, fixedCustomerId }: 
                       key={g.value}
                       type="button"
                       onClick={() => setValue('gender', g.value as any)}
-                      className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border text-sm font-semibold transition-all ${
-                        currentGender === g.value
+                      className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border text-sm font-semibold transition-all ${currentGender === g.value
                           ? g.value === 'MALE'
                             ? 'bg-info/20 border-info text-info'
                             : g.value === 'FEMALE'
-                            ? 'bg-pink-500/20 border-pink-400 text-pink-400'
-                            : 'bg-background-tertiary border-border text-foreground-muted'
+                              ? 'bg-pink-500/20 border-pink-400 text-pink-400'
+                              : 'bg-background-tertiary border-border text-foreground-muted'
                           : 'border-border bg-background-tertiary text-foreground-muted hover:border-border/80'
-                      }`}
+                        }`}
                     >
                       <span>{g.symbol}</span>
                       <span className="text-xs hidden sm:inline">{g.label}</span>
@@ -581,10 +577,10 @@ export function PetFormModal({ isOpen, onClose, initialData, fixedCustomerId }: 
             <div className="grid grid-cols-2 gap-4 mb-5">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Giống</label>
-                <BreedAutocomplete 
-                  value={breedInput} 
-                  onChange={setBreedInput} 
-                  breeds={availableBreeds} 
+                <BreedAutocomplete
+                  value={breedInput}
+                  onChange={setBreedInput}
+                  breeds={availableBreeds}
                 />
               </div>
 
@@ -646,7 +642,7 @@ export function PetFormModal({ isOpen, onClose, initialData, fixedCustomerId }: 
                 <label className="block text-sm font-medium text-foreground mb-1.5">Chủ thú cưng</label>
                 <OwnerCombobox
                   value={currentCustomerId}
-                  onChange={() => {}}
+                  onChange={() => { }}
                   customers={customers}
                   isLoading={false}
                   fixedCustomerId={fixedCustomerId}

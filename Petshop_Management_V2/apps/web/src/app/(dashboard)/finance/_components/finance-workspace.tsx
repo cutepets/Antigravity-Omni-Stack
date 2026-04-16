@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pin, PinOff, Paperclip, Settings } from 'lucide-react'
 import {
@@ -117,6 +118,7 @@ function getLocationSearchParam(key: string, fallback = '') {
 }
 
 export function FinanceWorkspace() {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
   const canReadCashbook = hasPermission('report.cashbook')
@@ -208,9 +210,8 @@ export function FinanceWorkspace() {
     const nextQuery = nextParams.toString()
     const currentQuery = window.location.search.slice(1)
     if (currentQuery !== nextQuery) {
-      // Dùng window.history.replaceState thay vì router.replace để tránh Next.js re-render
       const nextUrl = nextQuery ? `/finance?${nextQuery}` : '/finance'
-      window.history.replaceState(null, '', nextUrl)
+      router.replace(nextUrl)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, branchId, dateFrom, dateTo, isAuthLoading, page, pageSize, paymentMethod, search, type, voucherParam])
@@ -269,7 +270,7 @@ export function FinanceWorkspace() {
       setTransactionWindow(null)
       setCompareTransaction(null)
       setVoucherParam(null)
-      window.history.pushState(null, '', '/finance')
+      router.push('/finance')
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message ?? 'Không thể xóa phiếu thu chi')
@@ -292,7 +293,7 @@ export function FinanceWorkspace() {
     const nextParams = new URLSearchParams()
     if (nextTab !== 'cashbook') nextParams.set('tab', nextTab)
     const nextQuery = nextParams.toString()
-    window.history.replaceState(null, '', nextQuery ? `/finance?${nextQuery}` : '/finance')
+    router.replace(nextQuery ? `/finance?${nextQuery}` : '/finance')
   }
 
   const clearFilters = () => {
@@ -310,7 +311,7 @@ export function FinanceWorkspace() {
     setCompareTransaction(null)
     setVoucherParam(null)
 
-    window.history.pushState(null, '', '/finance')
+    router.push('/finance')
   }
 
   const handleCreateClick = (initialType: 'INCOME' | 'EXPENSE') => {
@@ -323,7 +324,7 @@ export function FinanceWorkspace() {
   }
 
   const handleOpenTransaction = (transaction: FinanceTransaction) => {
-    window.history.pushState(null, '', `/finance?voucher=${encodeURIComponent(transaction.voucherNumber)}`)
+    router.push(`/finance?voucher=${encodeURIComponent(transaction.voucherNumber)}`)
     setVoucherParam(transaction.voucherNumber)
     setTransactionWindow({ mode: 'view', transaction })
   }
@@ -375,8 +376,8 @@ export function FinanceWorkspace() {
     setCompareTransaction(null)
     setVoucherParam(null)
 
-    window.history.pushState(null, '', '/finance')
-  }, [voucherParam, voucherTransactionQuery.error])
+    router.push('/finance')
+  }, [voucherParam, voucherTransactionQuery.error, router])
 
   if (isAuthLoading) {
     return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>

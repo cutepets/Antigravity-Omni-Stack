@@ -26,7 +26,7 @@ interface AuthenticatedRequest extends Request {
 @Controller('grooming')
 @UseGuards(JwtGuard, PermissionsGuard)
 export class GroomingController {
-  constructor(private readonly groomingService: GroomingService) {}
+  constructor(private readonly groomingService: GroomingService) { }
 
   @Post()
   @Permissions('grooming.create')
@@ -50,6 +50,12 @@ export class GroomingController {
   @Permissions('grooming.read')
   getPackages(@Query('species') species?: string): Promise<any> {
     return this.groomingService.getPackages(species)
+  }
+
+  @Get('code/:code')
+  @Permissions('grooming.read')
+  findByCode(@Param('code') code: string, @Req() req: AuthenticatedRequest): Promise<any> {
+    return this.groomingService.findByCode(code, req.user)
   }
 
   @Get(':id')

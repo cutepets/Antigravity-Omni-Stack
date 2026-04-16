@@ -251,7 +251,19 @@ export function applyVariantSelection(item: SelectedItem, variantId: string): Se
     }
   }
 
-  const selectedVariant = item.variants?.find((variant) => variant.id === variantId)
+  let selectedVariant: any = item.variants?.find((variant) => variant.id === variantId)
+  if (!selectedVariant) {
+    for (const v of (item.variants || [])) {
+      if ((v as any).children) {
+        const child = (v as any).children.find((ch: any) => ch.id === variantId)
+        if (child) {
+          selectedVariant = child
+          break
+        }
+      }
+    }
+  }
+
   if (!selectedVariant) return item
 
   const branchStocks = Array.isArray(selectedVariant.branchStocks)
@@ -362,10 +374,10 @@ export function normalizeReceiptItem(item: any): SelectedItem {
     unit: selectedVariant?.unit ?? product?.unit ?? null,
     sellingPrice: Number(
       selectedVariant?.sellingPrice ??
-        selectedVariant?.price ??
-        product?.price ??
-        product?.salePrice ??
-        0,
+      selectedVariant?.price ??
+      product?.price ??
+      product?.salePrice ??
+      0,
     ),
     quantity: Math.max(1, Number(item?.quantity ?? 1)),
     unitCost: Math.max(0, Number(item?.unitPrice ?? item?.unitCost ?? 0)),
@@ -375,22 +387,22 @@ export function normalizeReceiptItem(item: any): SelectedItem {
     branchStocks: [],
     variants: selectedVariant
       ? [
-          {
-            id: selectedVariant.id,
-            name: selectedVariant.name,
-            sku: selectedVariant.sku ?? null,
-            barcode: selectedVariant.barcode ?? null,
-            price: selectedVariant.price ?? null,
-            sellingPrice: selectedVariant.sellingPrice ?? null,
-            costPrice: selectedVariant.costPrice ?? item?.unitPrice ?? null,
-            image: selectedVariant.image ?? null,
-            conversions: selectedVariant.conversions ?? null,
-            branchStocks: [],
-            stock: null,
-            availableStock: null,
-            trading: null,
-          },
-        ]
+        {
+          id: selectedVariant.id,
+          name: selectedVariant.name,
+          sku: selectedVariant.sku ?? null,
+          barcode: selectedVariant.barcode ?? null,
+          price: selectedVariant.price ?? null,
+          sellingPrice: selectedVariant.sellingPrice ?? null,
+          costPrice: selectedVariant.costPrice ?? item?.unitPrice ?? null,
+          image: selectedVariant.image ?? null,
+          conversions: selectedVariant.conversions ?? null,
+          branchStocks: [],
+          stock: null,
+          availableStock: null,
+          trading: null,
+        },
+      ]
       : [],
     variantName: selectedVariant?.name ?? null,
     baseSku: product?.sku ?? null,
@@ -463,10 +475,10 @@ export function parseReceiptNotes(value?: string | null) {
   const parsed = safeParseJson(metaPart?.trim())
   const extraCosts = Array.isArray(parsed?.extraCosts)
     ? parsed.extraCosts.map((item: any, index: number) => ({
-        id: `receipt-extra-cost-${index + 1}`,
-        label: `${item?.label ?? ''}`.trim() || `Chi phí khác ${index + 1}`,
-        amount: Math.max(0, Number(item?.amount ?? 0)),
-      }))
+      id: `receipt-extra-cost-${index + 1}`,
+      label: `${item?.label ?? ''}`.trim() || `Chi phí khác ${index + 1}`,
+      amount: Math.max(0, Number(item?.amount ?? 0)),
+    }))
     : []
 
   return {
@@ -476,14 +488,14 @@ export function parseReceiptNotes(value?: string | null) {
     extraCosts,
     editSessions: Array.isArray(parsed?.editSessions)
       ? parsed.editSessions
-          .filter((session: any) => session?.editedAt && session?.editedBy)
-          .map((session: any, index: number) => ({
-            id: `${session?.id ?? `edit-session-${index + 1}`}`,
-            editedAt: `${session.editedAt}`,
-            editedBy: `${session.editedBy}`,
-            itemCount: Math.max(0, Number(session?.itemCount ?? 0)),
-            totalQuantity: Math.max(0, Number(session?.totalQuantity ?? 0)),
-          }))
+        .filter((session: any) => session?.editedAt && session?.editedBy)
+        .map((session: any, index: number) => ({
+          id: `${session?.id ?? `edit-session-${index + 1}`}`,
+          editedAt: `${session.editedAt}`,
+          editedBy: `${session.editedBy}`,
+          itemCount: Math.max(0, Number(session?.itemCount ?? 0)),
+          totalQuantity: Math.max(0, Number(session?.totalQuantity ?? 0)),
+        }))
       : [],
   }
 }

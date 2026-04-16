@@ -109,6 +109,8 @@ model User {
   stockExportOrders       Order[]              @relation("OrderStockExporter")
   settledOrders           Order[]              @relation("OrderSettler")
   orderTimelines          OrderTimeline[]
+  groomingTimelines       GroomingTimeline[]
+  hotelStayTimelines      HotelStayTimeline[]
 
   @@map("users")
 }
@@ -497,9 +499,50 @@ model OrderTimeline {
   @@map("order_timelines")
 }
 
+model GroomingTimeline {
+  id            String      @id @default(cuid())
+  sessionId     String      @map("groomingSessionId")
+  action        String
+  fromStatus    String?
+  toStatus      String?
+  note          String?
+  performedBy   String
+  metadata      Json?
+  createdAt     DateTime    @default(now())
+
+  session       GroomingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  performedByUser User      @relation(fields: [performedBy], references: [id])
+
+  @@index([sessionId])
+  @@index([performedBy])
+  @@index([createdAt])
+  @@map("grooming_timelines")
+}
+
+model HotelStayTimeline {
+  id            String      @id @default(cuid())
+  stayId        String      @map("hotelStayId")
+  action        String
+  fromStatus    String?
+  toStatus      String?
+  note          String?
+  performedBy   String
+  metadata      Json?
+  createdAt     DateTime    @default(now())
+
+  stay          HotelStay   @relation(fields: [stayId], references: [id], onDelete: Cascade)
+  performedByUser User      @relation(fields: [performedBy], references: [id])
+
+  @@index([stayId])
+  @@index([performedBy])
+  @@index([createdAt])
+  @@map("hotel_stay_timelines")
+}
+
 model OrderItem {
   id                String           @id @default(cuid())
   orderId           String
+  sku               String?
   productId         String?
   productVariantId  String?
   serviceId         String?
@@ -581,6 +624,7 @@ model GroomingSession {
   staff       User?          @relation(fields: [staffId], references: [id])
   weightBand  ServiceWeightBand? @relation(fields: [weightBandId], references: [id])
   orderItems  OrderItem[]
+  timeline    GroomingTimeline[]
 
   @@index([branchId])
   @@index([petId])
@@ -749,6 +793,7 @@ model HotelStay {
   orderItems        OrderItem[]
   chargeLines       HotelStayChargeLine[]
   adjustments       HotelStayAdjustment[]
+  timeline          HotelStayTimeline[]
 
   @@index([petId])
   @@index([customerId])

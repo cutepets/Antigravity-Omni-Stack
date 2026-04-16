@@ -23,7 +23,8 @@ function getItemCode(item: any) {
 }
 
 function getItemMeta(item: any) {
-  return [item.variantName, item.petName, item.type].filter(Boolean).join(' • ')
+  const variantName = item.variantName && item.variantName !== item.description ? item.variantName : null
+  return [variantName, item.petName, item.type].filter(Boolean).join(' • ')
 }
 
 function clampLineDiscount(discountValue: number, lineBasePrice: number) {
@@ -183,11 +184,10 @@ export function OrderItemsTable({
                 onClick={() => onSelectRow(index)}
                 onFocus={() => onSelectRow(index)}
                 onKeyDown={(event) => handleRowKeyDown(event, index, item)}
-                className={`grid items-center border-b border-border px-2 py-3 transition-colors last:border-b-0 ${
-                  isSelected
-                    ? 'bg-primary-500/8 ring-1 ring-inset ring-primary-500/35'
-                    : 'hover:bg-background-secondary/30'
-                }`}
+                className={`grid items-center border-b border-border px-2 py-3 transition-colors last:border-b-0 ${isSelected
+                  ? 'bg-primary-500/8 ring-1 ring-inset ring-primary-500/35'
+                  : 'hover:bg-background-secondary/30'
+                  }`}
                 style={{ gridTemplateColumns: tableColumns }}
               >
                 {isEditing ? (
@@ -235,7 +235,7 @@ export function OrderItemsTable({
                     <button
                       type="button"
                       onClick={() => adjustQuantity(index, item, -quantityStep)}
-                      disabled={!isEditing}
+                      disabled={!isEditing || item.type === 'hotel'}
                       className="inline-flex h-full w-10 items-center justify-center rounded-l-xl text-foreground-muted transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Minus size={14} />
@@ -244,7 +244,7 @@ export function OrderItemsTable({
                       type="number"
                       step={quantityStep}
                       min={quantityStep}
-                      disabled={!isEditing}
+                      disabled={!isEditing || item.type === 'hotel'}
                       value={item.quantity}
                       onFocus={() => onSelectRow(index)}
                       onChange={(event) => onChangeQuantity(index, event.target.value)}
@@ -254,7 +254,7 @@ export function OrderItemsTable({
                     <button
                       type="button"
                       onClick={() => adjustQuantity(index, item, quantityStep)}
-                      disabled={!isEditing}
+                      disabled={!isEditing || item.type === 'hotel'}
                       className="inline-flex h-full w-10 items-center justify-center rounded-r-xl text-foreground-muted transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Plus size={14} />
@@ -311,22 +311,20 @@ export function OrderItemsTable({
                             <button
                               type="button"
                               onClick={() => setDiscountModes((current) => ({ ...current, [index]: 'amount' }))}
-                              className={`inline-flex h-9 flex-1 items-center justify-center rounded-lg text-sm font-semibold transition-colors ${
-                                activeDiscountMode === 'amount'
-                                  ? 'bg-background text-foreground shadow-sm'
-                                  : 'text-foreground-muted hover:text-foreground'
-                              }`}
+                              className={`inline-flex h-9 flex-1 items-center justify-center rounded-lg text-sm font-semibold transition-colors ${activeDiscountMode === 'amount'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-foreground-muted hover:text-foreground'
+                                }`}
                             >
                               Theo tiền
                             </button>
                             <button
                               type="button"
                               onClick={() => setDiscountModes((current) => ({ ...current, [index]: 'percent' }))}
-                              className={`inline-flex h-9 flex-1 items-center justify-center gap-1 rounded-lg text-sm font-semibold transition-colors ${
-                                activeDiscountMode === 'percent'
-                                  ? 'bg-background text-foreground shadow-sm'
-                                  : 'text-foreground-muted hover:text-foreground'
-                              }`}
+                              className={`inline-flex h-9 flex-1 items-center justify-center gap-1 rounded-lg text-sm font-semibold transition-colors ${activeDiscountMode === 'percent'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-foreground-muted hover:text-foreground'
+                                }`}
                             >
                               <Percent size={13} />
                               Theo %

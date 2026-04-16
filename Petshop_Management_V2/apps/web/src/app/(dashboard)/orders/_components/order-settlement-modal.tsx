@@ -176,7 +176,6 @@ export function OrderSettlementModal({
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
-      onClick={() => !isPending && onClose()}
     >
       <div
         className="w-full max-w-2xl rounded-3xl border border-border bg-background shadow-2xl"

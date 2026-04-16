@@ -1,27 +1,39 @@
-'use client'
+﻿'use client'
 
 import { useQuery } from '@tanstack/react-query'
 import { hotelApi, HotelStay } from '@/lib/api/hotel.api'
-import { format } from 'date-fns'
+import { format, differenceInDays } from 'date-fns'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  DataListPagination,
-  DataListTable,
-  DataListToolbar,
-} from '@petshop/ui/data-list'
-import { useAuthorization } from '@/hooks/useAuthorization'
+import { useRouter } from 'next/navigation'
 import StayDetailsDialog from './StayDetailsDialog'
+import { useAuthorization } from '@/hooks/useAuthorization'
+import {
+  DataListShell,
+  DataListToolbar,
+  DataListFilterPanel,
+  DataListColumnPanel,
+  DataListTable,
+  DataListPagination,
+  useDataListCore,
+  filterSelectClass,
+  toolbarSelectClass,
+} from '@/components/data-list'
+import { Pin, PinOff } from 'lucide-react'
 
-const TABLE_COLUMNS = [
-  { id: 'pet', label: 'Mã lưu trú / Thú cưng' },
-  { id: 'customer', label: 'Khách hàng' },
-  { id: 'cage', label: 'Chuồng / Gói' },
-  { id: 'time', label: 'Thời gian' },
-  { id: 'status', label: 'Trạng thái' },
-  { id: 'actions', label: 'Thao tác', shrink: true },
+type DisplayColumnId = 'code' | 'pet' | 'customer' | 'checkIn' | 'checkOut' | 'days' | 'status'
+type PinFilterId = 'status'
+
+const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
+  { id: 'code', label: 'Mã lưu trú', sortable: false, width: 'w-24' },
+  { id: 'pet', label: 'Thú cưng', sortable: false, minWidth: 'min-w-[150px]' },
+  { id: 'customer', label: 'Khách hàng', sortable: false, minWidth: 'min-w-[150px]' },
+  { id: 'checkIn', label: 'Check-in', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'checkOut', label: 'Check-out', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'days', label: 'Số ngày', sortable: false, width: 'w-24', align: 'center' },
+  { id: 'status', label: 'Trạng thái', sortable: false, width: 'w-32' },
 ]
 
-type CageStub = { id: string; name: string; status: 'OCCUPIED' | 'AVAILABLE' | 'MAINTENANCE' }
+const SORTABLE_COLUMNS = new Set<DisplayColumnId>([])
 
 export default function StayList({
   initialSearch = '',
@@ -30,14 +42,29 @@ export default function StayList({
   initialSearch?: string
   focusStayId?: string
 }) {
+  const router = useRouter()
   const { hasPermission } = useAuthorization()
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
-  const [search, setSearch] = useState(initialSearch)
-  const [detailCage, setDetailCage] = useState<CageStub | null>(null)
-  const [isDetailOpen, setIsDetailOpen] = useState(false)
-  const autoOpenedStayIdRef = useRef<string | null>(null)
   const canCheckout = hasPermission('hotel.checkout')
+  const autoOpenedStayIdRef = useRef<string | null>(null)
+
+  const [search, setSearch] = useState(initialSearch)
+  const [stayStatus, setStayStatus] = useState<string>('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [selectedStay, setSelectedStay] = useState<HotelStay | null>(null)
+
+  const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
+    initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
+    initialVisibleColumns: ['code', 'pet', 'customer', 'checkIn', 'checkOut', 'days', 'status'],
+    initialTopFilterVisibility: { status: true }
+  })
+
+  const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
+
+  useEffect(() => {
+    setSearch(initialSearch)
+    setPage(1)
+  }, [initialSearch])
 
   const { data: stays, isLoading } = useQuery({
     queryKey: ['stays'],
@@ -45,11 +72,6 @@ export default function StayList({
   })
 
   const allStays = useMemo(() => stays?.items || [], [stays?.items])
-
-  useEffect(() => {
-    setSearch(initialSearch)
-    setPage(1)
-  }, [initialSearch])
 
   const visibleStays = useMemo(() => {
     let filtered = allStays
@@ -59,24 +81,24 @@ export default function StayList({
         stay.pet?.name?.toLowerCase().includes(normalizedSearch) ||
         stay.petName?.toLowerCase().includes(normalizedSearch) ||
         stay.id.toLowerCase().includes(normalizedSearch) ||
-        stay.stayCode?.toLowerCase().includes(normalizedSearch),
+        stay.stayCode?.toLowerCase().includes(normalizedSearch) ||
+        stay.customer?.phone?.toLowerCase().includes(normalizedSearch) ||
+        stay.customer?.fullName?.toLowerCase().includes(normalizedSearch)
       )
     }
+    if (stayStatus) {
+      filtered = filtered.filter((stay) => stay.status === stayStatus)
+    }
     return filtered
-  }, [allStays, search])
+  }, [allStays, search, stayStatus])
 
   const paginatedStays = useMemo(() => {
     const start = (page - 1) * pageSize
     return visibleStays.slice(start, start + pageSize)
   }, [page, pageSize, visibleStays])
 
-  const handleViewDetail = (stay: HotelStay) => {
-    setDetailCage({
-      id: stay.cageId || stay.id,
-      name: stay.cage?.name ?? (stay.stayCode || `Lưu trú #${stay.id.slice(-6).toUpperCase()}`),
-      status: 'OCCUPIED',
-    })
-    setIsDetailOpen(true)
+  const handleNavigateDetail = (stay: HotelStay) => {
+    setSelectedStay(stay)
   }
 
   useEffect(() => {
@@ -84,21 +106,22 @@ export default function StayList({
     const matchedStay = allStays.find((stay) => stay.id === focusStayId)
     if (!matchedStay) return
     autoOpenedStayIdRef.current = focusStayId
-    handleViewDetail(matchedStay)
+    handleNavigateDetail(matchedStay)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allStays, focusStayId])
 
   const getStatusBadge = (status: HotelStay['status']) => {
     switch (status) {
       case 'BOOKED':
-        return <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">Đã đặt</span>
+        return <span className="badge badge-info badge-sm">Đã đặt</span>
       case 'CHECKED_IN':
-        return <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">Đang ở</span>
+        return <span className="badge badge-warning badge-sm">Đang ở</span>
       case 'CHECKED_OUT':
-        return <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">Đã trả</span>
+        return <span className="badge badge-success badge-sm">Đã trả</span>
       case 'CANCELLED':
-        return <span className="rounded-full bg-rose-100 px-2 py-1 text-xs font-medium text-rose-800">Đã hủy</span>
+        return <span className="badge badge-error badge-sm">Đã hủy</span>
       default:
-        return <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800">{status}</span>
+        return <span className="badge badge-ghost badge-sm">{status}</span>
     }
   }
 
@@ -107,82 +130,172 @@ export default function StayList({
     setPage(1)
   }
 
+  const getDaysCount = (stay: HotelStay) => {
+    const checkIn = new Date(stay.checkIn)
+    const checkOut = stay.checkOutActual ? new Date(stay.checkOutActual) : stay.estimatedCheckOut ? new Date(stay.estimatedCheckOut) : null
+    if (!checkOut) return 1
+    return Math.max(1, differenceInDays(checkOut, checkIn))
+  }
+
+  const clearFilters = () => {
+    setStayStatus('')
+    setSearch('')
+    setPage(1)
+  }
+
+  const renderActiveColumns = () => {
+    return orderedVisibleColumns.map((id) => {
+      const col = COLUMN_OPTIONS.find((c) => c.id === id)!
+      return { ...col, id: id as DisplayColumnId }
+    })
+  }
+
   return (
-    <div className="flex h-full flex-col p-4">
-      <div className="flex flex-1 min-h-0 flex-col gap-4">
+    <>
+      <DataListShell>
         <DataListToolbar
           searchValue={search}
           onSearchChange={handleSearch}
           searchPlaceholder="Tìm thú cưng, mã lưu trú..."
-          showColumnToggle={false}
+          showColumnToggle={true}
+          showFilterToggle={true}
+          filterSlot={
+            <>
+              {topFilterVisibility.status && (
+                <select
+                  className={toolbarSelectClass}
+                  value={stayStatus}
+                  onChange={(e) => {
+                    setStayStatus(e.target.value)
+                    setPage(1)
+                  }}
+                >
+                  <option value="">Trạng thái (Tất cả)</option>
+                  <option value="BOOKED">Đã đặt</option>
+                  <option value="CHECKED_IN">Đang ở</option>
+                  <option value="CHECKED_OUT">Đã trả</option>
+                  <option value="CANCELLED">Đã hủy</option>
+                </select>
+              )}
+            </>
+          }
+          columnPanelContent={
+            <DataListColumnPanel
+              columns={COLUMN_OPTIONS}
+              columnOrder={columnOrder}
+              visibleColumns={visibleColumns}
+              sortInfo={columnSort}
+              sortableColumns={SORTABLE_COLUMNS}
+              draggingColumnId={draggingColumnId}
+              onToggle={(id) => dataListState.toggleColumn(id as DisplayColumnId)}
+              onReorder={(sourceId, targetId) => dataListState.reorderColumn(sourceId as DisplayColumnId, targetId as DisplayColumnId)}
+              onToggleSort={() => { }}
+              onDragStart={(id) => dataListState.setDraggingColumnId(id as DisplayColumnId)}
+              onDragEnd={() => dataListState.setDraggingColumnId(null)}
+            />
+          }
         />
 
+        <DataListFilterPanel onClearAll={clearFilters}>
+          <label className="space-y-2">
+            <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
+              <span className="inline-flex items-center gap-2">
+                Trạng thái lưu trú
+              </span>
+              <button
+                type="button"
+                onClick={() => dataListState.toggleTopFilterVisibility('status')}
+                className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.status ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                  }`}
+              >
+                {topFilterVisibility.status ? <Pin size={12} /> : <PinOff size={12} />}
+              </button>
+            </span>
+            <select
+              value={stayStatus}
+              onChange={(e) => { setStayStatus(e.target.value); setPage(1) }}
+              className={filterSelectClass}
+            >
+              <option value="">Tất cả</option>
+              <option value="BOOKED">Đã đặt</option>
+              <option value="CHECKED_IN">Đang ở</option>
+              <option value="CHECKED_OUT">Đã trả</option>
+              <option value="CANCELLED">Đã hủy</option>
+            </select>
+          </label>
+        </DataListFilterPanel>
+
         <DataListTable
-          columns={TABLE_COLUMNS}
           isLoading={isLoading}
           isEmpty={paginatedStays.length === 0}
-          emptyText="Không có lượt lưu trú nào phù hợp."
+          emptyText="Không có lượt lưu trú nào phù hợp"
+          columns={renderActiveColumns()}
         >
-          {paginatedStays.map((stay) => (
-            <tr
-              key={stay.id}
-              className="border-b border-border/50 transition-colors hover:bg-background-secondary/40"
-            >
-              <td className="px-3 py-3">
-                <div className="text-sm font-semibold text-foreground">
-                  {stay.pet?.name || stay.petName}
-                </div>
-                <div className="mt-1 text-xs font-mono text-foreground-muted">
-                  {stay.stayCode || `#${stay.id.slice(-6).toUpperCase()}`}
-                </div>
-              </td>
-              <td className="px-3 py-3">
-                <div className="text-sm text-foreground">
-                  {stay.customer?.fullName || 'Khách lẻ'}
-                </div>
-                <div className="mt-1 text-xs text-foreground-muted">
-                  {stay.customer?.phone || '—'}
-                </div>
-              </td>
-              <td className="px-3 py-3">
-                <div className="text-sm font-medium text-foreground">
-                  {stay.cage?.name || '---'}
-                </div>
-                <div className="mt-1 text-xs text-foreground-muted">
-                  {stay.lineType === 'HOLIDAY' ? 'Gói Lễ/Tết' : 'Gói Thường'}
-                </div>
-              </td>
-              <td className="px-3 py-3">
-                <div className="text-sm text-foreground">
-                  Vào: {format(new Date(stay.checkIn), 'dd/MM/yyyy HH:mm')}
-                </div>
-                <div className="mt-1 text-xs text-foreground-muted">
-                  {stay.status === 'CHECKED_OUT' && stay.checkOutActual
-                    ? `Ra: ${format(new Date(stay.checkOutActual), 'dd/MM/yyyy HH:mm')}`
-                    : stay.estimatedCheckOut
-                      ? `Dự kiến: ${format(new Date(stay.estimatedCheckOut), 'dd/MM/yyyy')}`
-                      : '----'}
-                </div>
-              </td>
-              <td className="px-3 py-3">{getStatusBadge(stay.status)}</td>
-              <td className="px-3 py-3 text-right">
-                <button
-                  onClick={() => handleViewDetail(stay)}
-                  className="mr-3 text-sm font-medium text-primary-500 transition-colors hover:text-primary-600"
-                >
-                  Chi tiết
-                </button>
-                {stay.status === 'CHECKED_IN' && canCheckout ? (
-                  <button
-                    onClick={() => handleViewDetail(stay)}
-                    className="text-sm font-medium text-emerald-500 transition-colors hover:text-emerald-600"
-                  >
-                    Ra chuồng
-                  </button>
-                ) : null}
-              </td>
-            </tr>
-          ))}
+          {paginatedStays.map((stay) => {
+            return (
+              <tr
+                key={stay.id}
+                className="border-b border-border/50 transition-colors hover:bg-background-secondary/40 cursor-pointer"
+                onClick={() => handleNavigateDetail(stay)}
+              >
+                {orderedVisibleColumns.map((colId) => {
+                  const alignClass = COLUMN_OPTIONS.find((c) => c.id === colId)?.align === 'right' ? 'text-right' : COLUMN_OPTIONS.find((c) => c.id === colId)?.align === 'center' ? 'text-center' : 'text-left'
+
+                  return (
+                    <td key={colId} className={`px-4 py-3 ${alignClass}`}>
+                      {colId === 'code' && (
+                        <div className="font-mono text-sm text-foreground">
+                          {stay.stayCode || `#${stay.id.slice(-6).toUpperCase()}`}
+                        </div>
+                      )}
+                      {colId === 'pet' && (
+                        <div className="text-sm font-semibold text-foreground">
+                          {stay.pet?.name || stay.petName || '—'}
+                        </div>
+                      )}
+                      {colId === 'customer' && (
+                        <div className="text-sm">
+                          <div className="font-medium text-foreground">{stay.customer?.fullName || 'Khách lẻ'}</div>
+                          {stay.customer?.phone && <div className="text-xs text-foreground-muted">{stay.customer.phone}</div>}
+                        </div>
+                      )}
+                      {colId === 'checkIn' && (
+                        <div className="text-sm text-foreground">
+                          {format(new Date(stay.checkIn), 'dd/MM/yyyy')}
+                          <div className="text-xs text-foreground-muted">{format(new Date(stay.checkIn), 'HH:mm')}</div>
+                        </div>
+                      )}
+                      {colId === 'checkOut' && (
+                        <div className="text-sm text-foreground">
+                          {stay.status === 'CHECKED_OUT' && stay.checkOutActual ? (
+                            <>
+                              {format(new Date(stay.checkOutActual), 'dd/MM/yyyy')}
+                              <div className="text-xs text-foreground-muted">Ra: {format(new Date(stay.checkOutActual), 'HH:mm')}</div>
+                            </>
+                          ) : stay.estimatedCheckOut ? (
+                            <>
+                              {format(new Date(stay.estimatedCheckOut), 'dd/MM/yyyy')}
+                              <div className="text-xs text-foreground-muted">Dự kiến: {format(new Date(stay.estimatedCheckOut), 'HH:mm')}</div>
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </div>
+                      )}
+                      {colId === 'days' && (
+                        <div className="text-sm font-medium text-foreground">
+                          {getDaysCount(stay)} ngày
+                        </div>
+                      )}
+                      {colId === 'status' && (
+                        <div>{getStatusBadge(stay.status)}</div>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            )
+          })}
         </DataListTable>
 
         <DataListPagination
@@ -197,21 +310,16 @@ export default function StayList({
           pageSizeOptions={[10, 20, 50]}
           totalItemText={
             <p className="shrink-0 text-xs text-foreground-muted">
-              Tổng <strong className="text-foreground">{visibleStays.length}</strong> lượt lưu trú
-              {search ? <span> · tìm kiếm &quot;{search}&quot;</span> : null}
+              Tổng số <strong className="text-foreground">{visibleStays.length}</strong> lượt lưu trú
             </p>
           }
         />
-      </div>
-
+      </DataListShell>
       <StayDetailsDialog
-        cage={detailCage as any}
-        isOpen={isDetailOpen}
-        onClose={() => {
-          setIsDetailOpen(false)
-          setDetailCage(null)
-        }}
+        stay={selectedStay}
+        isOpen={!!selectedStay}
+        onClose={() => setSelectedStay(null)}
       />
-    </div>
+    </>
   )
 }

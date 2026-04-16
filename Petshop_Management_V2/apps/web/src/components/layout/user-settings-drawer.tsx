@@ -34,7 +34,6 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
             className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50"
           />
 
@@ -53,7 +52,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                 <Settings className="w-5 h-5" />
                 <h2 className="font-semibold text-lg text-foreground-base">Cài đặt tài khoản</h2>
               </div>
-              <button 
+              <button
                 onClick={onClose}
                 className="p-1.5 rounded-full hover:bg-white/10 text-foreground-muted transition-colors"
               >
@@ -76,7 +75,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                   <p className="text-sm text-foreground-muted truncate">@{user.username}</p>
                   <p className="text-xs text-primary-400 mt-0.5">{currentBranch?.name || 'Chưa chọn nhánh'}</p>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     onClose()
                     window.location.href = `/staff/${user.username}`

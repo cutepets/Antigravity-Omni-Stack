@@ -265,7 +265,9 @@ function PosPageContent() {
   const router = useRouter()
   const queryClient = useQueryClient();
   const [showHotelCheckout, setShowHotelCheckout] = useState(false);
+  const [selectedHotelPetId, setSelectedHotelPetId] = useState<string | undefined>();
   const [noteEditingId, setNoteEditingId] = useState<string | null>(null);
+  const [discountEditingId, setDiscountEditingId] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showQrPaymentModal, setShowQrPaymentModal] = useState(false);
@@ -276,6 +278,7 @@ function PosPageContent() {
 
   // Realtime input fields for customer cash
   const [customerMoneyInput, setCustomerMoneyInput] = useState<string>('');
+  const [selectedRowIndex, setSelectedRowIndex] = useState<number>(-1);
   const paymentMenuRef = useRef<HTMLDivElement | null>(null);
   const autoCashSeedRef = useRef<number | null>(null);
   const handledQrPaidCodeRef = useRef<string | null>(null);
@@ -411,6 +414,9 @@ function PosPageContent() {
   const guestMoney = currentSinglePaymentType === 'CASH' ? currentSinglePaymentAmount : cartTotal;
   const returnMoney = currentSinglePaymentType === 'CASH' && guestMoney > cartTotal ? guestMoney - cartTotal : 0;
   const multiPaymentTotal = tabPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const hasServiceItems = activeTab?.cart.some((item) =>
+    item.type === 'service' || item.type === 'hotel' || item.type === 'grooming' || item.groomingDetails || item.hotelDetails,
+  ) || false;
   const quickCashSuggestions = useMemo(
     () => buildQuickCashSuggestions(cartTotal),
     [cartTotal],
@@ -450,19 +456,19 @@ function PosPageContent() {
       const isGrooming = isGroomingService(item);
 
       if (isHotel) {
-        store.addItem(buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id));
+        store.addItem(buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id ?? activeTab.activePetIds?.[0]));
         toast.success('Đã thêm dịch vụ vào giỏ');
         return;
       }
 
       if (isGrooming) {
-        store.addItem(buildGroomingCartItem(item, item.petId ?? item.petSnapshot?.id));
+        store.addItem(buildGroomingCartItem(item, item.petId ?? item.petSnapshot?.id ?? activeTab.activePetIds?.[0]));
         toast.success('Đã thêm dịch vụ vào giỏ');
         return;
       }
 
       if (isCatalogService(item)) {
-        store.addItem(buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id));
+        store.addItem(buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id ?? activeTab.activePetIds?.[0]));
         toast.success('Đã thêm dịch vụ vào giỏ');
         return;
       }
@@ -493,16 +499,21 @@ function PosPageContent() {
         branchStocks: item.branchStocks,
       });
     },
-    [store],
+    [store, activeTab?.activePetIds],
   );
 
   // â”€â”€ Checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleSelectSuggestedService = useCallback(
     (service: any, petId: string, petName?: string) => {
       const cart = store.tabs.find((t) => t.id === store.activeTabId)?.cart ?? [];
-      const itemType = isHotelService(service) ? 'hotel' : 'grooming';
       const isDuplicate = cart.some(
-        (item) => item.petId === petId && (item.serviceId === service.id || item.description === service.name)
+        (item) => item.petId === petId && (
+          item.serviceId === service.id ||
+          (item.sku && service.sku && item.sku === service.sku) ||
+          item.description === service.name ||
+          (item.type === 'hotel' && service.suggestionKind === 'HOTEL') ||
+          (item.type === 'grooming' && service.suggestionKind === 'SPA')
+        )
       );
       if (isDuplicate) {
         toast.warning(`Dịch vụ "${service.name}" đã có trong giỏ hàng.`);
@@ -513,7 +524,7 @@ function PosPageContent() {
         const item = buildDirectServiceCartItem(service, petId);
         if (petName) item.itemNotes = `Thú cưng: ${petName}`;
         store.addItem(item);
-        toast.success('Đã thêm dịch vụ vào giỏ');
+        toast.success('Đã thêm dịch vụ lưu chuồng vào giỏ');
         return;
       }
 
@@ -576,6 +587,7 @@ function PosPageContent() {
           id: ci.orderItemId,
           productId: ci.productId,
           productVariantId: ci.productVariantId,
+          sku: ci.sku,
           serviceId: ci.serviceId && ci.serviceId !== 'EXTERNAL' ? ci.serviceId : undefined,
           serviceVariantId: ci.serviceVariantId,
           petId: ci.petId,
@@ -687,6 +699,48 @@ function PosPageContent() {
     ],
   );
 
+  const handleCreateServiceFlow = useCallback(async () => {
+    if (!activeTab || activeTab.cart.length === 0) return;
+    const newTab = window.open('about:blank', '_blank');
+    if (!newTab) {
+      toast.error('Trình duyệt đã chặn cửa sổ mới. Vui lòng cho phép popup.');
+      return;
+    }
+
+    const payload = buildCheckoutPayload(undefined, undefined);
+    if (!payload) {
+      newTab.close();
+      return;
+    }
+
+    try {
+      let orderResult: any;
+      if (activeTab.linkedOrderId) {
+        orderResult = await orderApi.update(activeTab.linkedOrderId, payload);
+      } else {
+        orderResult = await createOrder.mutateAsync(payload);
+      }
+      if (orderResult?.id) {
+        store.setReceiptData({
+          ...payload,
+          id: orderResult.id,
+          code: orderResult.orderNumber || `ORD-${Math.floor(Math.random() * 10000)}`,
+          total: orderResult.total ?? cartTotal,
+          paidAmount: orderResult.paidAmount ?? orderResult.amountPaid ?? 0,
+        });
+        store.closeTab(activeTab.id);
+        newTab.location.href = `/orders/${orderResult.id}`;
+      } else {
+        newTab.close();
+        toast.error('Có lỗi khi tạo đơn');
+      }
+    } catch (e: any) {
+      newTab.close();
+      toast.error(e?.response?.data?.message || e?.message || 'Có lỗi khi tạo đơn');
+    }
+  }, [activeTab, buildCheckoutPayload, createOrder, store, cartTotal]);
+
+
   const handleCheckout = useCallback(
     async (paymentMethod: string, overrideNote?: string) => {
       if (!activeTab || activeTab.cart.length === 0) return;
@@ -754,9 +808,7 @@ function PosPageContent() {
       const payload = buildCheckoutPayload(checkoutPayments, overrideNote);
       if (!payload) return;
 
-      const hasServiceItems = activeTab.cart.some((item) =>
-        item.type === 'service' || item.type === 'hotel' || item.type === 'grooming' || item.groomingDetails || item.hotelDetails,
-      );
+
 
       let orderResult: any;
 
@@ -830,37 +882,87 @@ function PosPageContent() {
       preferredPaymentMethod,
       router,
       store,
+      hasServiceItems,
     ],
   );
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
+
+      // Cho phép F-keys ngay cả khi đang focus
       if (e.key === 'F2') {
         e.preventDefault();
         store.addTab();
+        return;
       }
-
       if (e.key === 'F8') {
         e.preventDefault();
         document.getElementById('customer_money_input')?.focus();
+        return;
       }
-
       if (e.key === 'F9') {
         e.preventDefault();
-        const method = activeTab?.payments?.[0]?.method ?? preferredPaymentMethod?.type ?? 'CASH';
-        handleCheckout(method);
+        if (hasServiceItems) {
+          handleCreateServiceFlow();
+        } else {
+          const method = activeTab?.payments?.[0]?.method ?? preferredPaymentMethod?.type ?? 'CASH';
+          handleCheckout(method as string);
+        }
+        return;
+      }
+
+      const isQuantityInput = activeElement?.id?.startsWith('quantity-input-') || activeElement?.id === 'quantity-input';
+      if (isInputFocused && !isQuantityInput) return;
+      if (!activeTab || activeTab.cart.length === 0) return;
+
+      if (e.key === 'ArrowUp') {
+        if (!isInputFocused) {
+          e.preventDefault();
+          setSelectedRowIndex((prev) => {
+            const next = prev > 0 ? prev - 1 : 0;
+            const rowId = `cart-row-${activeTab.cart[next].id}`;
+            document.getElementById(rowId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            return next;
+          });
+        }
+      } else if (e.key === 'ArrowDown') {
+        if (!isInputFocused) {
+          e.preventDefault();
+          setSelectedRowIndex((prev) => {
+            const next = prev < activeTab.cart.length - 1 ? prev + 1 : activeTab.cart.length - 1;
+            const rowId = `cart-row-${activeTab.cart[next].id}`;
+            document.getElementById(rowId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            return next;
+          });
+        }
+      } else if (e.key === 'ArrowLeft') {
+        if (selectedRowIndex >= 0 && selectedRowIndex < activeTab.cart.length) {
+          e.preventDefault();
+          const item = activeTab.cart[selectedRowIndex];
+          const step = getCartQuantityStep(item);
+          store.updateQuantity(item.id, Math.max(0, (item.quantity ?? 1) - step));
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (selectedRowIndex >= 0 && selectedRowIndex < activeTab.cart.length) {
+          e.preventDefault();
+          const item = activeTab.cart[selectedRowIndex];
+          const step = getCartQuantityStep(item);
+          store.updateQuantity(item.id, (item.quantity ?? 1) + step);
+        }
       }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [activeTab, handleCheckout, preferredPaymentMethod?.type, store]);
+  }, [activeTab, handleCheckout, preferredPaymentMethod?.type, store, hasServiceItems, handleCreateServiceFlow, selectedRowIndex]);
 
   if (!activeTab) return null;
 
   return (
     <div className="flex flex-col h-screen bg-[#f0f2f5] font-sans text-gray-800 overflow-hidden">
-      {/* â•â•â• HEADER (V1 KiotViet Style) â•â•â• */}
+      {/* â• â• â•  HEADER (V1 KiotViet Style) â• â• â•  */}
       <header className="relative z-50 flex items-center justify-between px-2 lg:px-3 h-[50px] bg-[#0089A1] text-white shrink-0 gap-2">
 
         {/* Left: Search Bar & Tabs */}
@@ -1002,7 +1104,7 @@ function PosPageContent() {
         </div>
       </header>
 
-      {/* â•â•â• MAIN POS AREA â•â•â• */}
+      {/* â• â• â•  MAIN POS AREA â• â• â•  */}
       <main className="flex-1 flex flex-col lg:grid lg:grid-cols-[1fr_390px] xl:grid-cols-[1fr_420px] lg:grid-rows-[auto_1fr_auto] overflow-y-auto lg:overflow-hidden bg-[#f0f2f5] relative">
 
         {/* 3. CART VIEW (Mobile: 3rd, Desktop: Left Col, Row 1-3) */}
@@ -1043,8 +1145,13 @@ function PosPageContent() {
                 } = resolveCartItemStockState(item, activeTab.branchId);
                 const weightBandLabel = getCartItemWeightBandLabel(item);
 
+                const currentQuantity = item.quantity || 1;
+                const itemDiscountAmount = item.discountItem || 0;
+                const discountedUnitPrice = Math.max(0, (item.unitPrice || 0) - itemDiscountAmount);
+                const itemDiscountPercent = item.unitPrice && item.unitPrice > 0 ? Math.round((itemDiscountAmount / item.unitPrice) * 100) : 0;
+
                 return (
-                  <div key={item.id} className="flex flex-col border-b border-gray-100 hover:bg-primary-50/30 transition-colors group">
+                  <div key={item.id} id={`cart-row-${item.id}`} className={`flex flex-col border-b border-gray-100 hover:bg-primary-50/30 transition-colors group ${idx === selectedRowIndex ? 'bg-primary-50/30' : ''}`}>
 
                     {/* â”€â”€â”€ DESKTOP ROW â”€â”€â”€ */}
                     <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-3">
@@ -1079,12 +1186,26 @@ function PosPageContent() {
                       <div className="flex flex-col pr-2 min-w-0">
                         <div className="font-semibold text-[15px] text-gray-800 flex items-center gap-2 min-w-0" title={item.description}>
                           <span className="truncate shrink">{item.description}</span>
-                          {trueVariants.length > 0 && (
+                          {trueVariants.length > 0 && trueVariants.some((v: any) => v.name !== item.description && v.name !== `${item.description} - Default`) && (
                             <div className="relative inline-flex items-center shrink-0 group cursor-pointer -ml-1">
                               <select
-                                className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-none"
-                                value={(!isCurrentConversion && item.productVariantId) ? item.productVariantId : ''}
-                                onChange={(e) => store.updateItemVariant(item.id, e.target.value)}
+                                className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-normal"
+                                value={currentTrueVariant?.id || (!isCurrentConversion && item.productVariantId) || ''}
+                                onChange={(e) => {
+                                  const newTrueVariantId = e.target.value;
+                                  let targetVariantId = newTrueVariantId;
+                                  if (isCurrentConversion && currentTrueVariant && currentVariantObj) {
+                                    const suffix = currentVariantObj.name.substring(currentTrueVariant.name.length);
+                                    const newTrueVariant = trueVariants.find((v: any) => v.id === newTrueVariantId);
+                                    if (newTrueVariant && allConversionVariants) {
+                                      const matchingConv = allConversionVariants.find((c: any) => c.name === newTrueVariant.name + suffix);
+                                      if (matchingConv) {
+                                        targetVariantId = matchingConv.id;
+                                      }
+                                    }
+                                  }
+                                  store.updateItemVariant(item.id, targetVariantId);
+                                }}
                               >
                                 <option value="base" className="hidden">Phiên bản</option>
                                 {trueVariants.map((v: any) => (
@@ -1257,31 +1378,38 @@ function PosPageContent() {
 
                       <div className="flex items-center justify-center">
                         <div
-                          className={`flex items-center rounded overflow-hidden h-8 transition-colors ${isOverSellableQty
-                            ? 'border border-red-500 bg-red-50'
-                            : 'border border-gray-300 bg-white focus-within:border-primary-500'
+                          className={`flex items-center rounded overflow-hidden h-8 transition-colors ${item.type === 'hotel'
+                            ? 'border-gray-200 bg-gray-50'
+                            : isOverSellableQty
+                              ? 'border border-red-500 bg-red-50'
+                              : 'border border-gray-300 bg-white focus-within:border-primary-500'
                             }`}
                         >
                           <button
-                            className={`px-2 h-full transition-colors ${isOverSellableQty ? 'text-red-600 hover:bg-red-100' : 'text-gray-500 hover:bg-gray-100'
+                            className={`px-2 h-full transition-colors ${item.type === 'hotel' ? 'text-gray-400 cursor-not-allowed opacity-50' : isOverSellableQty ? 'text-red-600 hover:bg-red-100' : 'text-gray-500 hover:bg-gray-100'
                               }`}
+                            disabled={item.type === 'hotel'}
                             onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) - getCartQuantityStep(item))}
                           >
                             <Minus size={14} />
                           </button>
                           <input
+                            id={`quantity-input-${item.id}`}
                             type="text"
+                            readOnly
+                            disabled={item.type === 'hotel'}
                             value={item.quantity ?? 1}
                             onChange={(e) => {
                               const v = parseCartQuantityInput(e.target.value);
                               store.updateQuantity(item.id, Number.isNaN(v) ? getCartQuantityStep(item) : v);
                             }}
-                            className={`w-10 text-center font-bold text-[15px] outline-none border-none h-full ${isOverSellableQty ? 'bg-red-50 text-red-600' : 'bg-white text-gray-900'
+                            className={`w-10 text-center font-bold text-[15px] outline-none border-none h-full cursor-default ${item.type === 'hotel' ? 'bg-gray-50 text-gray-500' : isOverSellableQty ? 'bg-red-50 text-red-600' : 'bg-transparent text-gray-900'
                               }`}
                           />
                           <button
-                            className={`px-2 h-full transition-colors ${isOverSellableQty ? 'text-red-600 hover:bg-red-100' : 'text-gray-500 hover:bg-gray-100'
+                            className={`px-2 h-full transition-colors ${item.type === 'hotel' ? 'text-gray-400 cursor-not-allowed opacity-50' : isOverSellableQty ? 'text-red-600 hover:bg-red-100' : 'text-gray-500 hover:bg-gray-100'
                               }`}
+                            disabled={item.type === 'hotel'}
                             onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) + getCartQuantityStep(item))}
                           >
                             <Plus size={14} />
@@ -1289,20 +1417,79 @@ function PosPageContent() {
                         </div>
                       </div>
 
-                      <div className="text-right flex items-center justify-end">
-                        <input
-                          type="text"
-                          className="w-24 text-right text-[15px] font-medium text-gray-800 border-b border-dashed border-gray-300 bg-transparent outline-none focus:border-primary-500 pb-0.5"
-                          value={money(item.unitPrice)}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value.replace(/\D/g, ''));
-                            store.updateItemPrice(item.id, isNaN(val) ? 0 : val);
-                          }}
-                        />
+                      <div className="relative text-right flex items-center justify-end">
+                        {discountEditingId === item.id && (
+                          <>
+                            <div className="fixed inset-0 z-40 cursor-default" onClick={() => setDiscountEditingId(null)} />
+                            <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 w-72 z-50 p-4 animate-in fade-in zoom-in-95 duration-200 cursor-default text-left shadow-primary-500/10">
+                              <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-3">
+                                <h4 className="font-bold text-gray-800 text-[15px]">Cài đặt giá & Chiết khấu</h4>
+                                <button className="text-gray-400 hover:text-gray-600 transition-colors" onClick={() => setDiscountEditingId(null)}><X size={18} /></button>
+                              </div>
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-[13px] font-medium text-gray-600 mb-1">CK (VNĐ)</label>
+                                    <div className="relative">
+                                      <input
+                                        type="text"
+                                        className="w-full text-right text-[14px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 outline-none focus:border-amber-500 pr-6 transition-colors placeholder:text-amber-300"
+                                        placeholder="0"
+                                        value={item.discountItem ? money(item.discountItem) : ''}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value.replace(/\D/g, ''));
+                                          store.updateDiscountItem(item.id, isNaN(val) ? 0 : val);
+                                        }}
+                                      />
+                                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-amber-500 select-none">đ</span>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[13px] font-medium text-gray-600 mb-1">CK (%)</label>
+                                    <div className="relative">
+                                      <input
+                                        type="text"
+                                        className="w-full text-right text-[14px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 outline-none focus:border-amber-500 pr-6 transition-colors placeholder:text-amber-300"
+                                        placeholder="0"
+                                        value={itemDiscountAmount > 0 && item.unitPrice ? itemDiscountPercent : ''}
+                                        onChange={(e) => {
+                                          const val = parseFloat(e.target.value.replace(/[^\d.]/g, ''));
+                                          const pct = isNaN(val) ? 0 : Math.min(100, Math.max(0, val));
+                                          store.updateDiscountItem(item.id, Math.round((item.unitPrice || 0) * (pct / 100)));
+                                        }}
+                                      />
+                                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-amber-500 select-none">%</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                {(item.discountItem ?? 0) > 0 && (
+                                  <div className="pt-2 border-t border-gray-100 flex justify-between items-center text-[13px]">
+                                    <span className="text-gray-500">Giảm giá:</span>
+                                    <span className="font-bold text-amber-600">-{money(itemDiscountAmount)} ({itemDiscountPercent}%)</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        <div
+                          className="group/price relative cursor-pointer flex flex-col items-end"
+                          onClick={() => setDiscountEditingId(item.id)}
+                        >
+                          <div className="text-[15px] font-medium text-gray-800 border-b border-dashed border-gray-300 hover:border-primary-500 group-hover/price:border-primary-500 transition-colors pb-0.5">
+                            {money(discountedUnitPrice)}
+                          </div>
+                          {itemDiscountAmount > 0 && (
+                            <div className="flex items-center gap-1 mt-0.5 text-[11px] font-semibold text-amber-500 bg-amber-50 px-1 py-0.5 rounded max-w-full">
+                              <span>-{itemDiscountPercent}%</span>
+                              <span className="opacity-70">(-{money(itemDiscountAmount)})</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="text-right text-[15px] font-bold text-gray-800">
-                        {moneyRaw((item.unitPrice || 0) * (item.quantity || 1))}
+                        {moneyRaw(discountedUnitPrice * currentQuantity)}
                       </div>
                     </div>
 
@@ -1325,12 +1512,26 @@ function PosPageContent() {
                       <div className="flex-1 flex flex-col pr-8">
                         <div className="font-semibold text-[15px] text-gray-800 leading-tight mb-1 flex items-center gap-2 flex-wrap" title={item.description}>
                           <span>{item.description}</span>
-                          {trueVariants.length > 0 && (
+                          {trueVariants.length > 0 && trueVariants.some((v: any) => v.name !== item.description && v.name !== `${item.description} - Default`) && (
                             <div className="relative inline-flex items-center shrink-0 group cursor-pointer -ml-1">
                               <select
-                                className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-none"
-                                value={(!isCurrentConversion && item.productVariantId) ? item.productVariantId : ''}
-                                onChange={(e) => store.updateItemVariant(item.id, e.target.value)}
+                                className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-normal"
+                                value={currentTrueVariant?.id || (!isCurrentConversion && item.productVariantId) || ''}
+                                onChange={(e) => {
+                                  const newTrueVariantId = e.target.value;
+                                  let targetVariantId = newTrueVariantId;
+                                  if (isCurrentConversion && currentTrueVariant && currentVariantObj) {
+                                    const suffix = currentVariantObj.name.substring(currentTrueVariant.name.length);
+                                    const newTrueVariant = trueVariants.find((v: any) => v.id === newTrueVariantId);
+                                    if (newTrueVariant && allConversionVariants) {
+                                      const matchingConv = allConversionVariants.find((c: any) => c.name === newTrueVariant.name + suffix);
+                                      if (matchingConv) {
+                                        targetVariantId = matchingConv.id;
+                                      }
+                                    }
+                                  }
+                                  store.updateItemVariant(item.id, targetVariantId);
+                                }}
                               >
                                 <option value="base" className="hidden">Phiên bản</option>
                                 {trueVariants.map((v: any) => (
@@ -1370,7 +1571,69 @@ function PosPageContent() {
                           SKU: {item.sku || 'N/A'}
                           {weightBandLabel ? ` · Hạng cân: ${weightBandLabel}` : ''}
                         </div>
-                        <div className="text-[15px] font-medium text-gray-800">{moneyRaw(item.unitPrice)}</div>
+                        {discountEditingId === item.id && (
+                          <>
+                            <div className="fixed inset-0 z-40 cursor-default" onClick={() => setDiscountEditingId(null)} />
+                            <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 w-72 z-50 p-4 animate-in fade-in zoom-in-95 duration-200 cursor-default text-left shadow-primary-500/10">
+                              <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-3">
+                                <h4 className="font-bold text-gray-800 text-[15px]">Cài đặt giá & Chiết khấu</h4>
+                                <button className="text-gray-400 hover:text-gray-600 transition-colors" onClick={() => setDiscountEditingId(null)}><X size={18} /></button>
+                              </div>
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-[13px] font-medium text-gray-600 mb-1">CK (VNĐ)</label>
+                                    <div className="relative">
+                                      <input
+                                        type="text"
+                                        className="w-full text-right text-[14px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 outline-none focus:border-amber-500 pr-6 transition-colors placeholder:text-amber-300"
+                                        placeholder="0"
+                                        value={item.discountItem ? money(item.discountItem) : ''}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value.replace(/\D/g, ''));
+                                          store.updateDiscountItem(item.id, isNaN(val) ? 0 : val);
+                                        }}
+                                      />
+                                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-amber-500 select-none">đ</span>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[13px] font-medium text-gray-600 mb-1">CK (%)</label>
+                                    <div className="relative">
+                                      <input
+                                        type="text"
+                                        className="w-full text-right text-[14px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 outline-none focus:border-amber-500 pr-6 transition-colors placeholder:text-amber-300"
+                                        placeholder="0"
+                                        value={itemDiscountAmount > 0 && item.unitPrice ? itemDiscountPercent : ''}
+                                        onChange={(e) => {
+                                          const val = parseFloat(e.target.value.replace(/[^\d.]/g, ''));
+                                          const pct = isNaN(val) ? 0 : Math.min(100, Math.max(0, val));
+                                          store.updateDiscountItem(item.id, Math.round((item.unitPrice || 0) * (pct / 100)));
+                                        }}
+                                      />
+                                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-amber-500 select-none">%</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                {(item.discountItem ?? 0) > 0 && (
+                                  <div className="pt-2 border-t border-gray-100 flex justify-between items-center text-[13px]">
+                                    <span className="text-gray-500">Giảm giá:</span>
+                                    <span className="font-bold text-amber-600">-{money(itemDiscountAmount)} ({itemDiscountPercent}%)</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        <div className="text-[15px] font-medium text-gray-800 cursor-pointer border-b border-dashed border-gray-300 hover:border-primary-500 group-hover:border-primary-500 transition-colors w-fit pb-0.5" onClick={() => setDiscountEditingId(item.id)}>
+                          {moneyRaw(discountedUnitPrice)}
+                        </div>
+                        {itemDiscountAmount > 0 && (
+                          <div className="text-[11px] flex items-center gap-1 font-semibold text-amber-500 bg-amber-50 px-1 py-0.5 rounded w-fit mt-0.5">
+                            <span>-{itemDiscountPercent}%</span>
+                            <span className="opacity-70">(-{money(itemDiscountAmount)})</span>
+                          </div>
+                        )}
                         {item.hotelDetails && (
                           <div className="text-[10px] text-primary-600 mt-1 bg-primary-50 w-fit px-1.5 py-0.5 rounded">
                             In: {new Date(item.hotelDetails.checkIn).toLocaleDateString()}
@@ -1391,31 +1654,38 @@ function PosPageContent() {
                       {/* Quantity control */}
                       <div className="absolute bottom-2 right-2">
                         <div
-                          className={`flex items-center rounded overflow-hidden h-[32px] transition-colors ${isOverSellableQty
-                            ? 'border border-red-500 bg-red-50 text-red-600'
-                            : 'border border-gray-300 bg-white text-gray-700'
+                          className={`flex items-center rounded overflow-hidden h-[32px] transition-colors ${item.type === 'hotel'
+                            ? 'border-gray-200 bg-gray-50'
+                            : isOverSellableQty
+                              ? 'border border-red-500 bg-red-50 text-red-600'
+                              : 'border border-gray-300 bg-white text-gray-700'
                             }`}
                         >
                           <button
-                            className={`px-2.5 h-full flex items-center justify-center transition-colors ${isOverSellableQty ? 'hover:bg-red-100' : 'hover:bg-gray-100'
+                            className={`px-2.5 h-full flex items-center justify-center transition-colors ${item.type === 'hotel' ? 'text-gray-400 cursor-not-allowed opacity-50' : isOverSellableQty ? 'hover:bg-red-100' : 'hover:bg-gray-100'
                               }`}
+                            disabled={item.type === 'hotel'}
                             onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) - getCartQuantityStep(item))}
                           >
                             <Minus size={16} />
                           </button>
                           <input
+                            id={`quantity-input-mobile-${item.id}`}
                             type="text"
+                            readOnly
+                            disabled={item.type === 'hotel'}
                             value={item.quantity ?? 1}
                             onChange={(e) => {
                               const v = parseCartQuantityInput(e.target.value);
                               store.updateQuantity(item.id, Number.isNaN(v) ? getCartQuantityStep(item) : v);
                             }}
-                            className={`w-10 text-center font-bold text-[14px] outline-none border-none h-full ${isOverSellableQty ? 'bg-red-50 text-red-600' : 'bg-transparent text-gray-700'
+                            className={`w-10 text-center font-bold text-[14px] outline-none border-none h-full cursor-default ${item.type === 'hotel' ? 'bg-gray-50 text-gray-500' : isOverSellableQty ? 'bg-red-50 text-red-600' : 'bg-transparent text-gray-700'
                               }`}
                           />
                           <button
-                            className={`px-2.5 h-full flex items-center justify-center transition-colors ${isOverSellableQty ? 'hover:bg-red-100' : 'hover:bg-gray-100'
+                            className={`px-2.5 h-full flex items-center justify-center transition-colors ${item.type === 'hotel' ? 'text-gray-400 cursor-not-allowed opacity-50' : isOverSellableQty ? 'hover:bg-red-100' : 'hover:bg-gray-100'
                               }`}
+                            disabled={item.type === 'hotel'}
                             onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) + getCartQuantityStep(item))}
                           >
                             <Plus size={16} />
@@ -1482,12 +1752,25 @@ function PosPageContent() {
 
           <div className="mt-auto flex flex-col gap-4">
             <div className="flex justify-between items-center py-1">
-              <span className="text-[15px] font-medium text-gray-600">Tổng ({cartCount} SP)</span>
-              <span className="text-[15px] font-bold">{moneyRaw(baseOrderTotal)}</span>
+              <span className="text-[15px] font-medium text-gray-600">Tổng tiền ({cartCount} SP)</span>
+              <span className="text-[15px] font-bold">{moneyRaw(activeTab.cart.reduce((sum, item) => sum + (item.unitPrice || 0) * (item.quantity || 1), 0))}</span>
             </div>
 
+            {(() => {
+              const totalItemDiscount = activeTab.cart.reduce((sum, item) => sum + ((item.discountItem || 0) * (item.quantity || 1)), 0);
+              if (totalItemDiscount > 0) {
+                return (
+                  <div className="flex justify-between items-center py-1 text-[15px] text-amber-600">
+                    <span>Chiết khấu SP</span>
+                    <span className="font-semibold">-{moneyRaw(totalItemDiscount)}</span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             <div className="flex justify-between items-center py-1 border-b border-dashed border-gray-300 pb-3">
-              <span className="text-[15px] text-primary-600 cursor-pointer hover:underline decoration-dashed decoration-primary-400 underline-offset-4">Chiết khấu (F6)</span>
+              <span className="text-[15px] text-primary-600 cursor-pointer hover:underline decoration-dashed decoration-primary-400 underline-offset-4">Chiết khấu đơn (F6)</span>
               <div className="flex items-center">
                 <input
                   className="w-24 text-right text-[15px] border-b border-gray-300 outline-none focus:border-primary-500 pb-0.5"
@@ -1500,12 +1783,11 @@ function PosPageContent() {
               </div>
             </div>
 
-            {roundingDiscountTotal > 0 ? (
-              <div className="flex justify-between items-center py-1 text-[15px] text-amber-600">
-                <span>Làm tròn xuống</span>
-                <span className="font-semibold">-{moneyRaw(roundingDiscountTotal)}</span>
-              </div>
-            ) : null}
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-[15px] font-medium text-gray-600">VAT (0%)</span>
+              <span className="text-[15px] font-semibold text-gray-800">0</span>
+            </div>
 
             <div className="flex justify-between items-center py-1">
               <span className="text-[14px] sm:text-[15px] font-bold text-gray-800">KHÁCH PHẢI TRẢ</span>
@@ -1658,7 +1940,7 @@ function PosPageContent() {
 
             <div className="flex justify-between items-center py-1">
               <span className="text-[15px] text-gray-500">
-                {isMultiPaymentSummary ? 'Trạng thái thanh toán' : 'Tiền thừa trả khách'}
+                {isMultiPaymentSummary ? 'Trạng thái thanh toán' : 'Tiền thừa'}
               </span>
               <span className={`text-[15px] font-bold ${isMultiPaymentSummary
                 ? multiPaymentTotal >= cartTotal
@@ -1695,25 +1977,35 @@ function PosPageContent() {
           <button
             className={`w-full py-4 text-white text-lg font-bold rounded-lg uppercase shadow-lg transition-transform active:scale-[0.98] ${cartCount > 0 ? 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/30' : 'bg-gray-400 cursor-not-allowed shadow-none'}`}
             onClick={() => {
-              const method = activeTab.payments && activeTab.payments.length > 0 ? activeTab.payments[0].method : preferredPaymentMethod?.type ?? 'CASH';
-              handleCheckout(method as string);
+              if (hasServiceItems) {
+                handleCreateServiceFlow();
+              } else {
+                const method = activeTab.payments && activeTab.payments.length > 0 ? activeTab.payments[0].method : preferredPaymentMethod?.type ?? 'CASH';
+                handleCheckout(method as string);
+              }
             }}
             disabled={cartCount === 0 || isQrIntentPending}
           >
-            Thanh Toán (F9)
+            {hasServiceItems ? 'Tạo Dịch Vụ (F9)' : 'Thanh Toán (F9)'}
           </button>
         </div>
 
       </main >
 
-      {/* â•â•â• MODALS â•â•â• */}
+      {/* â• â• â•  MODALS â• â• â•  */}
       <HotelCheckoutModal
         isOpen={showHotelCheckout}
-        onClose={() => setShowHotelCheckout(false)}
-        customerId={activeTab?.customerId}
-        onConfirm={(checkoutInfo) => {
-          store.addItem(checkoutInfo);
+        onClose={() => {
           setShowHotelCheckout(false);
+          setSelectedHotelPetId(undefined);
+        }}
+        customerId={activeTab?.customerId}
+        initialSelectedPet={selectedHotelPetId}
+        onConfirm={(details) => {
+          store.addItem(details);
+          setShowHotelCheckout(false);
+          setSelectedHotelPetId(undefined);
+          toast.success('Đã chọn checkout lưu chuồng');
         }}
       />
 

@@ -32,10 +32,10 @@ const money = (value: number) => new Intl.NumberFormat('vi-VN').format(value) + 
 const fmtDate = (value?: string | null) =>
   value
     ? new Date(value).toLocaleDateString('vi-VN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      })
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
     : 'Chưa có';
 
 const getAgeLabel = (dateOfBirth?: string | null) => {
@@ -150,7 +150,13 @@ export function UnifiedPetProfile({
 
   const isInCart = (service: any) =>
     cartItems.some(
-      (item) => item.petId === petId && (item.serviceId === service.id || item.description === service.name)
+      (item) => item.petId === petId && (
+        item.serviceId === service.id ||
+        (item.sku && service.sku && item.sku === service.sku) ||
+        item.description === service.name ||
+        (item.type === 'hotel' && service.suggestionKind === 'HOTEL') ||
+        (item.type === 'grooming' && service.suggestionKind === 'SPA')
+      )
     );
 
   const pet = petQuery.data as any;
@@ -215,13 +221,13 @@ export function UnifiedPetProfile({
 
   const handleAddUpdate = async () => {
     if (!updateWeightValue && !updateNote) return;
-    
+
     // Default to current weight if only note is provided
     const weightToSave = updateWeightValue ? Number(updateWeightValue) : (pet?.weight || 0.1);
-    
+
     try {
       setIsSavingWeight(true);
-      await petApi.addWeightLog(pet.id, { 
+      await petApi.addWeightLog(pet.id, {
         weight: weightToSave,
         notes: updateNote
       });
@@ -287,10 +293,10 @@ export function UnifiedPetProfile({
 
         {petQuery.isLoading ? (
           <div className="flex min-h-[400px] items-center justify-center text-foreground-muted">
-             <div className="flex flex-col items-center gap-3">
-                <PawPrint size={30} className="animate-pulse opacity-50" />
-                <span>Đang tải hồ sơ pet...</span>
-             </div>
+            <div className="flex flex-col items-center gap-3">
+              <PawPrint size={30} className="animate-pulse opacity-50" />
+              <span>Đang tải hồ sơ pet...</span>
+            </div>
           </div>
         ) : petQuery.isError || !pet ? (
           <div className="flex min-h-[400px] flex-col items-center justify-center gap-3 text-foreground-muted">
@@ -408,7 +414,7 @@ export function UnifiedPetProfile({
                           ) : (
                             <div className="flex items-center gap-1.5 w-full">
                               <span className="truncate">{hasWeight ? `${pet.weight} kg` : 'Chưa cân lần nào'}</span>
-                              <button 
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   setWeightValue(hasWeight ? String(pet.weight) : '')
@@ -456,11 +462,10 @@ export function UnifiedPetProfile({
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors ${
-                      active
-                        ? 'border-primary-500 text-primary-500'
-                        : 'border-transparent text-foreground-muted hover:text-foreground'
-                    }`}
+                    className={`flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors ${active
+                      ? 'border-primary-500 text-primary-500'
+                      : 'border-transparent text-foreground-muted hover:text-foreground'
+                      }`}
                   >
                     <Icon size={16} />
                     {tab.label} ({tab.count})
@@ -521,7 +526,7 @@ export function UnifiedPetProfile({
                   )}
 
                   <div className="grid gap-3 xl:grid-cols-2">
-                    {suggestedServices.map((service : any) => (
+                    {suggestedServices.map((service: any) => (
                       <div
                         key={service.id}
                         onClick={() => !isInCart(service) && onSelectService?.(service, pet.id, pet.name)}
@@ -535,17 +540,16 @@ export function UnifiedPetProfile({
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex min-h-[50px] flex-col justify-between">
                             <span
-                              className={`inline-flex w-fit rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                                service.suggestionKind === 'HOTEL'
-                                  ? 'bg-primary-500/10 text-primary-500'
-                                  : service.suggestionKind === 'SPA'
-                                    ? 'bg-pink-500/10 text-pink-500'
-                                    : 'bg-warning/10 text-warning'
-                              }`}
+                              className={`inline-flex w-fit rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${service.suggestionKind === 'HOTEL'
+                                ? 'bg-primary-500/10 text-primary-500'
+                                : service.suggestionKind === 'SPA'
+                                  ? 'bg-pink-500/10 text-pink-500'
+                                  : 'bg-warning/10 text-warning'
+                                }`}
                             >
                               {service.suggestionKind}
                             </span>
-                            
+
                             <div className="mt-4 flex flex-wrap items-center gap-1.5">
                               <h3 className={`truncate text-[15px] font-bold text-foreground transition-colors ${onSelectService ? 'group-hover:text-primary-500' : ''}`}>
                                 {service.name}
@@ -574,7 +578,7 @@ export function UnifiedPetProfile({
               ) : null}
 
               {activeTab === 'vaccines' ? (
-                 <div className="space-y-4">
+                <div className="space-y-4">
                   <div className="flex justify-between items-center bg-background-secondary p-3 rounded-xl border border-border">
                     <div>
                       <h3 className="font-semibold text-sm">Lịch sử tiêm phòng & tẩy giun</h3>
@@ -634,7 +638,7 @@ export function UnifiedPetProfile({
                       <button onClick={() => setVacModalOpen(true)} className="text-primary-500 font-medium hover:underline text-sm">Thêm mũi tiêm đầu tiên</button>
                     </div>
                   )}
-                 </div>
+                </div>
               ) : null}
 
               {activeTab === 'services' ? (
@@ -646,11 +650,10 @@ export function UnifiedPetProfile({
                         className="flex items-start gap-4 rounded-xl border border-border bg-background-secondary p-4"
                       >
                         <div
-                          className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                            entry.type === 'HOTEL'
-                              ? 'bg-primary-500/10 text-primary-500'
-                              : 'bg-pink-500/10 text-pink-500'
-                          }`}
+                          className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${entry.type === 'HOTEL'
+                            ? 'bg-primary-500/10 text-primary-500'
+                            : 'bg-pink-500/10 text-pink-500'
+                            }`}
                         >
                           {entry.type === 'HOTEL' ? <Hotel size={16} /> : <Scissors size={16} />}
                         </div>
@@ -692,11 +695,11 @@ export function UnifiedPetProfile({
                       <p className="mt-1 text-lg font-semibold text-foreground">{fmtDate(pet.updatedAt)}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center justify-between mt-6 mb-2">
                     <h3 className="font-semibold text-sm">Lịch sử thay đổi</h3>
                     {!isAddingUpdate && (
-                      <button 
+                      <button
                         onClick={() => {
                           setUpdateWeightValue(pet?.weight ? String(pet.weight) : '');
                           setUpdateNote('');
@@ -714,7 +717,7 @@ export function UnifiedPetProfile({
                       <div className="flex gap-2 mb-3">
                         <div className="w-24 shrink-0">
                           <label className="text-[10px] font-bold uppercase text-foreground-muted mb-1 block">Cân nặng (kg)</label>
-                          <input 
+                          <input
                             type="number"
                             value={updateWeightValue}
                             onChange={(e) => setUpdateWeightValue(e.target.value)}
@@ -725,7 +728,7 @@ export function UnifiedPetProfile({
                         </div>
                         <div className="flex-1">
                           <label className="text-[10px] font-bold uppercase text-foreground-muted mb-1 block">Nội dung thay đổi</label>
-                          <input 
+                          <input
                             type="text"
                             value={updateNote}
                             onChange={(e) => setUpdateNote(e.target.value)}
@@ -739,13 +742,13 @@ export function UnifiedPetProfile({
                         </div>
                       </div>
                       <div className="flex justify-end gap-2">
-                        <button 
+                        <button
                           onClick={() => setIsAddingUpdate(false)}
                           className="px-3 py-1.5 text-xs font-medium text-foreground-muted hover:text-foreground hover:bg-background-secondary rounded-lg transition-colors"
                         >
                           Hủy
                         </button>
-                        <button 
+                        <button
                           onClick={handleAddUpdate}
                           disabled={isSavingWeight}
                           className="bg-primary-500 hover:bg-primary-600 text-white px-3 py-1.5 text-xs font-bold rounded-lg transition-colors disabled:opacity-50"

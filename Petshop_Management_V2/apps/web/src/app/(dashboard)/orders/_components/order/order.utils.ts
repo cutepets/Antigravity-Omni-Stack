@@ -118,12 +118,12 @@ export function buildGroomingCartItem(service: any, petId?: string, petName?: st
     service?.pricingSnapshot ??
     (service?.pricingRuleId || service?.weightBandId
       ? {
-          pricingRuleId: service?.pricingRuleId,
-          packageCode,
-          weightBandId: service?.weightBandId ?? null,
-          weightBandLabel: service?.weightBandLabel ?? null,
-          price: unitPrice,
-        }
+        pricingRuleId: service?.pricingRuleId,
+        packageCode,
+        weightBandId: service?.weightBandId ?? null,
+        weightBandLabel: service?.weightBandLabel ?? null,
+        price: unitPrice,
+      }
       : undefined)
 
   return {
@@ -143,15 +143,15 @@ export function buildGroomingCartItem(service: any, petId?: string, petName?: st
     petName,
     groomingDetails: petId
       ? {
-          petId,
-          packageCode,
-          serviceItems: service?.name,
-          weightAtBooking: Number.isFinite(petWeight) ? petWeight : undefined,
-          weightBandId: service?.weightBandId,
-          weightBandLabel: service?.weightBandLabel,
-          pricingPrice: unitPrice,
-          pricingSnapshot,
-        }
+        petId,
+        packageCode,
+        serviceItems: service?.name,
+        weightAtBooking: Number.isFinite(petWeight) ? petWeight : undefined,
+        weightBandId: service?.weightBandId,
+        weightBandLabel: service?.weightBandLabel,
+        pricingPrice: unitPrice,
+        pricingSnapshot,
+      }
       : undefined,
   }
 }
@@ -211,36 +211,36 @@ export function buildDraftFromOrder(order: any): OrderDraft {
       variantName: item.variantName ?? undefined,
       hotelDetails: item.hotelDetails
         ? {
-            petId: item.hotelDetails.petId,
-            checkIn: item.hotelDetails.checkInDate,
-            checkOut: item.hotelDetails.checkOutDate,
-            stayId: item.hotelStayId,
-            lineType: item.hotelDetails.lineType ?? 'REGULAR',
-            bookingGroupKey: item.hotelDetails.bookingGroupKey,
-            chargeLineIndex: item.hotelDetails.chargeLineIndex,
-            chargeLineLabel: item.hotelDetails.chargeLineLabel,
-            chargeDayType: item.hotelDetails.chargeDayType,
-            chargeQuantityDays: item.hotelDetails.chargeQuantityDays,
-            chargeUnitPrice: item.hotelDetails.chargeUnitPrice,
-            chargeSubtotal: item.hotelDetails.chargeSubtotal,
-            chargeWeightBandId: item.hotelDetails.chargeWeightBandId ?? null,
-            chargeWeightBandLabel: item.hotelDetails.chargeWeightBandLabel ?? null,
-          }
+          petId: item.hotelDetails.petId,
+          checkIn: item.hotelDetails.checkInDate,
+          checkOut: item.hotelDetails.checkOutDate,
+          stayId: item.hotelStayId,
+          lineType: item.hotelDetails.lineType ?? 'REGULAR',
+          bookingGroupKey: item.hotelDetails.bookingGroupKey,
+          chargeLineIndex: item.hotelDetails.chargeLineIndex,
+          chargeLineLabel: item.hotelDetails.chargeLineLabel,
+          chargeDayType: item.hotelDetails.chargeDayType,
+          chargeQuantityDays: item.hotelDetails.chargeQuantityDays,
+          chargeUnitPrice: item.hotelDetails.chargeUnitPrice,
+          chargeSubtotal: item.hotelDetails.chargeSubtotal,
+          chargeWeightBandId: item.hotelDetails.chargeWeightBandId ?? null,
+          chargeWeightBandLabel: item.hotelDetails.chargeWeightBandLabel ?? null,
+        }
         : undefined,
       groomingDetails: item.groomingDetails
         ? {
-            petId: item.groomingDetails.petId,
-            performerId: item.groomingDetails.performerId,
-            startTime: item.groomingDetails.startTime,
-            notes: item.groomingDetails.notes,
-            serviceItems: item.groomingDetails.serviceItems,
-            packageCode: item.groomingDetails.packageCode,
-            weightAtBooking: item.groomingDetails.weightAtBooking,
-            weightBandId: item.groomingDetails.weightBandId,
-            weightBandLabel: item.groomingDetails.weightBandLabel,
-            pricingPrice: item.groomingDetails.pricingPrice,
-            pricingSnapshot: item.groomingDetails.pricingSnapshot,
-          }
+          petId: item.groomingDetails.petId,
+          performerId: item.groomingDetails.performerId,
+          startTime: item.groomingDetails.startTime,
+          notes: item.groomingDetails.notes,
+          serviceItems: item.groomingDetails.serviceItems,
+          packageCode: item.groomingDetails.packageCode,
+          weightAtBooking: item.groomingDetails.weightAtBooking,
+          weightBandId: item.groomingDetails.weightBandId,
+          weightBandLabel: item.groomingDetails.weightBandLabel,
+          pricingPrice: item.groomingDetails.pricingPrice,
+          pricingSnapshot: item.groomingDetails.pricingSnapshot,
+        }
         : undefined,
     })),
   }
@@ -255,6 +255,7 @@ export function buildOrderPayload(draft: OrderDraft): CreateOrderPayload | Updat
       id: (item as any).orderItemId,
       productId: item.productId,
       productVariantId: item.productVariantId,
+      sku: item.sku,
       serviceId: item.serviceId,
       serviceVariantId: item.serviceVariantId,
       petId: item.petId,
@@ -266,36 +267,36 @@ export function buildOrderPayload(draft: OrderDraft): CreateOrderPayload | Updat
       type: item.type,
       groomingDetails: item.groomingDetails
         ? {
-            petId: item.groomingDetails.petId,
-            performerId: item.groomingDetails.performerId,
-            startTime: item.groomingDetails.startTime,
-            notes: item.groomingDetails.notes,
-            serviceItems: item.groomingDetails.serviceItems,
-            packageCode: item.groomingDetails.packageCode,
-            weightAtBooking: item.groomingDetails.weightAtBooking,
-            weightBandId: item.groomingDetails.weightBandId,
-            weightBandLabel: item.groomingDetails.weightBandLabel,
-            pricingPrice: item.groomingDetails.pricingPrice,
-            pricingSnapshot: item.groomingDetails.pricingSnapshot,
-          }
+          petId: item.groomingDetails.petId,
+          performerId: item.groomingDetails.performerId,
+          startTime: item.groomingDetails.startTime,
+          notes: item.groomingDetails.notes,
+          serviceItems: item.groomingDetails.serviceItems,
+          packageCode: item.groomingDetails.packageCode,
+          weightAtBooking: item.groomingDetails.weightAtBooking,
+          weightBandId: item.groomingDetails.weightBandId,
+          weightBandLabel: item.groomingDetails.weightBandLabel,
+          pricingPrice: item.groomingDetails.pricingPrice,
+          pricingSnapshot: item.groomingDetails.pricingSnapshot,
+        }
         : undefined,
       hotelDetails: item.hotelDetails
         ? {
-            petId: item.hotelDetails.petId,
-            checkInDate: item.hotelDetails.checkIn,
-            checkOutDate: item.hotelDetails.checkOut,
-            branchId: draft.branchId,
-            lineType: item.hotelDetails.lineType,
-            bookingGroupKey: item.hotelDetails.bookingGroupKey,
-            chargeLineIndex: item.hotelDetails.chargeLineIndex,
-            chargeLineLabel: item.hotelDetails.chargeLineLabel,
-            chargeDayType: item.hotelDetails.chargeDayType,
-            chargeQuantityDays: item.hotelDetails.chargeQuantityDays,
-            chargeUnitPrice: item.hotelDetails.chargeUnitPrice,
-            chargeSubtotal: item.hotelDetails.chargeSubtotal,
-            chargeWeightBandId: item.hotelDetails.chargeWeightBandId ?? undefined,
-            chargeWeightBandLabel: item.hotelDetails.chargeWeightBandLabel ?? undefined,
-          }
+          petId: item.hotelDetails.petId,
+          checkInDate: item.hotelDetails.checkIn,
+          checkOutDate: item.hotelDetails.checkOut,
+          branchId: draft.branchId,
+          lineType: item.hotelDetails.lineType,
+          bookingGroupKey: item.hotelDetails.bookingGroupKey,
+          chargeLineIndex: item.hotelDetails.chargeLineIndex,
+          chargeLineLabel: item.hotelDetails.chargeLineLabel,
+          chargeDayType: item.hotelDetails.chargeDayType,
+          chargeQuantityDays: item.hotelDetails.chargeQuantityDays,
+          chargeUnitPrice: item.hotelDetails.chargeUnitPrice,
+          chargeSubtotal: item.hotelDetails.chargeSubtotal,
+          chargeWeightBandId: item.hotelDetails.chargeWeightBandId ?? undefined,
+          chargeWeightBandLabel: item.hotelDetails.chargeWeightBandLabel ?? undefined,
+        }
         : undefined,
     })),
     discount: Number(draft.discount) || 0,
@@ -315,8 +316,8 @@ export function canApproveCurrentOrder(order: any, canApproveOrder: boolean) {
 export function canExportCurrentOrder(order: any, canExportStock: boolean) {
   return Boolean(
     canExportStock &&
-      ['CONFIRMED', 'PROCESSING'].includes(order?.status ?? '') &&
-      !order?.stockExportedAt,
+    ['CONFIRMED', 'PROCESSING'].includes(order?.status ?? '') &&
+    !order?.stockExportedAt,
   )
 }
 
@@ -327,10 +328,10 @@ export function canSettleCurrentOrder(
 ) {
   return Boolean(
     canSettleOrder &&
-      order?.status === 'PROCESSING' &&
-      Boolean(order?.stockExportedAt) &&
-      ['PAID', 'COMPLETED'].includes(order?.paymentStatus ?? '') &&
-      hasServiceItems,
+    order?.status === 'PROCESSING' &&
+    Boolean(order?.stockExportedAt) &&
+    ['PAID', 'COMPLETED'].includes(order?.paymentStatus ?? '') &&
+    hasServiceItems,
   )
 }
 

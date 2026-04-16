@@ -160,10 +160,10 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" />
 
       <div className="card p-0 relative w-full flex flex-col max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
-        
+
         {/* Header */}
         <div className="px-6 py-5 border-b border-border bg-background-tertiary flex items-center justify-between shrink-0">
           <div>
@@ -185,7 +185,7 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
         {/* Body (scrollable) */}
         <form id="customer-form" onSubmit={handleSubmit(onSubmit)} className="p-6 overflow-y-auto flex-1 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            
+
             {/* Tên khách hàng */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-foreground mb-1.5">Họ và tên <span className="text-error">*</span></label>
@@ -205,8 +205,8 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
               <label className="block text-sm font-medium text-foreground mb-1.5">Số điện thoại <span className="text-error">*</span></label>
               <div className="relative">
                 <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><Phone size={18} /></div>
-                <input 
-                  {...register('phone')} 
+                <input
+                  {...register('phone')}
                   placeholder="0987654321"
                   className={`form-input pl-10 ${errors.phone ? 'border-error focus:ring-error/20' : ''}`}
                 />
@@ -219,8 +219,8 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
               <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
               <div className="relative">
                 <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><Mail size={18} /></div>
-                <input 
-                  {...register('email')} 
+                <input
+                  {...register('email')}
                   placeholder="example@mail.com"
                   className="form-input pl-10"
                 />
@@ -232,8 +232,8 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
               <label className="block text-sm font-medium text-foreground mb-1.5">Địa chỉ</label>
               <div className="relative">
                 <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><MapPin size={18} /></div>
-                <input 
-                  {...register('address')} 
+                <input
+                  {...register('address')}
                   placeholder="Số nhà, đường, phường..."
                   className="form-input pl-10"
                 />
@@ -245,9 +245,9 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
               <label className="block text-sm font-medium text-foreground mb-1.5">Ghi chú</label>
               <div className="relative">
                 <div className="absolute top-3 left-3 text-foreground-muted"><AlignLeft size={18} /></div>
-                <textarea 
-                  {...register('notes')} 
-                  placeholder="Ghi chú sở thích, đặc điểm..." 
+                <textarea
+                  {...register('notes')}
+                  placeholder="Ghi chú sở thích, đặc điểm..."
                   rows={2}
                   className="form-input pl-10 py-3 block w-full resize-none"
                 />
@@ -299,15 +299,15 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
 
           {showAdvanced && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-background-secondary rounded-xl border border-border animate-in fade-in slide-in-from-top-2">
-              
+
               {/* Mô tả nội bộ */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-foreground mb-1.5">Mô tả nội bộ</label>
                 <div className="relative">
                   <div className="absolute top-3 left-3 text-foreground-muted"><AlignLeft size={18} /></div>
-                  <textarea 
-                    {...register('description')} 
-                    placeholder="Ghi chú nội bộ về khách hàng..." 
+                  <textarea
+                    {...register('description')}
+                    placeholder="Ghi chú nội bộ về khách hàng..."
                     rows={2}
                     className="form-input pl-10 py-3 block w-full resize-none"
                   />
