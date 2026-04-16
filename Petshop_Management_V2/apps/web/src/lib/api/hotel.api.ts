@@ -98,6 +98,7 @@ export interface HotelStay {
   accessories?: string | null
   pet?: {
     id: string
+    petCode?: string | null
     name: string
     breed?: string | null
     species?: string | null

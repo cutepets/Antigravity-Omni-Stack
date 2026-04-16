@@ -5,6 +5,7 @@ import * as Tabs from '@radix-ui/react-tabs'
 import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
+import { Tag, UserRound } from 'lucide-react'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { hotelApi, Cage, HotelStay } from '@/lib/api/hotel.api'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
@@ -185,7 +186,7 @@ export default function StayDetailsDialog({
                 <Dialog.Title className="text-lg font-semibold leading-none tracking-tight text-foreground">
                   Chi tiết lưu trú
                 </Dialog.Title>
-                <Dialog.Description className="mt-1 text-sm text-foreground-muted">
+                <Dialog.Description className="sr-only">
                   Thông tin lưu trú, bảng tính giá và liên kết POS của thú cưng.
                 </Dialog.Description>
               </div>
@@ -194,13 +195,13 @@ export default function StayDetailsDialog({
                   value="info"
                   className="rounded-lg px-3 py-1.5 text-sm font-medium text-foreground-muted transition-all duration-150 hover:text-foreground data-[state=active]:bg-background-base data-[state=active]:text-primary-600 data-[state=active]:shadow-sm outline-none"
                 >
-                  Thông tin cơ bản
+                  Thông tin
                 </Tabs.Trigger>
                 <Tabs.Trigger
                   value="history"
                   className="rounded-lg px-3 py-1.5 text-sm font-medium text-foreground-muted transition-all duration-150 hover:text-foreground data-[state=active]:bg-background-base data-[state=active]:text-primary-600 data-[state=active]:shadow-sm outline-none"
                 >
-                  Lịch sử thao tác
+                  Lịch sử
                 </Tabs.Trigger>
               </Tabs.List>
             </div>
@@ -214,6 +215,54 @@ export default function StayDetailsDialog({
                 </div>
               ) : (
                 <div className="space-y-4 py-2">
+                  <div className="grid gap-3 sm:grid-cols-2 mb-4">
+                    <div className="rounded-2xl border border-border bg-card/80 p-4 relative group">
+                      <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                        <span className="flex items-center gap-2"><UserRound size={14} /> Khách hàng</span>
+                        {(currentStay.customerId || currentStay.pet?.customer?.id) && (
+                          <Link href={`/customers/${currentStay.customerId || currentStay.pet?.customer?.id}`} target="_blank" className="hover:text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            Chi tiết
+                          </Link>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {currentStay.customer?.fullName || currentStay.pet?.customer?.fullName || "Khách lẻ (Khách vãng lai)"}
+                      </p>
+                      <p className="mt-1 text-sm text-foreground-muted">
+                        {currentStay.customer?.phone || currentStay.pet?.customer?.phone || "Không có SĐT"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-card/80 p-4 relative group">
+                      <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                        <span className="flex items-center gap-2"><Tag size={14} /> Thú cưng</span>
+                        {currentStay.petId && (
+                          <Link href={`/pets/${currentStay.petId}`} target="_blank" className="hover:text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            Chi tiết
+                          </Link>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {currentStay.petName || currentStay.pet?.name || '---'}
+                      </p>
+                      <div className="mt-1 flex flex-col gap-1">
+                        <p className="text-xs text-foreground-muted">
+                          Mã: <span className="font-medium text-foreground">{currentStay.pet?.petCode || currentStay.pet?.id || currentStay.petId || '---'}</span>
+                        </p>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-xs text-foreground-muted">
+                            Lưu lúc: {formatDateTime(currentStay.createdAt)}
+                          </p>
+                          {currentStay.branch && (
+                            <p className="text-xs text-foreground-muted">
+                              CN: <span className="font-medium text-foreground">{currentStay.branch.name}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="rounded-md border border-border bg-background-secondary px-3 py-2">
                       <span className="mb-1 block text-xs font-medium text-foreground-muted">Mã lưu trú</span>
@@ -222,9 +271,14 @@ export default function StayDetailsDialog({
                       </span>
                     </div>
                     <div className="rounded-md border border-border bg-background-secondary px-3 py-2">
-                      <span className="mb-1 block text-xs font-medium text-foreground-muted">Thú cưng</span>
+                      <span className="mb-1 block text-xs font-medium text-foreground-muted">Dự kiến trả</span>
                       <span className="text-sm font-medium text-foreground">
-                        {currentStay.petName || currentStay.pet?.name || '---'}
+                        {currentStay.estimatedCheckOut
+                          ? format(
+                            new Date(currentStay.estimatedCheckOut),
+                            'dd/MM/yyyy HH:mm',
+                          )
+                          : '---'}
                       </span>
                     </div>
                     <div className="rounded-md border border-border bg-background-secondary px-3 py-2">
@@ -240,20 +294,17 @@ export default function StayDetailsDialog({
                     <div className="rounded-md border border-border bg-background-secondary px-3 py-2">
                       <span className="mb-1 block text-xs font-medium text-foreground-muted">Check-in lúc</span>
                       <span className="text-sm font-medium text-foreground">
-                        {format(new Date(currentStay.checkIn), 'dd/MM/yyyy HH:mm')}
+                        {currentStay.checkIn ? format(new Date(currentStay.checkIn), 'dd/MM/yyyy HH:mm') : '---'}
                       </span>
                     </div>
-                    <div className="rounded-md border border-border bg-background-secondary px-3 py-2">
-                      <span className="mb-1 block text-xs font-medium text-foreground-muted">Dự kiến trả</span>
-                      <span className="text-sm font-medium text-foreground">
-                        {currentStay.estimatedCheckOut
-                          ? format(
-                            new Date(currentStay.estimatedCheckOut),
-                            'dd/MM/yyyy HH:mm',
-                          )
-                          : '---'}
-                      </span>
-                    </div>
+                    {currentStay.checkOutActual && (
+                      <div className="rounded-md border border-border bg-background-secondary px-3 py-2">
+                        <span className="mb-1 block text-xs font-medium text-foreground-muted">Check-out lúc</span>
+                        <span className="text-sm font-medium text-foreground">
+                          {format(new Date(currentStay.checkOutActual), 'dd/MM/yyyy HH:mm')}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {chargeLines.length > 0 ? (

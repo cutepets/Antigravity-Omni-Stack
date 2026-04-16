@@ -18,6 +18,7 @@ import {
   X,
   RefreshCw,
   Coins,
+  ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -147,6 +148,9 @@ export function GroomingSessionDialog({
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
 
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [searchStaff, setSearchStaff] = useState("");
+  const [showStaffDropdown, setShowStaffDropdown] = useState(false);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
 
   const petsQuery = useQuery({
     queryKey: ["pets", "grooming-modal"],
@@ -201,6 +205,8 @@ export function GroomingSessionDialog({
   const watchPetId = watch("petId");
   const watchPackageCode = watch("packageCode");
   const watchStatus = watch("status");
+  const watchPrice = watch("price");
+  const watchSurcharge = watch("surcharge");
 
   useEffect(() => {
     if (isOpen) {
@@ -217,6 +223,7 @@ export function GroomingSessionDialog({
           packageCode: session.packageCode ?? "",
           status: session.status,
         });
+        setSelectedStaffIds(session.staffId ? [session.staffId] : []);
       } else if (mode === "create") {
         reset({
           petId: "",
@@ -230,6 +237,7 @@ export function GroomingSessionDialog({
           packageCode: "",
           status: "PENDING",
         });
+        setSelectedStaffIds([]);
       }
     }
   }, [isOpen, mode, session, reset, activeBranchId]);
@@ -264,7 +272,7 @@ export function GroomingSessionDialog({
       const payload = {
         petId: data.petId,
         branchId: data.branchId || undefined,
-        staffId: data.staffId || undefined,
+        staffId: selectedStaffIds.length > 0 ? selectedStaffIds[0] : undefined,
         startTime: data.startTime || undefined,
         endTime: data.endTime || undefined,
         notes: data.notes?.trim() || undefined,
@@ -327,6 +335,8 @@ export function GroomingSessionDialog({
   const getPetInfo = () => {
     if (mode === "detail" && session) {
       return {
+        petId: session.petId,
+        customerId: session.pet?.customerId,
         name: session.petName,
         label: session.pet?.breed || session.pet?.species || "Không rõ giống",
         code: session.pet?.petCode || session.petId,
@@ -337,6 +347,8 @@ export function GroomingSessionDialog({
     const pet = pets.find((p) => p.id === watchPetId);
     if (pet) {
       return {
+        petId: pet.id,
+        customerId: pet.customerId,
         name: pet.name,
         label: pet.breed || pet.species || "Không rõ giống",
         code: pet.petCode || pet.id,
@@ -344,7 +356,7 @@ export function GroomingSessionDialog({
         customerPhone: pet.customer?.phone || "—",
       };
     }
-    return { name: "Chọn thú cưng", label: "", code: "", customerName: "", customerPhone: "" };
+    return { petId: "", customerId: "", name: "Chọn thú cưng", label: "", code: "", customerName: "", customerPhone: "" };
   };
 
   const petInfo = getPetInfo();
@@ -353,9 +365,9 @@ export function GroomingSessionDialog({
   return (
     <>
 
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm sm:p-0">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background-backdrop/60 p-4 backdrop-blur-sm sm:p-0">
         <aside
-          className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+          className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-background-base shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
           <Tabs.Root defaultValue="info" className="flex h-full flex-col">
@@ -403,7 +415,7 @@ export function GroomingSessionDialog({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background-secondary text-foreground-muted transition-colors hover:text-foreground"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background-secondary text-foreground-muted transition-all duration-150 hover:bg-background-tertiary hover:text-foreground active:scale-95"
                 >
                   <X size={18} />
                 </button>
@@ -442,10 +454,14 @@ export function GroomingSessionDialog({
                 {(mode === "detail" || watchPetId) && (
                   <>
                     <section className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-border bg-card/80 p-4">
-                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                          <UserRound size={14} />
-                          Khách hàng
+                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group">
+                        <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                          <span className="flex items-center gap-2"><UserRound size={14} /> Khách hàng</span>
+                          {petInfo.customerId && (
+                            <Link href={`/customers/${petInfo.customerId}`} target="_blank" className="hover:text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                              Chi tiết
+                            </Link>
+                          )}
                         </div>
                         <p className="text-sm font-semibold text-foreground">
                           {petInfo.customerName}
@@ -455,10 +471,14 @@ export function GroomingSessionDialog({
                         </p>
                       </div>
 
-                      <div className="rounded-2xl border border-border bg-card/80 p-4">
-                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                          <Tag size={14} />
-                          Mã thú cưng
+                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group">
+                        <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                          <span className="flex items-center gap-2"><Tag size={14} /> Mã thú cưng</span>
+                          {petInfo.petId && (
+                            <Link href={`/pets/${petInfo.petId}`} target="_blank" className="hover:text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                              Chi tiết
+                            </Link>
+                          )}
                         </div>
                         <p className="text-sm font-semibold text-foreground">
                           {petInfo.code}
@@ -495,46 +515,39 @@ export function GroomingSessionDialog({
                         </div>
                       </div>
 
-                      <div className="grid gap-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
                         {isEditing && (
-                          <label className="space-y-2">
+                          <label className="space-y-2 col-span-1">
                             <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                               Trạng thái
                             </span>
-                            <div className="grid grid-cols-2 gap-2">
-                              {GROOMING_STATUS_ORDER.map((status) => {
-                                const meta = GROOMING_STATUS_META[status];
-                                const Icon = meta.icon;
-                                const isSelected = watchStatus === status;
-
-                                return (
-                                  <button
-                                    key={status}
-                                    type="button"
-                                    onClick={() => {
-                                      if (!canUpdateSession) return;
-                                      if (status === "CANCELLED") {
-                                        setShowCancelModal(true);
-                                      } else {
-                                        setValue("status", status, { shouldDirty: true });
-                                      }
-                                    }}
-                                    disabled={!canUpdateSession}
-                                    className={`inline-flex items-center justify-start gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${isSelected
-                                      ? `${meta.chipClassName} shadow-sm`
-                                      : "border-border bg-background-secondary text-foreground-muted hover:text-foreground"
-                                      } disabled:cursor-not-allowed disabled:opacity-50`}
-                                  >
-                                    <Icon size={14} className="shrink-0" />
-                                    <span className="truncate">{meta.label}</span>
-                                  </button>
-                                );
-                              })}
+                            <div className="relative">
+                              <select
+                                value={watchStatus}
+                                onChange={(e) => {
+                                  const status = e.target.value as any;
+                                  if (!canUpdateSession) return;
+                                  if (status === "CANCELLED") {
+                                    setShowCancelModal(true);
+                                  } else {
+                                    setValue("status", status, { shouldDirty: true });
+                                  }
+                                }}
+                                disabled={!canUpdateSession}
+                                className="h-11 w-full appearance-none rounded-xl border border-border bg-background-secondary px-3 pr-10 text-sm text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {GROOMING_STATUS_ORDER.map((s) => (
+                                  <option key={s} value={s}>{GROOMING_STATUS_META[s].label}</option>
+                                ))}
+                              </select>
+                              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-foreground-muted">
+                                <ChevronDown size={14} />
+                              </div>
                             </div>
                           </label>
                         )}
 
-                        <label className="space-y-2">
+                        <label className="space-y-2 col-span-1">
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                             Mã gói / Package
                           </span>
@@ -552,109 +565,119 @@ export function GroomingSessionDialog({
                           </select>
                         </label>
 
-                        <label className="space-y-2">
+                        <div className="space-y-2 sm:col-span-2">
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                            Nhân viên phụ trách
+                            Nhân viên phụ trách (Có thể thêm nhiều)
                           </span>
-                          <select
-                            {...register("staffId")}
-                            disabled={!canUpdateSession}
-                            className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                          >
-                            <option value="">Chưa phân công</option>
-                            {staffOptions.map((staff) => (
-                              <option key={staff.id} value={staff.id}>
-                                {staff.fullName}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="space-y-2">
-                            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                              Bắt đầu
-                            </span>
-                            <input
-                              type="datetime-local"
-                              {...register("startTime")}
-                              disabled={!canUpdateSession}
-                              className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                            />
-                          </label>
-
-                          {isEditing && (
-                            <label className="space-y-2">
-                              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                                Kết thúc
-                              </span>
-                              <input
-                                type="datetime-local"
-                                {...register("endTime")}
-                                disabled={!canUpdateSession}
-                                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                              />
-                            </label>
-                          )}
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                                <Tag size={14} /> Giá dịch vụ
-                              </span>
-                              {mode === "create" && watchPackageCode && (
-                                <button
-                                  type="button"
-                                  disabled={calculateMutation.isPending}
-                                  onClick={() => calculateMutation.mutate()}
-                                  className="text-primary-500 hover:text-primary-600 outline-none"
-                                  title="Tính lại giá"
-                                >
-                                  <RefreshCw size={14} className={calculateMutation.isPending ? "animate-spin" : ""} />
-                                </button>
-                              )}
+                          <div className="relative">
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              {selectedStaffIds.map((id) => {
+                                const st = staffOptions.find(s => s.id === id);
+                                return st ? (
+                                  <div key={id} className="flex items-center gap-1.5 rounded-full bg-primary-100 text-primary-700 px-3 py-1 text-xs font-medium dark:bg-primary-900/30 dark:text-primary-400">
+                                    <span>{st.fullName}</span>
+                                    {canUpdateSession && (
+                                      <button type="button" onClick={() => setSelectedStaffIds(prev => prev.filter(p => p !== id))} className="mt-0.5 hover:text-primary-900 dark:hover:text-primary-200 focus:outline-none">
+                                        <X size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : null;
+                              })}
                             </div>
                             <input
-                              type="number"
-                              min="0"
-                              step="1000"
-                              {...register("price")}
+                              type="text"
                               disabled={!canUpdateSession}
-                              placeholder="0"
+                              placeholder="Tìm nhân viên..."
+                              value={searchStaff}
+                              onFocus={() => setShowStaffDropdown(true)}
+                              onBlur={() => setTimeout(() => setShowStaffDropdown(false), 200)}
+                              onChange={(e) => setSearchStaff(e.target.value)}
                               className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
                             />
-                            {errors.price && <p className="text-xs text-error">{errors.price.message}</p>}
-                          </label>
-
-                          <label className="space-y-2">
-                            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                              <Coins size={14} /> Phụ phí
-                            </span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="1000"
-                              {...register("surcharge")}
-                              disabled={!canUpdateSession}
-                              placeholder="Ví dụ: Phí hung dữ, phí gỡ rối..."
-                              className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                            />
-                            {errors.surcharge && <p className="text-xs text-error">{errors.surcharge.message}</p>}
-                          </label>
+                            {showStaffDropdown && (
+                              <div className="absolute left-0 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-border bg-background-base p-1 text-sm shadow-xl z-10 custom-scrollbar">
+                                {staffOptions
+                                  .filter(s => s.fullName.toLowerCase().includes(searchStaff.toLowerCase()) && !selectedStaffIds.includes(s.id))
+                                  .map((staff) => (
+                                    <div
+                                      key={staff.id}
+                                      onClick={() => {
+                                        setSelectedStaffIds([...selectedStaffIds, staff.id]);
+                                        setSearchStaff("");
+                                      }}
+                                      className="cursor-pointer rounded-lg px-3 py-2 hover:bg-background-secondary text-foreground transition-colors"
+                                    >
+                                      {staff.fullName}
+                                    </div>
+                                  ))}
+                                {staffOptions.filter(s => s.fullName.toLowerCase().includes(searchStaff.toLowerCase()) && !selectedStaffIds.includes(s.id)).length === 0 && (
+                                  <div className="px-3 py-2 text-foreground-muted text-center text-xs">Không có kết quả</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        <label className="space-y-2">
+                        <label className="space-y-2 col-span-1">
+                          <div className="flex items-center justify-between">
+                            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                              <Tag size={14} /> Giá dịch vụ
+                            </span>
+                            {mode === "create" && watchPackageCode && (
+                              <button
+                                type="button"
+                                disabled={calculateMutation.isPending}
+                                onClick={() => calculateMutation.mutate()}
+                                className="text-primary-500 hover:text-primary-600 outline-none transition-colors"
+                                title="Tính lại giá"
+                              >
+                                <RefreshCw size={14} className={calculateMutation.isPending ? "animate-spin" : ""} />
+                              </button>
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            value={watchPrice !== undefined ? new Intl.NumberFormat("vi-VN").format(watchPrice) : ""}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, "");
+                              setValue("price", raw ? Number(raw) : undefined, { shouldDirty: true });
+                            }}
+                            disabled={!canUpdateSession}
+                            placeholder="0"
+                            className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                          />
+                          {errors.price && <p className="text-xs text-error">{errors.price.message}</p>}
+                        </label>
+
+                        <label className="space-y-2 col-span-1">
+                          <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                            <Coins size={14} /> Phụ phí
+                          </span>
+                          <input
+                            type="text"
+                            value={watchSurcharge !== undefined && watchSurcharge !== 0 ? new Intl.NumberFormat("vi-VN").format(watchSurcharge) : ""}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, "");
+                              setValue("surcharge", raw ? Number(raw) : undefined, { shouldDirty: true });
+                            }}
+                            disabled={!canUpdateSession}
+                            placeholder="0"
+                            className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                          />
+                          {errors.surcharge && <p className="text-xs text-error">{errors.surcharge.message}</p>}
+                        </label>
+
+                        <label className="space-y-2 sm:col-span-2">
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                             Ghi chú
                           </span>
-                          <textarea
-                            rows={3}
+                          <input
+                            type="text"
                             {...register("notes")}
                             disabled={!canUpdateSession}
                             placeholder="Lưu ý về thú cưng, yêu cầu khách, ghi chú nội bộ..."
-                            className="w-full rounded-2xl border border-border bg-background-secondary px-3 py-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                            className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
                           />
                         </label>
                       </div>
@@ -686,7 +709,7 @@ export function GroomingSessionDialog({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="inline-flex h-11 min-w-[100px] items-center justify-center rounded-xl bg-background-secondary text-sm font-medium text-foreground transition-colors hover:bg-background-tertiary"
+                      className="inline-flex h-11 min-w-[100px] items-center justify-center rounded-xl bg-background-secondary text-sm font-medium text-foreground transition-all duration-150 hover:scale-[1.02] hover:bg-background-tertiary active:scale-[0.98]"
                     >
                       Đóng
                     </button>
@@ -695,9 +718,9 @@ export function GroomingSessionDialog({
                         type="submit"
                         form="grooming-form"
                         disabled={saveMutation.isPending}
-                        className="inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/50"
+                        className="inline-flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:scale-[1.02] hover:bg-primary-600 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60"
                       >
-                        <Save size={16} />
+                        <Save size={16} className={saveMutation.isPending ? "animate-pulse" : ""} />
                         {saveMutation.isPending ? "Đang lưu..." : "Lưu"}
                       </button>
                     )}
