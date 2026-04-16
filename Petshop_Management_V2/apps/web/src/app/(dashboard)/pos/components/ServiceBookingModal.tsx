@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, PawPrint, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { hotelApi } from '@/lib/api/hotel.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { useCustomerPets } from '../_hooks/use-pos-queries';
@@ -86,19 +87,19 @@ export function ServiceBookingModal({
 
   const handleConfirm = () => {
     if (!selectedPet) {
-      alert('Vui long chon thu cung');
+      toast.error('Vui lòng chọn thú cưng');
       return;
     }
     if (!checkIn || !checkOut) {
-      alert('Vui long chon ngay nhan va tra thu cung');
+      toast.error('Vui lòng chọn ngày nhận và trả thú cưng');
       return;
     }
     if (!hasHotelProfile) {
-      alert('Thu cung can co species va can nang de tinh gia hotel');
+      toast.error('Thú cưng cần có species và cân nặng để tính giá hotel');
       return;
     }
     if (!hasValidRange) {
-      alert('Ngay tra phai lon hon ngay nhan');
+      toast.error('Ngày trả phải lớn hơn ngày nhận');
       return;
     }
 

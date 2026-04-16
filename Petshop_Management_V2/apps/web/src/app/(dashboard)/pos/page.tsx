@@ -17,7 +17,7 @@ import { PosPaymentModal } from './components/PosPaymentModal';
 import { PosQrPaymentModal } from './components/PosQrPaymentModal';
 import { PosShiftClosingModal } from './components/PosShiftClosingModal';
 import { PosOrderBookingModal } from './components/PosOrderBookingModal';
-import { ReceiptModal } from './components/ReceiptModal';
+
 import { PosProductSearch } from './components/PosProductSearch';
 import { PosNotifications } from './components/PosNotifications';
 import { PosBranchSelect } from './components/PosBranchSelect';
@@ -48,7 +48,7 @@ function buildQuickCashSuggestions(total: number) {
 
   return [...new Set(candidates)].sort((left, right) => left - right).slice(0, 6);
 }
-const moneyRaw = (n: number) => new Intl.NumberFormat('vi-VN').format(n);
+const moneyRaw = money; // alias – same formatter
 
 function parseCartQuantityInput(value: string) {
   const normalized = value.replace(/[^\d.,]/g, '').replace(',', '.');
@@ -2009,14 +2009,7 @@ function PosPageContent() {
         }}
       />
 
-      <ReceiptModal
-        isOpen={!!store.receiptData}
-        orderData={store.receiptData}
-        onClose={() => {
-          store.setReceiptData(null);
-          store.resetActiveTab();
-        }}
-      />
+      {/* ReceiptModal removed: checkout now redirects to /orders/:id */}
 
       <PosPaymentModal
         isOpen={showPaymentModal}

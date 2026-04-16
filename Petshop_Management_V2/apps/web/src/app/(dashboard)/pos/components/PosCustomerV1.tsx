@@ -8,7 +8,7 @@ import { useCustomerSearch } from '@/components/search/use-commerce-search';
 import { api } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { PosAddCustomerModal } from './PosAddCustomerModal';
-import { PosAddPetModal } from './PosAddPetModal';
+import { PetFormModal } from '../../pets/_components/pet-form-modal';
 import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile';
 
 export interface PosCustomerV1Props {
@@ -240,7 +240,7 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
       />
 
       {hasCustomer && customerDetail && (
-        <PosAddPetModal
+        <PetFormModal
           isOpen={showPetModal}
           onClose={() => setShowPetModal(false)}
           customerId={customerDetail.id}
