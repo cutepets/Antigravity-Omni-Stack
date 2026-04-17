@@ -347,21 +347,22 @@ export function OrderTopBar({
               {mode === 'create' ? 'Tạo đơn hàng' : 'Lưu cập nhật'}
             </button>
           ) : mode === 'detail' && canEdit ? (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
-            >
-              <PencilLine size={14} />
-              Chỉnh sửa
-            </button>
+            {!isEditing && !isReadonly ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="btn-outline h-9 px-4 hover:border-primary-500/40 hover:text-primary-500"
+          >
+            <PencilLine size={14} />
+            Chỉnh sửa
+          </button>
           ) : null}
 
           {mode === 'detail' && isEditing ? (
             <button
               type="button"
               onClick={onCancelEdit}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-background px-4 text-sm font-medium text-foreground-muted transition-colors hover:text-foreground"
+              className="btn-outline h-9 px-4 text-foreground-muted shadow-sm hover:border-border hover:bg-background-tertiary"
             >
               <XCircle size={14} />
               Hủy sửa
