@@ -233,7 +233,7 @@ export function OrderTopBar({
                 />
 
                 {showCustomerSearch ? (
-                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[80] overflow-hidden rounded-xl border border-border bg-background shadow-xl">
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-80 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
                     <CustomerSearchResults
                       customers={customerResults}
                       query={customerSearch}
@@ -425,16 +425,6 @@ export function OrderTopBar({
               </button>
             ) : null}
 
-            {mode === 'create' ? (
-              <button
-                type="button"
-                onClick={onOpenPos}
-                className="btn-outline h-9 px-4"
-              >
-                <Scissors size={14} />
-                POS bán nhanh
-              </button>
-            ) : null}
           </div>
         </div>
       </div>

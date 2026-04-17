@@ -32,21 +32,20 @@ import {
 } from '@/components/data-list'
 
 // ── Types & Constants ────────────────────────────────────────────────────────
-type DisplayColumnId = 'code' | 'customer' | 'customerPhone' | 'customerCount' | 'items' | 'discount' | 'shippingFee' | 'total' | 'customerPaid' | 'payment' | 'status' | 'orderStatus' | 'stockStatus' | 'linkedCodes' | 'note' | 'branch' | 'creator' | 'created' | 'updated'
+type DisplayColumnId = 'code' | 'customer' | 'customerPhone' | 'items' | 'discount' | 'shippingFee' | 'total' | 'customerPaid' | 'payment' | 'status' | 'orderStatus' | 'stockStatus' | 'linkedCodes' | 'note' | 'branch' | 'creator' | 'created' | 'updated'
 type PinFilterId = 'paymentStatus' | 'orderStatus'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
   { id: 'code', label: 'Mã đơn', sortable: false, width: 'w-24' },
   { id: 'customer', label: 'Tên khách', sortable: false, minWidth: 'min-w-[150px]' },
   { id: 'customerPhone', label: 'SĐT Khách', sortable: false, width: 'whitespace-nowrap' },
-  { id: 'customerCount', label: 'Số khách', sortable: false, width: 'w-20', align: 'center' },
   { id: 'items', label: 'Số SP', sortable: false, width: 'whitespace-nowrap' },
   { id: 'discount', label: 'Tổng CK', sortable: false, width: 'w-28', align: 'right' },
   { id: 'shippingFee', label: 'Phí ship', sortable: false, width: 'w-28', align: 'right' },
   { id: 'total', label: 'Tổng tiền', sortable: false, width: 'w-28', align: 'right' },
   { id: 'customerPaid', label: 'Khách đã trả', sortable: false, width: 'w-28', align: 'right' },
   { id: 'payment', label: 'Hình thức TT', sortable: false, width: 'w-32' },
-  { id: 'status', label: 'TT thanh toán', sortable: false, width: 'w-32' },
+  { id: 'status', label: 'Thanh toán', sortable: false, width: 'w-32' },
   { id: 'orderStatus', label: 'Trạng thái', sortable: false, width: 'w-32' },
   { id: 'stockStatus', label: 'Xuất kho', sortable: false, width: 'w-28' },
   { id: 'linkedCodes', label: 'Mã liên kết', sortable: false, minWidth: 'min-w-[180px]' },
@@ -82,7 +81,7 @@ export function OrderList() {
   // System hook for data-list standard
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialVisibleColumns: ['code', 'customer', 'customerCount', 'items', 'discount', 'total', 'customerPaid', 'status', 'orderStatus', 'stockStatus', 'updated', 'branch', 'creator'],
+    initialVisibleColumns: ['code', 'customer', 'items', 'discount', 'total', 'customerPaid', 'status', 'orderStatus', 'stockStatus', 'updated', 'branch', 'creator'],
     initialTopFilterVisibility: { paymentStatus: true, orderStatus: false }
   })
 
@@ -101,7 +100,7 @@ export function OrderList() {
   })
 
   // ── Computation ──────────────────────────────────────────────────────────────
-  const rawOrders = (data as any)?.data ?? []
+  const rawOrders = useMemo(() => (data as any)?.data ?? [], [data])
   const total = (data as any)?.total ?? 0
   const totalPages = (data as any)?.totalPages ?? 1
 
@@ -243,14 +242,7 @@ export function OrderList() {
               onClick={() => router.push('/orders/new')}
               className="flex h-8 items-center gap-1.5 rounded-lg bg-primary-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-600 shadow-sm"
             >
-              + Tao don nhieu buoc
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push('/pos')}
-              className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
-            >
-              POS bán nhanh
+              + Tạo đơn
             </button>
           </div>
         }
@@ -385,13 +377,6 @@ export function OrderList() {
                       <div className="text-sm font-medium text-foreground-secondary">
                         {o.customer?.phone || '--'}
                       </div>
-                    </td>
-                  );
-                  case 'customerCount': return (
-                    <td key={columnId} className="px-3 py-3 w-20 text-center">
-                      <span className="inline-flex items-center justify-center rounded-md bg-background-tertiary px-2 py-0.5 text-xs font-semibold text-foreground-secondary">
-                        {o.customers?.length || (o.customer ? 1 : 0)}
-                      </span>
                     </td>
                   );
                   case 'discount': return (
