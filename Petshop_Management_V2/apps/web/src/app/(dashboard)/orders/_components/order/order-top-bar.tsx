@@ -346,23 +346,20 @@ export function OrderTopBar({
               {pendingAction ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {mode === 'create' ? 'Tạo đơn hàng' : 'Lưu cập nhật'}
             </button>
-          ) : mode === 'detail' && canEdit ? (
-            {!isEditing && !isReadonly ? (
-          <button
-            type="button"
-            onClick={onEdit}
-            className="btn-outline h-9 px-4 hover:border-primary-500/40 hover:text-primary-500"
-          >
-            <PencilLine size={14} />
-            Chỉnh sửa
-          </button>
-          ) : null}
-
-          {mode === 'detail' && isEditing ? (
+          ) : mode === 'detail' && canEdit && !isEditing ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="btn-outline h-9 px-4 hover:border-primary-500/40 hover:text-primary-500"
+            >
+              <PencilLine size={14} />
+              Chỉnh sửa
+            </button>
+          ) : mode === 'detail' && isEditing ? (
             <button
               type="button"
               onClick={onCancelEdit}
-              className="btn-outline h-9 px-4 text-foreground-muted shadow-sm hover:border-border hover:bg-background-tertiary"
+              className="btn-outline h-9 px-4 text-foreground-muted hover:bg-background-tertiary"
             >
               <XCircle size={14} />
               Hủy sửa

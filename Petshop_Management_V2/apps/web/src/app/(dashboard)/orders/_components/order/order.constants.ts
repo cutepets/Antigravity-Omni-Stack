@@ -19,14 +19,14 @@ export const ORDER_STATUS_BADGE: Record<string, string> = {
   CONFIRMED: 'badge badge-info',
   PROCESSING: 'badge badge-accent',
   COMPLETED: 'badge badge-success',
-  CANCELLED: 'badge badge-ghost',
+  CANCELLED: 'badge badge-error',
   REFUNDED: 'badge badge-error',
 }
 
 export const ORDER_STATUS_LABEL: Record<string, string> = {
   PENDING: 'Chờ duyệt',
-  CONFIRMED: 'Đã duyệt',
-  PROCESSING: 'Đang xử lý',
+  CONFIRMED: 'Đặt hàng',
+  PROCESSING: 'Đang giao dịch',
   COMPLETED: 'Hoàn thành',
   CANCELLED: 'Đã hủy',
   REFUNDED: 'Đã hoàn tiền',

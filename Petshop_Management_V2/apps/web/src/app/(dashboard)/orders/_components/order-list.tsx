@@ -4,10 +4,22 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
   Download,
+  ImagePlus,
+  Loader2,
+  Trash2,
+  Printer,
+  X,
+  CreditCard,
+  XCircle,
+  PackageCheck,
+  PackageMinus,
+  CheckCircle2,
+  PieChart,
+  CircleDashed,
+  RotateCcw,
   Pin,
   PinOff,
   ShoppingBag,
-  CreditCard,
   CalendarDays,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -81,7 +93,7 @@ export function OrderList() {
   // System hook for data-list standard
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialVisibleColumns: ['code', 'customer', 'items', 'discount', 'total', 'customerPaid', 'status', 'orderStatus', 'stockStatus', 'updated', 'branch', 'creator'],
+    initialVisibleColumns: ['code', 'customer', 'items', 'discount', 'total', 'customerPaid', 'status', 'orderStatus', 'stockStatus', 'updated', 'creator'],
     initialTopFilterVisibility: { paymentStatus: true, orderStatus: false }
   })
 
@@ -303,8 +315,8 @@ export function OrderList() {
           >
             <option value="">Tất cả trạng thái</option>
             <option value="PENDING">Chờ duyệt</option>
-            <option value="CONFIRMED">Đã duyệt</option>
-            <option value="PROCESSING">Đang xử lý</option>
+            <option value="CONFIRMED">Đặt hàng</option>
+            <option value="PROCESSING">Đang giao dịch</option>
             <option value="COMPLETED">Hoàn thành</option>
             <option value="CANCELLED">Đã hủy</option>
             <option value="REFUNDED">Đã hoàn tiền</option>
@@ -358,8 +370,7 @@ export function OrderList() {
                   case 'code': return (
                     <td key={columnId} className="px-3 py-3 w-24">
                       <span
-                        onClick={() => router.push(`/orders/${o.orderNumber}`)}
-                        className="font-mono text-xs font-bold text-primary-500 hover:underline cursor-pointer transition-colors"
+                        className="font-mono text-xs font-bold text-foreground transition-colors group-hover:text-primary-500"
                       >
                         {o.orderNumber || '--'}
                       </span>
@@ -455,8 +466,23 @@ export function OrderList() {
                     </td>
                   );
                   case 'status': return (
-                    <td key={columnId} className="px-3 py-3 w-32">
-                      <PaymentStatusBadge status={o.paymentStatus} />
+                    <td key={columnId} className="px-3 py-3 w-16 text-center">
+                      <div className="flex justify-center" title={
+                        o.paymentStatus === 'PAID' ? 'Đã thanh toán' :
+                          o.paymentStatus === 'PARTIAL' ? 'Thanh toán 1 phần' :
+                            o.paymentStatus === 'UNPAID' ? 'Chưa thanh toán' :
+                              o.paymentStatus === 'REFUNDED' ? 'Đã hoàn tiền' : o.paymentStatus || 'Chưa thanh toán'
+                      }>
+                        {o.paymentStatus === 'PAID' ? (
+                          <CheckCircle2 size={18} className="text-success" />
+                        ) : o.paymentStatus === 'PARTIAL' ? (
+                          <PieChart size={18} className="text-accent" />
+                        ) : o.paymentStatus === 'REFUNDED' ? (
+                          <RotateCcw size={18} className="text-foreground-muted" />
+                        ) : (
+                          <CircleDashed size={18} className="text-warning" />
+                        )}
+                      </div>
                     </td>
                   );
                   case 'orderStatus': return (
@@ -465,8 +491,14 @@ export function OrderList() {
                     </td>
                   );
                   case 'stockStatus': return (
-                    <td key={columnId} className="px-3 py-3 w-28">
-                      <StockStatusBadge stockExportedAt={o.stockExportedAt} status={o.status} />
+                    <td key={columnId} className="px-3 py-3 w-16 text-center">
+                      <div className="flex justify-center" title={o.stockExportedAt ? 'Đã xuất kho' : 'Chưa xuất kho'}>
+                        {o.stockExportedAt ? (
+                          <PackageCheck size={18} className="text-success" />
+                        ) : (
+                          <PackageMinus size={18} className="text-foreground-muted" />
+                        )}
+                      </div>
                     </td>
                   );
                   case 'branch': return (
