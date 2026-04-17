@@ -1,6 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "strictPropertyInitialization": false,
+    "exactOptionalPropertyTypes": false,
     "module": "CommonJS",
     "moduleResolution": "Node",
     "target": "ES2022",
@@ -11,12 +13,28 @@
     "composite": true,
     "skipLibCheck": true,
     "paths": {
-      "@petshop/auth": ["../../packages/auth/src/index.ts"],
-      "@petshop/config": ["../../packages/config/src/index.ts"],
-      "@petshop/core": ["../../packages/core/src/index.ts"],
-      "@petshop/database": ["../../packages/database/src/index.ts"],
-      "@petshop/queue": ["../../packages/queue/src/index.ts"],
-      "@petshop/shared": ["../../packages/shared/src/index.ts"]
+      "@petshop/auth": [
+        "../../packages/auth/src/index.ts"
+      ],
+      "@petshop/config": [
+        "../../packages/config/src/index.ts"
+      ],
+      "@petshop/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@petshop/database": [
+        "../../packages/database/src/index.ts"
+      ],
+      "@prisma/client": [
+        "../../node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3/node_modules/@prisma/client",
+        "../../node_modules/@prisma/client"
+      ],
+      "@petshop/queue": [
+        "../../packages/queue/src/index.ts"
+      ],
+      "@petshop/shared": [
+        "../../packages/shared/src/index.ts"
+      ]
     }
   },
   "include": [
@@ -25,5 +43,9 @@
     "../../packages/database/src/**/*",
     "../../packages/shared/src/**/*"
   ],
-  "exclude": ["node_modules", "dist", "test"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test"
+  ]
 }

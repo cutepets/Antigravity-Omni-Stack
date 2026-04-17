@@ -28,6 +28,8 @@ interface PosPaymentModalProps {
   title?: string
   description?: string
   onConfirm: (payload: { payments: MultiPaymentDraft[] }) => void
+  /** Gọi khi hình thức đầu tiên là BANK/EWALLET — để trigger QR modal */
+  onRequestQr?: (paymentAccountId: string, amount: number) => void
 }
 
 const ROW_LIMIT = 3
@@ -44,13 +46,6 @@ function parseMoney(value: string) {
 function formatMoneyInput(value: string) {
   const parsed = parseMoney(value)
   return parsed > 0 ? new Intl.NumberFormat('vi-VN').format(parsed) : ''
-}
-
-function getTypeIcon(type: PaymentMethod['type']) {
-  if (type === 'CASH') return Banknote
-  if (type === 'BANK') return Landmark
-  if (type === 'EWALLET') return Smartphone
-  return CreditCard
 }
 
 function createRow(methodId = '', amount = ''): MultiPaymentRowState {
@@ -70,6 +65,7 @@ export function PosPaymentModal({
   minimumMethods = 1,
   title = 'Thanh toán nhiều hình thức',
   onConfirm,
+  onRequestQr,
 }: PosPaymentModalProps) {
   const [rows, setRows] = useState<MultiPaymentRowState[]>([])
   const [isPrimaryManual, setIsPrimaryManual] = useState(false)
@@ -149,41 +145,65 @@ export function PosPaymentModal({
 
   const canConfirm = usableRows.length >= minimumMethods && !isOverAllocated && !hasDuplicateMethods
 
+  const handleConfirm = () => {
+    if (!canConfirm) return
+    const payments = usableRows.map((row) => ({
+      method: row.method!.type,
+      amount: row.parsedAmount,
+      paymentAccountId: row.method!.id,
+      paymentAccountLabel: row.method!.name,
+    }))
+
+    // Nếu hình thức đầu tiên là Bank/Ví và chỉ 1 hình thức → trigger QR
+    const primaryMethod = usableRows[0]?.method
+    if (
+      onRequestQr &&
+      primaryMethod &&
+      (primaryMethod.type === 'BANK' || primaryMethod.type === 'EWALLET') &&
+      usableRows.length === 1
+    ) {
+      onRequestQr(primaryMethod.id, usableRows[0].parsedAmount)
+      return
+    }
+
+    onConfirm({ payments })
+  }
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-[520px] overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-[520px] overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border px-6 py-5">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+            <h2 className="text-xl font-bold text-foreground">{title}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-400 transition-colors hover:text-gray-600"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border text-foreground-muted transition-colors hover:text-foreground"
           >
             <X size={18} />
           </button>
         </div>
 
         <div className="space-y-4 px-6 py-5">
-          <div className="grid gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 grid-cols-3 text-center divide-x divide-gray-200">
+          <div className="grid gap-3 rounded-2xl border border-border bg-background-secondary/60 p-4 grid-cols-3 text-center divide-x divide-border">
             <div>
-              <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-gray-400">CẦN THANH TOÁN</div>
-              <div className="mt-1.5 text-lg sm:text-xl font-bold text-gray-900">{formatMoney(cartTotal)}</div>
+              <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-widest text-foreground-muted">CẦN THANH TOÁN</div>
+              <div className="mt-1.5 text-lg sm:text-xl font-bold text-foreground">{formatMoney(cartTotal)}</div>
             </div>
             <div>
-              <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-gray-400">TỔNG ĐÃ CHIA</div>
-              <div className={`mt-1.5 text-lg sm:text-xl font-bold ${allocatedAmount >= cartTotal ? 'text-emerald-600' : 'text-sky-600'}`}>
+              <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-widest text-foreground-muted">TỔNG ĐÃ CHIA</div>
+              <div className={`mt-1.5 text-lg sm:text-xl font-bold ${allocatedAmount >= cartTotal ? 'text-success' : 'text-sky-500'}`}>
                 {formatMoney(allocatedAmount)}
               </div>
             </div>
             <div>
-              <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-gray-400">
+              <div className="text-[11px] sm:text-xs font-semibold uppercase tracking-widest text-foreground-muted">
                 {isOverAllocated ? 'VƯỢT MỨC' : remainingAmount > 0 ? 'CÒN THIẾU' : 'ĐÃ ĐỦ'}
               </div>
-              <div className={`mt-1.5 text-lg sm:text-xl font-bold ${isOverAllocated ? 'text-rose-600' : remainingAmount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+              <div className={`mt-1.5 text-lg sm:text-xl font-bold ${isOverAllocated ? 'text-error' : remainingAmount > 0 ? 'text-warning' : 'text-success'}`}>
                 {formatMoney(isOverAllocated ? allocatedAmount - cartTotal : remainingAmount)}
               </div>
             </div>
@@ -191,11 +211,9 @@ export function PosPaymentModal({
 
           <div className="space-y-3">
             {rowsWithMethods.map((row, index) => {
-              const method = row.method
-              
               const availableMethods = paymentMethods.filter(
                 (pm) => pm.id === row.paymentMethodId || !rows.some((r) => r.paymentMethodId === pm.id)
-              );
+              )
 
               return (
                 <div key={row.key} className="grid gap-3 items-center md:grid-cols-[minmax(0,1.25fr)_minmax(180px,0.75fr)_auto]">
@@ -203,7 +221,7 @@ export function PosPaymentModal({
                     <select
                       value={row.paymentMethodId}
                       onChange={(event) => updateRow(row.key, { paymentMethodId: event.target.value })}
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-[15px] font-medium text-gray-800 outline-none transition-colors focus:border-primary-500"
+                      className="w-full rounded-xl border border-border bg-background-secondary/60 px-4 py-2.5 text-[15px] font-medium text-foreground outline-none transition-colors focus:border-primary-500"
                     >
                       <option value="">Chọn phương thức</option>
                       {availableMethods.map((paymentMethod) => (
@@ -227,7 +245,7 @@ export function PosPaymentModal({
                         )
                       }
                       placeholder={index === 0 ? new Intl.NumberFormat('vi-VN').format(cartTotal) : 'Nhập số tiền'}
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-right text-[15px] font-semibold text-gray-900 outline-none transition-colors focus:border-primary-500"
+                      className="w-full rounded-xl border border-border bg-background-secondary/60 px-4 py-2.5 text-right text-[15px] font-semibold text-foreground outline-none transition-colors focus:border-primary-500"
                     />
                   </div>
 
@@ -236,7 +254,7 @@ export function PosPaymentModal({
                       type="button"
                       onClick={() => removeRow(row.key)}
                       disabled={rows.length <= minimumMethods}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-100 bg-white text-gray-400 transition-colors hover:text-rose-500 hover:border-rose-200 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-foreground-muted transition-colors hover:text-error hover:border-error/30 hover:bg-error/8 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -251,45 +269,34 @@ export function PosPaymentModal({
               type="button"
               onClick={addRow}
               disabled={rows.length >= ROW_LIMIT || rows.length >= paymentMethods.length}
-              className="inline-flex items-center gap-2 rounded-xl border border-dashed border-gray-300 px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-2 text-sm font-semibold text-foreground-muted transition-colors hover:border-primary-500/40 hover:bg-primary-500/5 hover:text-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus size={16} />
               Thêm hình thức
             </button>
             <div className="space-y-1 text-[13px]">
-              {hasDuplicateMethods ? <div className="font-medium text-rose-600">Đã có phương thức trùng lặp.</div> : null}
-              {isOverAllocated ? <div className="font-medium text-rose-600">Tổng số tiền đang vượt quá số cần thanh toán.</div> : null}
+              {hasDuplicateMethods ? <div className="font-medium text-error">Đã có phương thức trùng lặp.</div> : null}
+              {isOverAllocated ? <div className="font-medium text-error">Tổng số tiền đang vượt quá số cần thanh toán.</div> : null}
               {!hasDuplicateMethods && !isOverAllocated && remainingAmount > 0 ? (
-                <div className="font-medium text-amber-600">Bạn có thể lưu thanh toán chưa đủ nếu khách gửi trước một phần.</div>
+                <div className="font-medium text-warning">Bạn có thể lưu thanh toán chưa đủ nếu khách gửi trước một phần.</div>
               ) : null}
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
+        <div className="flex justify-end gap-3 border-t border-border bg-background-secondary/40 px-6 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100"
+            className="btn-outline h-9 px-5"
           >
             Hủy
           </button>
           <button
             type="button"
-            onClick={() =>
-              canConfirm
-                ? onConfirm({
-                    payments: usableRows.map((row) => ({
-                      method: row.method!.type,
-                      amount: row.parsedAmount,
-                      paymentAccountId: row.method!.id,
-                      paymentAccountLabel: row.method!.name,
-                    })),
-                  })
-                : undefined
-            }
+            onClick={handleConfirm}
             disabled={!canConfirm}
-            className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-primary h-9 px-6 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Lưu thanh toán
           </button>

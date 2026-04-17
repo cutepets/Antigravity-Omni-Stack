@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,7 +24,7 @@ import { PosNotifications } from './components/PosNotifications';
 import { PosBranchSelect } from './components/PosBranchSelect';
 import { Menu, X, Plus, Minus, Trash2, Home, NotebookText, Info, FileText, Settings, UserCircle2, Bell, LogOut, Scissors, Package, ShoppingCart, Maximize, Store, QrCode, Zap, EyeOff, Eye, ListChecks, ChevronDown, Check } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
+
 import { Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { orderApi } from '@/lib/api/order.api';
@@ -1173,7 +1174,7 @@ function PosPageContent() {
                             <>
                               <Image src={item.image} alt={item.description} width={40} height={40} unoptimized className="h-full w-full rounded object-cover" />
                               {/* Hover 5x image */}
-                              <div className="absolute top-1/2 left-full ml-2 w-[200px] h-[200px] -translate-y-1/2 shadow-2xl rounded-lg border-4 border-white overflow-hidden opacity-0 invisible group-hover/img:opacity-100 group-hover/img:visible pointer-events-none transition-all z-[999] origin-left">
+                              <div className="absolute top-1/2 left-full ml-2 w-[200px] h-[200px] -translate-y-1/2 shadow-2xl rounded-lg border-4 border-white overflow-hidden opacity-0 invisible group-hover/img:opacity-100 group-hover/img:visible pointer-events-none transition-all z-999 origin-left">
                                 <Image src={item.image} alt={item.description} width={200} height={200} unoptimized className="h-full w-full object-cover" />
                               </div>
                             </>
@@ -1217,9 +1218,9 @@ function PosPageContent() {
                           )}
 
                           {/* Stock Popover */}
-                          <div className="group/stock relative shrink-0 z-[60] flex">
+                          <div className="group/stock relative shrink-0 z-60 flex">
                             <Info size={16} className="text-gray-300 opacity-0 group-hover:opacity-100 group-hover/stock:text-[#0089A1] cursor-help transition-all" />
-                            <div className="absolute top-full left-1/2 -translate-x-[40%] mt-2 w-[340px] opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible group-hover/stock:pointer-events-auto transition-all duration-200 p-0 pointer-events-none before:absolute before:-top-4 before:left-0 before:w-full before:h-4 z-[100]">
+                            <div className="absolute top-full left-1/2 -translate-x-[40%] mt-2 w-[340px] opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible group-hover/stock:pointer-events-auto transition-all duration-200 p-0 pointer-events-none before:absolute before:-top-4 before:left-0 before:w-full before:h-4 z-100">
                               <div className="bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden w-full h-full">
                                 <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
                                   <Link
@@ -1500,7 +1501,7 @@ function PosPageContent() {
                           <>
                             <Image src={item.image} alt={item.description} width={60} height={60} unoptimized className="h-full w-full rounded object-cover" />
                             {/* Hover 5x image */}
-                            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] shadow-2xl rounded-xl border-4 border-white overflow-hidden opacity-0 invisible group-hover/img:opacity-100 group-hover/img:visible pointer-events-none transition-all z-[999]">
+                            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] shadow-2xl rounded-xl border-4 border-white overflow-hidden opacity-0 invisible group-hover/img:opacity-100 group-hover/img:visible pointer-events-none transition-all z-999">
                               <Image src={item.image} alt={item.description} width={300} height={300} unoptimized className="h-full w-full object-cover" />
                             </div>
                           </>
@@ -2061,4 +2062,3 @@ export default function PosPage() {
     </Suspense>
   );
 }
-

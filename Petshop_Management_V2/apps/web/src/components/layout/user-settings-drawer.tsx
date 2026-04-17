@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/stores/auth.store'
@@ -6,6 +7,7 @@ import { useTheme } from 'next-themes'
 import { X, LogOut, Edit2, Shield, Settings, Monitor, Moon, Sun } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useState, useEffect } from 'react'
+
 
 interface UserSettingsDrawerProps {
   isOpen: boolean
@@ -65,7 +67,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
               <div className="relative p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-4 group">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-bold text-xl shadow-[0_4px_12px_color-mix(in_srgb,var(--color-primary-500)_40%,transparent)] overflow-hidden">
                   {user.avatar ? (
-                    <img src={user.avatar} alt={user.fullName} className="w-full h-full object-cover" />
+                    <Image src={user.avatar} alt={user.fullName} className="w-full h-full object-cover" width={400} height={400} unoptimized />
                   ) : (
                     user.fullName[0]?.toUpperCase()
                   )}

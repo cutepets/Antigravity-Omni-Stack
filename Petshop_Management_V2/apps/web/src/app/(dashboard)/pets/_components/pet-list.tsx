@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useState } from 'react'
@@ -7,7 +8,6 @@ import { Plus, Pin, PinOff, PawPrint, Trash2 } from 'lucide-react'
 import { loadTempsFromDB, TemperEntry, getTemperStyle } from './pet-settings-modal'
 import { toast } from 'sonner'
 import { petApi } from '@/lib/api/pet.api'
-import { PetFormModal } from './pet-form-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { useRouter } from 'next/navigation'
 import {
@@ -26,6 +26,7 @@ import {
 } from '@petshop/ui/data-list'
 
 import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile'
+
 
 type SpeciesFilter = '' | 'Chó' | 'Mèo' | 'Chim' | 'Khác'
 type DisplayColumnId = 'avatar' | 'pet' | 'breed' | 'color' | 'owner' | 'weight' | 'dob' | 'allergies' | 'status' | 'petCode'
@@ -92,8 +93,6 @@ export function PetList() {
     setPage(1)
   }, [q, species])
 
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingPet, setEditingPet] = useState<any>(null)
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((c) => c.id),
@@ -266,16 +265,7 @@ export function PetList() {
         }
         extraActions={
           <div className="flex items-center gap-2">
-            {canCreatePet && (
-              <button
-                type="button"
-                onClick={() => { setEditingPet(null); setIsModalOpen(true) }}
-                className="inline-flex h-9 sm:h-10 items-center justify-center gap-2 rounded-xl bg-primary-500 px-3 sm:px-4 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
-              >
-                <Plus size={16} />
-                Thêm thú cưng
-              </button>
-            )}
+            {/* Thêm thú cưng button has been removed and restricted to Customer detail page/POS flow */}
           </div>
         }
       />
@@ -363,7 +353,9 @@ export function PetList() {
                       <div className="w-10 h-10 rounded-xl bg-linear-to-br from-primary-400/20 to-primary-600/20 border border-primary-500/15 flex items-center justify-center text-lg overflow-hidden shrink-0">
                         {p.avatar ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                          <Image src={String(p.avatar).startsWith('http') ? p.avatar : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${p.avatar}`}
+                            alt="Avatar" 
+                            className="w-full h-full object-cover" width={400} height={400} unoptimized />
                         ) : (
                           getEmoji(p.species)
                         )}
@@ -506,13 +498,6 @@ export function PetList() {
         </div>
       </div>
 
-      {isModalOpen && (
-        <PetFormModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          initialData={editingPet}
-        />
-      )}
 
       {viewingPetCode && (
         <UnifiedPetProfile

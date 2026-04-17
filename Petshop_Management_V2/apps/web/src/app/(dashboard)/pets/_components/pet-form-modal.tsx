@@ -1,716 +1,372 @@
-'use client'
+'use client';
+import Image from 'next/image';
+import { useState, useEffect } from 'react';
+import { X, PawPrint, AlertTriangle, Image as ImageIcon } from 'lucide-react';
+import { api } from '@/lib/api';
+import { petApi } from '@/lib/api/pet.api';
+import { useQueryClient } from '@tanstack/react-query';
+import { customToast as toast } from '@/components/ui/toast-with-copy';
+import { loadBreedsFromDB, loadTempsFromDB, BreedEntry, TemperEntry, getTemperStyle, saveBreeds, saveTempers } from './pet-settings-modal';
 
-import { useEffect, useState, useMemo, useRef } from 'react'
 
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { X, Save, AlertCircle, Camera, Search, ChevronDown, User, Scale, Phone } from 'lucide-react'
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
-import { petApi } from '@/lib/api/pet.api'
-import { customerApi } from '@/lib/api/customer.api'
-import { customToast as toast } from '@/components/ui/toast-with-copy'
-import { loadBreedsFromDB, BreedEntry, loadTempsFromDB, TemperEntry } from './pet-settings-modal'
-
-const petSchema = z.object({
-  name: z.string().min(1, 'Vui lòng nhập tên thú cưng'),
-  species: z.string().min(1, 'Vui lòng chọn loài'),
-  breed: z.string().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'UNKNOWN']).optional(),
-  weight: z.number({ invalid_type_error: 'Vui lòng nhập số' }).optional(),
-  dateOfBirth: z.string().optional(),
-  microchipId: z.string().optional(),
-  notes: z.string().optional(),
-  customerId: z.string().min(1, 'Vui lòng chọn chủ sở hữu'),
-  color: z.string().optional(),
-  allergies: z.string().optional(),
-  temperament: z.string().optional(),
-  isActive: z.boolean().optional(),
-})
-
-type FormData = z.infer<typeof petSchema>
-
-interface Props {
-  isOpen: boolean
-  onClose: () => void
-  initialData?: any
-  fixedCustomerId?: string
+export interface PetFormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  initialData?: any;
+  onSaved?: (pet: any) => void;
 }
 
-const SPECIES_OPTIONS = [
-  { value: 'Chó', label: 'Chó', emoji: '🐕' },
-  { value: 'Mèo', label: 'Mèo', emoji: '🐱' },
-  { value: 'Khác', label: 'Khác', emoji: '🐾' },
-]
+export function PetFormModal({ isOpen, onClose, customerId, customerName, customerPhone, initialData, onSaved }: PetFormModalProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
 
-const GENDER_OPTIONS = [
-  { value: 'MALE', label: 'Đực', symbol: '♂' },
-  { value: 'FEMALE', label: 'Cái', symbol: '♀' },
-  { value: 'UNKNOWN', label: 'Chưa rõ', symbol: '?' },
-]
+  // States
+  const [name, setName] = useState('');
+  const [species, setSpecies] = useState('Chó');
+  const [gender, setGender] = useState('MALE'); // MALE, FEMALE
+  const [dob, setDob] = useState('');
+  const [weight, setWeight] = useState('');
+  const [breed, setBreed] = useState('');
+  const [trait, setTrait] = useState('');
+  const [note, setNote] = useState('');
+  const [altPhone, setAltPhone] = useState('');
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
-// ── Owner Combobox ─────────────────────────────────────────────────────────────
-function OwnerCombobox({
-  value,
-  onChange,
-  customers,
-  isLoading,
-  fixedCustomerId,
-  error,
-}: {
-  value: string
-  onChange: (id: string) => void
-  customers: any[]
-  isLoading: boolean
-  fixedCustomerId?: string
-  error?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
+  const [breedsList, setBreedsList] = useState<BreedEntry[]>([]);
+  const [tempersList, setTempersList] = useState<TemperEntry[]>([]);
+  const [showBreedDropdown, setShowBreedDropdown] = useState(false);
+  const [showTraitDropdown, setShowTraitDropdown] = useState(false);
 
-  const selected = customers.find((c) => c.id === value)
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return customers.slice(0, 50)
-    const q = search.toLowerCase()
-    return customers.filter(
-      (c) =>
-        c.fullName?.toLowerCase().includes(q) ||
-        c.phone?.includes(q)
-    ).slice(0, 30)
-  }, [search, customers])
-
-  // close on outside click
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  if (fixedCustomerId && selected) {
-    return (
-      <div className={`form-input flex items-center gap-2.5 bg-background-tertiary/60 cursor-not-allowed`}>
-        <div className="w-7 h-7 rounded-lg bg-linear-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-          {selected.fullName?.charAt(0)?.toUpperCase()}
-        </div>
-        <div>
-          <div className="text-sm font-medium text-foreground">{selected.fullName}</div>
-          <div className="text-xs text-foreground-muted">{selected.phone}</div>
-        </div>
-        <span className="ml-auto text-xs badge-success">Đã khóa</span>
-      </div>
-    )
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={`form-input w-full flex items-center gap-2.5 text-left ${error ? 'border-error focus:ring-error/20' : ''
-          }`}
-      >
-        {selected ? (
-          <>
-            <div className="w-7 h-7 rounded-lg bg-linear-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-              {selected.fullName?.charAt(0)?.toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-foreground truncate">{selected.fullName}</div>
-              <div className="text-xs text-foreground-muted">{selected.phone}</div>
-            </div>
-          </>
-        ) : (
-          <>
-            <User size={15} className="text-foreground-muted shrink-0" />
-            <span className="text-foreground-muted text-sm flex-1">
-              {isLoading ? 'Đang tải...' : 'Tìm theo tên hoặc số điện thoại...'}
-            </span>
-          </>
-        )}
-        <ChevronDown size={15} className={`text-foreground-muted shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div className="absolute top-full left-0 right-0 mt-1.5 bg-background-secondary border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
-          {/* Search input */}
-          <div className="p-2 border-b border-border">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" />
-              <input
-                autoFocus
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Nhập tên hoặc SĐT..."
-                className="form-input pl-8 py-2 text-sm w-full"
-              />
-            </div>
-          </div>
-
-          {/* List */}
-          <div className="max-h-52 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <div className="py-8 text-center text-sm text-foreground-muted">Không tìm thấy khách hàng</div>
-            ) : (
-              filtered.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => { onChange(c.id); setOpen(false); setSearch('') }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-background-tertiary transition-colors ${c.id === value ? 'bg-primary-500/10 text-primary-400' : ''
-                    }`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-linear-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
-                    {c.fullName?.charAt(0)?.toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">{c.fullName}</div>
-                    <div className="text-xs text-foreground-muted flex items-center gap-1">
-                      <Phone size={10} /> {c.phone}
-                    </div>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Breed Autocomplete ────────────────────────────────────────────────────────
-function BreedAutocomplete({
-  value,
-  onChange,
-  breeds,
-}: {
-  value: string
-  onChange: (val: string) => void
-  breeds: any[]
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  const filtered = useMemo(() => {
-    if (!value.trim()) return breeds
-    const q = value.toLowerCase()
-    return breeds.filter((b) => b.name.toLowerCase().includes(q))
-  }, [value, breeds])
-
-  const isExactMatch = useMemo(() => {
-    return breeds.some(b => b.name.toLowerCase() === value.trim().toLowerCase())
-  }, [value, breeds])
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  return (
-    <div ref={ref} className="relative">
-      <div className="relative">
-        <input
-          value={value}
-          onChange={(e) => {
-            onChange(e.target.value)
-            setOpen(true)
-          }}
-          onFocus={() => setOpen(true)}
-          placeholder="Chọn hoặc nhập giống..."
-          className="form-input w-full pr-8"
-        />
-        <ChevronDown
-          size={15}
-          onClick={() => setOpen(o => !o)}
-          className={`absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted cursor-pointer transition-transform ${open ? 'rotate-180' : ''}`}
-        />
-      </div>
-
-      {open && (breeds.length > 0 || value.trim()) && (
-        <div className="absolute top-full left-0 right-0 mt-1.5 bg-background-secondary border border-border rounded-xl shadow-2xl z-50 overflow-hidden max-h-52 overflow-y-auto">
-          {filtered.length > 0 ? (
-            filtered.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => { onChange(b.name); setOpen(false) }}
-                className="w-full text-left px-4 py-2.5 text-sm hover:bg-background-tertiary transition-colors"
-              >
-                {b.name}
-              </button>
-            ))
-          ) : null}
-
-          {value.trim() && !isExactMatch && (
-            <button
-              type="button"
-              onClick={() => { setOpen(false) }}
-              className="w-full text-left px-4 py-2.5 text-sm text-primary-500 font-medium hover:bg-primary-500/10 transition-colors border-t border-border"
-            >
-              + Thêm giống mới: &quot;{value}&quot;
-            </button>
-          )}
-
-          {filtered.length === 0 && !value.trim() && (
-            <div className="py-4 text-center text-xs text-foreground-muted">Không có dữ liệu giống</div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Main Modal ─────────────────────────────────────────────────────────────────
-export function PetFormModal({ isOpen, onClose, initialData, fixedCustomerId }: Props) {
-  const isEditing = !!initialData
-  const queryClient = useQueryClient()
-
-  const [mounted, setMounted] = useState(false)
-  const [breeds, setBreeds] = useState<BreedEntry[]>([])
-  const [tempers, setTempers] = useState<TemperEntry[]>([])
-  const [breedInput, setBreedInput] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-
-  // Populate avatar from initialData when opening edit modal
   useEffect(() => {
     if (isOpen) {
-      setAvatarUrl(
-        initialData?.avatar
-          ? initialData.avatar.startsWith('data:')
-            ? initialData.avatar // already base64
-            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${initialData.avatar}`
-          : null
-      )
-    } else {
-      setAvatarUrl(null)
+      loadBreedsFromDB().then(setBreedsList);
+      loadTempsFromDB().then(setTempersList);
     }
-  }, [isOpen, initialData?.avatar])
+  }, [isOpen]);
+
+  const filteredBreeds = breedsList.filter(b => b.species === species && b.name.toLowerCase().includes(breed.toLowerCase()));
+  const filteredTraits = tempersList.filter(t => t.name.toLowerCase().includes(trait.toLowerCase()));
+  const showAddBreed = breed.trim() !== '' && !filteredBreeds.some(b => b.name.toLowerCase() === breed.toLowerCase().trim());
+  const showAddTrait = trait.trim() !== '' && !filteredTraits.some(t => t.name.toLowerCase() === trait.toLowerCase().trim());
+
+  const handleQuickAddBreed = () => {
+    const newName = breed.trim();
+    if (!newName) return;
+    const newEntry: BreedEntry = { id: Date.now().toString(), name: newName, species };
+    const next = [...breedsList, newEntry];
+    setBreedsList(next);
+    saveBreeds(next);
+    setBreed(newName);
+    setShowBreedDropdown(false);
+    toast.success(`Đã thêm giống '${newName}' vào cài đặt`);
+  };
+
+  const handleQuickAddTrait = () => {
+    const newName = trait.trim();
+    if (!newName) return;
+    const newEntry: TemperEntry = { name: newName, color: 'gray' };
+    const next = [...tempersList, newEntry];
+    setTempersList(next);
+    saveTempers(next);
+    setTrait(newName);
+    setShowTraitDropdown(false);
+    toast.success(`Đã thêm tính cách '${newName}' vào cài đặt`);
+  };
 
   useEffect(() => {
-    setMounted(true)
     if (isOpen) {
-      loadBreedsFromDB().then(setBreeds).catch(() => { })
-      loadTempsFromDB().then(setTempers).catch(() => { })
-    }
-  }, [isOpen])
-
-  const { data: customerData, isLoading: isLoadingCustomers } = useQuery({
-    queryKey: ['customers', 'all'],
-    queryFn: () => customerApi.getCustomers({ limit: 200 }),
-    enabled: !fixedCustomerId,
-  })
-
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(petSchema),
-    defaultValues: {
-      name: initialData?.name || '',
-      species: initialData?.species || 'Chó',
-      breed: initialData?.breed || '',
-      gender: initialData?.gender || 'UNKNOWN',
-      weight: initialData?.weight || undefined,
-      dateOfBirth: initialData?.dateOfBirth
-        ? new Date(initialData.dateOfBirth).toISOString().split('T')[0]
-        : '',
-      microchipId: initialData?.microchipId || '',
-      notes: initialData?.notes || '',
-      customerId: initialData?.customerId || fixedCustomerId || '',
-      color: initialData?.color || '',
-      allergies: initialData?.allergies || '',
-      temperament: initialData?.temperament || '',
-      isActive: initialData ? initialData.isActive : true,
-    },
-  })
-
-  const currentSpecies = watch('species')
-  const currentGender = watch('gender')
-  const currentCustomerId = watch('customerId')
-
-  const availableBreeds = useMemo(
-    () => breeds.filter((b) => b.species === currentSpecies),
-    [breeds, currentSpecies]
-  )
-
-  const customers = useMemo(() => {
-    // If fixedCustomerId, build a minimal list from initialData or empty
-    if (fixedCustomerId) {
-      if (initialData?.customer) return [initialData.customer]
-      return []
-    }
-    return customerData?.data ?? []
-  }, [customerData, fixedCustomerId, initialData])
-
-  // Pre-populate breed input when editing
-  useEffect(() => {
-    if (initialData?.breed) setBreedInput(initialData.breed)
-  }, [initialData?.breed])
-
-  const mutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      const payload: any = {
-        ...data,
-        breed: breedInput.trim() || data.breed || undefined,
-        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
-        avatar: avatarUrl || undefined,
+      if (initialData) {
+        setName(initialData.name || '');
+        setSpecies(initialData.species || 'Chó');
+        setGender(initialData.gender || 'MALE');
+        setDob(initialData.dateOfBirth ? initialData.dateOfBirth.split('T')[0] : '');
+        setWeight(initialData.weight ? String(initialData.weight) : '');
+        setBreed(initialData.breed || '');
+        setTrait(initialData.traits?.[0] || initialData.temperament || '');
+        setNote(initialData.notes || initialData.note || '');
+        setAltPhone(initialData.altPhone || '');
+        setError('');
+        // For image, we can just show existing avatar if any
+        if (initialData.avatar) {
+          const avatarUrl = String(initialData.avatar).startsWith('http') || String(initialData.avatar).startsWith('data:')
+            ? initialData.avatar
+            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${initialData.avatar}`;
+          setImagePreview(avatarUrl);
+        } else {
+          setImagePreview(null);
+        }
+        setImageFile(null);
+      } else {
+        setName(''); setSpecies('Chó'); setGender('MALE'); setDob(''); setWeight(''); setBreed(''); setTrait(''); setNote(''); setError(''); setAltPhone(''); setImagePreview(null); setImageFile(null);
       }
-      return isEditing
-        ? petApi.updatePet({ id: initialData.id, ...payload })
-        : petApi.createPet(payload)
-    },
-    onSuccess: () => {
-      toast.success(isEditing ? 'Lưu thú cưng thành công' : 'Thêm thú cưng thành công')
-      queryClient.invalidateQueries({ queryKey: ['pets'] })
-      queryClient.invalidateQueries({ queryKey: ['customer', fixedCustomerId] })
-      onClose()
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Có lỗi xảy ra, vui lòng thử lại')
-    },
-  })
+    }
+  }, [isOpen, initialData]);
 
-  useEffect(() => {
-    if (fixedCustomerId && !initialData) setValue('customerId', fixedCustomerId)
-  }, [fixedCustomerId, initialData, setValue])
+  if (!isOpen) return null;
 
-  if (!isOpen || !mounted) return null
+  const handleSave = async () => {
+    if (!name) return setError('Vui lòng nhập tên thú cưng');
+    try {
+      setLoading(true);
+      setError('');
+      const payload = {
+        name,
+        species,
+        gender,
+        birthDate: dob ? new Date(dob).toISOString() : null,
+        weight: weight ? parseFloat(weight) : null,
+        breed,
+        traits: trait ? [trait] : [],
+        temperament: trait,
+        notes: note,
+        customerId
+      };
+
+      let res;
+      if (initialData?.id) {
+        res = await api.put(`/pets/${initialData.id}`, payload);
+      } else {
+        res = await api.post('/pets', payload);
+      }
+
+      // TODO: Handle imageFile upload to a server endpoint if available like `/upload`
+
+      // Upload avatar if there's a new image
+      const petId = initialData?.id || res?.data?.id || res?.data?.data?.id
+      if (imageFile && petId) {
+        try {
+          await petApi.uploadAvatar(petId, imageFile)
+          toast.success('Đã lưu ảnh thú cưng')
+        } catch (uploadError) {
+          console.error('Upload ảnh thất bại:', uploadError)
+        }
+      }
+
+      toast.success(initialData?.id ? 'Lưu thú cưng thành công' : 'Thêm thú cưng thành công');
+      queryClient.invalidateQueries({ queryKey: ['pets'] });
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+
+      if (onSaved) {
+        onSaved(res.data?.data || res.data);
+      } else {
+        onClose();
+      }
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Có lỗi xảy ra');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputClass = "w-full form-input text-sm px-3 py-2.5 bg-background-base border border-border rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none shadow-sm placeholder:text-foreground-muted text-foreground";
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-100 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-background-base border border-border rounded-2xl shadow-2xl w-full max-w-[550px] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
 
-      <div className="card p-0 relative w-full flex flex-col max-w-2xl max-h-[92vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
-
-        {/* ── Header ── */}
-        <div className="px-6 py-4 border-b border-border bg-background-tertiary flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🐾</span>
-            <div>
-              <h2 className="text-lg font-bold text-foreground">
-                {isEditing ? 'Cập nhật thú cưng' : 'Thêm thú cưng mới'}
-              </h2>
-              <p className="text-xs text-foreground-muted mt-0.5">
-                {isEditing ? `Đang sửa: ${initialData?.name}` : 'Điền đầy đủ để quản lý tốt hơn'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-background-secondary transition-colors"
-          >
-            <X size={16} />
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <PawPrint className="text-primary-500" size={20} />
+            {initialData ? 'Sửa thông tin thú cưng' : 'Thêm thú cưng mới'}
+          </h2>
+          <button onClick={onClose} className="p-1.5 text-foreground-muted hover:text-foreground rounded-full hover:bg-background-secondary transition-colors">
+            <X size={18} />
           </button>
         </div>
 
-        {/* ── Body ── */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-5">
-          <form id="pet-form" onSubmit={handleSubmit((d) => mutation.mutate(d))}>
+        <div className="p-5 space-y-5 overflow-y-auto max-h-[80vh] no-scrollbar">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-2 text-red-500 text-sm font-medium">
+              <AlertTriangle size={16} />
+              {error}
+            </div>
+          )}
 
-            {/* ── Row 1: Avatar + Tên + Loài ── */}
-            <div className="flex gap-5 items-start mb-5">
-              {/* Avatar placeholder */}
-              <div className="shrink-0">
-                <label
-                  className="group relative flex w-20 h-20 cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-background-tertiary transition-colors hover:border-primary-500 hover:bg-background-tertiary/80"
-                >
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="pet" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-foreground-muted">
-                      <Camera size={18} className="group-hover:text-primary-400 transition-colors" />
-                      <span className="text-[10px] text-center leading-tight">Ảnh<br />đại diện</span>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 hidden items-center justify-center bg-background-base/60 text-[10px] font-bold uppercase tracking-wider text-white group-hover:flex">
-                    {avatarUrl ? 'Đổi ảnh' : 'Chọn ảnh'}
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0]
-                      e.target.value = ''
-                      if (!file) return
-                      try {
-                        const reader = new FileReader()
-                        reader.onload = () => setAvatarUrl(reader.result as string)
-                        reader.readAsDataURL(file)
-                      } catch {
-                        toast.error('Không thể đọc ảnh')
-                      }
-                    }}
-                  />
-                </label>
-                {avatarUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setAvatarUrl(null)}
-                    className="mt-1 text-[10px] font-medium text-foreground-muted hover:text-error transition-colors w-20 text-center"
-                  >
-                    Xóa ảnh
-                  </button>
+          <div className="flex gap-4">
+            {/* Thumbnail */}
+            <div className="flex flex-col items-center gap-2 shrink-0">
+              <label className="w-24 h-24 rounded-2xl bg-background-secondary border border-border flex items-center justify-center text-foreground-muted cursor-pointer overflow-hidden relative group hover:border-primary-500 transition-colors">
+                {imagePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <Image src={imagePreview} alt="Pet" className="w-full h-full object-cover" width={400} height={400} unoptimized />
+                ) : (
+                  <ImageIcon size={32} className="group-hover:text-primary-500 transition-colors" />
                 )}
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+              </label>
+              {imagePreview && (
+                <button
+                  onClick={() => { setImagePreview(null); setImageFile(null); }}
+                  className="text-xs text-red-500 hover:text-red-400 transition-colors font-medium"
+                >
+                  × Xóa
+                </button>
+              )}
+            </div>
+
+            <div className="flex-1 space-y-4">
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-1">Tên thú cưng <span className="text-red-500">*</span></label>
+                <input className={inputClass} value={name} onChange={e => setName(e.target.value)} placeholder="Tên thú cưng" autoFocus />
               </div>
-
-              <div className="flex-1 space-y-4">
-                {/* Tên */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
-                    Tên thú cưng <span className="text-error">*</span>
-                  </label>
-                  <input
-                    {...register('name')}
-                    placeholder="Mochi, Bông, Lucky..."
-                    className={`form-input w-full ${errors.name ? 'border-error' : ''}`}
-                  />
-                  {errors.name && (
-                    <p className="text-error text-xs flex items-center gap-1 mt-1.5">
-                      <AlertCircle size={11} /> {errors.name.message}
-                    </p>
-                  )}
-                </div>
-
-                {/* Loài — Toggle buttons compact */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Loài</label>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {SPECIES_OPTIONS.map((s) => (
-                      <button
-                        key={s.value}
-                        type="button"
-                        onClick={() => { setValue('species', s.value); setBreedInput('') }}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl border text-sm font-medium transition-all whitespace-nowrap ${currentSpecies === s.value
-                            ? 'bg-primary-500 border-primary-500 text-white shadow-sm shadow-primary-500/25'
-                            : 'border-border bg-background-tertiary text-foreground-muted hover:border-primary-500/40 hover:text-foreground'
-                          }`}
-                      >
-                        <span>{s.emoji}</span> {s.label}
-                      </button>
-                    ))}
-
-                    {/* isActive toggle — inline, small */}
-                    {isEditing && (
-                      <label className="ml-auto flex items-center gap-2 cursor-pointer select-none">
-                        <span className="text-xs text-foreground-muted">Hoạt động</span>
-                        <div className="relative inline-flex h-5 w-9 shrink-0 items-center">
-                          <input
-                            type="checkbox"
-                            id="isActiveToggle"
-                            {...register('isActive')}
-                            className="peer sr-only"
-                          />
-                          <div className="pointer-events-none h-5 w-9 rounded-full bg-background-tertiary border border-border peer-checked:bg-primary-500 peer-checked:border-primary-500 transition-colors" />
-                          <div className="pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-foreground-muted shadow transition-transform peer-checked:translate-x-4 peer-checked:bg-white" />
-                        </div>
-                      </label>
-                    )}
-                  </div>
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-1">Loài</label>
+                <div className="flex bg-background-secondary p-1 rounded-xl border border-border">
+                  <button onClick={() => setSpecies('Chó')} className={`flex-1 py-1.5 text-sm rounded-lg transition-colors ${species === 'Chó' ? 'bg-background-base border border-border text-primary-500 font-semibold shadow-sm' : 'text-foreground-muted hover:text-foreground'}`}>Chó</button>
+                  <button onClick={() => setSpecies('Mèo')} className={`flex-1 py-1.5 text-sm rounded-lg transition-colors ${species === 'Mèo' ? 'bg-background-base border border-border text-primary-500 font-semibold shadow-sm' : 'text-foreground-muted hover:text-foreground'}`}>Mèo</button>
+                  <button onClick={() => setSpecies('Khác')} className={`flex-1 py-1.5 text-sm rounded-lg transition-colors ${species === 'Khác' ? 'bg-background-base border border-border text-primary-500 font-semibold shadow-sm' : 'text-foreground-muted hover:text-foreground'}`}>Khác</button>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* ── Row 2: Giới tính + Ngày sinh + Cân nặng ── */}
-            <div className="grid grid-cols-3 gap-4 mb-5">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Giới tính <span className="text-error">*</span>
-                </label>
-                <div className="flex gap-1.5">
-                  {GENDER_OPTIONS.map((g) => (
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1">Giới tính <span className="text-red-500">*</span></label>
+              <div className="flex gap-2">
+                <button onClick={() => setGender('MALE')} className={`flex-1 py-2 text-sm rounded-xl border transition-colors ${gender === 'MALE' ? 'border-primary-500 bg-primary-500/10 text-primary-500 font-semibold' : 'border-border bg-background-secondary text-foreground-muted hover:bg-background-base'}`}>♂ Đực</button>
+                <button onClick={() => setGender('FEMALE')} className={`flex-1 py-2 text-sm rounded-xl border transition-colors ${gender === 'FEMALE' ? 'border-pink-500 bg-pink-500/10 text-pink-500 font-semibold' : 'border-border bg-background-secondary text-foreground-muted hover:bg-background-base'}`}>♀ Cái</button>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1">Ngày sinh</label>
+              <input type="date" className={inputClass} value={dob} onChange={e => setDob(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1">Cân nặng (kg)</label>
+              <input type="number" step="0.1" className={inputClass} value={weight} onChange={e => setWeight(e.target.value)} placeholder="0.0" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="relative">
+              <label className="text-sm font-medium text-foreground block mb-1">Giống</label>
+              <input
+                className={inputClass}
+                value={breed}
+                onChange={e => { setBreed(e.target.value); setShowBreedDropdown(true); }}
+                onFocus={() => setShowBreedDropdown(true)}
+                onBlur={() => setTimeout(() => setShowBreedDropdown(false), 200)}
+                placeholder="Nhập hoặc chọn giống..."
+              />
+              {showBreedDropdown && (filteredBreeds.length > 0 || showAddBreed) && (
+                <div className="absolute z-110 mt-1 w-full rounded-xl border border-border bg-background-base shadow-xl max-h-[200px] overflow-y-auto no-scrollbar p-1">
+                  {filteredBreeds.map(b => (
                     <button
-                      key={g.value}
+                      key={b.id}
                       type="button"
-                      onClick={() => setValue('gender', g.value as any)}
-                      className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border text-sm font-semibold transition-all ${currentGender === g.value
-                          ? g.value === 'MALE'
-                            ? 'bg-info/20 border-info text-info'
-                            : g.value === 'FEMALE'
-                              ? 'bg-pink-500/20 border-pink-400 text-pink-400'
-                              : 'bg-background-tertiary border-border text-foreground-muted'
-                          : 'border-border bg-background-tertiary text-foreground-muted hover:border-border/80'
-                        }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { setBreed(b.name); setShowBreedDropdown(false); }}
+                      className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-background-secondary rounded-lg transition-colors cursor-pointer"
                     >
-                      <span>{g.symbol}</span>
-                      <span className="text-xs hidden sm:inline">{g.label}</span>
+                      {b.name}
                     </button>
                   ))}
+                  {showAddBreed && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={handleQuickAddBreed}
+                      className="w-full text-left px-3 py-2 text-sm text-primary-500 hover:bg-primary-500/10 rounded-lg transition-colors cursor-pointer font-medium flex items-center justify-between"
+                    >
+                      <span>+ Thêm &quot;{breed}&quot;</span>
+                      <span className="text-[10px] uppercase text-primary-500/60 font-bold bg-primary-500/10 px-1.5 py-0.5 rounded">Lưu cài đặt</span>
+                    </button>
+                  )}
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Ngày sinh</label>
-                <input
-                  type="date"
-                  {...register('dateOfBirth')}
-                  className="form-input w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  <Scale size={13} className="inline mr-1" />
-                  Cân nặng (kg)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  {...register('weight', { valueAsNumber: true })}
-                  placeholder="VD: 4.5"
-                  className={`form-input w-full ${errors.weight ? 'border-error' : ''}`}
-                />
-              </div>
-            </div>
-
-            {/* ── Row 3: Giống + Tính cách ── */}
-            <div className="grid grid-cols-2 gap-4 mb-5">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Giống</label>
-                <BreedAutocomplete
-                  value={breedInput}
-                  onChange={setBreedInput}
-                  breeds={availableBreeds}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Tính cách</label>
-                <select {...register('temperament')} className="form-input w-full">
-                  <option value="">Chưa đánh giá</option>
-                  {tempers.map((t) => (
-                    <option key={t.name} value={t.name}>{t.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* ── Row 4: Màu sắc + Mã chip ── */}
-            <div className="grid grid-cols-2 gap-4 mb-5">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Màu sắc</label>
-                <input
-                  {...register('color')}
-                  placeholder="Vàng, Trắng, Đen trắng..."
-                  className="form-input w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Mã Microchip</label>
-                <input
-                  {...register('microchipId')}
-                  placeholder="Nhập mã chip nếu có..."
-                  className="form-input w-full"
-                />
-              </div>
-            </div>
-
-            {/* ── Row 5: Chủ thú cưng ── */}
-            {!fixedCustomerId && (
-              <div className="mb-5">
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Chủ thú cưng <span className="text-error">*</span>
-                </label>
-                <OwnerCombobox
-                  value={currentCustomerId}
-                  onChange={(id) => setValue('customerId', id)}
-                  customers={customers}
-                  isLoading={isLoadingCustomers}
-                  error={errors.customerId?.message}
-                />
-                {errors.customerId && (
-                  <p className="text-error text-xs flex items-center gap-1 mt-1.5">
-                    <AlertCircle size={11} /> {errors.customerId.message}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Fixed customer display */}
-            {fixedCustomerId && customers.length > 0 && (
-              <div className="mb-5">
-                <label className="block text-sm font-medium text-foreground mb-1.5">Chủ thú cưng</label>
-                <OwnerCombobox
-                  value={currentCustomerId}
-                  onChange={() => { }}
-                  customers={customers}
-                  isLoading={false}
-                  fixedCustomerId={fixedCustomerId}
-                />
-              </div>
-            )}
-
-            {/* ── Row 6: Dị ứng ── */}
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                <span className="text-warning mr-1">⚠️</span>
-                Ghi chú dị ứng / Lưu ý phục vụ
-              </label>
-              <textarea
-                {...register('allergies')}
-                placeholder="Dị ứng với..., lưu ý đặc biệt khi phục vụ..."
-                rows={2}
-                className="form-input py-3 w-full bg-background-base resize-none border-warning/30 focus:border-warning/60 focus:ring-warning/10"
-              />
-            </div>
-
-            {/* ── Row 7: Ghi chú ngoại hình ── */}
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Mô tả / Ghi chú ngoại hình
-              </label>
-              <textarea
-                {...register('notes')}
-                placeholder="Bé ngoan, hơi nhát người, có đốm trên tai trái..."
-                rows={2}
-                className="form-input py-3 w-full bg-background-base resize-none"
-              />
-            </div>
-
-
-          </form>
-        </div>
-
-        {/* ── Footer ── */}
-        <div className="px-6 py-4 border-t border-border bg-background-tertiary flex justify-between items-center shrink-0">
-          <span className="text-xs text-foreground-muted">
-            {isEditing ? `Mã: ${initialData?.petCode}` : '* Bắt buộc'}
-          </span>
-          <div className="flex gap-2.5">
-            <button type="button" onClick={onClose} className="btn-outline px-5 rounded-xl">
-              Hủy
-            </button>
-            <button
-              type="submit"
-              form="pet-form"
-              disabled={mutation.isPending}
-              className="btn-primary liquid-button flex items-center gap-2 px-5 rounded-xl"
-            >
-              {mutation.isPending ? (
-                <>
-                  <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Đang lưu...
-                </>
-              ) : (
-                <>
-                  <Save size={15} />
-                  {isEditing ? 'Lưu thông tin' : 'Thêm thú cưng'}
-                </>
               )}
-            </button>
+            </div>
+            <div className="relative">
+              <label className="text-sm font-medium text-foreground block mb-1">Tính cách</label>
+              <input
+                className={inputClass}
+                value={trait}
+                onChange={e => { setTrait(e.target.value); setShowTraitDropdown(true); }}
+                onFocus={() => setShowTraitDropdown(true)}
+                onBlur={() => setTimeout(() => setShowTraitDropdown(false), 200)}
+                placeholder="Nhập hoặc chọn tính cách..."
+              />
+              {showTraitDropdown && (filteredTraits.length > 0 || showAddTrait) && (
+                <div className="absolute z-110 mt-1 w-full rounded-xl border border-border bg-background-base shadow-xl max-h-[200px] overflow-y-auto no-scrollbar p-1">
+                  {filteredTraits.map(t => {
+                    const style = getTemperStyle(t.color)
+                    return (
+                      <button
+                        key={t.name}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { setTrait(t.name); setShowTraitDropdown(false); }}
+                        className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-background-secondary rounded-lg transition-colors cursor-pointer flex items-center gap-2"
+                      >
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: style.value }}></span>
+                        {t.name}
+                      </button>
+                    )
+                  })}
+                  {showAddTrait && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={handleQuickAddTrait}
+                      className="w-full text-left px-3 py-2 text-sm text-primary-500 hover:bg-primary-500/10 rounded-lg transition-colors cursor-pointer font-medium flex items-center justify-between"
+                    >
+                      <span>+ Thêm &quot;{trait}&quot;</span>
+                      <span className="text-[10px] uppercase text-primary-500/60 font-bold bg-primary-500/10 px-1.5 py-0.5 rounded">Lưu cài đặt</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+
+          <div>
+            <label className="text-sm font-medium text-foreground block mb-1">Chủ thú cưng <span className="text-red-500">*</span></label>
+            <div className="flex items-center gap-3 p-3 bg-background-secondary border border-border rounded-xl mb-3">
+              <div className="w-8 h-8 rounded-full bg-primary-500/10 text-primary-500 flex items-center justify-center font-bold text-sm shrink-0 uppercase">
+                {customerName.charAt(0) || 'U'}
+              </div>
+              <div>
+                <div className="font-medium text-foreground">{customerName}</div>
+                <div className="text-xs text-foreground-muted">{customerPhone || '---'}</div>
+              </div>
+            </div>
+
+            <div className="mt-4 relative">
+              <label className="text-sm font-medium text-foreground block mb-1">SĐT phụ (nếu có)</label>
+              <input className={inputClass} value={altPhone} onChange={e => setAltPhone(e.target.value)} placeholder="Nhập SĐT liên lạc khác..." />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-foreground block mb-1">Ghi chú / Lưu ý phục vụ</label>
+            <textarea className={inputClass + " min-h-[80px] resize-none"} value={note} onChange={e => setNote(e.target.value)} placeholder="Dị ứng, lưu ý đặc biệt..." />
+          </div>
+
         </div>
+
+        <div className="p-4 border-t border-border flex justify-between gap-2">
+          <button onClick={onClose} className="px-6 py-2.5 bg-background-base border border-border hover:bg-background-secondary text-foreground rounded-xl text-sm font-semibold transition-colors">
+            Hủy
+          </button>
+          <button onClick={handleSave} disabled={loading} className="px-8 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm">
+            {loading ? 'Đang lưu...' : initialData ? 'Cập nhật' : 'Thêm'}
+          </button>
+        </div>
+
       </div>
     </div>
-  )
+  );
 }

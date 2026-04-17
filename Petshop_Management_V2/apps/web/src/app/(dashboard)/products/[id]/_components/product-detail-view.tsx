@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -11,6 +12,7 @@ import { inventoryApi } from '@/lib/api/inventory.api'
 import { ProductFormModal } from '../../_components/product-form-modal'
 import { settingsApi } from '@/lib/api'
 import { useAuthorization } from '@/hooks/useAuthorization'
+
 
 type BranchStockRow = {
   id?: string
@@ -438,7 +440,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
           <div className="flex flex-col gap-6">
             <div className="w-full aspect-square rounded-xl border border-border bg-background-tertiary flex items-center justify-center overflow-hidden shrink-0">
               {activeItem.image ? (
-                <img src={activeItem.image} alt={activeItem.name} className="w-full h-full object-cover" />
+                <Image src={activeItem.image} alt={activeItem.name} className="w-full h-full object-cover" width={400} height={400} unoptimized />
               ) : (
                 <Box size={32} className="text-foreground-muted/50" />
               )}

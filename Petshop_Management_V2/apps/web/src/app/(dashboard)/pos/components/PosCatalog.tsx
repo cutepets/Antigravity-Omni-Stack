@@ -1,6 +1,8 @@
 'use client';
+import Image from 'next/image';
 
 import { usePosStore } from '../../../../stores/pos.store';
+
 
 export default function PosCatalog({ products, services }: { products: any[], services: any[] }) {
   const addItem = usePosStore((state) => state.addItem);
@@ -37,7 +39,7 @@ export default function PosCatalog({ products, services }: { products: any[], se
               className="bg-white p-4 rounded-xl border border-slate-200 cursor-pointer hover:border-amber-400 hover:shadow-md transition-all group"
             >
               <div className="aspect-square bg-slate-100 rounded-lg mb-3 flex items-center justify-center text-slate-400 group-hover:bg-amber-50">
-                {p.image ? <img src={p.image} alt={p.name} className="w-full h-full object-cover rounded-lg" /> : 'No Image'}
+                {p.image ? <Image src={p.image} alt={p.name} className="w-full h-full object-cover rounded-lg" width={400} height={400} unoptimized /> : 'No Image'}
               </div>
               <h4 className="font-semibold text-sm line-clamp-2">{p.name}</h4>
               <p className="text-amber-600 font-bold mt-1 text-sm">{p.price.toLocaleString('vi-VN')} đ</p>

@@ -275,7 +275,7 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-full w-[900px] max-w-[100vw] glass-panel border-l border-white/10 z-50 overflow-y-auto flex flex-col"
+            className="fixed top-0 right-0 h-full w-[900px] max-w-screen glass-panel border-l border-white/10 z-50 overflow-y-auto flex flex-col"
             style={{ boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.4)' }}
           >
             <div className="flex items-center justify-between p-6 border-b border-white/5 sticky top-0 bg-background/70 backdrop-blur-xl z-10">

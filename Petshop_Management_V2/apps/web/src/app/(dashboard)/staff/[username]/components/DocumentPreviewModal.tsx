@@ -1,8 +1,10 @@
 'use client'
+import Image from 'next/image';
 
 import React from 'react'
 import { X, Download } from 'lucide-react'
 import { EmployeeDocument, DOCUMENT_TYPE_LABELS } from '@/lib/api/staff.api'
+
 
 interface DocumentPreviewModalProps {
   document: EmployeeDocument
@@ -46,11 +48,9 @@ export function DocumentPreviewModal({ document, onClose }: DocumentPreviewModal
         <div className="flex-1 overflow-auto p-6">
           {isImage ? (
             <div className="flex items-center justify-center">
-              <img
-                src={document.fileUrl}
+              <Image src={document.fileUrl}
                 alt={document.fileName}
-                className="max-h-[70vh] max-w-full rounded-lg object-contain"
-              />
+                className="max-h-[70vh] max-w-full rounded-lg object-contain" width={400} height={400} unoptimized />
             </div>
           ) : isPDF ? (
             <iframe

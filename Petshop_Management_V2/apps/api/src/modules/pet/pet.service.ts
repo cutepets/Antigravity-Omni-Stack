@@ -10,12 +10,13 @@ import { AddWeightLogDto } from './dto/add-weight-log.dto.js'
 import { CreatePetDto } from './dto/create-pet.dto.js'
 import { FindPetsDto } from './dto/find-pets.dto.js'
 import { UpdatePetDto } from './dto/update-pet.dto.js'
+import { SyncAttributeDto, SyncAttributeType } from './dto/sync-attribute.dto.js'
 
 type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>
 
 @Injectable()
 export class PetService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   private async generatePetCode(): Promise<string> {
     return getNextSequentialCode(this.db, {
@@ -428,5 +429,30 @@ export class PetService {
       }),
     ])
     return { groomingSessions, hotelStays }
+  }
+
+  async syncAttribute(syncDto: SyncAttributeDto, user?: AccessUser) {
+    if (!this.resolveUserPermissions(user).has('settings.app.update')) {
+      throw new ForbiddenException('Bạn không có quyền cập nhật hàng loạt')
+    }
+
+    const { attribute, oldValue, newValue } = syncDto
+    let updatedCount = 0
+
+    if (attribute === SyncAttributeType.BREED) {
+      const result = await this.db.pet.updateMany({
+        where: { breed: oldValue },
+        data: { breed: newValue },
+      })
+      updatedCount = result.count
+    } else if (attribute === SyncAttributeType.TEMPERAMENT) {
+      const result = await this.db.pet.updateMany({
+        where: { temperament: oldValue },
+        data: { temperament: newValue },
+      })
+      updatedCount = result.count
+    }
+
+    return { success: true, count: updatedCount }
   }
 }

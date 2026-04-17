@@ -416,7 +416,7 @@ export function CashbookSettingsDrawer({ isOpen, onClose }: CashbookSettingsDraw
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 z-50 flex h-full w-[880px] max-w-[100vw] flex-col overflow-y-auto border-l border-white/10 bg-background shadow-2xl"
+            className="fixed right-0 top-0 z-50 flex h-full w-[880px] max-w-screen flex-col overflow-y-auto border-l border-white/10 bg-background shadow-2xl"
           >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-background/85 p-6 backdrop-blur-xl">
               <div className="flex items-center gap-3 text-primary-400">

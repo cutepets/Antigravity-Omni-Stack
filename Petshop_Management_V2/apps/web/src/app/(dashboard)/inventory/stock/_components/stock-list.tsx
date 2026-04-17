@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -6,6 +7,7 @@ import { AlertCircle, Download, PackageCheck, Pin, PinOff } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { stockApi } from '@/lib/api/stock.api'
 import {
+
   DataListShell,
   DataListToolbar,
   DataListFilterPanel,
@@ -344,7 +346,7 @@ export function StockList() {
                         <div className="flex items-center gap-3">
                           {row.image ? (
                             <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg border border-border bg-background-secondary">
-                              <img src={row.image} alt={row.displayName} className="h-full w-full object-cover" />
+                              <Image src={row.image} alt={row.displayName} className="h-full w-full object-cover" width={400} height={400} unoptimized />
                             </div>
                           ) : (
                             <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background-secondary text-foreground-muted">

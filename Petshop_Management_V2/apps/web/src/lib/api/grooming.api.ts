@@ -53,6 +53,7 @@ export interface GroomingSession {
   updatedAt?: string;
   pet: GroomingPet;
   staff: GroomingStaff | null;
+  assignedStaff?: GroomingStaff[];
   branch: { id: string; name: string; code: string } | null;
   order?: {
     id: string;
@@ -72,6 +73,7 @@ export type CreateGroomingPayload = {
   petId: string;
   branchId?: string;
   staffId?: string;
+  staffIds?: string[];
   serviceId?: string;
   packageCode?: string;
   startTime?: string;
@@ -102,6 +104,7 @@ export type UpdateGroomingPayload = Partial<CreateGroomingPayload> & {
   status?: GroomingStatus;
   endTime?: string;
   price?: number;
+  staffIds?: string[];
   surcharge?: number;
 };
 

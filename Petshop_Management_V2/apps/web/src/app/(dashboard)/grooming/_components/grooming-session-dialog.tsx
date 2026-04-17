@@ -223,7 +223,8 @@ export function GroomingSessionDialog({
           packageCode: session.packageCode ?? "",
           status: session.status,
         });
-        setSelectedStaffIds(session.staffId ? [session.staffId] : []);
+        const prevStaffIds = session.assignedStaff?.map(s => s.id) ?? (session.staffId ? [session.staffId] : []);
+        setSelectedStaffIds(prevStaffIds);
       } else if (mode === "create") {
         reset({
           petId: "",
@@ -261,11 +262,12 @@ export function GroomingSessionDialog({
     },
   });
 
+  const { mutate: triggerCalculate } = calculateMutation;
   useEffect(() => {
     if (mode === "create" && watchPetId && watchPackageCode) {
-      calculateMutation.mutate();
+      triggerCalculate();
     }
-  }, [watchPetId, watchPackageCode, mode]);
+  }, [watchPetId, watchPackageCode, mode, triggerCalculate]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -273,6 +275,7 @@ export function GroomingSessionDialog({
         petId: data.petId,
         branchId: data.branchId || undefined,
         staffId: selectedStaffIds.length > 0 ? selectedStaffIds[0] : undefined,
+        staffIds: selectedStaffIds,
         startTime: data.startTime || undefined,
         endTime: data.endTime || undefined,
         notes: data.notes?.trim() || undefined,
@@ -336,7 +339,7 @@ export function GroomingSessionDialog({
     if (mode === "detail" && session) {
       return {
         petId: session.petId,
-        customerId: session.pet?.customerId,
+        customerId: session.pet?.customer?.id || session.customerId,
         name: session.petName,
         label: session.pet?.breed || session.pet?.species || "Không rõ giống",
         code: session.pet?.petCode || session.petId,
@@ -348,7 +351,7 @@ export function GroomingSessionDialog({
     if (pet) {
       return {
         petId: pet.id,
-        customerId: pet.customerId,
+        customerId: pet.customer?.id || pet.customerId,
         name: pet.name,
         label: pet.breed || pet.species || "Không rõ giống",
         code: pet.petCode || pet.id,
@@ -365,15 +368,18 @@ export function GroomingSessionDialog({
   return (
     <>
 
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background-backdrop/60 p-4 backdrop-blur-sm sm:p-0">
+      <div className="fixed inset-0 z-50 flex items-start justify-center bg-background-backdrop/60 p-4 pt-[10vh] backdrop-blur-sm sm:p-0 sm:pt-[10vh]">
         <aside
-          className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-background-base shadow-xl"
+          className="flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-background-base shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
           <Tabs.Root defaultValue="info" className="flex h-full flex-col">
             <div className="flex items-start justify-between border-b border-border px-6 py-5">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-bold text-foreground">
+                    {petInfo.name}
+                  </h2>
                   {isEditing ? (
                     <GroomingStatusBadge status={watchStatus || "PENDING"} />
                   ) : (
@@ -385,14 +391,9 @@ export function GroomingSessionDialog({
                     {sessionLabel}
                   </span>
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-foreground">
-                    {petInfo.name}
-                  </h2>
-                  {petInfo.label && (
-                    <p className="text-sm text-foreground-muted">{petInfo.label}</p>
-                  )}
-                </div>
+                {petInfo.label && (
+                  <p className="text-sm text-foreground-muted">{petInfo.label}</p>
+                )}
               </div>
 
               <div className="flex items-start gap-4">
@@ -453,8 +454,8 @@ export function GroomingSessionDialog({
 
                 {(mode === "detail" || watchPetId) && (
                   <>
-                    <section className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group">
+                    <section className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group min-h-[120px]">
                         <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                           <span className="flex items-center gap-2"><UserRound size={14} /> Khách hàng</span>
                           {petInfo.customerId && (
@@ -463,15 +464,15 @@ export function GroomingSessionDialog({
                             </Link>
                           )}
                         </div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {petInfo.customerName}
-                        </p>
-                        <p className="mt-1 text-sm text-foreground-muted">
-                          {petInfo.customerPhone}
-                        </p>
+                        <p className="text-sm font-semibold text-foreground">{petInfo.customerName}</p>
+                        <div className="mt-2 space-y-1">
+                          <p className="text-xs text-foreground-muted">
+                            SĐT: <span className="font-medium text-foreground">{petInfo.customerPhone}</span>
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group">
+                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group min-h-[120px]">
                         <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                           <span className="flex items-center gap-2"><Tag size={14} /> Mã thú cưng</span>
                           {petInfo.petId && (
@@ -480,17 +481,29 @@ export function GroomingSessionDialog({
                             </Link>
                           )}
                         </div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {petInfo.code}
-                        </p>
-                        {isEditing && (
-                          <div className="mt-2 space-y-1">
+                        <p className="text-sm font-mono font-semibold text-foreground">{petInfo.code}</p>
+                        <div className="mt-2 space-y-1">
+                          <p className="text-xs text-foreground-muted">
+                            Tên: <span className="font-medium text-foreground">{petInfo.name}</span>
+                          </p>
+                          <p className="text-xs text-foreground-muted">
+                            Giống: <span className="font-medium text-foreground">{petInfo.label}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group min-h-[120px]">
+                        <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                          <span className="flex items-center gap-2"><ClipboardList size={14} /> Thông tin đơn hàng</span>
+                        </div>
+                        {isEditing ? (
+                          <div className="space-y-1 mt-2">
                             <p className="text-xs text-foreground-muted">
-                              Tạo lúc: {formatGroomingDateTime(session!.createdAt)}
+                              Tạo lúc: <span className="font-medium text-foreground">{formatGroomingDateTime(session!.createdAt)}</span>
                             </p>
                             {session!.branch && (
                               <p className="text-xs text-foreground-muted">
-                                Chi nhánh: <span className="font-medium text-foreground">{session!.branch.name}</span>
+                                CN: <span className="font-medium text-foreground">{session!.branch.name}</span>
                               </p>
                             )}
                             {session!.staff && (
@@ -499,20 +512,17 @@ export function GroomingSessionDialog({
                               </p>
                             )}
                           </div>
+                        ) : (
+                          <p className="text-xs text-foreground-muted mt-2 italic">Chưa có thông tin</p>
                         )}
                       </div>
                     </section>
 
                     <section className="space-y-4 rounded-2xl border border-border bg-card/80 p-4">
                       <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">
-                            Thông tin dịch vụ
-                          </p>
-                          <p className="text-xs text-foreground-muted">
-                            Thiết lập dịch vụ và người phụ trách
-                          </p>
-                        </div>
+                        <p className="text-sm font-semibold text-foreground">
+                          Thông tin dịch vụ
+                        </p>
                       </div>
 
                       <div className="grid gap-4 sm:grid-cols-2">
@@ -567,7 +577,7 @@ export function GroomingSessionDialog({
 
                         <div className="space-y-2 sm:col-span-2">
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                            Nhân viên phụ trách (Có thể thêm nhiều)
+                            Nhân viên phụ trách
                           </span>
                           <div className="relative">
                             <div className="flex flex-wrap gap-2 mb-2">
@@ -603,7 +613,7 @@ export function GroomingSessionDialog({
                                     <div
                                       key={staff.id}
                                       onClick={() => {
-                                        setSelectedStaffIds([...selectedStaffIds, staff.id]);
+                                        setSelectedStaffIds(prev => [...prev, staff.id]);
                                         setSearchStaff("");
                                       }}
                                       className="cursor-pointer rounded-lg px-3 py-2 hover:bg-background-secondary text-foreground transition-colors"
@@ -705,7 +715,7 @@ export function GroomingSessionDialog({
                   ) : (
                     <div />
                   )}
-                  <div className="flex gap-3 [&>*]:flex-1">
+                  <div className="flex gap-3 *:flex-1">
                     <button
                       type="button"
                       onClick={onClose}

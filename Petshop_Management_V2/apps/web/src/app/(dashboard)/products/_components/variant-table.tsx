@@ -1,7 +1,9 @@
+import Image from 'next/image';
 import { ImagePlus } from 'lucide-react'
 import { PriceInput } from './product-form-modal'
 import type React from 'react'
 import type { ChangeEvent } from 'react'
+
 
 export interface VariantTableProps {
   generatedVariants: any[]
@@ -68,7 +70,7 @@ export function VariantTable({
                               : 'bg-background hover:border-primary-500'
                         }`}>
                           {v.image || productImage ? (
-                            <img src={v.image || productImage || ''} alt={v.name} className="h-full w-full object-cover" />
+                            <Image src={v.image || productImage || ''} alt={v.name} className="h-full w-full object-cover" width={400} height={400} unoptimized />
                           ) : (
                             <ImagePlus size={14} className="text-foreground-muted" />
                           )}

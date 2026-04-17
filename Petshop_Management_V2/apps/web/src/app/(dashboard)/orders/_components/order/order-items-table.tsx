@@ -1,10 +1,13 @@
 'use client'
+import Image from 'next/image';
 
 import type { KeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Minus, Package2, Percent, Plus, Trash2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { getCartQuantityStep } from './order.utils'
+import { OrderStockPopover } from './order-stock-popover'
+
 
 type DiscountMode = 'amount' | 'percent'
 
@@ -184,7 +187,7 @@ export function OrderItemsTable({
                 onClick={() => onSelectRow(index)}
                 onFocus={() => onSelectRow(index)}
                 onKeyDown={(event) => handleRowKeyDown(event, index, item)}
-                className={`grid items-center border-b border-border px-2 py-3 transition-colors last:border-b-0 ${isSelected
+                className={`group grid items-center border-b border-border px-2 py-3 transition-colors last:border-b-0 ${isSelected
                   ? 'bg-primary-500/8 ring-1 ring-inset ring-primary-500/35'
                   : 'hover:bg-background-secondary/30'
                   }`}
@@ -208,7 +211,7 @@ export function OrderItemsTable({
                   <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-border bg-background text-foreground-muted">
                     {item.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.image} alt={item.description} className="h-full w-full object-cover" />
+                      <Image src={item.image} alt={item.description} className="h-full w-full object-cover" width={400} height={400} unoptimized />
                     ) : (
                       <Package2 size={16} />
                     )}
@@ -222,8 +225,11 @@ export function OrderItemsTable({
                 </div>
 
                 <div className="min-w-0 pr-3">
-                  <div className="truncate text-sm font-semibold text-foreground" title={item.description}>
-                    {item.description}
+                  <div className="flex items-start gap-1">
+                    <div className="truncate text-sm font-semibold text-foreground" title={item.description}>
+                      {item.description}
+                    </div>
+                    <OrderStockPopover item={item} />
                   </div>
                   <div className="mt-1 truncate text-xs text-foreground-muted">{getItemMeta(item) || '-'}</div>
                 </div>

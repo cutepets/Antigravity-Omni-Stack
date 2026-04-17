@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { X, Save, ImagePlus, Plus, Trash2, ChevronDown, ChevronUp, Tag, Loader2 } from 'lucide-react'
@@ -7,6 +8,7 @@ import { inventoryApi } from '@/lib/api/inventory.api'
 import { toast } from 'sonner'
 import { NumericFormat } from 'react-number-format'
 import { VariantTable } from './variant-table'
+
 
 interface ProductFormModalProps {
   isOpen: boolean
@@ -560,7 +562,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                 <div className="w-32 shrink-0">
                   <label className="group relative flex h-32 w-32 cursor-pointer overflow-hidden rounded-xl border-2 border-dashed border-border bg-background-secondary transition-colors hover:border-primary-500 hover:bg-background-tertiary">
                     {productImage ? (
-                      <img src={productImage} alt={formData.name || 'Sản phẩm'} className="h-full w-full object-cover" />
+                      <Image src={productImage} alt={formData.name || 'Sản phẩm'} className="h-full w-full object-cover" width={400} height={400} unoptimized />
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center text-foreground-muted">
                         <ImagePlus size={24} className="mb-2" />

@@ -1,10 +1,12 @@
 'use client'
+import Image from 'next/image';
 
 import React, { useState, useEffect, useRef } from 'react'
 import { Staff, CreateStaffDto, UpdateStaffDto } from '@/lib/api/staff.api'
 import { AvatarCropperModal } from './AvatarCropperModal'
 import { Camera, User, Phone, Shield, Briefcase, Plus, X, Upload, Edit2, Check, MapPin } from 'lucide-react'
 import { settingsApi } from '@/lib/api'
+
 
 // Common Dark Input Style
 const inputStyle = "w-full rounded-xl border border-border bg-background-elevated px-4 py-3 text-sm text-foreground placeholder-foreground-muted outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/30 transition-all"
@@ -255,7 +257,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                 <div className="mb-6 flex justify-center">
                     <div className="relative group cursor-pointer h-[144px] w-[108px] mx-auto rounded-xl ring-4 ring-background-elevated transition-transform hover:scale-105 overflow-hidden">
                       {avatarBase64 ? (
-                        <img src={avatarBase64} alt="Avatar" className="h-full w-full object-cover" />
+                        <Image src={avatarBase64} alt="Avatar" className="h-full w-full object-cover" width={400} height={400} unoptimized />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-background-elevated to-background">
                           <Camera size={32} className="text-foreground-muted" />

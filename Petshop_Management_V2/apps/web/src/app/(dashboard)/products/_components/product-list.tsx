@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -24,6 +25,7 @@ import { toast } from 'sonner'
 import { ProductFormModal } from './product-form-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import {
+
   DataListShell,
   DataListToolbar,
   DataListFilterPanel,
@@ -186,7 +188,7 @@ function ImageCell({ image, size = 'md' }: { image?: string | null; size?: 'md' 
   const dimensions = size === 'sm' ? 'w-8 h-8 rounded-md' : 'w-10 h-10 rounded-lg'
   return image ? (
     <div className={`${dimensions} overflow-hidden flex-shrink-0 bg-background-secondary border border-border`}>
-      <img src={image} alt="" className="w-full h-full object-cover" />
+      <Image src={image} alt="" className="w-full h-full object-cover" width={400} height={400} unoptimized />
     </div>
   ) : (
     <div className={`${dimensions} flex items-center justify-center bg-background-secondary border border-border text-foreground-muted`}>

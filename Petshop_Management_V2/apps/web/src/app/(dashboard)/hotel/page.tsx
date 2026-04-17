@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { PageContainer } from '@/components/layout/PageLayout'
 import HotelWorkspace from './components/HotelWorkspace'
 
@@ -10,7 +11,9 @@ export const metadata: Metadata = {
 export default function HotelPage() {
   return (
     <PageContainer maxWidth="full" className="!h-full !min-h-0 !gap-0 !overflow-hidden !py-4">
-      <HotelWorkspace />
+      <Suspense fallback={<div className="p-4">Đang tải không gian làm việc...</div>}>
+        <HotelWorkspace />
+      </Suspense>
     </PageContainer>
   )
 }

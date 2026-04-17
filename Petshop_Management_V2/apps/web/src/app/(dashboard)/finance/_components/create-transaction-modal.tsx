@@ -1,7 +1,9 @@
 'use client'
+import Image from 'next/image';
 
 import Link from 'next/link'
 import { useDeferredValue, useEffect, useRef, useState } from 'react'
+import dayjs from 'dayjs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Printer, ReceiptText, Trash2, X, Paperclip } from 'lucide-react'
 import type { Customer } from '@petshop/shared'
@@ -12,6 +14,7 @@ import { buildFinanceVoucherHref } from '@/lib/finance-routes'
 import { filterVisiblePaymentMethods } from '@/lib/payment-methods'
 import { useAuthStore } from '@/stores/auth.store'
 import { toast } from 'sonner'
+
 
 type TransactionWindowMode = 'create' | 'view' | 'edit'
 type ManualReferenceKind = 'NONE' | 'ORDER' | 'STOCK_RECEIPT'
@@ -464,7 +467,94 @@ export function CreateTransactionModal({
   const title = isCreate ? getTypeLabel(form.type) : isEdit ? `Sửa ${getTypeLabel(form.type).toLowerCase()}` : getTypeLabel(form.type)
   const handlePrint = () => {
     if (typeof window !== 'undefined') {
-      window.print()
+      const receiptCode = transaction?.voucherNumber || '—'
+      const printedDate = form.date ? dayjs(form.date).format('DD/MM/YYYY') : dayjs().format('DD/MM/YYYY')
+      const targetName = form.payerName || '—'
+      const invoiceTypeLabel = getTypeLabel(form.type)
+      const isIncome = form.type === 'INCOME'
+
+      const html = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <title>${invoiceTypeLabel} ${receiptCode}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 10px; color: #111; width: 80mm; margin: 0 auto; padding: 8px; }
+    h1 { font-size: 14px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; text-align: center; }
+    .meta { font-size: 10px; color: #444; margin-bottom: 2px; text-align: center; }
+    .divider { border-bottom: 1px dashed #ccc; margin: 8px 0; }
+    .row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; }
+    .row-bold { font-weight: 700; font-size: 12px; margin-top: 8px; border-top: 1px dashed #ccc; padding-top: 6px; }
+    .notes { margin-top: 6px; font-size: 10px; padding: 6px; background: #f9f9f9; border: 1px solid #eee; border-radius: 4px; }
+    .footer { margin-top: 24px; font-size: 9px; color: #999; text-align: center; border-top: 1px dashed #eee; padding-top: 8px; }
+    .signatures { display: grid; grid-template-columns: 1fr 1fr; text-align: center; margin-top: 16px; margin-bottom: 40px; }
+    .amount-text { font-size: 16px; font-weight: 800; text-align:right; margin-top:2px; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <h1>${invoiceTypeLabel}</h1>
+  <div class="meta">Mã phiếu: <strong>${receiptCode}</strong></div>
+  <div class="meta">Ngày: ${printedDate}</div>
+  
+  <div class="divider"></div>
+  
+  <div class="row">
+    <span>Chi nhánh:</span>
+    <strong>${currentBranch?.name || 'Hệ thống'}</strong>
+  </div>
+  <div class="row">
+    <span>Đối tượng:</span>
+    <strong>${targetName}</strong>
+  </div>
+  <div class="row">
+    <span>Danh mục:</span>
+    <span>${form.category || '—'}</span>
+  </div>
+  <div class="row">
+    <span>Thanh toán bằng:</span>
+    <span>${form.paymentAccountLabel || form.paymentMethod || '—'}</span>
+  </div>
+  
+  <div class="notes">
+    <strong>Nội dung:</strong><br/>
+    ${form.description || '—'}
+  </div>
+  
+  <div class="row row-bold">
+    <span>Số tiền (${isIncome ? 'Thu' : 'Chi'}):</span>
+    <span>${amountDisplay} đ</span>
+  </div>
+  <div class="amount-text">${amountDisplay} đ</div>
+  
+  <div class="signatures">
+    <div>
+      <div style="font-weight: bold; margin-bottom: 2px;">Người nộp/nhận</div>
+      <div style="font-size: 9px; color: #666;">(Ký, ghi rõ họ tên)</div>
+    </div>
+    <div>
+      <div style="font-weight: bold; margin-bottom: 2px;">Thủ quỹ</div>
+      <div style="font-size: 9px; color: #666;">(Ký, ghi rõ họ tên)</div>
+    </div>
+  </div>
+  
+  <div class="footer">In lúc ${dayjs().format('DD/MM/YYYY HH:mm')}</div>
+</body>
+</html>`
+
+      const win = window.open('', '_blank', 'width=400,height=600')
+      if (!win) {
+        toast.error('Trình duyệt chặn popup. Vui lòng cho phép popup để in.')
+        return
+      }
+
+      win.document.write(html)
+      win.document.close()
+      win.onload = () => {
+        win.focus()
+        win.print()
+      }
     }
   }
 
@@ -751,11 +841,9 @@ export function CreateTransactionModal({
                   {form.attachmentUrl.split(',').filter(Boolean).map((url, index) => (
                     <div key={index} className="relative rounded-xl border border-border bg-card p-1">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${url}`}
+                      <Image src={url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${url}`}
                         alt="Hóa đơn"
-                        className="h-20 w-20 object-cover rounded-lg"
-                      />
+                        className="h-20 w-20 object-cover rounded-lg" width={400} height={400} unoptimized />
                       <button
                         type="button"
                         onClick={() => {

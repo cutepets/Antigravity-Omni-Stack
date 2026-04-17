@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import React, { useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, Save, Store, Upload } from 'lucide-react'
@@ -6,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { api, uploadApi } from '@/lib/api'
+
 
 export function TabGeneral() {
   const queryClient = useQueryClient()
@@ -161,7 +163,7 @@ export function TabGeneral() {
               ) : null}
 
               {formData.shopLogo ? (
-                <img src={formData.shopLogo} alt="Logo" className="h-full w-full object-cover" />
+                <Image src={formData.shopLogo} alt="Logo" className="h-full w-full object-cover" width={400} height={400} unoptimized />
               ) : (
                 <Store size={32} className="text-foreground-muted/50" />
               )}

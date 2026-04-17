@@ -1,7 +1,9 @@
 'use client'
+import Image from 'next/image';
 
 import { X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+
 
 interface ProductVariant {
   id: string
@@ -60,11 +62,9 @@ export function ProductVariantSelector({
             >
               {variant.image ? (
                 <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border">
-                  <img
-                    src={variant.image}
+                  <Image src={variant.image}
                     alt={variant.name}
-                    className="h-full w-full object-cover"
-                  />
+                    className="h-full w-full object-cover" width={400} height={400} unoptimized />
                 </div>
               ) : (
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-background-secondary">

@@ -74,10 +74,10 @@ export const petApi = {
   uploadAvatar: async (id: string, file: File) => {
     const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    
+
     const formData = new FormData()
     formData.append('file', file)
-    
+
     const res = await fetch(`${API_URL}/api/pets/${id}/avatar`, {
       method: 'POST',
       headers: {
@@ -85,7 +85,7 @@ export const petApi = {
       },
       body: formData,
     })
-    
+
     const data = await res.json()
     if (!res.ok) throw new Error(data.message || 'Upload thất bại')
     return data.data
@@ -94,10 +94,10 @@ export const petApi = {
   uploadVaccinePhoto: async (petId: string, file: File) => {
     const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    
+
     const formData = new FormData()
     formData.append('file', file)
-    
+
     const res = await fetch(`${API_URL}/api/pets/${petId}/vaccinations/photo`, {
       method: 'POST',
       headers: {
@@ -105,9 +105,14 @@ export const petApi = {
       },
       body: formData,
     })
-    
+
     const data = await res.json()
     if (!res.ok) throw new Error(data.message || 'Upload thất bại')
     return data.data
+  },
+
+  syncAttribute: async (payload: { attribute: 'breed' | 'temperament'; oldValue: string; newValue: string }) => {
+    const res = await api.post<ApiResponse<{ success: boolean; count: number }>>('/pets/sync-attribute', payload)
+    return res.data.data
   },
 }

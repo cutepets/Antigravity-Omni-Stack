@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -6,6 +7,7 @@ import { CheckCircle2, Clock, MapPin, Phone, Filter, ShieldAlert, Pin, PinOff, X
 import dayjs from 'dayjs'
 import { Staff } from '@/lib/api/staff.api'
 import {
+
   DataListShell,
   DataListToolbar,
   DataListFilterPanel,
@@ -310,7 +312,7 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
                       <div className="w-10 h-10 rounded-xl overflow-hidden bg-background-tertiary flex items-center justify-center shrink-0 border border-border">
                         {staff.avatar ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={staff.avatar} alt={staff.fullName} className="w-full h-full object-cover" />
+                          <Image src={staff.avatar} alt={staff.fullName} className="w-full h-full object-cover" width={400} height={400} unoptimized />
                         ) : (
                           <span className="text-sm font-bold text-foreground-muted uppercase">
                             {staff.fullName.split(' ').map(p => p[0]).slice(-2).join('')}

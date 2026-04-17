@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -30,6 +31,7 @@ import {
 } from '@petshop/ui/data-list'
 import { SupplierFormModal } from './supplier-form-modal'
 import { SupplierDetailDrawer } from './supplier-detail-drawer'
+
 
 type DisplayColumnId = 'name' | 'contact' | 'activity' | 'score' | 'debt'
 type PinFilterId = never
@@ -465,7 +467,7 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
                           <div className="flex items-center gap-3">
                             <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-border bg-primary-500/10 text-primary-500">
                               {supplier.avatar ? (
-                                <img src={supplier.avatar} alt={supplier.name} className="h-full w-full object-cover" />
+                                <Image src={supplier.avatar} alt={supplier.name} className="h-full w-full object-cover" width={400} height={400} unoptimized />
                               ) : (
                                 <UserCircle2 size={22} />
                               )}

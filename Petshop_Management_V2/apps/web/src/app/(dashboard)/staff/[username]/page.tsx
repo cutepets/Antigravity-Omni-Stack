@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -31,6 +32,7 @@ import { StaffSalaryTab } from './components/StaffSalaryTab'
 import { StaffHistoryTab } from './components/StaffHistoryTab'
 import { PerformanceChart, MonthlyPerformance } from './components/PerformanceChart'
 import { api } from '@/lib/api'
+
 
 type StaffDetailTab = 'OVERVIEW' | 'TIMEKEEPING' | 'SALARY' | 'DOCS' | 'HISTORY'
 
@@ -176,11 +178,11 @@ export default function StaffDetailPage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               <div className="aspect-square w-20 overflow-hidden rounded-2xl border border-border bg-background-tertiary shadow-lg sm:w-24">
                 {staff.avatar ? (
-                  <img
-                    src={staff.avatar}
+                  <Image src={staff.avatar}
                     alt={staff.fullName}
                     className="h-full w-full cursor-zoom-in object-cover"
                     onClick={() => setPreviewImage(staff.avatar!)}
+                    width={400} height={400} unoptimized
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-background-tertiary to-background text-3xl font-bold text-foreground-muted sm:text-4xl">
@@ -396,27 +398,24 @@ export default function StaffDetailPage() {
                 </h3>
 
                 <div className="space-y-4 text-sm">
-                  <div className={`flex items-center gap-2 rounded-lg border p-3 ${
-                    staff.status === 'WORKING' ? 'border-primary-500/10 bg-primary-500/5' :
-                    staff.status === 'PROBATION' ? 'border-blue-500/10 bg-blue-500/5' :
-                    staff.status === 'LEAVE' ? 'border-amber-500/10 bg-amber-500/5' :
-                    'border-red-500/10 bg-red-500/5'
-                  }`}>
-                    <span className={`h-2 w-2 rounded-full ${
-                      staff.status === 'WORKING' ? 'bg-primary-500' :
-                      staff.status === 'PROBATION' ? 'bg-blue-500' :
-                      staff.status === 'LEAVE' ? 'bg-amber-500' :
-                      'bg-red-500'
-                    }`} />
-                    <span className={`font-bold ${
-                      staff.status === 'WORKING' ? 'text-primary-500' :
-                      staff.status === 'PROBATION' ? 'text-blue-500' :
-                      staff.status === 'LEAVE' ? 'text-amber-500' :
-                      'text-red-500'
+                  <div className={`flex items-center gap-2 rounded-lg border p-3 ${staff.status === 'WORKING' ? 'border-primary-500/10 bg-primary-500/5' :
+                      staff.status === 'PROBATION' ? 'border-blue-500/10 bg-blue-500/5' :
+                        staff.status === 'LEAVE' ? 'border-amber-500/10 bg-amber-500/5' :
+                          'border-red-500/10 bg-red-500/5'
                     }`}>
+                    <span className={`h-2 w-2 rounded-full ${staff.status === 'WORKING' ? 'bg-primary-500' :
+                        staff.status === 'PROBATION' ? 'bg-blue-500' :
+                          staff.status === 'LEAVE' ? 'bg-amber-500' :
+                            'bg-red-500'
+                      }`} />
+                    <span className={`font-bold ${staff.status === 'WORKING' ? 'text-primary-500' :
+                        staff.status === 'PROBATION' ? 'text-blue-500' :
+                          staff.status === 'LEAVE' ? 'text-amber-500' :
+                            'text-red-500'
+                      }`}>
                       {staff.status === 'WORKING' ? 'Đang làm' :
-                       staff.status === 'PROBATION' ? 'Thử việc' :
-                       staff.status === 'LEAVE' ? 'Nghỉ phép' : 'Đã nghỉ việc'}
+                        staff.status === 'PROBATION' ? 'Thử việc' :
+                          staff.status === 'LEAVE' ? 'Nghỉ phép' : 'Đã nghỉ việc'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between border-t border-border pt-3">
@@ -538,11 +537,9 @@ export default function StaffDetailPage() {
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
           onClick={() => setPreviewImage(null)}
         >
-          <img
-            src={previewImage}
+          <Image src={previewImage}
             alt="Preview"
-            className="max-h-[90vh] max-w-full rounded-lg object-contain shadow-2xl"
-          />
+            className="max-h-[90vh] max-w-full rounded-lg object-contain shadow-2xl" width={400} height={400} unoptimized />
           <button
             className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-white/20"
             onClick={() => setPreviewImage(null)}

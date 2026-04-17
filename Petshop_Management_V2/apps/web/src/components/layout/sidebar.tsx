@@ -1,6 +1,8 @@
 'use client'
+import Image from 'next/image';
 
 import Link from 'next/link'
+
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { clsx } from 'clsx'
@@ -18,8 +20,12 @@ import {
   Scissors,
   Settings,
   ShoppingCart,
+  Clock,
+  Banknote,
   Users,
   Wallet,
+  Gift,
+  ExternalLink,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthorization, type StaffRole } from '@/hooks/useAuthorization'
@@ -61,17 +67,17 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/dashboard',
         anyPermissions: ['dashboard.read'],
       },
-      {
-        label: 'Tạo đơn hàng',
-        icon: ShoppingCart,
-        href: '/pos',
-        anyPermissions: ['order.create', 'order.read.all', 'order.read.assigned', 'order.pay'],
-      },
     ],
   },
   {
     group: 'Hoạt động',
     items: [
+      {
+        label: 'Đơn hàng',
+        icon: ReceiptText,
+        href: '/orders',
+        anyPermissions: ['order.read.all', 'order.read.assigned', 'order.create'],
+      },
       {
         label: 'Spa & Grooming',
         icon: Scissors,
@@ -83,12 +89,6 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Hotel,
         href: '/hotel',
         anyPermissions: ['hotel.read', 'hotel.create', 'hotel.update', 'hotel.checkin', 'hotel.checkout'],
-      },
-      {
-        label: 'Đơn hàng',
-        icon: ReceiptText,
-        href: '/orders',
-        anyPermissions: ['order.read.all', 'order.read.assigned', 'order.create'],
       },
       {
         label: 'Sổ quỹ',
@@ -145,6 +145,11 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/pets',
         anyPermissions: ['pet.read', 'pet.create', 'pet.update'],
       },
+    ],
+  },
+  {
+    group: 'Nhân sự',
+    items: [
       {
         label: 'Nhân viên',
         icon: Briefcase,
@@ -152,36 +157,31 @@ const NAV_GROUPS: NavGroup[] = [
         anyPermissions: ['staff.read', 'staff.create', 'staff.update', 'role.read'],
       },
       {
-        label: 'Ca làm việc',
-        icon: CalendarIcon,
-        href: '/shifts',
+        label: 'Chấm công',
+        icon: Clock,
+        href: '/attendance',
         allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+        anyPermissions: ['attendance.read', 'attendance.manage'],
+      },
+      {
+        label: 'Bảng lương',
+        icon: Banknote,
+        href: '/payroll',
+        allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+        anyPermissions: ['payroll.read', 'payroll.manage'],
+      },
+      {
+        label: 'Thưởng phạt',
+        icon: Gift,
+        href: '/rewards',
+        allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+        anyPermissions: ['staff.read'],
       },
     ],
   },
 ]
 
-function CalendarIcon(props: { size?: number; className?: string }) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-      <line x1="16" x2="16" y1="2" y2="6" />
-      <line x1="8" x2="8" y1="2" y2="6" />
-      <line x1="3" x2="21" y1="10" y2="10" />
-    </svg>
-  )
-}
+
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1]
 
@@ -219,9 +219,20 @@ export function Sidebar() {
   })
 
   const canAccessItem = (item: NavItem) => {
-    const allowByRole = !item.allowedRoles || item.allowedRoles.length === 0 || hasRole(item.allowedRoles)
-    const allowByPermission = !item.anyPermissions || item.anyPermissions.length === 0 || hasAnyPermission(item.anyPermissions)
-    return allowByRole && allowByPermission
+    const hasRoleCheck = item.allowedRoles?.length ? hasRole(item.allowedRoles) : false;
+    const hasPermCheck = item.anyPermissions?.length ? hasAnyPermission(item.anyPermissions) : false;
+
+    // If neither role nor permissions specified, it's public
+    if (!item.allowedRoles?.length && !item.anyPermissions?.length) return true;
+
+    // If only roles specified
+    if (item.allowedRoles?.length && !item.anyPermissions?.length) return hasRoleCheck;
+
+    // If only permissions specified
+    if (!item.allowedRoles?.length && item.anyPermissions?.length) return hasPermCheck;
+
+    // If both specified, access is granted if EITHER condition is met
+    return hasRoleCheck || hasPermCheck;
   }
 
   const canViewSettings = hasAnyPermission(SETTINGS_PERMISSIONS) || hasRole(['SUPER_ADMIN', 'ADMIN'])
@@ -245,7 +256,7 @@ export function Sidebar() {
           )}
         >
           {config?.shopLogo ? (
-            <img src={config.shopLogo} alt="Logo" className="h-full w-full object-contain" />
+            <Image src={config.shopLogo} alt="Logo" width={32} height={32} className="h-full w-full object-contain" unoptimized />
           ) : (
             '🐾'
           )}
@@ -265,24 +276,30 @@ export function Sidebar() {
         </AnimatePresence>
       </div>
 
-      <div className="no-scrollbar flex flex-1 flex-col gap-6 overflow-y-auto py-4">
+
+      <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto py-2">
         {NAV_GROUPS.map((navGroup, groupIndex) => {
           const visibleItems = navGroup.items.filter(canAccessItem)
           if (visibleItems.length === 0) return null
 
           return (
             <div key={groupIndex} className="flex w-full flex-col gap-1">
-              <AnimatePresence mode="wait">
-                {navGroup.group && isSidebarOpen ? (
-                  <motion.p
-                    key={`group-${groupIndex}`}
-                    {...fadeIn}
-                    className="mb-1 px-5 text-[11px] font-bold uppercase tracking-wider text-foreground-muted"
-                  >
-                    {navGroup.group}
-                  </motion.p>
-                ) : null}
-              </AnimatePresence>
+              {/* Fixed-height title row: always reserves space so icons don't shift */}
+              {navGroup.group && (
+                <div className="h-5 overflow-hidden px-5">
+                  <AnimatePresence mode="wait" initial={false}>
+                    {isSidebarOpen ? (
+                      <motion.p
+                        key={`group-${groupIndex}`}
+                        {...fadeIn}
+                        className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted"
+                      >
+                        {navGroup.group}
+                      </motion.p>
+                    ) : null}
+                  </AnimatePresence>
+                </div>
+              )}
 
               {visibleItems.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
@@ -295,7 +312,7 @@ export function Sidebar() {
                     href={item.href}
                     title={!isSidebarOpen ? displayLabel : undefined}
                     className={clsx(
-                      'group relative mx-3 flex h-11 w-[calc(100%-24px)] items-center overflow-hidden rounded-lg text-sm font-medium transition-colors',
+                      'group relative mx-3 flex shrink-0 h-11 w-[calc(100%-24px)] items-center overflow-hidden rounded-lg text-sm font-medium transition-colors',
                       isActive
                         ? 'bg-primary-500/10 text-primary-500'
                         : 'text-foreground-secondary hover:bg-white/5 hover:text-foreground-base',
@@ -380,7 +397,7 @@ export function Sidebar() {
                   <>
                     <span className="block group-hover:hidden">
                       {user.avatar ? (
-                        <img src={user.avatar} alt={user.fullName} className="h-full w-full object-cover" />
+                        <Image src={user.avatar} alt={user.fullName} width={32} height={32} className="h-full w-full object-cover" unoptimized />
                       ) : (
                         user.username?.charAt(0).toUpperCase() || 'A'
                       )}
@@ -388,7 +405,7 @@ export function Sidebar() {
                     <LogOut size={14} className="hidden group-hover:block" />
                   </>
                 ) : user.avatar ? (
-                  <img src={user.avatar} alt={user.fullName} className="h-full w-full object-cover" />
+                  <Image src={user.avatar} alt={user.fullName} width={32} height={32} className="h-full w-full object-cover" unoptimized />
                 ) : (
                   user.username?.charAt(0).toUpperCase() || 'A'
                 )}

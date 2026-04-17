@@ -1,8 +1,10 @@
 'use client'
+import Image from 'next/image';
 
 import type { ReactNode } from 'react'
 import { Package, Scissors } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+
 
 export interface CatalogSearchSection {
   key: string
@@ -136,7 +138,7 @@ function CatalogSearchResultRow({
           {showImage ? (
             <div className="relative mt-0.5 flex h-[50px] w-[50px] shrink-0 items-center justify-center overflow-visible rounded-md border border-gray-100 bg-gray-50 text-gray-400 lg:h-[48px] lg:w-[48px]">
               {entry.image ? (
-                <img src={entry.image} alt={entry.name} className="h-[85%] w-[85%] rounded-sm object-cover" />
+                <Image src={entry.image} alt={entry.name} className="h-[85%] w-[85%] rounded-sm object-cover" width={400} height={400} unoptimized />
               ) : service ? (
                 <Scissors size={20} className="text-amber-500/50" />
               ) : (

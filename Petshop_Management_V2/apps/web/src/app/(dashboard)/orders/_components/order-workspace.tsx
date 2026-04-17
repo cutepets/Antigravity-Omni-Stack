@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, ChevronDown, Loader2, Printer } from 'lucide-react'
+import { AlertCircle, ChevronDown, Loader2, Printer, QrCode, RefreshCw } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 import { ServiceBookingModal } from '@/app/(dashboard)/pos/components/ServiceBookingModal'
 import { ApproveOrderModal } from './approve-order-modal'
 import { ExportStockModal } from './export-stock-modal'
@@ -16,6 +18,9 @@ import { ProductVariantSelector } from './order/product-variant-selector'
 import { printOrderA4, printOrderK80, printOrderPdf } from './order/order-print'
 import type { OrderWorkspaceMode } from './order/order.types'
 import { useOrderWorkspace } from './order/use-order-workspace'
+import { PosQrPaymentModal } from '@/app/(dashboard)/pos/components/PosQrPaymentModal'
+
+const QR_STORAGE_KEY = (orderNumber: string) => `order-qr-intent-${orderNumber}`
 
 export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; orderId?: string }) {
   const workspace = useOrderWorkspace({ mode, orderId })
@@ -23,14 +28,79 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
   const printMenuRef = useRef<HTMLDivElement | null>(null)
   const showPrintActions = mode === 'detail' && Boolean(workspace.printPayload)
 
+  // -- QR payment state --
+  const [qrIntent, setQrIntent] = useState<any>(null)
+  const [showQrModal, setShowQrModal] = useState(false)
+  const [resumeQrBanner, setResumeQrBanner] = useState(false)
+
+  const orderNumber = workspace.order?.orderNumber as string | undefined
+
+  // Check localStorage for pending QR intent on mount
+  useEffect(() => {
+    if (!orderNumber) return
+    const stored = localStorage.getItem(QR_STORAGE_KEY(orderNumber))
+    if (!stored) return
+    try {
+      const intent = JSON.parse(stored)
+      if (intent && intent.status !== 'PAID') {
+        setQrIntent(intent)
+        setResumeQrBanner(true)
+      } else {
+        localStorage.removeItem(QR_STORAGE_KEY(orderNumber))
+      }
+    } catch {
+      localStorage.removeItem(QR_STORAGE_KEY(orderNumber))
+    }
+  }, [orderNumber])
+
+  // Save intent to localStorage whenever it changes
+  useEffect(() => {
+    if (!orderNumber || !qrIntent) return
+    if (qrIntent.status === 'PAID') {
+      localStorage.removeItem(QR_STORAGE_KEY(orderNumber))
+      setResumeQrBanner(false)
+    } else {
+      localStorage.setItem(QR_STORAGE_KEY(orderNumber), JSON.stringify(qrIntent))
+    }
+  }, [orderNumber, qrIntent])
+
+  // Handler: cước BANK/Ví → tạo hoặc fetch payment intent rồi mở QR modal
+  const handleRequestQr = async (paymentAccountId: string, amount: number) => {
+    try {
+      const res = await api.post('/payment-intents', {
+        orderId: workspace.order?.id,
+        paymentAccountId,
+        amount,
+      })
+      const intent = res.data?.data ?? res.data
+      setQrIntent(intent)
+      setShowQrModal(true)
+      setResumeQrBanner(false)
+      workspace.setShowPayModal(false)
+    } catch {
+      // fallback: confirm cash payment via normal flow
+      workspace.payOrderMutation.mutate({ payments: [{ method: 'BANK', amount, paymentAccountId }] })
+    }
+  }
+
+  // -- Customer detail for points/debt --
+  const customerId = workspace.draft?.customerId
+  const { data: customerDetail } = useQuery({
+    queryKey: ['order-customer-detail', customerId],
+    queryFn: async () => {
+      if (!customerId) return null
+      const res = await api.get(`/customers/${customerId}`)
+      return res.data?.data ?? res.data
+    },
+    enabled: !!customerId,
+  })
+
   useEffect(() => {
     if (!showPrintMenu) return
-
     const handleClickOutside = (event: MouseEvent) => {
       if (printMenuRef.current?.contains(event.target as Node)) return
       setShowPrintMenu(false)
     }
-
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showPrintMenu])
@@ -86,6 +156,8 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
         selectedCustomerName={workspace.selectedCustomerName}
         selectedCustomerPhone={workspace.selectedCustomerPhone}
         selectedCustomerAddress={workspace.selectedCustomerAddress}
+        customerPoints={customerDetail?.points}
+        customerDebt={customerDetail?.debtAmount}
         branchName={workspace.branchName}
         showBranch={workspace.showBranch}
         operatorName={workspace.operatorName}
@@ -115,6 +187,37 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
         }}
         onOpenPos={workspace.handleGoPos}
       />
+
+      {/* QR Resume Banner */}
+      {resumeQrBanner && qrIntent && (
+        <div className="mx-4 mt-2 flex items-center gap-3 rounded-xl border border-sky-500/25 bg-sky-500/8 px-4 py-2.5">
+          <QrCode size={16} className="shrink-0 text-sky-500" />
+          <span className="flex-1 text-sm font-medium text-foreground">
+            Đơn hàng đang chờ xác nhận thanh toán QR
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowQrModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-sky-600"
+          >
+            <QrCode size={13} />
+            Xem lại QR
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.removeItem(QR_STORAGE_KEY(orderNumber ?? ''))
+              setQrIntent(null)
+              setResumeQrBanner(false)
+              workspace.setShowPayModal(true)
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-background-secondary"
+          >
+            <RefreshCw size={13} />
+            Đổi hình thức TT
+          </button>
+        </div>
+      )}
 
       <div className="relative z-10 m-4 mb-4 mt-2 flex flex-1 flex-col overflow-hidden rounded-[26px] border border-border bg-background-secondary/35 shadow-sm">
         <div className="shrink-0 flex items-center gap-3 border-b border-border/60 bg-background/50 px-5 py-2.5">
@@ -229,6 +332,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             title="Thu tiền đơn hàng"
             description="Chọn phương thức thanh toán cho đơn Orders."
             onConfirm={(payload) => workspace.payOrderMutation.mutate({ payments: payload.payments })}
+            onRequestQr={handleRequestQr}
           />
           <ApproveOrderModal
             isOpen={workspace.showApproveModal}
@@ -256,6 +360,15 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             branchId={workspace.order?.branchId ?? workspace.draft.branchId}
           />
         </>
+      ) : null}
+
+      {/* QR Payment Modal */}
+      {qrIntent && showQrModal ? (
+        <PosQrPaymentModal
+          isOpen={showQrModal}
+          onClose={() => setShowQrModal(false)}
+          intent={qrIntent}
+        />
       ) : null}
 
       <ServiceBookingModal

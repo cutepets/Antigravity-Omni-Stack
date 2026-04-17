@@ -13,6 +13,9 @@ export class CreateGroomingDto {
   @IsOptional()
   staffId?: string
 
+  @IsOptional()
+  staffIds?: string[]
+
   @IsString()
   @IsOptional()
   serviceId?: string
@@ -66,6 +69,9 @@ export class UpdateGroomingDto {
   @IsString()
   @IsOptional()
   staffId?: string
+
+  @IsOptional()
+  staffIds?: string[]
 
   @IsString()
   @IsOptional()

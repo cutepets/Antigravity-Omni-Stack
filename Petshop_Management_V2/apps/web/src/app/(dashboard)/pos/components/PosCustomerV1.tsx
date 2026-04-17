@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image';
 
 import { useState, useRef, useEffect } from 'react';
 import { Search, X, Plus, Pencil, PawPrint, Medal } from 'lucide-react';
@@ -10,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { PosAddCustomerModal } from './PosAddCustomerModal';
 import { PetFormModal } from '../../pets/_components/pet-form-modal';
 import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile';
+
 
 export interface PosCustomerV1Props {
   onSelectSuggestedService?: (service: any, petId: string, petName?: string) => void;
@@ -167,11 +169,9 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
                 >
                   <div className="w-14 h-14 rounded-full overflow-hidden bg-[#eef1f6] border border-white shadow-sm ring-1 ring-gray-200">
                     {pet.avatar ? (
-                      <img
-                        src={String(pet.avatar).startsWith('http') ? pet.avatar : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${pet.avatar}`}
+                      <Image src={String(pet.avatar).startsWith('http') ? pet.avatar : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${pet.avatar}`}
                         alt={pet.name}
-                        className="w-full h-full object-cover"
-                      />
+                        className="w-full h-full object-cover" width={400} height={400} unoptimized />
                     ) : (
                       <span className="text-[#4d5e7a] font-bold text-xl flex items-center justify-center w-full h-full">
                         {pet.name?.charAt(0)?.toUpperCase()}

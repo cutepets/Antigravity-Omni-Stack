@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Plus, Pencil, Trash2, Check, Settings as SettingsIcon, Dog, Smile, Syringe } from 'lucide-react'
 import { settingsApi } from '@/lib/api/settings.api'
+import { petApi } from '@/lib/api/pet.api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface BreedEntry { id: string; species: 'Chó' | 'Mèo' | 'Khác' | string; name: string }
@@ -56,9 +57,9 @@ const DEFAULT_VACCINES: VaccineOption[] = [
 ]
 
 // ─── Config Keys (DB) ────────────────────────────────────────────────────────
-const KEY_BREEDS = 'pet-breeds-v2'
-const KEY_TEMPERS = 'pet-temperaments'
-const KEY_VACCINES = 'pet-vaccine-opts'
+const KEY_BREEDS = 'petBreedsV2'
+const KEY_TEMPERS = 'petTemperaments'
+const KEY_VACCINES = 'petVaccineOpts'
 
 // ─── Save → chỉ lưu DB ────────────────────────────────────────────────────────
 export function saveBreeds(b: BreedEntry[]) {
@@ -172,8 +173,12 @@ export function PetSettingsModal({ open, onClose }: Props) {
   function deleteBreed(id: string) { const next = breeds.filter(b => b.id !== id); setBreeds(next); saveBreeds(next) }
   function saveEditBreed(id: string) {
     if (!editBreedVal.trim()) return
+    const oldBreed = breeds.find(b => b.id === id)
     const next = breeds.map(b => b.id === id ? { ...b, name: editBreedVal.trim() } : b)
     setBreeds(next); saveBreeds(next); setEditBreedId(null)
+    if (oldBreed && oldBreed.name !== editBreedVal.trim()) {
+      petApi.syncAttribute({ attribute: 'breed', oldValue: oldBreed.name, newValue: editBreedVal.trim() }).catch(() => { })
+    }
   }
 
   // ── Temper actions ──────────────────────────────────────────────────────────
@@ -184,7 +189,11 @@ export function PetSettingsModal({ open, onClose }: Props) {
   function deleteTemper(idx: number) { const next = tempers.filter((_, i) => i !== idx); setTempers(next); saveTempers(next) }
   function saveEditTemper(idx: number) {
     if (!editTemperVal.trim()) return
+    const oldTemper = tempers[idx]
     const next = [...tempers]; next[idx] = { name: editTemperVal.trim(), color: editTemperColor }; setTempers(next); saveTempers(next); setEditTemperIdx(null)
+    if (oldTemper && oldTemper.name !== editTemperVal.trim()) {
+      petApi.syncAttribute({ attribute: 'temperament', oldValue: oldTemper.name, newValue: editTemperVal.trim() }).catch(() => { })
+    }
   }
 
   // ── Vaccine actions ─────────────────────────────────────────────────────────
@@ -218,7 +227,7 @@ export function PetSettingsModal({ open, onClose }: Props) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-full w-[900px] max-w-[100vw] glass-panel border-l border-white/10 z-50 overflow-y-auto flex flex-col"
+            className="fixed top-0 right-0 h-full w-[900px] max-w-screen glass-panel border-l border-white/10 z-50 overflow-y-auto flex flex-col"
             style={{ boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.4)' }}
           >
             <div className="flex items-center justify-between p-6 border-b border-white/5 sticky top-0 bg-background/70 backdrop-blur-xl z-10">

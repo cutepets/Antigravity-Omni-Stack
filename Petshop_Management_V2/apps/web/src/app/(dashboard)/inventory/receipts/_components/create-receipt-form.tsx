@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 
 import Link from 'next/link'
@@ -54,6 +55,7 @@ import { ReceiptReturnModal } from './receipt/receipt-return-modal'
 import { ReceiptExcelModal } from './receipt/receipt-excel-modal'
 import { SelectedItem } from './receipt/receipt.types'
 import { useReceiptForm } from './receipt/use-receipt-form'
+
 
 export function CreateReceiptForm({
   mode = 'create',
@@ -768,11 +770,9 @@ export function CreateReceiptForm({
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-background-tertiary">
                       {product.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={product.image}
+                        <Image src={product.image}
                           alt={product.name}
-                          className="h-full w-full object-cover"
-                        />
+                          className="h-full w-full object-cover" width={400} height={400} unoptimized />
                       ) : (
                         <Package2 size={14} className="text-foreground-muted" />
                       )}
@@ -1048,11 +1048,9 @@ export function CreateReceiptForm({
                           <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-border bg-background-tertiary text-foreground-muted">
                             {item.image ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={item.image}
+                              <Image src={item.image}
                                 alt={snapshot.displayName}
-                                className="h-full w-full object-cover"
-                              />
+                                className="h-full w-full object-cover" width={400} height={400} unoptimized />
                             ) : (
                               <Package2 size={16} />
                             )}

@@ -9,7 +9,6 @@ import {
   ShoppingBag,
   CreditCard,
   CalendarDays,
-  ArrowRight
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { orderApi } from '@/lib/api/order.api'
@@ -33,19 +32,20 @@ import {
 } from '@/components/data-list'
 
 // ── Types & Constants ────────────────────────────────────────────────────────
-type DisplayColumnId = 'code' | 'customer' | 'customerPhone' | 'items' | 'discount' | 'shippingFee' | 'total' | 'customerPaid' | 'payment' | 'status' | 'orderStatus' | 'stockStatus' | 'linkedCodes' | 'note' | 'branch' | 'creator' | 'created' | 'updated'
+type DisplayColumnId = 'code' | 'customer' | 'customerPhone' | 'customerCount' | 'items' | 'discount' | 'shippingFee' | 'total' | 'customerPaid' | 'payment' | 'status' | 'orderStatus' | 'stockStatus' | 'linkedCodes' | 'note' | 'branch' | 'creator' | 'created' | 'updated'
 type PinFilterId = 'paymentStatus' | 'orderStatus'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
   { id: 'code', label: 'Mã đơn', sortable: false, width: 'w-24' },
   { id: 'customer', label: 'Tên khách', sortable: false, minWidth: 'min-w-[150px]' },
   { id: 'customerPhone', label: 'SĐT Khách', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'customerCount', label: 'Số khách', sortable: false, width: 'w-20', align: 'center' },
   { id: 'items', label: 'Số SP', sortable: false, width: 'whitespace-nowrap' },
-  { id: 'discount', label: 'Chiết khấu', sortable: false, width: 'w-28', align: 'right' },
+  { id: 'discount', label: 'Tổng CK', sortable: false, width: 'w-28', align: 'right' },
   { id: 'shippingFee', label: 'Phí ship', sortable: false, width: 'w-28', align: 'right' },
   { id: 'total', label: 'Tổng tiền', sortable: false, width: 'w-28', align: 'right' },
   { id: 'customerPaid', label: 'Khách đã trả', sortable: false, width: 'w-28', align: 'right' },
-  { id: 'payment', label: 'TT', sortable: false, width: 'w-32' },
+  { id: 'payment', label: 'Hình thức TT', sortable: false, width: 'w-32' },
   { id: 'status', label: 'TT thanh toán', sortable: false, width: 'w-32' },
   { id: 'orderStatus', label: 'Trạng thái', sortable: false, width: 'w-32' },
   { id: 'stockStatus', label: 'Xuất kho', sortable: false, width: 'w-28' },
@@ -54,7 +54,7 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'branch', label: 'Chi nhánh', sortable: false, width: 'whitespace-nowrap' },
   { id: 'creator', label: 'Người tạo', sortable: false, width: 'whitespace-nowrap' },
   { id: 'created', label: 'Ngày tạo', sortable: false, width: 'whitespace-nowrap' },
-  { id: 'updated', label: 'Thời gian cập nhật', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'updated', label: 'Cập nhật', sortable: false, width: 'whitespace-nowrap' },
 ]
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
   COLUMN_OPTIONS.filter((c) => c.sortable).map((c) => c.id)
@@ -82,7 +82,7 @@ export function OrderList() {
   // System hook for data-list standard
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialVisibleColumns: ['code', 'customer', 'items', 'total', 'customerPaid', 'payment', 'orderStatus', 'stockStatus', 'branch', 'creator', 'created'],
+    initialVisibleColumns: ['code', 'customer', 'customerCount', 'items', 'discount', 'total', 'customerPaid', 'status', 'orderStatus', 'stockStatus', 'updated', 'branch', 'creator'],
     initialTopFilterVisibility: { paymentStatus: true, orderStatus: false }
   })
 
@@ -352,7 +352,8 @@ export function OrderList() {
           return (
             <tr
               key={o.id}
-              className={`border-b border-border/50 transition-colors hover:bg-background-secondary/40 ${isSelected ? 'bg-primary-500/5' : ''}`}
+              onClick={() => router.push(`/orders/${o.orderNumber}`)}
+              className={`border-b border-border/50 cursor-pointer transition-colors hover:bg-background-secondary/40 ${isSelected ? 'bg-primary-500/5' : ''}`}
             >
               <td className="w-12 px-3 py-3">
                 <TableCheckbox
@@ -364,34 +365,12 @@ export function OrderList() {
                 switch (columnId) {
                   case 'code': return (
                     <td key={columnId} className="px-3 py-3 w-24">
-                      <div className="flex flex-col gap-2">
-                        <span
-                          onClick={() => router.push(`/orders/${o.orderNumber}`)}
-                          className="font-mono text-xs font-bold text-primary-500 hover:underline cursor-pointer transition-colors"
-                        >
-                          {o.orderNumber || '--'}
-                        </span>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => router.push(`/orders/${o.orderNumber}`)}
-                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold text-foreground-muted transition-colors hover:border-primary-500/30 hover:text-primary-500"
-                          >
-                            <ArrowRight size={11} />
-                            Chi tiet
-                          </button>
-                          {!['PAID', 'COMPLETED'].includes(o.paymentStatus ?? '') ? (
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/orders/${o.id}`)}
-                              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold text-foreground-muted transition-colors hover:border-primary-500/30 hover:text-primary-500"
-                            >
-                              <CreditCard size={11} />
-                              Thu tien
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
+                      <span
+                        onClick={() => router.push(`/orders/${o.orderNumber}`)}
+                        className="font-mono text-xs font-bold text-primary-500 hover:underline cursor-pointer transition-colors"
+                      >
+                        {o.orderNumber || '--'}
+                      </span>
                     </td>
                   );
                   case 'customer': return (
@@ -406,6 +385,13 @@ export function OrderList() {
                       <div className="text-sm font-medium text-foreground-secondary">
                         {o.customer?.phone || '--'}
                       </div>
+                    </td>
+                  );
+                  case 'customerCount': return (
+                    <td key={columnId} className="px-3 py-3 w-20 text-center">
+                      <span className="inline-flex items-center justify-center rounded-md bg-background-tertiary px-2 py-0.5 text-xs font-semibold text-foreground-secondary">
+                        {o.customers?.length || (o.customer ? 1 : 0)}
+                      </span>
                     </td>
                   );
                   case 'discount': return (

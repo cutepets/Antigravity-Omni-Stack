@@ -351,7 +351,7 @@ export default function CageGrid() {
         // CheckIn dialog removed, wait for user to select a pet or create new order in POS
       }
     },
-    [slotStayMap, canCheckIn],
+    [slotStayMap],
   )
 
   // ---- Loading / empty states ----
@@ -393,18 +393,6 @@ export default function CageGrid() {
           ))}
           {bookedStays.length === 0 && (
             <p className="py-8 text-center text-[10px] text-foreground-muted/50">Không có đặt lịch nào</p>
-          )}
-          {canCheckIn && (
-            <button
-              type="button"
-              onClick={() => {
-                // Should navigate to POS
-                window.location.href = '/pos?tab=hotel'
-              }}
-              className="flex h-16 w-full items-center justify-center rounded-xl border-2 border-dashed border-border/50 text-2xl text-foreground-muted/30 transition-colors hover:border-primary-500/30 hover:bg-primary-500/5"
-            >
-              +
-            </button>
           )}
         </div>
       </aside>

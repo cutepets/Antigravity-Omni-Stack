@@ -171,7 +171,6 @@ export function FinanceWorkspace() {
     if (!canReadCashbook && !canReadBankTransactions) {
       window.location.replace('/dashboard')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canReadBankTransactions, canReadCashbook, isAuthLoading])
 
 
@@ -213,8 +212,7 @@ export function FinanceWorkspace() {
       const nextUrl = nextQuery ? `/finance?${nextQuery}` : '/finance'
       router.replace(nextUrl)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, branchId, dateFrom, dateTo, isAuthLoading, page, pageSize, paymentMethod, search, type, voucherParam])
+  }, [activeTab, branchId, dateFrom, dateTo, isAuthLoading, page, pageSize, paymentMethod, router, search, type, voucherParam])
 
 
   useEffect(() => {

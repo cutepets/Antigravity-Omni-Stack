@@ -68,7 +68,7 @@ export class StaffController {
       type: 'object',
       properties: {
         file: { type: 'string', format: 'binary' },
-        type: { type: 'string', enum: Object.values(require('@prisma/client').DocumentType || {}) },
+        type: { type: 'string', enum: Object.values(require('@petshop/database').DocumentType || {}) },
         description: { type: 'string' },
         expiresAt: { type: 'string', format: 'date-time' },
       },

@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -41,6 +42,7 @@ import {
 import { findVietQrBank, VIETQR_BANKS, type VietQrBank } from '@/lib/constants/vietqr-banks'
 import { useAuthStore } from '@/stores/auth.store'
 import { toast as systemToast } from 'sonner'
+
 
 type PaymentMethodFormData = {
   name: string
@@ -255,7 +257,7 @@ function BankCombobox({
         className="flex w-full items-center gap-3 rounded-lg border border-border/50 bg-black/20 px-4 py-2.5 text-left text-sm outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {value?.logo ? (
-          <img src={value.logo} alt={value.shortName} className="h-6 w-6 rounded-full bg-white object-contain p-0.5" />
+          <Image src={value.logo} alt={value.shortName} className="h-6 w-6 rounded-full bg-white object-contain p-0.5" width={400} height={400} unoptimized />
         ) : (
           <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-500/15 text-[10px] font-bold text-primary-500">
             {(value?.shortName ?? 'NH').slice(0, 2).toUpperCase()}
@@ -314,7 +316,7 @@ function BankCombobox({
                     }`}
                   >
                     {bank.logo ? (
-                      <img src={bank.logo} alt={bank.shortName} className="h-8 w-8 rounded-full bg-white object-contain p-1" />
+                      <Image src={bank.logo} alt={bank.shortName} className="h-8 w-8 rounded-full bg-white object-contain p-1" width={400} height={400} unoptimized />
                     ) : (
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-500/15 text-[11px] font-bold text-primary-500">
                         {bank.shortName.slice(0, 2).toUpperCase()}

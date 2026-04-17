@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -36,6 +37,7 @@ import {
   useDataListSelection,
 } from '@petshop/ui/data-list'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
+
 
 interface SupplierDetailDrawerProps {
   isOpen: boolean
@@ -520,7 +522,7 @@ export function SupplierDetailDrawer({
           <div className="flex min-w-0 flex-1 items-center gap-4">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border border-border bg-background-secondary">
               {supplier?.avatar ? (
-                <img src={supplier.avatar} alt={supplier?.name ?? 'NCC'} className="h-full w-full object-cover" />
+                <Image src={supplier.avatar} alt={supplier?.name ?? 'NCC'} className="h-full w-full object-cover" width={400} height={400} unoptimized />
               ) : (
                 <UserCircle2 size={54} className="text-foreground-muted" />
               )}

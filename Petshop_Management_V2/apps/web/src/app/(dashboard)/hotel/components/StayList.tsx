@@ -106,8 +106,7 @@ export default function StayList({
     const matchedStay = allStays.find((stay) => stay.id === focusStayId)
     if (!matchedStay) return
     autoOpenedStayIdRef.current = focusStayId
-    handleNavigateDetail(matchedStay)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setSelectedStay(matchedStay)
   }, [allStays, focusStayId])
 
   const getStatusBadge = (status: HotelStay['status']) => {

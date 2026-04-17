@@ -12,7 +12,7 @@ export interface CreateBranchDto {
   cashReserveTargetAmount?: number
 }
 
-export interface UpdateBranchDto extends Partial<CreateBranchDto> {}
+export interface UpdateBranchDto extends Partial<CreateBranchDto> { }
 
 export interface UpdateConfigDto {
   shopName?: string
@@ -29,6 +29,9 @@ export interface UpdateConfigDto {
   loyaltyPointExpiryMonths?: number
   loyaltyTierRetentionMonths?: number
   loyaltyTierRules?: string
+  petBreedsV2?: string
+  petTemperaments?: string
+  petVaccineOpts?: string
 }
 
 export interface UpdatePrintTemplateDto {
@@ -79,7 +82,7 @@ export interface CreatePaymentMethodDto {
   transferNotePrefix?: string | null
 }
 
-export interface UpdatePaymentMethodDto extends Partial<CreatePaymentMethodDto> {}
+export interface UpdatePaymentMethodDto extends Partial<CreatePaymentMethodDto> { }
 
 export interface UpdatePaymentOptionsDto {
   allowMultiPayment?: boolean
@@ -118,7 +121,7 @@ export interface UpdateBankTransferAccountDto {
 const DEFAULT_TEMPLATES = [
   {
     type: 'pos_receipt_k80',
-    name: 'Mẫu in bán hàng (K80)',
+    name: 'Mẫu in bán hàng',
     paperSize: 'k80',
     content: `<div class="p-4 text-sm font-mono max-w-[80mm] mx-auto text-black">
   <div class="text-center font-bold text-xl mb-1">{{shopName}}</div>
@@ -161,7 +164,7 @@ const DEFAULT_TEMPLATES = [
   },
   {
     type: 'inventory_receipt_a4',
-    name: 'Mẫu phiếu nhập kho (A4)',
+    name: 'Mẫu phiếu nhập kho',
     paperSize: 'a4',
     content: `<div class="p-8 font-sans max-w-[210mm] mx-auto text-black">
   <div class="flex justify-between items-start mb-6">
@@ -230,7 +233,7 @@ const DEFAULT_TEMPLATES = [
   },
   {
     type: 'spa_receipt_k80',
-    name: 'Mẫu SPA & Grooming (K80)',
+    name: 'Mẫu SPA & Grooming',
     paperSize: 'k80',
     content: `<div class="p-4 text-sm font-mono max-w-[80mm] mx-auto text-black">
   <div class="text-center font-bold text-xl mb-1">{{shopName}}</div>
@@ -276,7 +279,7 @@ const DEFAULT_TEMPLATES = [
   },
   {
     type: 'hotel_receipt_k80',
-    name: 'Mẫu Khách sạn (Hotel K80)',
+    name: 'Mẫu Khách sạn',
     paperSize: 'k80',
     content: `<div class="p-4 text-sm font-mono max-w-[80mm] mx-auto text-black">
   <div class="text-center font-bold text-xl mb-1">{{shopName}}</div>
@@ -331,11 +334,62 @@ const DEFAULT_TEMPLATES = [
   <div class="text-center mb-1 text-xs">Cảm ơn quý khách và hẹn gặp lại!</div>
 </div>`,
   },
+  {
+    type: 'cashbook_receipt_k80',
+    name: 'Mẫu Sổ quỹ',
+    paperSize: 'k80',
+    content: `<div class="p-4 text-sm font-mono max-w-[80mm] mx-auto text-black">
+  <div class="text-center font-bold text-xl mb-1">{{shopName}}</div>
+  <div class="text-center mb-1">Đ/c: {{shopAddress}}</div>
+  <div class="text-center mb-3 border-b border-dashed border-gray-400 pb-2">ĐT: {{shopPhone}}</div>
+  
+  <div class="text-center font-bold text-lg mb-2 uppercase">{{invoiceTitle}}</div>
+  <div class="mb-1"><strong>Mã phiếu:</strong> {{transactionCode}}</div>
+  <div class="mb-1"><strong>Ngày:</strong> {{transactionDate}}</div>
+  <div class="mb-2"><strong>Loại chi:</strong> {{transactionType}}</div>
+  
+  <div class="border-t border-b border-dashed border-gray-400 py-2 mb-3">
+    <div class="flex justify-between mb-1">
+      <span>Đối tượng:</span>
+      <span class="font-bold text-right">{{targetName}}</span>
+    </div>
+    <div class="flex justify-between mb-1">
+      <span>Danh mục:</span>
+      <span class="text-right">{{categoryName}}</span>
+    </div>
+    <div class="flex justify-between mb-1">
+      <span>Phương thức:</span>
+      <span class="text-right">{{paymentMethod}}</span>
+    </div>
+  </div>
+  
+  <div class="mb-3">
+    <div class="font-bold mb-1">Nội dung:</div>
+    <div>{{notes}}</div>
+  </div>
+  
+  <div class="border-t border-dashed border-gray-400 mt-2 pt-2 mb-4 flex justify-between font-bold text-lg">
+    <span>Số tiền:</span>
+    <span>{{amount}}</span>
+  </div>
+  
+  <div class="flex justify-between text-center text-xs mt-6 mb-16">
+    <div class="w-1/2">
+      <div class="font-bold">Người nộp/nhận</div>
+      <div class="italic">(Ký, ghi rõ họ tên)</div>
+    </div>
+    <div class="w-1/2">
+      <div class="font-bold">Thủ quỹ</div>
+      <div class="italic">(Ký, ghi rõ họ tên)</div>
+    </div>
+  </div>
+</div>`,
+  },
 ]
 
 @Injectable()
 export class SettingsService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   private normalizeCashbookCategoryType(type?: string | null): CashbookCategoryType {
     const normalized = String(type ?? '').trim().toUpperCase()
@@ -586,13 +640,13 @@ export class SettingsService {
       : null
     const accountNumber = type === 'BANK'
       ? (dto.accountNumber !== undefined
-          ? this.normalizeBankTransferAccountNumber(dto.accountNumber)
-          : this.normalizeBankTransferAccountNumber(current?.accountNumber))
+        ? this.normalizeBankTransferAccountNumber(dto.accountNumber)
+        : this.normalizeBankTransferAccountNumber(current?.accountNumber))
       : null
     const accountHolder = type === 'BANK'
       ? (dto.accountHolder !== undefined
-          ? this.normalizeBankTransferText(dto.accountHolder, 'Ten thu huong')
-          : this.normalizeBankTransferText(current?.accountHolder, 'Ten thu huong'))
+        ? this.normalizeBankTransferText(dto.accountHolder, 'Ten thu huong')
+        : this.normalizeBankTransferText(current?.accountHolder, 'Ten thu huong'))
       : null
     const qrEnabled = type === 'BANK'
       ? (dto.qrEnabled !== undefined ? Boolean(dto.qrEnabled) : Boolean(current?.qrEnabled))
@@ -608,8 +662,8 @@ export class SettingsService {
       : null
     const transferNotePrefix = type === 'BANK' && qrEnabled
       ? this.normalizeTransferNotePrefix(
-          dto.transferNotePrefix !== undefined ? dto.transferNotePrefix : current?.transferNotePrefix,
-        )
+        dto.transferNotePrefix !== undefined ? dto.transferNotePrefix : current?.transferNotePrefix,
+      )
       : null
 
     if (qrEnabled && accountNumber && accountNumber.length > 19) {
@@ -799,51 +853,60 @@ export class SettingsService {
 
   async getConfigs() {
     try {
-      const records = await this.db.$queryRaw<any[]>`SELECT * FROM system_configs LIMIT 1`
-      return { success: true, data: records.length > 0 ? records[0] : {} }
+      const config = await (this.db as any).systemConfig.findFirst({})
+      return { success: true, data: config ?? {} }
     } catch {
       return { success: true, data: {} }
     }
   }
 
   async updateConfigs(dto: UpdateConfigDto) {
-    const existing = await this.db.$queryRaw<any[]>`SELECT id FROM system_configs LIMIT 1`
+    const existing = await (this.db as any).systemConfig.findFirst({
+      select: { id: true },
+    })
 
-    if (existing.length > 0) {
-      await this.db.$executeRaw`
-        UPDATE system_configs SET
-          "shopName"    = ${dto.shopName    ?? null},
-          "shopPhone"   = ${dto.shopPhone   ?? null},
-          "shopAddress" = ${dto.shopAddress ?? null},
-          "shopLogo"    = ${dto.shopLogo    ?? null},
-          "email"       = ${dto.email       ?? null},
-          "website"     = ${dto.website     ?? null},
-          "taxRate"     = ${dto.taxRate     ?? null},
-          "currency"    = ${dto.currency    ?? null},
-          "timezone"    = ${dto.timezone    ?? null},
-          "loyaltySpendPerPoint"       = ${dto.loyaltySpendPerPoint       ?? null},
-          "loyaltyPointValue"          = ${dto.loyaltyPointValue          ?? null},
-          "loyaltyPointExpiryMonths"   = ${dto.loyaltyPointExpiryMonths   ?? null},
-          "loyaltyTierRetentionMonths" = ${dto.loyaltyTierRetentionMonths ?? null},
-          "loyaltyTierRules"           = ${dto.loyaltyTierRules           ?? null},
-          "updatedAt"   = NOW()
-        WHERE id = ${existing[0].id}
-      `
-    } else {
-      const id = randomUUID()
-      await this.db.$executeRaw`
-        INSERT INTO system_configs
-          (id, "shopName", "shopPhone", "shopAddress", "shopLogo", "email", "website", "taxRate", "currency", "timezone", "loyaltySpendPerPoint", "loyaltyPointValue", "loyaltyPointExpiryMonths", "loyaltyTierRetentionMonths", "loyaltyTierRules", "updatedAt")
-        VALUES
-          (${id}, ${dto.shopName ?? null}, ${dto.shopPhone ?? null}, ${dto.shopAddress ?? null},
-           ${dto.shopLogo ?? null}, ${dto.email ?? null}, ${dto.website ?? null}, ${dto.taxRate ?? null},
-           ${dto.currency ?? null}, ${dto.timezone ?? null}, ${dto.loyaltySpendPerPoint ?? null}, ${dto.loyaltyPointValue ?? null},
-           ${dto.loyaltyPointExpiryMonths ?? null}, ${dto.loyaltyTierRetentionMonths ?? null}, ${dto.loyaltyTierRules ?? null}, NOW())
-      `
+    const parseJsonField = (value: string | undefined): string | null => {
+      if (value === undefined) return undefined as any
+      if (!value) return null
+      try {
+        JSON.parse(value)
+        return value
+      } catch {
+        throw new BadRequestException('Du lieu JSON khong hop le')
+      }
     }
 
-    const updated = await this.db.$queryRaw<any[]>`SELECT * FROM system_configs LIMIT 1`
-    return { success: true, data: updated[0] }
+    const data: any = {}
+    if (dto.shopName !== undefined) data.shopName = dto.shopName
+    if (dto.shopPhone !== undefined) data.shopPhone = dto.shopPhone
+    if (dto.shopAddress !== undefined) data.shopAddress = dto.shopAddress
+    if (dto.shopLogo !== undefined) data.shopLogo = dto.shopLogo
+    if (dto.email !== undefined) data.email = dto.email
+    if (dto.website !== undefined) data.website = dto.website
+    if (dto.taxRate !== undefined) data.taxRate = dto.taxRate
+    if (dto.currency !== undefined) data.currency = dto.currency
+    if (dto.timezone !== undefined) data.timezone = dto.timezone
+    if (dto.loyaltySpendPerPoint !== undefined) data.loyaltySpendPerPoint = dto.loyaltySpendPerPoint
+    if (dto.loyaltyPointValue !== undefined) data.loyaltyPointValue = dto.loyaltyPointValue
+    if (dto.loyaltyPointExpiryMonths !== undefined) data.loyaltyPointExpiryMonths = dto.loyaltyPointExpiryMonths
+    if (dto.loyaltyTierRetentionMonths !== undefined) data.loyaltyTierRetentionMonths = dto.loyaltyTierRetentionMonths
+    if (dto.loyaltyTierRules !== undefined) data.loyaltyTierRules = dto.loyaltyTierRules
+    if (dto.petBreedsV2 !== undefined) data.petBreedsV2 = parseJsonField(dto.petBreedsV2)
+    if (dto.petTemperaments !== undefined) data.petTemperaments = parseJsonField(dto.petTemperaments)
+    if (dto.petVaccineOpts !== undefined) data.petVaccineOpts = parseJsonField(dto.petVaccineOpts)
+
+    if (existing) {
+      const updated = await (this.db as any).systemConfig.update({
+        where: { id: existing.id },
+        data,
+      })
+      return { success: true, data: updated }
+    } else {
+      const created = await (this.db as any).systemConfig.create({
+        data,
+      })
+      return { success: true, data: created }
+    }
   }
 
   // ─── Print Templates ───────────────────────────────────────────────────────
@@ -852,7 +915,7 @@ export class SettingsService {
     const templates = await this.db.printTemplate.findMany({
       orderBy: { createdAt: 'asc' },
     })
-    
+
     // Auto-seed if empty
     if (templates.length === 0) {
       const seeded = await Promise.all(
@@ -867,11 +930,11 @@ export class SettingsService {
       )
       return { success: true, data: seeded }
     }
-    
+
     // Ensure missing default templates are added
     const existingTypes = new Set(templates.map((t) => t.type))
     const missingTemplates = DEFAULT_TEMPLATES.filter((t) => !existingTypes.has(t.type))
-    
+
     if (missingTemplates.length > 0) {
       const added = await Promise.all(
         missingTemplates.map((t) =>
@@ -933,11 +996,13 @@ export class SettingsService {
 
   async getPaymentOptions() {
     try {
-      const records = await this.db.$queryRaw<any[]>`SELECT "allowMultiPayment" FROM system_configs LIMIT 1`
+      const config = await (this.db as any).systemConfig.findFirst({
+        select: { allowMultiPayment: true },
+      })
       return {
         success: true,
         data: {
-          allowMultiPayment: records.length > 0 ? Boolean(records[0]?.allowMultiPayment) : true,
+          allowMultiPayment: config?.allowMultiPayment ?? true,
         },
       }
     } catch {
@@ -952,23 +1017,23 @@ export class SettingsService {
 
   async updatePaymentOptions(dto: UpdatePaymentOptionsDto) {
     const allowMultiPayment = Boolean(dto.allowMultiPayment)
-    const existing = await this.db.$queryRaw<any[]>`SELECT id FROM system_configs LIMIT 1`
+    const existing = await (this.db as any).systemConfig.findFirst({
+      select: { id: true },
+    })
 
-    if (existing.length > 0) {
-      await this.db.$executeRaw`
-        UPDATE system_configs SET
-          "allowMultiPayment" = ${allowMultiPayment},
-          "updatedAt" = NOW()
-        WHERE id = ${existing[0].id}
-      `
+    if (existing) {
+      await (this.db as any).systemConfig.update({
+        where: { id: existing.id },
+        data: {
+          allowMultiPayment,
+        },
+      })
     } else {
-      const id = randomUUID()
-      await this.db.$executeRaw`
-        INSERT INTO system_configs
-          (id, "allowMultiPayment", "updatedAt")
-        VALUES
-          (${id}, ${allowMultiPayment}, NOW())
-      `
+      await (this.db as any).systemConfig.create({
+        data: {
+          allowMultiPayment,
+        },
+      })
     }
 
     return {
@@ -1463,8 +1528,8 @@ export class SettingsService {
     }
 
     const { name, color, pricePolicy, discount, description, isActive, isDefault } = dto;
-    const updated = await this.db.customerGroup.update({ 
-      where: { id }, 
+    const updated = await this.db.customerGroup.update({
+      where: { id },
       data: {
         ...(name !== undefined && { name }),
         ...(color !== undefined && { color }),
@@ -1473,18 +1538,18 @@ export class SettingsService {
         ...(description !== undefined && { description }),
         ...(isActive !== undefined && { isActive }),
         ...(isDefault !== undefined && { isDefault }),
-      } 
+      }
     })
     return { success: true, data: updated }
   }
 
   async removeCustomerGroup(id: string) {
-    const group = await this.db.customerGroup.findUnique({ 
+    const group = await this.db.customerGroup.findUnique({
       where: { id },
       include: { _count: { select: { customers: true } } }
     })
     if (!group) throw new NotFoundException('Không tìm thấy nhóm khách hàng')
-    
+
     if (group.isDefault) {
       throw new BadRequestException('Không thể xóa nhóm khách hàng mặc định')
     }

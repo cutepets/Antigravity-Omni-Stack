@@ -7,11 +7,13 @@ import {
   CheckSquare,
   CreditCard,
   Loader2,
+  Medal,
   Package,
   PencilLine,
   Save,
   Scissors,
   Search,
+  TriangleAlert,
   User,
   XCircle,
 } from 'lucide-react'
@@ -39,6 +41,8 @@ interface OrderTopBarProps {
   selectedCustomerName: string
   selectedCustomerPhone?: string
   selectedCustomerAddress?: string
+  customerPoints?: number
+  customerDebt?: number
   branchName: string
   showBranch?: boolean
   operatorName: string
@@ -91,6 +95,8 @@ export function OrderTopBar({
   selectedCustomerName,
   selectedCustomerPhone,
   selectedCustomerAddress,
+  customerPoints,
+  customerDebt,
   branchName,
   showBranch,
   operatorName,
@@ -181,6 +187,23 @@ export function OrderTopBar({
                     <div className="truncate text-sm font-semibold text-foreground">{customerLabel}</div>
                     <div className="truncate text-xs text-foreground-muted">{customerPhoneLabel}</div>
                     <div className="truncate text-xs text-foreground-muted">{customerAddressLabel}</div>
+                    {/* Điểm & Nợ */}
+                    {(customerPoints !== undefined || customerDebt !== undefined) && (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {customerPoints !== undefined && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[11px] font-bold text-orange-500">
+                            <Medal size={11} />
+                            {customerPoints.toLocaleString('vi-VN')} điểm
+                          </span>
+                        )}
+                        {!!customerDebt && customerDebt > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-error/20 bg-error/10 px-2 py-0.5 text-[11px] font-bold text-error">
+                            <TriangleAlert size={11} />
+                            Nợ {customerDebt.toLocaleString('vi-VN')}đ
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
                 {isEditing ? (
@@ -269,40 +292,37 @@ export function OrderTopBar({
               >
                 <div className="relative flex w-full justify-center px-1">
                   <div
-                    className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${
-                      step.state === 'alert'
-                        ? 'border-rose-500/50 bg-rose-500/12 text-rose-300'
-                        : step.state === 'done' || step.state === 'active'
-                          ? 'border-primary-500/50 bg-primary-500/10 text-primary-500'
-                          : 'border-border bg-background text-foreground-muted'
-                    }`}
+                    className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${step.state === 'alert'
+                      ? 'border-rose-500/50 bg-rose-500/12 text-rose-300'
+                      : step.state === 'done' || step.state === 'active'
+                        ? 'border-primary-500/50 bg-primary-500/10 text-primary-500'
+                        : 'border-border bg-background text-foreground-muted'
+                      }`}
                   >
                     {index + 1}
                   </div>
                   {index < visibleProgressSteps.length - 1 ? (
                     <div
-                      className={`absolute top-1/2 h-px -translate-y-1/2 ${
-                        visibleProgressSteps[index + 1]?.state === 'alert'
-                          ? 'bg-rose-500/35'
-                          : step.state === 'done'
-                            ? 'bg-primary-500/50'
-                            : 'bg-border'
-                      }`}
+                      className={`absolute top-1/2 h-px -translate-y-1/2 ${visibleProgressSteps[index + 1]?.state === 'alert'
+                        ? 'bg-rose-500/35'
+                        : step.state === 'done'
+                          ? 'bg-primary-500/50'
+                          : 'bg-border'
+                        }`}
                       style={{ left: 'calc(50% + 18px)', right: 'calc(-50% + 18px)' }}
                     />
                   ) : null}
                 </div>
                 <div className="mt-0.5 min-w-0">
                   <div
-                    className={`text-[11px] font-semibold leading-tight ${
-                      step.state === 'alert'
-                        ? 'text-rose-300'
-                        : step.state === 'active'
-                          ? 'text-primary-500'
-                          : step.state === 'done'
-                            ? 'text-foreground'
-                            : 'text-foreground-muted'
-                    }`}
+                    className={`text-[11px] font-semibold leading-tight ${step.state === 'alert'
+                      ? 'text-rose-300'
+                      : step.state === 'active'
+                        ? 'text-primary-500'
+                        : step.state === 'done'
+                          ? 'text-foreground'
+                          : 'text-foreground-muted'
+                      }`}
                   >
                     {step.label}
                   </div>
@@ -348,14 +368,14 @@ export function OrderTopBar({
             </button>
           ) : null}
 
-          <div className="flex flex-wrap justify-end gap-1.5">
+          <div className="flex flex-wrap justify-end gap-2">
             {actionFlags.canPayCurrentOrder ? (
               <button
                 type="button"
                 onClick={onOpenPay}
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
+                className="btn-primary h-9 px-4 shadow-sm"
               >
-                <CreditCard size={13} />
+                <CreditCard size={14} />
                 Thu tiền
               </button>
             ) : null}
@@ -364,9 +384,9 @@ export function OrderTopBar({
               <button
                 type="button"
                 onClick={onOpenApprove}
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
+                className="btn-primary h-9 px-4 shadow-sm"
               >
-                <CheckSquare size={13} />
+                <CheckSquare size={14} />
                 Duyệt đơn
               </button>
             ) : null}
@@ -375,9 +395,9 @@ export function OrderTopBar({
               <button
                 type="button"
                 onClick={onOpenExportStock}
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
+                className="btn-primary bg-sky-500 hover:bg-sky-600 text-white h-9 px-4 shadow-sm"
               >
-                <Package size={13} />
+                <Package size={14} />
                 Xuất kho
               </button>
             ) : null}
@@ -386,9 +406,9 @@ export function OrderTopBar({
               <button
                 type="button"
                 onClick={onOpenSettle}
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
+                className="btn-outline border-orange-500/30 text-orange-600 hover:bg-orange-500/10 h-9 px-4"
               >
-                <CheckCircle2 size={13} />
+                <CheckCircle2 size={14} />
                 Quyết toán
               </button>
             ) : null}
@@ -398,9 +418,9 @@ export function OrderTopBar({
                 type="button"
                 onClick={onCancelOrder}
                 disabled={pendingAction}
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-error/30 bg-error/8 px-3 text-xs font-medium text-error transition-colors hover:bg-error/15 disabled:opacity-60"
+                className="btn-outline border-error/30 text-error hover:bg-error/10 h-9 px-4 disabled:opacity-60"
               >
-                <XCircle size={13} />
+                <XCircle size={14} />
                 Hủy đơn
               </button>
             ) : null}
@@ -409,9 +429,9 @@ export function OrderTopBar({
               <button
                 type="button"
                 onClick={onOpenPos}
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-primary-500/40"
+                className="btn-outline h-9 px-4"
               >
-                <Scissors size={13} />
+                <Scissors size={14} />
                 POS bán nhanh
               </button>
             ) : null}

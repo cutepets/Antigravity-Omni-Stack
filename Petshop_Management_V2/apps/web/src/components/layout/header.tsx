@@ -1,9 +1,10 @@
 'use client'
+import Image from 'next/image';
 
 import { usePathname, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, Settings } from 'lucide-react'
+import { Menu, Settings, ShoppingCart, ExternalLink } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { settingsApi } from '@/lib/api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
@@ -12,6 +13,7 @@ import { useThemeStore } from '@/stores/theme.store'
 import { UserSettingsDrawer } from './user-settings-drawer'
 import dynamic from 'next/dynamic'
 import { useAuthorization } from '@/hooks/useAuthorization'
+
 
 const CustomerSettingsDrawer = dynamic(
   () => import('@/app/(dashboard)/customers/_components/customer-settings-drawer').then(mod => mod.CustomerSettingsDrawer),
@@ -140,8 +142,8 @@ export function Header() {
           <div className="min-w-0 flex items-center gap-2">
             <h1 className="truncate text-xl font-semibold tracking-tight text-foreground-base">{pageTitle}</h1>
             {pathname === '/customers' && canManageCustomerSettings && (
-              <button 
-                onClick={() => setShowCustomerSettingsDrawer(true)} 
+              <button
+                onClick={() => setShowCustomerSettingsDrawer(true)}
                 className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
                 title="Cài đặt khách hàng"
               >
@@ -149,8 +151,8 @@ export function Header() {
               </button>
             )}
             {pathname.startsWith('/finance') && canManageCashbookSettings && (
-              <button 
-                onClick={() => setShowCashbookSettingsDrawer(true)} 
+              <button
+                onClick={() => setShowCashbookSettingsDrawer(true)}
                 className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
                 title="Cài đặt sổ quỹ"
               >
@@ -158,8 +160,8 @@ export function Header() {
               </button>
             )}
             {pathname.startsWith('/pets') && canManagePetSettings && (
-              <button 
-                onClick={() => setShowPetSettings(true)} 
+              <button
+                onClick={() => setShowPetSettings(true)}
                 className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
                 title="Cài đặt Pet"
               >
@@ -167,8 +169,8 @@ export function Header() {
               </button>
             )}
             {pathname === '/products' && canOpenInventorySettings && (
-              <button 
-                onClick={() => setShowInventorySettingsDrawer(true)} 
+              <button
+                onClick={() => setShowInventorySettingsDrawer(true)}
                 className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
                 title="Cấu hình kho"
               >
@@ -176,8 +178,8 @@ export function Header() {
               </button>
             )}
             {pathname.startsWith('/grooming') && canManageGroomingSettings && (
-              <button 
-                onClick={() => window.dispatchEvent(new Event('openGroomingSettings'))} 
+              <button
+                onClick={() => window.dispatchEvent(new Event('openGroomingSettings'))}
                 className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
                 title="Cài đặt bảng giá Spa & Grooming"
               >
@@ -185,8 +187,8 @@ export function Header() {
               </button>
             )}
             {pathname.startsWith('/hotel') && hasPermission('hotel.update') && (
-              <button 
-                onClick={() => window.dispatchEvent(new Event('openHotelSettings'))} 
+              <button
+                onClick={() => window.dispatchEvent(new Event('openHotelSettings'))}
                 className="p-1.5 rounded-lg text-foreground-muted hover:text-primary-500 hover:bg-background-tertiary transition-colors"
                 title="Cài đặt bảng giá Hotel"
               >
@@ -198,6 +200,17 @@ export function Header() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <button
+          type="button"
+          onClick={() => window.open('/pos', '_blank')}
+          title="POS - Bán nhanh"
+          className="group relative flex h-9 items-center gap-2 overflow-hidden rounded-lg bg-primary-500 px-4 text-sm font-semibold text-white shadow-md shadow-primary-500/20 transition-all hover:bg-primary-600 hover:shadow-primary-500/30"
+        >
+          <ShoppingCart size={16} className="transition-transform duration-200 group-hover:scale-110" />
+          <span>POS</span>
+          <ExternalLink size={12} className="opacity-70" />
+        </button>
+
         <span className="mr-1 h-2 w-2 rounded-full bg-primary-500 shadow-[0_0_8px_var(--color-primary-500)] animate-pulse"></span>
 
         {user ? (
@@ -235,11 +248,10 @@ export function Header() {
                           toast.success(`Đã chuyển sang chi nhánh: ${branch.name}`)
                           router.refresh()
                         }}
-                        className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors ${
-                          branch.id === activeBranchId
+                        className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors ${branch.id === activeBranchId
                             ? 'bg-primary-500/10 text-primary-500'
                             : 'text-foreground-base hover:bg-background-tertiary'
-                        }`}
+                          }`}
                       >
                         <div className="flex flex-col overflow-hidden">
                           <span className="truncate text-sm font-medium">{branch.name}</span>
@@ -298,7 +310,7 @@ export function Header() {
               }}
             >
               {user.avatar ? (
-                <img src={user.avatar} alt={user.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <Image src={user.avatar} alt={user.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} width={400} height={400} unoptimized />
               ) : (
                 user.fullName[0]?.toUpperCase()
               )}

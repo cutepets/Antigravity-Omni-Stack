@@ -15,18 +15,18 @@ import { useAuthorization } from '@/hooks/useAuthorization'
 
 // ── Tier config ────────────────────────────────────────────────────────────────
 const TIER_CONFIG: Record<string, { label: string; badgeClass: string; icon: string; barColor: string }> = {
-  BRONZE:  { label: 'Đồng',      badgeClass: 'badge-warning', icon: '🥉', barColor: 'bg-warning' },
-  SILVER:  { label: 'Bạc',       badgeClass: 'badge-gray',    icon: '🥈', barColor: 'bg-foreground-muted' },
-  GOLD:    { label: 'Vàng',      badgeClass: 'badge-accent',  icon: '🥇', barColor: 'bg-accent-500' },
-  DIAMOND: { label: 'Kim cương', badgeClass: 'badge-info',    icon: '💎', barColor: 'bg-info' },
+  BRONZE: { label: 'Đồng', badgeClass: 'badge-warning', icon: '🥉', barColor: 'bg-warning' },
+  SILVER: { label: 'Bạc', badgeClass: 'badge-gray', icon: '🥈', barColor: 'bg-foreground-muted' },
+  GOLD: { label: 'Vàng', badgeClass: 'badge-accent', icon: '🥇', barColor: 'bg-accent-500' },
+  DIAMOND: { label: 'Kim cương', badgeClass: 'badge-info', icon: '💎', barColor: 'bg-info' },
 }
 
 const TABS = [
-  { id: 'pets',   label: 'Danh sách Pet',     icon: PawPrint },
-  { id: 'orders', label: 'Lịch sử mua hàng',  icon: ShoppingBag },
-  { id: 'debt',   label: 'Công nợ',            icon: Receipt },
-  { id: 'spa',    label: 'Spa & Grooming',     icon: null },
-  { id: 'hotel',  label: 'Pet Hotel',          icon: null },
+  { id: 'pets', label: 'Danh sách Pet', icon: PawPrint },
+  { id: 'orders', label: 'Lịch sử mua hàng', icon: ShoppingBag },
+  { id: 'debt', label: 'Công nợ', icon: Receipt },
+  { id: 'spa', label: 'Spa & Grooming', icon: null },
+  { id: 'hotel', label: 'Pet Hotel', icon: null },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ export default function CustomerDetailPage() {
         <div className="p-6 flex flex-wrap items-start justify-between gap-6 border-b border-border">
           <div className="flex items-center gap-5">
             {/* Avatar */}
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-2xl font-bold text-white shrink-0 shadow-lg shadow-primary-500/20">
+            <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-primary-400 to-primary-600 flex items-center justify-center text-2xl font-bold text-white shrink-0 shadow-lg shadow-primary-500/20">
               {customer.fullName?.charAt(0)?.toUpperCase()}
             </div>
             <div>
@@ -198,10 +198,10 @@ export default function CustomerDetailPage() {
 
         {/* Info Rows */}
         <div className="p-4 px-6 flex flex-wrap items-center gap-x-10 gap-y-2.5 bg-background-tertiary/50">
-          <InfoRow icon={Phone}    label="SĐT"     value={customer.phone}    isZalo />
-          <InfoRow icon={Mail}     label="Email"   value={customer.email} />
-          <InfoRow icon={MapPin}   label="Địa chỉ" value={customer.address} />
-          <InfoRow icon={Receipt}  label="MST"     value={customer.taxCode} />
+          <InfoRow icon={Phone} label="SĐT" value={customer.phone} isZalo />
+          <InfoRow icon={Mail} label="Email" value={customer.email} />
+          <InfoRow icon={MapPin} label="Địa chỉ" value={customer.address} />
+          <InfoRow icon={Receipt} label="MST" value={customer.taxCode} />
           <InfoRow icon={Calendar} label="Ngày tạo" value={ymd(customer.createdAt)} />
         </div>
       </div>
@@ -228,10 +228,10 @@ export default function CustomerDetailPage() {
 
       {/* ── Stats row ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Tổng chi tiêu"     value={fmt(customer.totalSpent)}   sub="Toàn thời gian" />
-        <StatCard label="Chi tiêu 6 tháng"  value={fmt(customer.periodSpent)}  sub="Căn cứ xét hạng" />
-        <StatCard label="Điểm còn lại"      value={`${customer.points ?? 0} điểm`} sub={`Đã dùng ${customer.pointsUsed ?? 0} điểm`} accent />
-        <StatCard label="Công nợ"           value="0 đ" sub="0 đơn chưa TT" />
+        <StatCard label="Tổng chi tiêu" value={fmt(customer.totalSpent)} sub="Toàn thời gian" />
+        <StatCard label="Chi tiêu 6 tháng" value={fmt(customer.periodSpent)} sub="Căn cứ xét hạng" />
+        <StatCard label="Điểm còn lại" value={`${customer.points ?? 0} điểm`} sub={`Đã dùng ${customer.pointsUsed ?? 0} điểm`} accent />
+        <StatCard label="Công nợ" value="0 đ" sub="0 đơn chưa TT" />
       </div>
 
       {/* ── Tabs ── */}
@@ -244,11 +244,10 @@ export default function CustomerDetailPage() {
               <button
                 key={tid}
                 onClick={() => setActiveTab(tid)}
-                className={`flex items-center gap-2 px-6 py-4 text-[13px] font-medium transition-colors whitespace-nowrap border-b-2 shrink-0 ${
-                  isActive
-                    ? 'text-primary-500 border-primary-500'
-                    : 'text-foreground-muted border-transparent hover:text-foreground'
-                }`}
+                className={`flex items-center gap-2 px-6 py-4 text-[13px] font-medium transition-colors whitespace-nowrap border-b-2 shrink-0 ${isActive
+                  ? 'text-primary-500 border-primary-500'
+                  : 'text-foreground-muted border-transparent hover:text-foreground'
+                  }`}
               >
                 {Icon && <Icon size={16} />}
                 {label}
@@ -297,7 +296,7 @@ export default function CustomerDetailPage() {
                       className="bg-background-tertiary rounded-2xl p-5 border border-border hover:border-primary-500/40 transition-colors"
                     >
                       <div className="flex gap-4 items-center mb-4">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center shrink-0 shadow-md shadow-primary-500/20">
+                        <div className="w-12 h-12 rounded-xl bg-linear-to-br from-primary-400 to-primary-600 flex items-center justify-center shrink-0 shadow-md shadow-primary-500/20">
                           <PawPrint size={20} className="text-white" />
                         </div>
                         <div>
@@ -381,7 +380,9 @@ export default function CustomerDetailPage() {
       <PetFormModal
         isOpen={petFormOpen}
         onClose={() => setPetFormOpen(false)}
-        fixedCustomerId={customer.id}
+        customerId={customer.id}
+        customerName={customer.fullName}
+        customerPhone={customer.phone}
       />
     </div>
   )

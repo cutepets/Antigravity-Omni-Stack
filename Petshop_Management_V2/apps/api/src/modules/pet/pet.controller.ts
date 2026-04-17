@@ -32,6 +32,7 @@ import { UpdatePetDto } from './dto/update-pet.dto.js'
 import { AddVaccinationDto } from './dto/add-vaccination.dto.js'
 import { AddWeightLogDto } from './dto/add-weight-log.dto.js'
 import { PetService } from './pet.service.js'
+import { SyncAttributeDto } from './dto/sync-attribute.dto.js'
 
 interface AuthenticatedRequest extends Request {
   user?: JwtPayload
@@ -40,7 +41,7 @@ interface AuthenticatedRequest extends Request {
 @Controller('pets')
 @UseGuards(JwtGuard, PermissionsGuard)
 export class PetController {
-  constructor(private readonly petService: PetService) {}
+  constructor(private readonly petService: PetService) { }
 
   @Post()
   @Permissions('pet.create')
@@ -111,7 +112,7 @@ export class PetController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB limit
-          new FileTypeValidator({ fileType: '.(png|jpeg|jpg|webp)' }),
+          new FileTypeValidator({ fileType: /^(image\/png|image\/jpeg|image\/jpg|image\/webp)$/ }),
         ],
       }),
     )
@@ -147,7 +148,7 @@ export class PetController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: '.(png|jpeg|jpg|webp)' }),
+          new FileTypeValidator({ fileType: /^(image\/png|image\/jpeg|image\/jpg|image\/webp)$/ }),
         ],
       }),
     )
@@ -161,5 +162,11 @@ export class PetController {
   @Permissions('pet.delete')
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.petService.remove(id, req.user)
+  }
+
+  @Post('sync-attribute')
+  @Permissions('settings.app.update')
+  syncAttribute(@Body() syncDto: SyncAttributeDto, @Req() req: AuthenticatedRequest) {
+    return this.petService.syncAttribute(syncDto, req.user)
   }
 }

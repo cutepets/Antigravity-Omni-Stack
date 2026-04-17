@@ -55,6 +55,10 @@ model Branch {
   authorizedUsers       User[]                 @relation("UserAuthorizedBranches")
   stockCountSessions    StockCountSession[]
   hotelPriceRules       HotelPriceRule[]
+  staffSchedules        StaffSchedule[]
+  attendanceRecords     AttendanceRecord[]
+  leaveRequests         LeaveRequest[]
+  payrollPeriods        PayrollPeriod[]
 
   @@map("branches")
 }
@@ -111,6 +115,16 @@ model User {
   orderTimelines          OrderTimeline[]
   groomingTimelines       GroomingTimeline[]
   hotelStayTimelines      HotelStayTimeline[]
+  staffSchedules          StaffSchedule[]
+  attendanceRecords       AttendanceRecord[]
+  reviewedAttendances     AttendanceRecord[]     @relation("AttendanceReviewer")
+  leaveRequests           LeaveRequest[]
+  approvedLeaves          LeaveRequest[]         @relation("LeaveApprover")
+  payrollSlips            PayrollSlip[]
+  approvedPayrolls        PayrollPeriod[]        @relation("PayrollApprover")
+  faceEmbeddings          FaceEmbedding[]
+  
+  assignedGroomingSessions GroomingSession[]    @relation("GroomingAssignedStaff")
 
   @@map("users")
 }
@@ -622,6 +636,7 @@ model GroomingSession {
   pet         Pet            @relation(fields: [petId], references: [id])
   order       Order?         @relation(fields: [orderId], references: [id])
   staff       User?          @relation(fields: [staffId], references: [id])
+  assignedStaff User[]       @relation("GroomingAssignedStaff")
   weightBand  ServiceWeightBand? @relation(fields: [weightBandId], references: [id])
   orderItems  OrderItem[]
   timeline    GroomingTimeline[]
@@ -1565,6 +1580,9 @@ model SystemConfig {
   loyaltyTierRetentionMonths Int?
   loyaltyTierRules           String?
   allowMultiPayment          Boolean  @default(true)
+  petBreedsV2                String?
+  petTemperaments            String?
+  petVaccineOpts             String?
 
   @@map("system_configs")
 }
@@ -1856,3 +1874,279 @@ model PrintTemplate {
   @@map("print_templates")
 }
 
+// =============================================================================
+// HR MODULE — Chấm Công · Xin Phép · Bảng Lương
+// =============================================================================
+
+// ============================================================
+// SCHEDULE — Phân Ca
+// ============================================================
+
+model StaffSchedule {
+  id          String    @id @default(cuid())
+  userId      String
+  branchId    String
+  date        DateTime  // Ngày làm
+  shiftType   ShiftType @default(FULL_DAY)
+  startTime   String    // "08:00"
+  endTime     String    // "17:00"
+  note        String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch      Branch    @relation(fields: [branchId], references: [id])
+  attendances AttendanceRecord[]
+
+  @@unique([userId, date, shiftType])
+  @@index([userId, date])
+  @@index([branchId, date])
+  @@map("staff_schedules")
+}
+
+// ============================================================
+// ATTENDANCE — Chấm Công
+// ============================================================
+
+model AttendanceRecord {
+  id              String           @id @default(cuid())
+  userId          String
+  branchId        String
+  scheduleId      String?          // null nếu chấm thủ công không có ca
+  date            DateTime         // Ngày làm việc
+  clockIn         DateTime?
+  clockOut        DateTime?
+  clockInMethod   ClockMethod      @default(MANUAL)
+  clockOutMethod  ClockMethod      @default(MANUAL)
+  faceConfidence  Float?           // 0.0 - 1.0
+  status          AttendanceStatus @default(PENDING_REVIEW)
+  workHours       Float?           // Tính tự động khi clockOut
+  overtimeHours   Float?           // Ngoài giờ chuẩn
+  lateMinutes     Int?             // Số phút đi muộn
+  earlyMinutes    Int?             // Số phút về sớm
+  note            String?
+  reviewNote      String?          // Ghi chú quản lý khi duyệt
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  isLeave         Boolean          @default(false)
+  leaveRequestId  String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch          Branch           @relation(fields: [branchId], references: [id])
+  schedule        StaffSchedule?   @relation(fields: [scheduleId], references: [id])
+  reviewer        User?            @relation("AttendanceReviewer", fields: [reviewedBy], references: [id])
+  leaveRequest    LeaveRequest?    @relation(fields: [leaveRequestId], references: [id])
+
+  @@index([userId, date])
+  @@index([branchId, date])
+  @@index([status])
+  @@index([date])
+  @@map("attendance_records")
+}
+
+// ============================================================
+// LEAVE REQUEST — Xin Phép
+// ============================================================
+
+model LeaveRequest {
+  id              String      @id @default(cuid())
+  userId          String
+  branchId        String
+  leaveType       LeaveType
+  startDate       DateTime
+  endDate         DateTime
+  totalDays       Float       // Hỗ trợ nửa ngày (0.5)
+  reason          String
+  status          LeaveStatus @default(PENDING)
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedReason  String?
+  attachmentUrl   String?     // Giấy tờ (nếu nghỉ ốm)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch          Branch      @relation(fields: [branchId], references: [id])
+  approver        User?       @relation("LeaveApprover", fields: [approvedBy], references: [id])
+  attendances     AttendanceRecord[]
+
+  @@index([userId, startDate])
+  @@index([branchId, status])
+  @@index([status])
+  @@map("leave_requests")
+}
+
+// ============================================================
+// PAYROLL — Bảng Lương
+// ============================================================
+
+model PayrollPeriod {
+  id          String        @id @default(cuid())
+  branchId    String
+  month       Int           // 1-12
+  year        Int
+  startDate   DateTime
+  endDate     DateTime
+  status      PayrollStatus @default(DRAFT)
+  totalAmount Float         @default(0)
+  note        String?
+  approvedBy  String?
+  approvedAt  DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  branch      Branch        @relation(fields: [branchId], references: [id])
+  approver    User?         @relation("PayrollApprover", fields: [approvedBy], references: [id])
+  slips       PayrollSlip[]
+
+  @@unique([branchId, month, year])
+  @@index([branchId, year, month])
+  @@map("payroll_periods")
+}
+
+model PayrollSlip {
+  id                 String      @id @default(cuid())
+  periodId           String
+  userId             String
+
+  // Thống kê công
+  workingDays        Float       @default(0)  // Ngày công thực tế
+  standardDays       Float       @default(26) // Ngày công chuẩn tháng
+  leaveDays          Float       @default(0)  // Nghỉ phép có lương
+  absentDays         Float       @default(0)  // Nghỉ không phép
+  overtimeHours      Float       @default(0)
+  lateMinutes        Int         @default(0)
+
+  // Lương cơ bản
+  baseSalary         Float       @default(0)
+  dailyRate          Float       @default(0)  // baseSalary / standardDays
+  attendancePay      Float       @default(0)  // dailyRate * workingDays
+
+  // Phụ cấp & Thưởng
+  overtimePay        Float       @default(0)
+  mealAllowance      Float       @default(0)
+  transportAllowance Float       @default(0)
+  performanceBonus   Float       @default(0)
+  spaCommission      Float       @default(0)  // Hoa hồng grooming
+  otherAllowances    Float       @default(0)
+
+  // Khấu trừ
+  socialInsurance    Float       @default(0)  // BHXH 8%
+  healthInsurance    Float       @default(0)  // BHYT 1.5%
+  unemploymentIns    Float       @default(0)  // BHTN 1%
+  personalIncomeTax  Float       @default(0)  // PIT
+  lateDeduction      Float       @default(0)  // Trừ đi muộn
+  unpaidLeaveDeduct  Float       @default(0)  // Trừ nghỉ không phép
+  otherDeductions    Float       @default(0)
+
+  // Tổng
+  totalGross         Float       @default(0)
+  totalDeductions    Float       @default(0)
+  totalNet           Float       @default(0)
+
+  status             SlipStatus  @default(DRAFT)
+  note               String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  period             PayrollPeriod  @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  user               User           @relation(fields: [userId], references: [id])
+  lineItems          PayrollLineItem[]
+
+  @@unique([periodId, userId])
+  @@index([periodId])
+  @@index([userId])
+  @@map("payroll_slips")
+}
+
+model PayrollLineItem {
+  id        String   @id @default(cuid())
+  slipId    String
+  label     String
+  type      String   // EARNING | DEDUCTION | INFO
+  amount    Float
+  note      String?
+
+  slip      PayrollSlip @relation(fields: [slipId], references: [id], onDelete: Cascade)
+
+  @@index([slipId])
+  @@map("payroll_line_items")
+}
+
+// ============================================================
+// FACE EMBEDDING — Dữ liệu nhận diện khuôn mặt
+// ============================================================
+
+model FaceEmbedding {
+  id          String   @id @default(cuid())
+  userId      String
+  embedding   String   // JSON array of 512 floats (base64 encoded)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@map("face_embeddings")
+}
+
+// ============================================================
+// HR ENUMS
+// ============================================================
+
+enum ShiftType {
+  MORNING    // Ca sáng
+  AFTERNOON  // Ca chiều
+  FULL_DAY   // Cả ngày
+  CUSTOM     // Tùy chỉnh
+}
+
+enum ClockMethod {
+  FACE_RECOGNITION // Nhận diện khuôn mặt
+  MANUAL           // Quản lý chấm thủ công
+  QR_CODE          // QR code
+  OVERRIDE         // Quản lý ghi đè
+}
+
+enum AttendanceStatus {
+  AUTO_APPROVED  // Đủ điều kiện → tự duyệt
+  PENDING_REVIEW // Chờ quản lý xem
+  APPROVED       // Quản lý đã duyệt
+  REJECTED       // Bị từ chối
+  ABSENT         // Vắng mặt
+  ON_LEAVE       // Đang nghỉ phép
+}
+
+enum LeaveType {
+  ANNUAL        // Phép năm
+  SICK          // Nghỉ ốm
+  PERSONAL      // Việc riêng
+  UNPAID        // Không lương
+  COMPENSATORY  // Bù công tăng ca
+  MATERNITY     // Thai sản
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PayrollStatus {
+  DRAFT
+  CALCULATED  // Đã tính, chờ duyệt
+  APPROVED    // Quản lý duyệt
+  PAID        // Đã thanh toán
+  CANCELLED
+}
+
+enum SlipStatus {
+  DRAFT
+  FINALIZED
+}

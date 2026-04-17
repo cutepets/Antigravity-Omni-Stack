@@ -14,8 +14,6 @@ import { join } from 'path'
 import { AppModule } from './app.module.js'
 
 async function bootstrap() {
-  console.log('DATABASE_URL is:', process.env['DATABASE_URL'])
-
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log'],
   })
@@ -40,7 +38,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: false,
+      forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: true },
     }),

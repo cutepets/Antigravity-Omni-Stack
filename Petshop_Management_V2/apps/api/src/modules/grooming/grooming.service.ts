@@ -217,6 +217,9 @@ export class GroomingService {
             }
           }
         } : {}),
+        assignedStaff: {
+          connect: dto.staffIds?.map(id => ({ id })) ?? (dto.staffId ? [{ id: dto.staffId }] : []),
+        },
       },
       include: {
         pet: {
@@ -230,6 +233,7 @@ export class GroomingService {
           },
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
+        assignedStaff: { select: { id: true, fullName: true, avatar: true } },
         order: { select: { id: true, orderNumber: true } },
         branch: { select: { id: true, name: true, code: true } },
       },
@@ -264,6 +268,7 @@ export class GroomingService {
           },
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
+        assignedStaff: { select: { id: true, fullName: true, avatar: true } },
         order: { select: { id: true, orderNumber: true } },
         branch: { select: { id: true, name: true, code: true } },
       },
@@ -292,6 +297,7 @@ export class GroomingService {
           },
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
+        assignedStaff: { select: { id: true, fullName: true, avatar: true } },
         order: { select: { id: true, orderNumber: true } },
         branch: { select: { id: true, name: true, code: true } },
         timeline: {
@@ -319,6 +325,7 @@ export class GroomingService {
         },
       },
       staff: { select: { id: true, fullName: true, avatar: true } },
+      assignedStaff: { select: { id: true, fullName: true, avatar: true } },
       order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
       branch: { select: { id: true, name: true, code: true } },
       timeline: {
@@ -357,6 +364,20 @@ export class GroomingService {
 
     const dataToUpdate: any = { ...dto }
     delete dataToUpdate.branchId
+    delete dataToUpdate.staffIds
+    delete dataToUpdate.staffId  // don't overwrite legacy scalar via spread; handle explicitly below
+
+    if (dto.staffIds !== undefined) {
+      // Multi-staff: replace the junction table entries
+      dataToUpdate.assignedStaff = {
+        set: dto.staffIds.map((id) => ({ id })),
+      }
+      // Keep legacy staffId in sync with the primary staff (first in array)
+      dataToUpdate.staffId = dto.staffIds[0] ?? null
+    } else if (dto.staffId !== undefined) {
+      // Fallback: single staff (legacy path)
+      dataToUpdate.staffId = dto.staffId
+    }
 
     if (dto.startTime) dataToUpdate.startTime = new Date(dto.startTime)
     if (dto.endTime) dataToUpdate.endTime = new Date(dto.endTime)
@@ -401,6 +422,7 @@ export class GroomingService {
           },
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
+        assignedStaff: { select: { id: true, fullName: true, avatar: true } },
         order: { select: { id: true, orderNumber: true } },
         branch: { select: { id: true, name: true, code: true } },
       },

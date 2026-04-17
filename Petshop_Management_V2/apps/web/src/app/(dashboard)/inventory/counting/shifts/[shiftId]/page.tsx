@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import { use, useEffect, useState, useRef, KeyboardEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { stockCountApi } from '@/lib/api/stock-count.api'
+
 
 function formatDate(value: string | Date) {
   return new Date(value).toLocaleDateString('vi-VN')
@@ -325,10 +327,10 @@ export default function ShiftCountingPage({ params }: { params: Promise<{ shiftI
                       {productImgUrl ? (
                         <>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={productImgUrl} alt="" className="h-8 w-8 rounded object-cover" />
+                          <Image src={productImgUrl} alt="" className="h-8 w-8 rounded object-cover" width={400} height={400} unoptimized />
                           <div className="pointer-events-none absolute left-10 top-0 z-50 hidden group-hover/imgcell:block">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={productImgUrl} alt="" className="h-44 w-44 max-w-none rounded-xl border-2 border-border bg-card object-cover shadow-2xl" />
+                            <Image src={productImgUrl} alt="" className="h-44 w-44 max-w-none rounded-xl border-2 border-border bg-card object-cover shadow-2xl" width={400} height={400} unoptimized />
                           </div>
                         </>
                       ) : (

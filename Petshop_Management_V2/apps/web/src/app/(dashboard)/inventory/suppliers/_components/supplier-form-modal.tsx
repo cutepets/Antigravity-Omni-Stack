@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image';
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -26,6 +27,7 @@ import { normalizeBranchCode, suggestBranchCodeFromName } from '@petshop/shared'
 import { stockApi } from '@/lib/api/stock.api'
 import { uploadApi } from '@/lib/api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
+
 
 const supplierSchema = z.object({
   name: z.string().min(1, 'Vui lòng nhập tên nhà cung cấp'),
@@ -316,7 +318,7 @@ export function SupplierFormModal({ isOpen, onClose, initialData }: Props) {
                 <div className="mt-4 flex flex-col items-center gap-4">
                   <div className="flex h-40 w-40 items-center justify-center overflow-hidden rounded-3xl border border-border bg-background">
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt="Avatar NCC" className="h-full w-full object-cover" />
+                      <Image src={avatarUrl} alt="Avatar NCC" className="h-full w-full object-cover" width={400} height={400} unoptimized />
                     ) : (
                       <UserCircle2 size={72} className="text-foreground-muted" />
                     )}

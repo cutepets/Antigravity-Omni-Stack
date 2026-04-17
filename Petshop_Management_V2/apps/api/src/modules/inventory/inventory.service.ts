@@ -21,19 +21,19 @@ function tokenizeSearch(value?: string | null) {
 function buildProductSearchHaystack(product: Record<string, any>) {
   const variantText = Array.isArray(product.variants)
     ? product.variants
-        .map((variant: Record<string, any>) =>
-          [
-            variant.name,
-            variant.sku,
-            variant.barcode,
-            variant.conversions,
-            variant.pricePolicies,
-            variant.priceBookPrices,
-          ]
-            .filter(Boolean)
-            .join(' '),
-        )
-        .join(' ')
+      .map((variant: Record<string, any>) =>
+        [
+          variant.name,
+          variant.sku,
+          variant.barcode,
+          variant.conversions,
+          variant.pricePolicies,
+          variant.priceBookPrices,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
+      .join(' ')
     : ''
 
   return normalizeSearchValue(
@@ -93,7 +93,7 @@ export interface CreateProductDto {
   lastCountShift?: string
 }
 
-export interface UpdateProductDto extends Partial<CreateProductDto> {}
+export interface UpdateProductDto extends Partial<CreateProductDto> { }
 
 export interface CreateVariantDto {
   name: string
@@ -124,13 +124,13 @@ export interface CreateServiceDto {
   image?: string
 }
 
-export interface UpdateServiceDto extends Partial<CreateServiceDto> {}
+export interface UpdateServiceDto extends Partial<CreateServiceDto> { }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   // ─── Products ─────────────────────────────────────────────────────────────
 
@@ -162,7 +162,7 @@ export class InventoryService {
       const allProducts = await this.db.product.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        // @ts-ignore
+        // @ts-ignore — Prisma nested include type limitation: `variants.include.branchStocks` not reflected in generated types
         include: { variants: { include: { branchStocks: true } }, branchStocks: true },
       })
 
@@ -180,7 +180,7 @@ export class InventoryService {
           skip,
           take: Number(limit),
           orderBy: { createdAt: 'desc' },
-          // @ts-ignore
+          // @ts-ignore — Prisma nested include type limitation: `variants.include.branchStocks` not reflected in generated types
           include: { variants: { include: { branchStocks: true } }, branchStocks: true },
         }),
         this.db.product.count({ where }),
@@ -193,7 +193,7 @@ export class InventoryService {
   async findProductById(id: string) {
     const product = await this.db.product.findUnique({
       where: { id },
-      // @ts-ignore
+      // @ts-ignore — Prisma nested include type limitation: `variants.include.branchStocks.include.branch` not reflected
       include: {
         variants: { include: { branchStocks: { include: { branch: true } } } },
         branchStocks: { include: { branch: true } },
@@ -275,7 +275,7 @@ export class InventoryService {
       const existing = await this.db.product.findFirst({ where: { sku: restoredSku, deletedAt: null } })
       if (existing) restoredSku = product.sku || null
     }
-    
+
     let restoredBarcode = product.barcode
     if (restoredBarcode && restoredBarcode.includes('_deleted_')) {
       restoredBarcode = restoredBarcode.split('_deleted_')[0] ?? null

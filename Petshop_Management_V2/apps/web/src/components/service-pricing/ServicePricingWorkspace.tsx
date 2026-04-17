@@ -1804,11 +1804,11 @@ function UnifiedHotelPricingPanel({
                             value={skuValue}
                             onChange={(e) => onDraftChange(band.key, 'REGULAR', speciesOption.value, { sku: e.target.value })}
                             placeholder="-"
-                            className="w-[100%] max-w-[80px] rounded border border-border bg-background-base py-1 text-center text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 placeholder:text-foreground-muted/30 outline-none transition-colors hover:border-primary-500 focus:border-primary-500"
+                            className="w-full max-w-[80px] rounded border border-border bg-background-base py-1 text-center text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 placeholder:text-foreground-muted/30 outline-none transition-colors hover:border-primary-500 focus:border-primary-500"
                           />
                         ) : (
                           <span className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 whitespace-nowrap">
-                            {skuValue || '-'}
+                            {skuValue || '-'}``
                           </span>
                         )}
                       </td>,

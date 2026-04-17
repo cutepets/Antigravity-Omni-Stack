@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image';
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
@@ -21,9 +22,10 @@ import {
 } from 'lucide-react';
 import { petApi } from '@/lib/api/pet.api';
 import { usePetPricingSuggestions } from '@/app/(dashboard)/pos/_hooks/use-pos-queries';
-import { PosAddPetModal } from '@/app/(dashboard)/pos/components/PosAddPetModal';
+import { PetFormModal } from '@/app/(dashboard)/pets/_components/pet-form-modal';
 import { QuickVaccinationModal } from './QuickVaccinationModal';
 import { usePosStore } from '@/stores/pos.store';
+
 
 type PetProfileTab = 'suggestions' | 'vaccines' | 'services' | 'updates';
 
@@ -284,7 +286,7 @@ export function UnifiedPetProfile({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full p-1.5 text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground hover:bg-red-500/10 hover:text-red-500"
+              className="rounded-full p-1.5 text-foreground-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
             >
               <X size={20} />
             </button>
@@ -310,7 +312,7 @@ export function UnifiedPetProfile({
                 <div className="flex items-start gap-5">
                   <div className="flex h-[120px] w-[120px] shrink-0 items-center justify-center rounded-2xl bg-background-secondary text-5xl font-black uppercase text-foreground-muted shadow-inner">
                     {pet?.avatar ? (
-                      <img src={avatarUrl} alt={pet.name} className="h-full w-full rounded-2xl object-cover" />
+                      <Image src={avatarUrl} alt={pet.name} className="h-full w-full rounded-2xl object-cover" width={400} height={400} unoptimized />
                     ) : (
                       <span className="opacity-50">{pet.name?.charAt(0)}</span>
                     )}
@@ -420,7 +422,7 @@ export function UnifiedPetProfile({
                                   setWeightValue(hasWeight ? String(pet.weight) : '')
                                   setIsEditingWeight(true)
                                 }}
-                                className="flex-shrink-0 flex items-center justify-center p-1 rounded hover:bg-background-tertiary text-foreground-muted transition-colors"
+                                className="shrink-0 flex items-center justify-center p-1 rounded hover:bg-background-tertiary text-foreground-muted transition-colors"
                               >
                                 <Pencil size={12} />
                               </button>
@@ -623,7 +625,7 @@ export function UnifiedPetProfile({
                             {vaccine.photoUrl ? (
                               <div className="mt-3">
                                 <a href={vaccine.photoUrl} target="_blank" rel="noopener noreferrer" className="inline-block hover:opacity-80 transition-opacity">
-                                  <img src={vaccine.photoUrl} className="h-24 w-36 object-cover rounded-lg border border-border/60 shadow-sm" alt="Ảnh tiêm phòng" />
+                                  <Image src={vaccine.photoUrl} className="h-24 w-36 object-cover rounded-lg border border-border/60 shadow-sm" alt="Ảnh tiêm phòng" width={400} height={400} unoptimized />
                                 </a>
                               </div>
                             ) : null}
@@ -790,16 +792,16 @@ export function UnifiedPetProfile({
       </div>
 
       {editModalOpen && (
-        <PosAddPetModal
+        <PetFormModal
           isOpen={editModalOpen}
           onClose={() => setEditModalOpen(false)}
           customerId={pet?.customerId || pet?.customer?.id}
           customerName={ownerName || pet?.customer?.fullName || 'Khách hàng'}
           customerPhone={pet?.customer?.phone}
-          initialPet={pet}
+          initialData={pet}
           onSaved={() => {
-            setEditModalOpen(false);
             petQuery.refetch();
+            setEditModalOpen(false);
           }}
         />
       )}

@@ -16,6 +16,10 @@ import { ReportsModule } from './modules/reports/reports.module.js'
 import { SettingsModule } from './modules/settings/settings.module.js'
 import { ShiftsModule } from './modules/shifts/shifts.module.js'
 import { PricingModule } from './modules/pricing/pricing.module.js'
+import { ScheduleModule } from './modules/schedule/schedule.module.js'
+import { AttendanceModule } from './modules/attendance/attendance.module.js'
+import { LeaveModule } from './modules/leave/leave.module.js'
+import { PayrollModule } from './modules/payroll/payroll.module.js'
 import { HealthController } from './health.controller.js'
 
 @Module({
@@ -38,7 +42,7 @@ import { HealthController } from './health.controller.js'
     HotelModule,
     OrdersModule,
 
-    // Phase 1 — New modules
+    // Phase 1 — Operational modules
     InventoryModule,
     StockModule,
     StockCountModule,
@@ -46,6 +50,12 @@ import { HealthController } from './health.controller.js'
     SettingsModule,
     ShiftsModule,
     PricingModule,
+
+    // Phase 2 — HR modules
+    ScheduleModule,
+    AttendanceModule,
+    LeaveModule,
+    PayrollModule,
   ],
   controllers: [HealthController],
 })

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { PageContainer } from '@/components/layout/PageLayout'
 import { GroomingBoard } from "./_components/grooming-board";
 
@@ -13,7 +14,9 @@ export default function GroomingPage() {
       maxWidth="full"
       className="!h-full !min-h-0 !gap-0 !overflow-hidden !py-4"
     >
-      <GroomingBoard />
+      <Suspense fallback={<div className="p-4">Đang tải cấu trúc bảng grooming...</div>}>
+        <GroomingBoard />
+      </Suspense>
     </PageContainer>
   );
 }
