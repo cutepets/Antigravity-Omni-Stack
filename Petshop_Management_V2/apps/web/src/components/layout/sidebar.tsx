@@ -26,6 +26,7 @@ import {
   Wallet,
   Gift,
   ExternalLink,
+  Truck,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthorization, type StaffRole } from '@/hooks/useAuthorization'
@@ -144,6 +145,12 @@ const NAV_GROUPS: NavGroup[] = [
         icon: PawPrint,
         href: '/pets',
         anyPermissions: ['pet.read', 'pet.create', 'pet.update'],
+      },
+      {
+        label: 'Nhà cung cấp',
+        icon: Truck,
+        href: '/inventory/suppliers',
+        anyPermissions: ['supplier.read', 'supplier.create', 'supplier.update', 'stock_receipt.read'],
       },
     ],
   },

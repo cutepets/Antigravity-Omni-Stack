@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { X, Save, ImagePlus, Plus, Trash2, ChevronDown, ChevronUp, Tag, Loader2 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { buildProductVariantName, resolveProductVariantLabels } from '@petshop/shared'
 import { inventoryApi } from '@/lib/api/inventory.api'
 import { toast } from 'sonner'
 import { NumericFormat } from 'react-number-format'
@@ -24,6 +25,26 @@ interface VariantOverride {
   barcode?: string
   priceBookPrices?: PriceBookValueMap
   costPrice?: number
+}
+
+interface VariantDefinition {
+  key: string
+  isConversion: boolean
+  parentKey: string | null
+  name: string
+  displayName: string
+  variantLabel: string | null
+  unitLabel: string | null
+  imageKey: string
+  sku: string
+  barcode: string
+  unit: string
+  attrs: string[]
+  conversionRate?: number
+  conversionUnit?: string
+  weight: number
+  image: string | null
+  priceBookPrices: Record<string, number>
 }
 
 interface ParsedConversion {
@@ -84,6 +105,12 @@ const createVariantKey = ({
   const attrsKey = attrs.length > 0 ? attrs.map((attr) => sanitizeSku(attr)).join('_') : 'BASE'
   return `${isConversion ? 'CONV' : 'BASE'}__${attrsKey}__${sanitizeSku(conversionUnit || 'ROOT') || 'ROOT'}`
 }
+
+const createVariantIdentityKey = (variantLabel?: string | null, unitLabel?: string | null) =>
+  `${sanitizeSku(variantLabel || 'BASE') || 'BASE'}__${sanitizeSku(unitLabel || 'ROOT') || 'ROOT'}`
+
+const buildDisplayVariantName = (productName: string, variantLabel?: string | null, unitLabel?: string | null) =>
+  buildProductVariantName(productName || 'SP', variantLabel, unitLabel) || productName || 'SP'
 
 const fileToDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -211,7 +238,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
   }, [formData.unit])
 
   // Auto Generate Variants
-  const variantDefinitions = useMemo(() => {
+  const variantDefinitions = useMemo<VariantDefinition[]>(() => {
     let baseCombo = [{ name: formData.name || 'Sản phẩm mới', attrs: [] as string[] }]
 
     // 1. Multiply by Attributes
@@ -228,18 +255,23 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     }
 
     // 2. Base Variants Array
-    const result: any[] = []
+    const result: VariantDefinition[] = []
 
     baseCombo.forEach((bc, idx) => {
       const baseKey = createVariantKey({ attrs: bc.attrs, isConversion: false })
       const baseSku = formData.sku ? `${sanitizeSku(formData.sku)}${idx > 0 ? idx : ''}` : `SKU${idx}`
+      const variantLabel = bc.attrs.length > 0 ? bc.attrs.join(' - ') : null
+      const baseDisplayName = buildDisplayVariantName(formData.name || 'SP', variantLabel, null)
 
       // Add Base
       result.push({
         key: baseKey,
         isConversion: false,
         parentKey: null,
-        name: bc.name,
+        name: baseDisplayName,
+        displayName: baseDisplayName,
+        variantLabel,
+        unitLabel: null,
         imageKey: baseKey,
         sku: baseSku,
         barcode: '',
@@ -256,7 +288,8 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
           .filter(c => `${c.convUnit || ''}`.trim())
           .filter(c => c.applyTo === 'all' || (hasAttributes && bc.attrs.includes(c.applyTo)))
           .forEach((conv) => {
-            const conversionName = `${bc.name} - ${conv.convUnit}`
+            const unitLabel = `${conv.convUnit || ''}`.trim() || null
+            const conversionName = buildDisplayVariantName(formData.name || 'SP', variantLabel, unitLabel)
             const conversionKey = createVariantKey({ attrs: bc.attrs, isConversion: true, conversionUnit: conv.convUnit })
             const conversionSku = `${baseSku}${sanitizeSku(conv.convUnit).slice(0, 4) || 'QD'}`
             result.push({
@@ -264,6 +297,9 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
               isConversion: true,
               parentKey: baseKey,
               name: conversionName,
+              displayName: conversionName,
+              variantLabel,
+              unitLabel,
               imageKey: conversionKey,
               sku: conversionSku,
               barcode: '',
@@ -293,24 +329,37 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
         ? remainingVariants.findIndex((variant: any) => variant.sku === variantDefinition.sku)
         : -1
       const nameMatchIndex = exactSkuIndex >= 0 ? -1 : remainingVariants.findIndex((variant: any) => variant.name === variantDefinition.name)
-      const typeMatchIndex =
+      const identityMatchIndex =
         exactSkuIndex >= 0 || nameMatchIndex >= 0
+          ? -1
+          : remainingVariants.findIndex((variant: any) => {
+            const resolvedLabels = resolveProductVariantLabels(initialData?.name, variant)
+            return (
+              createVariantIdentityKey(resolvedLabels.variantLabel, resolvedLabels.unitLabel) ===
+              createVariantIdentityKey(variantDefinition.variantLabel, variantDefinition.unitLabel)
+            )
+          })
+      const typeMatchIndex =
+        exactSkuIndex >= 0 || nameMatchIndex >= 0 || identityMatchIndex >= 0
           ? -1
           : remainingVariants.findIndex((variant: any) => {
             const conversion = parseJson<{ unit?: string } | null>(variant.conversions, null)
             return Boolean(conversion?.unit) === variantDefinition.isConversion
           })
-      const matchedIndex = [exactSkuIndex, nameMatchIndex, typeMatchIndex].find((index) => index >= 0) ?? -1
+      const matchedIndex = [exactSkuIndex, nameMatchIndex, identityMatchIndex, typeMatchIndex].find((index) => index >= 0) ?? -1
 
       if (matchedIndex < 0) return acc
 
       const [matchedVariant] = remainingVariants.splice(matchedIndex, 1)
+      const resolvedLabels = resolveProductVariantLabels(initialData?.name, matchedVariant)
       acc[variantDefinition.key] = {
         sku: matchedVariant.sku || variantDefinition.sku,
         barcode: matchedVariant.barcode || '',
         priceBookPrices: parseJson<PriceBookValueMap>(matchedVariant.priceBookPrices, {}),
         image: matchedVariant.image || null,
         costPrice: Number(matchedVariant.costPrice) || 0,
+        variantLabel: resolvedLabels.variantLabel,
+        unitLabel: resolvedLabels.unitLabel,
       }
       return acc
     }, {} as Record<string, any>)
@@ -329,6 +378,18 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
       return {
         ...variantDefinition,
+        variantLabel: initialVariant?.variantLabel ?? variantDefinition.variantLabel,
+        unitLabel: initialVariant?.unitLabel ?? variantDefinition.unitLabel,
+        displayName: buildDisplayVariantName(
+          formData.name || 'SP',
+          initialVariant?.variantLabel ?? variantDefinition.variantLabel,
+          initialVariant?.unitLabel ?? variantDefinition.unitLabel,
+        ),
+        name: buildDisplayVariantName(
+          formData.name || 'SP',
+          initialVariant?.variantLabel ?? variantDefinition.variantLabel,
+          initialVariant?.unitLabel ?? variantDefinition.unitLabel,
+        ),
         sku: override?.sku ?? initialVariant?.sku ?? variantDefinition.sku,
         barcode: override?.barcode ?? initialVariant?.barcode ?? '',
         image: explicitImage !== undefined ? explicitImage : (initialVariant?.image ?? null),
@@ -340,6 +401,8 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
   const buildVariantPayload = (variant: any) => ({
     name: variant.name,
+    variantLabel: variant.variantLabel || undefined,
+    unitLabel: variant.unitLabel || undefined,
     sku: variant.sku || undefined,
     barcode: variant.barcode || undefined,
     price: retailPriceBook ? Number(variant.priceBookPrices?.[retailPriceBook.id] || 0) : basePrice,
@@ -383,7 +446,22 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
         const matchedVariants = variantPayload.map((payload) => {
           const skuMatchIndex = payload.sku ? unmatchedExisting.findIndex((variant: any) => variant.sku === payload.sku) : -1
           const nameMatchIndex = skuMatchIndex >= 0 ? -1 : unmatchedExisting.findIndex((variant: any) => variant.name === payload.name)
-          const matchedIndex = skuMatchIndex >= 0 ? skuMatchIndex : nameMatchIndex
+          const identityMatchIndex =
+            skuMatchIndex >= 0 || nameMatchIndex >= 0
+              ? -1
+              : unmatchedExisting.findIndex((variant: any) => {
+                const resolvedLabels = resolveProductVariantLabels(initialData?.name, variant)
+                return (
+                  createVariantIdentityKey(resolvedLabels.variantLabel, resolvedLabels.unitLabel) ===
+                  createVariantIdentityKey(payload.variantLabel, payload.unitLabel)
+                )
+              })
+          const matchedIndex =
+            skuMatchIndex >= 0
+              ? skuMatchIndex
+              : nameMatchIndex >= 0
+                ? nameMatchIndex
+                : identityMatchIndex
 
           if (matchedIndex >= 0) {
             const [matchedVariant] = unmatchedExisting.splice(matchedIndex, 1)

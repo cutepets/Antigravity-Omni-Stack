@@ -18,7 +18,8 @@ import {
   Pencil,
   Plus,
   Loader2,
-  Check
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 import { petApi } from '@/lib/api/pet.api';
 import { usePetPricingSuggestions } from '@/app/(dashboard)/pos/_hooks/use-pos-queries';
@@ -42,16 +43,27 @@ const fmtDate = (value?: string | null) =>
 
 const getAgeLabel = (dateOfBirth?: string | null) => {
   if (!dateOfBirth) return null;
-  const now = new Date();
   const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return null;
+
+  const now = new Date();
   let years = now.getFullYear() - dob.getFullYear();
   let months = now.getMonth() - dob.getMonth();
+  let days = now.getDate() - dob.getDate();
+
+  if (days < 0) {
+    months -= 1;
+    days += new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+  }
+
   if (months < 0) {
     years -= 1;
     months += 12;
   }
-  if (years > 0) return `${years}t ${months}th`;
-  return `${Math.max(months, 0)} tháng`;
+
+  if (years > 0) return `${years} tuổi ${months} tháng`;
+  if (months > 0) return `${months} tháng`;
+  return `${Math.max(days, 0)} ngày`;
 };
 
 function PetStatCard({
@@ -155,9 +167,11 @@ export function UnifiedPetProfile({
       (item) => item.petId === petId && (
         item.serviceId === service.id ||
         (item.sku && service.sku && item.sku === service.sku) ||
-        item.description === service.name ||
-        (item.type === 'hotel' && service.suggestionKind === 'HOTEL') ||
-        (item.type === 'grooming' && service.suggestionKind === 'SPA')
+        (item.description === service.name && (
+          (item.type === 'grooming' && service.suggestionKind === 'SPA') ||
+          (item.type === 'hotel' && service.suggestionKind === 'HOTEL') ||
+          item.type === 'service'
+        ))
       )
     );
 
@@ -367,7 +381,7 @@ export function UnifiedPetProfile({
                       </div>
                     </div>
 
-                    <div className="mt-5 grid flex-1 gap-3 md:grid-cols-3">
+                    <div className="mt-5 grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                       {pet.customer?.id ? (
                         <Link href={`/customers/${pet.customer.id}`} onClick={onClose} className="block transition-transform hover:scale-[1.02]">
                           <PetStatCard
@@ -391,6 +405,13 @@ export function UnifiedPetProfile({
                           tone="blue"
                         />
                       )}
+                      <PetStatCard
+                        icon={Info}
+                        label="Tuổi"
+                        value={ageLabel || 'Chưa có ngày sinh'}
+                        sub={pet.dateOfBirth ? `Sinh ngày ${fmtDate(pet.dateOfBirth)}` : 'Cập nhật ngày sinh để tính tuổi'}
+                        tone="blue"
+                      />
                       <PetStatCard
                         icon={Scale}
                         label="Cân nặng"
@@ -517,12 +538,27 @@ export function UnifiedPetProfile({
                   ) : null}
 
                   {activeServicesQuery.data?.groomingSessions?.length > 0 && (
-                    <div className="mb-4 rounded-xl border border-warning/30 bg-warning/5 p-3 text-sm">
-                      ⚠️ Đang có {activeServicesQuery.data.groomingSessions.length} phiên spa đang chờ xử lý
+                    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+                      <AlertTriangle size={16} className="shrink-0" />
+                      <span className="font-medium mr-1">Đang có {activeServicesQuery.data.groomingSessions.length} phiên spa đang chờ xử lý:</span>
                       {activeServicesQuery.data.groomingSessions.map((s: any) => (
-                        <span key={s.id} className="ml-2 font-mono text-[10px] bg-warning/20 px-1.5 py-0.5 rounded">
-                          {s.sessionCode}
-                        </span>
+                        s.orderId ? (
+                          <Link
+                            key={s.id}
+                            href={`/orders/${s.orderId}`}
+                            onClick={onClose}
+                            className="font-mono text-[11px] bg-warning/20 hover:bg-warning/30 px-2 py-0.5 rounded transition-colors"
+                          >
+                            {s.sessionCode}
+                          </Link>
+                        ) : (
+                          <span
+                            key={s.id}
+                            className="font-mono text-[11px] bg-warning/20 px-2 py-0.5 rounded"
+                          >
+                            {s.sessionCode}
+                          </span>
+                        )
                       ))}
                     </div>
                   )}

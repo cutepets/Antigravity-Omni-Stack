@@ -13,6 +13,7 @@ import {
   StartShiftSessionDto,
   ClaimRandomShiftDto,
 } from './dto/index.js'
+import { resolveProductVariantLabels } from '@petshop/shared'
 
 const SHIFT_SEQUENCE = [
   'MON_A',
@@ -140,6 +141,8 @@ type BranchCountRow = {
   variant: {
     id: string
     name: string
+    variantLabel?: string | null
+    unitLabel?: string | null
     sku: string | null
   } | null
 }
@@ -177,7 +180,7 @@ export class StockCountService {
         orderBy: [{ product: { name: 'asc' as const } }, { variant: { name: 'asc' as const } }],
         include: {
           product: { select: { id: true, name: true, sku: true, image: true } },
-          variant: { select: { id: true, name: true, sku: true, image: true } },
+          variant: { select: { id: true, name: true, variantLabel: true, unitLabel: true, sku: true, image: true } },
         },
       },
       session: {
@@ -550,7 +553,7 @@ export class StockCountService {
         },
         include: {
           product: { select: { id: true, name: true, sku: true } },
-          variant: { select: { id: true, name: true, sku: true } },
+          variant: { select: { id: true, name: true, variantLabel: true, unitLabel: true, sku: true } },
         },
       })
 
@@ -576,6 +579,8 @@ export class StockCountService {
                   select: {
                     id: true,
                     name: true,
+                    variantLabel: true,
+                    unitLabel: true,
                     sku: true,
                     productId: true,
                   },
@@ -929,6 +934,8 @@ export class StockCountService {
           select: {
             id: true,
             name: true,
+            variantLabel: true,
+            unitLabel: true,
             sku: true,
             category: true,
             lastCountShift: true,
@@ -1196,10 +1203,10 @@ export class StockCountService {
 
   private getItemDisplayName(item: {
     product?: { name?: string | null } | null
-    variant?: { name?: string | null; sku?: string | null } | null
+    variant?: { name?: string | null; variantLabel?: string | null; unitLabel?: string | null; sku?: string | null } | null
   }) {
-    const productName = item.product?.name ?? 'Sản phẩm'
-    const variantName = item.variant?.name?.trim()
-    return variantName ? `${productName} - ${variantName}` : productName
+    const productName = item.product?.name ?? 'San pham'
+    if (!item.variant) return productName
+    return resolveProductVariantLabels(productName, item.variant).displayName || productName
   }
 }

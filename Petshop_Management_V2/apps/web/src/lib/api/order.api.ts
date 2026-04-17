@@ -81,6 +81,11 @@ export interface CancelOrderPayload {
   reason?: string;
 }
 
+export interface RefundOrderPayload {
+  status: 'PARTIALLY_REFUNDED' | 'FULLY_REFUNDED';
+  reason?: string;
+}
+
 export interface ApproveOrderPayload {
   note?: string;
 }
@@ -152,6 +157,7 @@ export interface OrderListParams {
   paymentStatus?: string;
   status?: string;
   customerId?: string;
+  productId?: string;
   page?: number;
   limit?: number;
   dateFrom?: string;
@@ -182,6 +188,9 @@ export const orderApi = {
   cancel: (id: string, data?: CancelOrderPayload) =>
     api.post(`/orders/${id}/cancel`, data ?? {}).then((r) => r.data),
 
+  refund: (id: string, data: RefundOrderPayload) =>
+    api.post(`/orders/${id}/refund`, data).then((r) => r.data),
+
   removeItem: (orderId: string, itemId: string) =>
     api.delete(`/orders/${orderId}/items/${itemId}`).then((r) => r.data),
 
@@ -199,4 +208,11 @@ export const orderApi = {
 
   getTimeline: (id: string): Promise<OrderTimelineEntry[]> =>
     api.get(`/orders/${id}/timeline`).then((r) => r.data),
+
+  swapTempItem: (
+    orderId: string,
+    itemId: string,
+    data: { realProductId: string; realProductVariantId: string },
+  ) =>
+    api.patch(`/orders/${orderId}/items/${itemId}/swap-temp`, data).then((r) => r.data),
 };

@@ -9,6 +9,7 @@ import { PayOrderDto } from './dto/pay-order.dto.js';
 import { CompleteOrderDto } from './dto/complete-order.dto.js';
 import { CancelOrderDto } from './dto/cancel-order.dto.js';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto.js';
+import { RefundOrderDto } from './dto/refund-order.dto.js';
 import {
   generateGroomingSessionCode as formatGroomingSessionCode,
   generateHotelStayCode as formatHotelStayCode,
@@ -1059,6 +1060,7 @@ export class OrdersService {
       description: string;
       type: string;
       quantity: number;
+      isTemp?: boolean;
     },
   >(
     tx: Pick<DatabaseService, 'product' | 'productVariant' | 'service' | 'serviceVariant'>,
@@ -1147,7 +1149,7 @@ export class OrdersService {
         throw new BadRequestException(`Dich vu cua ${itemLabel} khong ton tai hoac da bi xoa`);
       }
 
-      if (item.type === 'product' && !productId) {
+      if (item.type === 'product' && !productId && !item.isTemp) {
         throw new BadRequestException(`Muc ${itemLabel} dang la san pham nhung thieu productId`);
       }
 
@@ -1197,6 +1199,8 @@ export class OrdersService {
       serviceId: item.serviceId ?? null,
       serviceVariantId: item.serviceVariantId ?? null,
       petId: item.petId ?? null,
+      isTemp: item.isTemp ?? false,
+      tempLabel: item.tempLabel ?? null,
     };
   }
 
@@ -1481,7 +1485,7 @@ export class OrdersService {
     // â”€â”€ Payment status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const paymentStatus = this.calculatePaymentStatus(total, totalPaid);
 
-    const orderStatus = orderType === 'QUICK' && paymentStatus === 'PAID' ? 'COMPLETED' : 'PENDING';
+    const orderStatus = orderType === 'QUICK' && paymentStatus === 'PAID' ? 'COMPLETED' : 'PROCESSING';
 
     // â”€â”€ Database transaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     return this.prisma.$transaction(async (tx) => {
@@ -2137,8 +2141,8 @@ export class OrdersService {
   }
 
   async listPaymentIntents(id: string, user?: AccessUser): Promise<OrderPaymentIntentView[]> {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+    const order = await this.prisma.order.findFirst({
+      where: { OR: [{ id }, { orderNumber: id }] },
       select: {
         id: true,
         branchId: true,
@@ -2149,7 +2153,7 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Khong tim thay don hang');
 
     const paymentIntents = await this.prisma.paymentIntent.findMany({
-      where: { orderId: id },
+      where: { orderId: order.id },
       include: {
         paymentMethod: {
           select: {
@@ -2773,7 +2777,30 @@ export class OrdersService {
     });
   }
 
-  // â”€â”€â”€ removeOrderItem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── refundOrder ────────────────────────────────────────────────────────────────────────
+  // Refund order: update status to PARTIALLY_REFUNDED or FULLY_REFUNDED
+  async refundOrder(id: string, dto: RefundOrderDto, staffId: string, user?: AccessUser): Promise<any> {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+    });
+    if (order) this.assertOrderScope(order, user);
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+
+    return this.prisma.$transaction(async (tx) => {
+      const refunded = await tx.order.update({
+        where: { id },
+        data: {
+          status: dto.status as any,
+          notes: dto.reason ? `[HOÀN TIỀN] ${dto.reason}\n${order.notes ?? ''}` : order.notes,
+        },
+        include: { items: true, payments: true },
+      });
+
+      return refunded;
+    });
+  }
+
+  // ─── removeOrderItem ──────────────────────────────────────────────────────────────────
   // Remove single item from pending/processing order, recalculate totals
   async removeOrderItem(orderId: string, itemId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
@@ -2840,6 +2867,7 @@ export class OrdersService {
     paymentStatus?: string | undefined;
     status?: string | undefined;
     customerId?: string | undefined;
+    productId?: string | undefined;
     page?: number | undefined;
     limit?: number | undefined;
     dateFrom?: string | undefined;
@@ -2862,6 +2890,17 @@ export class OrdersService {
     }
 
     if (params?.status) where.status = params.status;
+
+    if (params?.productId) {
+      where.items = {
+        some: {
+          OR: [
+            { productId: params.productId },
+            { productVariantId: params.productId },
+          ],
+        },
+      };
+    }
 
     if (params?.search) {
       where.OR = [
@@ -3249,5 +3288,97 @@ export class OrdersService {
     });
 
     return this.findOne(id, user);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Timeline
+  // ────────────────────────────────────────────────────────────────────────
+  async getTimeline(orderId: string) {
+    // Support lookup by UUID or orderNumber
+    const order = await this.prisma.order.findFirst({
+      where: { OR: [{ id: orderId }, { orderNumber: orderId }] },
+      select: { id: true },
+    });
+    if (!order) return [];
+    const timelines = await this.prisma.orderTimeline.findMany({
+      where: { orderId: order.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        performedByUser: {
+          select: {
+            id: true,
+            fullName: true,
+            staffCode: true,
+          },
+        },
+      },
+    });
+    return timelines;
+  }
+
+  // ─── swapTempItem ───────────────────────────────────────────────────────────
+  // Đổi sản phẩm tạm thành sản phẩm thật; giá phải bằng nhau để giữ tổng đơn
+  async swapTempItem(
+    orderId: string,
+    itemId: string,
+    dto: { realProductId: string; realProductVariantId: string },
+    staffId: string,
+    user?: AccessUser,
+  ): Promise<any> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+    if (order) this.assertOrderScope(order, user);
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    if (order.status === 'CANCELLED') throw new BadRequestException('Đơn hàng đã bị hủy');
+
+    const item = order.items.find((i) => i.id === itemId);
+    if (!item) throw new NotFoundException('Không tìm thấy dòng hàng');
+    if (!(item as any).isTemp) throw new BadRequestException('Dòng hàng này không phải sản phẩm tạm');
+
+    // Lấy thông tin sản phẩm thật
+    const realVariant = await this.prisma.productVariant.findUnique({
+      where: { id: dto.realProductVariantId },
+      include: { product: true },
+    });
+    if (!realVariant) throw new NotFoundException('Không tìm thấy biến thể sản phẩm');
+    if (realVariant.productId !== dto.realProductId) {
+      throw new BadRequestException('productId và productVariantId không khớp');
+    }
+
+    // Kiểm tra giá phải bằng
+    if (Math.abs(realVariant.price - item.unitPrice) > 0.01) {
+      throw new BadRequestException(
+        `Giá sản phẩm thật (${realVariant.price.toLocaleString('vi-VN')}đ) phải bằng giá sản phẩm tạm (${item.unitPrice.toLocaleString('vi-VN')}đ)`,
+      );
+    }
+
+    const newDescription = realVariant.name !== (realVariant.product as any).name
+      ? `${(realVariant.product as any).name} - ${realVariant.name}`
+      : (realVariant.product as any).name;
+
+    const oldLabel = (item as any).tempLabel ?? item.description;
+
+    await this.prisma.orderItem.update({
+      where: { id: itemId },
+      data: {
+        productId: dto.realProductId,
+        productVariantId: dto.realProductVariantId,
+        sku: realVariant.sku ?? null,
+        description: newDescription,
+        isTemp: false,
+        tempLabel: null,
+      } as any,
+    });
+
+    await this.createTimelineEntry({
+      orderId,
+      action: 'UPDATED',
+      note: `Đổi SP tạm "${oldLabel}" → "${newDescription}"`,
+      performedBy: staffId,
+    });
+
+    return this.findOne(orderId, user);
   }
 }

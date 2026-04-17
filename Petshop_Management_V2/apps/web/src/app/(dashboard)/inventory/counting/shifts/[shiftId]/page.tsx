@@ -3,6 +3,7 @@ import Image from 'next/image';
 
 import { use, useEffect, useState, useRef, KeyboardEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { buildProductVariantName, resolveProductVariantLabels } from '@petshop/shared'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -21,6 +22,12 @@ import { stockCountApi } from '@/lib/api/stock-count.api'
 
 function formatDate(value: string | Date) {
   return new Date(value).toLocaleDateString('vi-VN')
+}
+
+function getVariantLabel(productName?: string | null, variant?: any) {
+  if (!variant) return ''
+  const labels = resolveProductVariantLabels(productName, variant)
+  return buildProductVariantName(null, labels.variantLabel, labels.unitLabel) || variant.name || ''
 }
 
 function safeCalc(expr: unknown): number | null {
@@ -349,7 +356,11 @@ export default function ShiftCountingPage({ params }: { params: Promise<{ shiftI
                   {/* Tên */}
                   <td className="px-3 py-2 min-w-[180px]">
                     <div className="font-medium text-foreground leading-tight">{item.product?.name ?? 'Sản phẩm'}</div>
-                    {item.variant?.name && <div className="text-xs text-foreground-muted">↳ {item.variant.name}</div>}
+                    {item.variant && (
+                      <div className="text-xs text-foreground-muted">
+                        ↳ {getVariantLabel(item.product?.name, item.variant)}
+                      </div>
+                    )}
                   </td>
 
                   {/* Tính nhanh */}

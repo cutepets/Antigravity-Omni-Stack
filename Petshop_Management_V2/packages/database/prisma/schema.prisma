@@ -358,6 +358,8 @@ model ProductVariant {
   id                  String                    @id @default(cuid())
   productId           String
   name                String
+  variantLabel        String?
+  unitLabel           String?
   sku                 String?                   @unique
   price               Float
   isActive            Boolean                   @default(true)
@@ -572,6 +574,8 @@ model OrderItem {
   subtotal          Float
   pricingSnapshot   Json?
   type              String
+  isTemp            Boolean          @default(false)
+  tempLabel         String?
   createdAt         DateTime         @default(now())
   groomingSession   GroomingSession? @relation(fields: [groomingSessionId], references: [id])
   hotelStay         HotelStay?       @relation(fields: [hotelStayId], references: [id])
@@ -1644,7 +1648,8 @@ enum OrderStatus {
   PROCESSING
   COMPLETED
   CANCELLED
-  REFUNDED
+  PARTIALLY_REFUNDED
+  FULLY_REFUNDED
 }
 
 enum OrderAction {

@@ -1,0 +1,224 @@
+import {
+  getProductVariantGroupKey,
+  getProductVariantOptionLabel,
+  parseVariantConversionUnit,
+  resolveProductVariantLabels,
+} from '@petshop/shared'
+
+type BranchRef = {
+  id?: string | null
+  name?: string | null
+}
+
+export type BranchStockLike = {
+  id?: string | null
+  branchId?: string | null
+  productVariantId?: string | null
+  stock?: number | null
+  reservedStock?: number | null
+  minStock?: number | null
+  availableStock?: number | null
+  incomingStock?: number | null
+  incoming?: number | null
+  onTheWay?: number | null
+  branch?: BranchRef | null
+}
+
+export type VariantLike = {
+  id: string
+  name?: string | null
+  variantLabel?: string | null
+  unitLabel?: string | null
+  conversions?: string | null
+  branchStocks?: BranchStockLike[] | null
+}
+
+export type ProductLike = {
+  name?: string | null
+  branchStocks?: BranchStockLike[] | null
+  variants?: VariantLike[] | null
+}
+
+const NUMERIC_FIELDS = [
+  'stock',
+  'reservedStock',
+  'minStock',
+  'availableStock',
+  'incomingStock',
+  'incoming',
+  'onTheWay',
+] as const
+
+function toNumber(value: unknown) {
+  const amount = Number(value ?? 0)
+  return Number.isFinite(amount) ? amount : 0
+}
+
+function getBranchKey(row: BranchStockLike, index: number) {
+  return (
+    row.branch?.id ??
+    row.branchId ??
+    row.branch?.name ??
+    row.id ??
+    `branch-${index}`
+  )
+}
+
+function cloneScaledBranchStocks(
+  rows: BranchStockLike[],
+  factor: number,
+) {
+  return rows.map((row) => {
+    const next = { ...row }
+
+    for (const field of NUMERIC_FIELDS) {
+      if (next[field] === undefined || next[field] === null) continue
+      const scaledValue = toNumber(next[field]) * factor
+      next[field] = field === 'minStock' ? 0 : scaledValue
+    }
+
+    return next
+  })
+}
+
+export function parseConversionRate(raw?: string | null) {
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw)
+    const value = Number(parsed?.rate ?? parsed?.conversionRate ?? parsed?.mainQty)
+    return Number.isFinite(value) && value > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+export function isConversionVariant(variant?: VariantLike | null) {
+  return !!parseConversionRate(variant?.conversions)
+}
+
+export function getTrueVariants<TVariant extends VariantLike>(variants?: TVariant[] | null): TVariant[] {
+  return (variants ?? []).filter((variant) => !isConversionVariant(variant))
+}
+
+export function findParentTrueVariant<TVariant extends VariantLike>(
+  variants: TVariant[],
+  selectedVariant?: TVariant | null,
+  productName?: string | null,
+): TVariant | null {
+  if (!selectedVariant) return null
+  if (!isConversionVariant(selectedVariant)) return selectedVariant
+
+  const trueVariants = getTrueVariants(variants)
+  const selectedGroupKey = getProductVariantGroupKey(productName, selectedVariant)
+  return trueVariants.find((variant) => getProductVariantGroupKey(productName, variant) === selectedGroupKey) ?? null
+}
+
+export function getConversionVariants<TVariant extends VariantLike>(
+  variants: TVariant[],
+  currentTrueVariant?: TVariant | null,
+  productName?: string | null,
+): TVariant[] {
+  const allConversions = (variants ?? []).filter((variant) => isConversionVariant(variant))
+  const targetGroupKey = currentTrueVariant
+    ? getProductVariantGroupKey(productName, currentTrueVariant)
+    : '__base__'
+
+  return allConversions.filter((variant) => getProductVariantGroupKey(productName, variant) === targetGroupKey)
+}
+
+export function normalizeBranchStocks(rows?: BranchStockLike[] | null) {
+  return Array.isArray(rows) ? rows : []
+}
+
+export function aggregateBranchStocks(rows: BranchStockLike[]) {
+  const grouped = new Map<string, BranchStockLike>()
+
+  rows.forEach((row, index) => {
+    const key = getBranchKey(row, index)
+    const existing = grouped.get(key)
+
+    if (existing) {
+      for (const field of NUMERIC_FIELDS) {
+        existing[field] = toNumber(existing[field]) + toNumber(row[field])
+      }
+      return
+    }
+
+    const seeded = { ...row }
+    seeded.id = row.id ?? key
+    for (const field of NUMERIC_FIELDS) {
+      if (seeded[field] === undefined || seeded[field] === null) continue
+      seeded[field] = toNumber(seeded[field])
+    }
+    grouped.set(key, seeded)
+  })
+
+  return Array.from(grouped.values())
+}
+
+export function sumBranchStockRows(
+  rows: BranchStockLike[] | undefined | null,
+  field: 'stock' | 'reservedStock' | 'minStock' | 'availableStock' = 'stock',
+): number {
+  return normalizeBranchStocks(rows).reduce((sum, row) => sum + toNumber(row[field]), 0)
+}
+
+export function getDisplayBranchStocks(
+  product: ProductLike,
+  targetVariantId?: string | null,
+): BranchStockLike[] {
+  const variants = product.variants ?? []
+  const productRows = normalizeBranchStocks(product.branchStocks).filter((row) => !row.productVariantId)
+
+  if (targetVariantId) {
+    const variant = variants.find((item) => item.id === targetVariantId) ?? null
+    if (!variant) return []
+
+    if (isConversionVariant(variant)) {
+      return normalizeBranchStocks(variant.branchStocks)
+    }
+
+    const directRows = normalizeBranchStocks(variant.branchStocks)
+    const convertedRows = getConversionVariants(variants, variant, product.name).flatMap((conversionVariant) =>
+      cloneScaledBranchStocks(
+        normalizeBranchStocks(conversionVariant.branchStocks),
+        parseConversionRate(conversionVariant.conversions) ?? 1,
+      ),
+    )
+
+    return aggregateBranchStocks([...directRows, ...convertedRows])
+  }
+
+  const trueVariants = getTrueVariants(variants)
+  if (trueVariants.length > 0) {
+    return aggregateBranchStocks(
+      trueVariants.flatMap((variant) => getDisplayBranchStocks(product, variant.id)),
+    )
+  }
+
+  const looseConversionRows = getConversionVariants(variants, null, product.name).flatMap((conversionVariant) =>
+    cloneScaledBranchStocks(
+      normalizeBranchStocks(conversionVariant.branchStocks),
+      parseConversionRate(conversionVariant.conversions) ?? 1,
+    ),
+  )
+
+  return aggregateBranchStocks([...productRows, ...looseConversionRows])
+}
+
+export function getResolvedVariantLabels(productName?: string | null, variant?: VariantLike | null) {
+  return resolveProductVariantLabels(productName, variant)
+}
+
+export function getVariantDisplayName(productName?: string | null, variant?: VariantLike | null) {
+  return resolveProductVariantLabels(productName, variant).displayName || `${productName ?? ''}`.trim()
+}
+
+export function getVariantOptionLabel(productName?: string | null, variant?: VariantLike | null) {
+  return getProductVariantOptionLabel(productName, variant)
+}
+
+export function getVariantConversionUnit(variant?: VariantLike | null) {
+  return parseVariantConversionUnit(variant?.conversions)
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, ChevronDown, Loader2, Printer, QrCode, RefreshCw } from 'lucide-react'
+import { AlertCircle, ChevronDown, Loader2, Printer, QrCode, RefreshCw, Save, PencilLine, XCircle } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { ServiceBookingModal } from '@/app/(dashboard)/pos/components/ServiceBookingModal'
@@ -10,15 +10,16 @@ import { ExportStockModal } from './export-stock-modal'
 import { OrderPaymentModal } from './order-payment-modal'
 import { OrderPetPickerModal } from './order-pet-picker-modal'
 import { OrderSettlementModal } from './order-settlement-modal'
+import { OrderRefundModal } from './order-refund-modal'
 import { OrderTopBar } from './order/order-top-bar'
 import { OrderSearchPanel } from './order/order-search-panel'
 import { OrderItemsTable } from './order/order-items-table'
 import { OrderRightPanel } from './order/order-right-panel'
-import { ProductVariantSelector } from './order/product-variant-selector'
 import { printOrderA4, printOrderK80, printOrderPdf } from './order/order-print'
 import type { OrderWorkspaceMode } from './order/order.types'
 import { useOrderWorkspace } from './order/use-order-workspace'
 import { PosQrPaymentModal } from '@/app/(dashboard)/pos/components/PosQrPaymentModal'
+import { SwapTempItemModal } from './swap-temp-item-modal'
 
 const QR_STORAGE_KEY = (orderNumber: string) => `order-qr-intent-${orderNumber}`
 
@@ -32,6 +33,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
   const [qrIntent, setQrIntent] = useState<any>(null)
   const [showQrModal, setShowQrModal] = useState(false)
   const [resumeQrBanner, setResumeQrBanner] = useState(false)
+  const [swapItemTarget, setSwapItemTarget] = useState<{ id: string; description: string; unitPrice: number } | null>(null)
 
   const orderNumber = workspace.order?.orderNumber as string | undefined
 
@@ -168,7 +170,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
         visibleProgressSteps={workspace.visibleProgressSteps}
         actionFlags={{
           ...workspace.actionFlags,
-          canCancelOrder: mode === 'detail' && workspace.order?.status !== 'CANCELLED',
+          canCancelOrder: workspace.actionFlags.canCancelOrder,
         }}
         onBack={workspace.handleBack}
         onEdit={workspace.handleStartEdit}
@@ -178,9 +180,9 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
         onSelectCustomer={workspace.handleSelectCustomer}
         onClearCustomer={workspace.handleClearCustomer}
         onOpenPay={() => workspace.setShowPayModal(true)}
-        onOpenApprove={() => workspace.setShowApproveModal(true)}
         onOpenExportStock={() => workspace.setShowExportStockModal(true)}
         onOpenSettle={() => workspace.setShowSettleModal(true)}
+        onOpenRefund={() => workspace.setShowRefundModal(true)}
         onCancelOrder={() => {
           if (!window.confirm('Bạn chắc chắn muốn huỷ đơn hàng này?')) return
           workspace.cancelOrderMutation.mutate()
@@ -226,6 +228,8 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             isEditing={workspace.isEditing}
             productMatches={workspace.productMatches}
             serviceMatches={workspace.serviceMatches}
+            branchId={workspace.draft?.branchId ?? undefined}
+            cartItems={workspace.draft?.items ?? []}
             onSearchChange={workspace.setItemSearch}
             onAddCatalogItem={workspace.addCatalogItem}
           />
@@ -281,6 +285,48 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
               ) : null}
             </div>
           ) : null}
+
+          {/* Action buttons moved from Top Bar */}
+          {mode === 'create' ? (
+            <button
+              type="button"
+              onClick={workspace.handleSave}
+              disabled={workspace.pendingAction}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {workspace.pendingAction ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              Tạo đơn hàng
+            </button>
+          ) : mode === 'detail' && workspace.actionFlags.canEditCurrentOrder && !workspace.isEditing ? (
+            <button
+              type="button"
+              onClick={workspace.handleStartEdit}
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
+            >
+              <PencilLine size={14} />
+              Cập nhật
+            </button>
+          ) : mode === 'detail' && workspace.isEditing ? (
+            <>
+              <button
+                type="button"
+                onClick={workspace.handleSave}
+                disabled={workspace.pendingAction}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-90 disabled:opacity-60"
+              >
+                {workspace.pendingAction ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                Lưu cập nhật
+              </button>
+              <button
+                type="button"
+                onClick={workspace.handleCancelEdit}
+                className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-background-tertiary"
+              >
+                <XCircle size={14} />
+                Hủy sửa
+              </button>
+            </>
+          ) : null}
         </div>
 
         <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -293,6 +339,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
               onChangeQuantity={workspace.handleChangeItemQuantity}
               onChangeItemDiscount={workspace.handleChangeItemDiscount}
               onRemoveItem={workspace.handleRemoveItem}
+              onSwapItem={(item) => setSwapItemTarget({ id: item.orderItemId ?? item.id, description: item.description, unitPrice: item.unitPrice })}
             />
           </div>
 
@@ -312,6 +359,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
               notes={workspace.draft.notes}
               onNotesChange={workspace.handleChangeNotes}
               timeline={workspace.timeline as any[]}
+              paymentIntents={workspace.paymentIntents as any[]}
               relatedDocuments={workspace.relatedDocuments}
               itemsCount={workspace.draft.items.length}
               orderStatus={workspace.order?.status}
@@ -334,13 +382,6 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             onConfirm={(payload) => workspace.payOrderMutation.mutate({ payments: payload.payments })}
             onRequestQr={handleRequestQr}
           />
-          <ApproveOrderModal
-            isOpen={workspace.showApproveModal}
-            onClose={() => workspace.setShowApproveModal(false)}
-            onConfirm={(payload) => workspace.approveOrderMutation.mutate(payload)}
-            orderNumber={workspace.order?.orderNumber || '--'}
-            isPending={workspace.approveOrderMutation.isPending}
-          />
           <ExportStockModal
             isOpen={workspace.showExportStockModal}
             onClose={() => workspace.setShowExportStockModal(false)}
@@ -359,6 +400,13 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             isPending={workspace.settleOrderMutation.isPending}
             branchId={workspace.order?.branchId ?? workspace.draft.branchId}
           />
+          <OrderRefundModal
+            isOpen={workspace.showRefundModal}
+            onClose={() => workspace.setShowRefundModal(false)}
+            onConfirm={(payload) => workspace.refundOrderMutation.mutate(payload)}
+            orderNumber={workspace.order?.orderNumber || '--'}
+            isPending={workspace.refundOrderMutation.isPending}
+          />
         </>
       ) : null}
 
@@ -370,6 +418,18 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
           intent={qrIntent}
         />
       ) : null}
+
+      {/* Swap Temp Item Modal */}
+      {swapItemTarget && workspace.order?.id && (
+        <SwapTempItemModal
+          isOpen={Boolean(swapItemTarget)}
+          onClose={() => setSwapItemTarget(null)}
+          orderId={workspace.order.id}
+          itemId={swapItemTarget.id}
+          itemDescription={swapItemTarget.description}
+          targetUnitPrice={swapItemTarget.unitPrice}
+        />
+      )}
 
       <ServiceBookingModal
         isOpen={Boolean(workspace.hotelServiceDraft)}
@@ -388,15 +448,6 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             ? `Chọn pet cho ${workspace.groomingServiceDraft.name}`
             : 'Chọn thú cưng'
         }
-      />
-      <ProductVariantSelector
-        isOpen={Boolean(workspace.pendingProductEntry)}
-        productName={workspace.pendingProductEntry?.productName ?? workspace.pendingProductEntry?.name ?? ''}
-        variants={(workspace.pendingProductEntry?.variants ?? []).filter(
-          (v: any) => !v.conversions || !Array.isArray(v.conversions) || v.conversions.length === 0,
-        )}
-        onSelect={workspace.handleSelectProductVariant}
-        onClose={workspace.handleCloseVariantSelector}
       />
     </div>
   )

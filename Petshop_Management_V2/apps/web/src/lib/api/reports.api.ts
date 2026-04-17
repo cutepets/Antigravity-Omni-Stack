@@ -153,6 +153,8 @@ export type LowStockSuggestion = {
   variant?: {
     id: string
     name: string
+    variantLabel?: string | null
+    unitLabel?: string | null
   } | null
 }
 

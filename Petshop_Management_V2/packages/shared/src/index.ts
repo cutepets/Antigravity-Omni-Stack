@@ -17,6 +17,7 @@ export * from './utils/branch-code.utils'
 export * from './utils/id.utils'
 export * from './utils/currency.utils'
 export * from './utils/date.utils'
+export * from './utils/product-variant.utils'
 
 // Constants
 export * from './constants/index'

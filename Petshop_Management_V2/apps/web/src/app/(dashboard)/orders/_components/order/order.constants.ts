@@ -19,8 +19,9 @@ export const ORDER_STATUS_BADGE: Record<string, string> = {
   CONFIRMED: 'badge badge-info',
   PROCESSING: 'badge badge-accent',
   COMPLETED: 'badge badge-success',
-  CANCELLED: 'badge badge-error',
-  REFUNDED: 'badge badge-error',
+  CANCELLED: 'badge bg-destructive/10 text-destructive border-transparent font-medium',
+  PARTIALLY_REFUNDED: 'badge bg-destructive/10 text-destructive border-transparent font-medium',
+  FULLY_REFUNDED: 'badge bg-destructive/10 text-destructive border-transparent font-medium',
 }
 
 export const ORDER_STATUS_LABEL: Record<string, string> = {
@@ -29,7 +30,8 @@ export const ORDER_STATUS_LABEL: Record<string, string> = {
   PROCESSING: 'Đang giao dịch',
   COMPLETED: 'Hoàn thành',
   CANCELLED: 'Đã hủy',
-  REFUNDED: 'Đã hoàn tiền',
+  PARTIALLY_REFUNDED: 'Hoàn 1 phần',
+  FULLY_REFUNDED: 'Đã hoàn đủ',
 }
 
 export const ORDER_ACTION_LABELS: Record<string, string> = {

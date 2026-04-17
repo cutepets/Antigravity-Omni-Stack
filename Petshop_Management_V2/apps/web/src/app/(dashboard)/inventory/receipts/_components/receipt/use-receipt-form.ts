@@ -4,7 +4,7 @@ import { getReceiptStatusView, fmt } from './receipt.utils';
 import dayjs from 'dayjs';
 import React from 'react';
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
@@ -27,7 +27,7 @@ import type {
   SupplierQuickDraftPayload,
   SupplierQuickForm,
 } from './receipt.types'
-import { SUPPLIER_RECEIPT_DRAFT_KEY } from './receipt.constants'
+import { LOCAL_RECEIPT_DRAFT_KEY, SUPPLIER_RECEIPT_DRAFT_KEY } from './receipt.constants'
 import {
   applyVariantSelection,
   buildReceiptNotes,
@@ -54,6 +54,71 @@ import {
 export interface UseReceiptFormOptions {
   mode?: ReceiptScreenMode
   receiptId?: string
+}
+
+interface LocalReceiptDraftPayload {
+  version: 1
+  updatedAt: string
+  branchId: string
+  supplierId: string
+  supplierQuery: string
+  notes: string
+  items: SelectedItem[]
+  receiptDiscount: number
+  receiptTax: number
+  extraCosts: ExtraCostRow[]
+  showExtraCosts: boolean
+  splitDuplicateLines: boolean
+}
+
+function restoreDraftItems(rawItems: unknown): SelectedItem[] {
+  if (!Array.isArray(rawItems)) return []
+
+  return rawItems
+    .filter((item: any) => item?.productId && item?.name)
+    .map((item: any) => ({
+      lineId: `${item.lineId ?? createLineId()}`,
+      receiptItemId: item.receiptItemId ? `${item.receiptItemId}` : null,
+      productId: `${item.productId}`,
+      productVariantId: item.productVariantId ? `${item.productVariantId}` : null,
+      barcode: item.barcode ? `${item.barcode}` : null,
+      sku: item.sku ? `${item.sku}` : null,
+      name: `${item.name}`,
+      image: item.image ? `${item.image}` : null,
+      unit: item.unit ? `${item.unit}` : null,
+      sellingPrice: Math.max(0, Number(item.sellingPrice ?? 0)),
+      quantity: Math.max(1, Number(item.quantity ?? 1)),
+      unitCost: Math.max(0, Number(item.unitCost ?? 0)),
+      discount: Math.max(0, Number(item.discount ?? 0)),
+      note: `${item.note ?? ''}`.trim(),
+      totalStock:
+        item.totalStock === null || item.totalStock === undefined ? null : Number(item.totalStock),
+      monthlySellThrough:
+        item.monthlySellThrough === null || item.monthlySellThrough === undefined
+          ? null
+          : Number(item.monthlySellThrough),
+      branchStocks: Array.isArray(item.branchStocks) ? item.branchStocks : [],
+      variants: Array.isArray(item.variants) ? item.variants : [],
+      variantName: item.variantName ? `${item.variantName}` : null,
+      variantLabel: item.variantLabel ? `${item.variantLabel}` : null,
+      unitLabel: item.unitLabel ? `${item.unitLabel}` : null,
+      baseSku: item.baseSku ? `${item.baseSku}` : null,
+      baseBarcode: item.baseBarcode ? `${item.baseBarcode}` : null,
+      baseUnit: item.baseUnit ? `${item.baseUnit}` : null,
+      baseUnitCost: Math.max(0, Number(item.baseUnitCost ?? item.unitCost ?? 0)),
+      baseTotalStock:
+        item.baseTotalStock === null || item.baseTotalStock === undefined
+          ? null
+          : Number(item.baseTotalStock),
+      baseMonthlySellThrough:
+        item.baseMonthlySellThrough === null || item.baseMonthlySellThrough === undefined
+          ? null
+          : Number(item.baseMonthlySellThrough),
+      baseBranchStocks: Array.isArray(item.baseBranchStocks) ? item.baseBranchStocks : [],
+      receivedQuantity: Math.max(0, Number(item.receivedQuantity ?? 0)),
+      returnedQuantity: Math.max(0, Number(item.returnedQuantity ?? 0)),
+      closedQuantity: Math.max(0, Number(item.closedQuantity ?? 0)),
+    }))
 }
 
 export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOptions = {}) {
@@ -129,6 +194,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   const [showReturnModal, setShowReturnModal] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showReceiptExcelModal, setShowReceiptExcelModal] = useState(false)
+  const [isLocalDraftHydrated, setIsLocalDraftHydrated] = useState(isExistingReceipt)
 
   const [paymentForm, setPaymentForm] = useState<ReceiptPaymentFormState>({
     amount: 0,
@@ -168,6 +234,18 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     staleTime: 30_000,
   })
 
+  const { data: stockSearchRes } = useQuery({
+    queryKey: ['stock', 'products', 'receipt-search-metrics', deferredSearch, branchId],
+    queryFn: () =>
+      stockApi.getProducts({
+        search: deferredSearch,
+        branchId: branchId || undefined,
+        limit: 50,
+      }),
+    enabled: deferredSearch.length >= 1,
+    staleTime: 30_000,
+  })
+
   const { data: supplierReceiptsRes } = useQuery({
     queryKey: ['receipts', 'supplier-history', supplierId],
     queryFn: () =>
@@ -193,19 +271,48 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   )
   const isReceiptLocked = isExistingReceipt
     ? !!receipt &&
-      (receipt.status === 'CANCELLED' ||
-        receipt.receiptStatus === 'CANCELLED' ||
-        receipt.receiptStatus === 'FULL_RECEIVED' ||
-        receipt.receiptStatus === 'SHORT_CLOSED' ||
-        receipt.status === 'RECEIVED' ||
-        !!receipt.completedAt)
+    (receipt.status === 'CANCELLED' ||
+      receipt.receiptStatus === 'CANCELLED' ||
+      receipt.receiptStatus === 'FULL_RECEIVED' ||
+      receipt.receiptStatus === 'SHORT_CLOSED' ||
+      receipt.status === 'RECEIVED' ||
+      !!receipt.completedAt)
     : false
   const isReadOnly = isExistingReceipt ? isReceiptLocked || !isEditingSession : false
   const canSubmitReceipt = isCreateMode ? canCreateReceipt : canUpdateReceipt && !isReadOnly
 
   const suppliers = getSuppliers(suppliersRes)
   const filteredSuppliers = filterSuppliers(suppliers, supplierQuery)
-  const productResults = getProducts(productSearchRes)
+  const stockMetricMap = useMemo(() => {
+    const rows = getProducts(stockSearchRes)
+    const entries = rows.map((row: any) => [
+      getItemIdentity(row.productId, row.productVariantId ?? null),
+      row.monthlySellThrough ?? null,
+    ] as const)
+
+    return new Map(entries)
+  }, [stockSearchRes])
+
+  const attachStockMetrics = useCallback(
+    (product: any) => ({
+      ...product,
+      monthlySellThrough: stockMetricMap.get(getItemIdentity(product.id, null)) ?? null,
+      variants: Array.isArray(product.variants)
+        ? product.variants.map((variant: any) => ({
+          ...variant,
+          monthlySellThrough:
+            stockMetricMap.get(getItemIdentity(product.id, variant.id)) ?? null,
+        }))
+        : product.variants,
+    }),
+    [stockMetricMap],
+  )
+
+  const productResults = useMemo(() => {
+    const products = getProducts(productSearchRes)
+
+    return products.map((product: any) => attachStockMetrics(product))
+  }, [attachStockMetrics, productSearchRes])
   const supplierReceipts = getReceipts(supplierReceiptsRes).slice().sort((a: any, b: any) => {
     const left = new Date(b?.createdAt ?? 0).getTime()
     const right = new Date(a?.createdAt ?? 0).getTime()
@@ -233,6 +340,18 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     extraCosts,
   })
   const hasPendingReceiptChanges = isExistingReceipt && currentDraftSignature !== editBaseSignature
+  const hasCreateDraftContent =
+    !isExistingReceipt &&
+    (Boolean(branchId) ||
+      Boolean(supplierId) ||
+      Boolean(supplierQuery.trim()) ||
+      Boolean(notes.trim()) ||
+      items.length > 0 ||
+      discountAmount > 0 ||
+      taxAmount > 0 ||
+      normalizedExtraCosts.length > 0 ||
+      showExtraCosts ||
+      splitDuplicateLines)
 
   const currentReceiptPaidAmount = Math.max(0, Number(receipt?.paidAmount ?? 0))
   const currentReceiptDebtAmount = Math.max(0, Number(receipt?.debtAmount ?? 0))
@@ -240,9 +359,22 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     0,
     Number(isExistingReceipt ? receipt?.totalAmount ?? grandTotal : grandTotal),
   )
+  const receiptPaymentSummary = receipt?.paymentSummary ?? null
+  const orderPaymentAmount = Math.max(
+    0,
+    Number(isExistingReceipt ? receiptPaymentSummary?.orderPaymentAmount ?? currentReceiptPaidAmount : 0),
+  )
+  const debtSettlementAmount = Math.max(
+    0,
+    Number(isExistingReceipt ? receiptPaymentSummary?.debtSettlementAmount ?? 0 : 0),
+  )
   const currentDebt = isExistingReceipt
     ? Math.max(currentReceiptDebtAmount, currentReceiptTotalAmount - currentReceiptPaidAmount, 0)
     : Math.max(0, Number(selectedSupplier?.debt ?? 0))
+  const currentSupplierDebt = Math.max(
+    currentDebt,
+    Number(selectedSupplier?.stats?.totalDebt ?? selectedSupplier?.debt ?? displaySupplier?.stats?.totalDebt ?? displaySupplier?.debt ?? 0),
+  )
 
   const paymentAllocationCount = Array.isArray(receipt?.paymentAllocations)
     ? receipt.paymentAllocations.length
@@ -286,29 +418,29 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
 
   const returnableReceiptItems: ReceiptReturnLineDraft[] = Array.isArray(receipt?.items)
     ? receipt.items
-        .map((item: any) => {
-          const availableQty = Math.max(
-            0,
-            Number(item.receivedQuantity ?? 0) - Number(item.returnedQuantity ?? 0),
-          )
-          return availableQty > 0
-            ? {
-                receiptItemId: item.id as string,
-                productId: item.productId as string,
-                productVariantId: item.productVariantId ?? null,
-                name: item.product?.name || item.productName || 'Sản phẩm',
-                sku:
-                  item.productVariant?.sku ||
-                  item.product?.sku ||
-                  item.productVariant?.barcode ||
-                  item.product?.barcode ||
-                  null,
-                availableQty,
-                quantity: 0,
-              }
-            : null
-        })
-        .filter(Boolean)
+      .map((item: any) => {
+        const availableQty = Math.max(
+          0,
+          Number(item.receivedQuantity ?? 0) - Number(item.returnedQuantity ?? 0),
+        )
+        return availableQty > 0
+          ? {
+            receiptItemId: item.id as string,
+            productId: item.productId as string,
+            productVariantId: item.productVariantId ?? null,
+            name: item.product?.name || item.productName || 'Sản phẩm',
+            sku:
+              item.productVariant?.sku ||
+              item.product?.sku ||
+              item.productVariant?.barcode ||
+              item.product?.barcode ||
+              null,
+            availableQty,
+            quantity: 0,
+          }
+          : null
+      })
+      .filter(Boolean)
     : []
 
   const latestImportPriceMap = supplierReceipts.reduce(
@@ -357,8 +489,11 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       receipt?.createdBy?.fullName ||
       receipt?.createdBy?.username ||
       receipt?.createdBy?.name ||
+      (user as any)?.fullName ||
+      (user as any)?.username ||
+      (user as any)?.name ||
       'Chưa xác định',
-    [receipt],
+    [receipt, user],
   )
 
   const activityTimeline = useMemo(
@@ -403,9 +538,8 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
         ]
           .filter(Boolean)
           .join(' • '),
-        time: `${formatReceiptDateTime(allocation.payment?.paidAt ?? receipt?.paymentDate ?? receipt?.updatedAt)}${
-          allocation.payment?.staff?.fullName ? ` • ${allocation.payment.staff.fullName}` : ''
-        }`,
+        time: `${formatReceiptDateTime(allocation.payment?.paidAt ?? receipt?.paymentDate ?? receipt?.updatedAt)}${allocation.payment?.staff?.fullName ? ` • ${allocation.payment.staff.fullName}` : ''
+          }`,
         tone: 'text-primary-500',
         linkLabel: voucherNumber ? `Phiếu chi: ${voucherNumber}` : null,
         href: voucherNumber ? `/finance/${encodeURIComponent(voucherNumber)}` : null,
@@ -417,20 +551,20 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     () =>
       paymentTimelineEntries.length === 0 && hasAnyPayment
         ? [
-            {
-              title: isFullyPaid ? 'Đã thanh toán' : 'Thanh toán 1 phần',
-              detail: [
-                `${fmt(currentReceiptPaidAmount)} đ`,
-                receipt?.paymentMethod ? getPaymentMethodLabel(receipt.paymentMethod) : null,
-              ]
-                .filter(Boolean)
-                .join(' • '),
-              time: formatReceiptDateTime(receipt?.paymentDate ?? receipt?.updatedAt),
-              tone: 'text-primary-500',
-              linkLabel: null,
-              href: null,
-            },
-          ]
+          {
+            title: isFullyPaid ? 'Đã thanh toán' : 'Thanh toán 1 phần',
+            detail: [
+              `${fmt(currentReceiptPaidAmount)} đ`,
+              receipt?.paymentMethod ? getPaymentMethodLabel(receipt.paymentMethod) : null,
+            ]
+              .filter(Boolean)
+              .join(' • '),
+            time: formatReceiptDateTime(receipt?.paymentDate ?? receipt?.updatedAt),
+            tone: 'text-primary-500',
+            linkLabel: null,
+            href: null,
+          },
+        ]
         : [],
     [currentReceiptPaidAmount, hasAnyPayment, isFullyPaid, paymentTimelineEntries.length, receipt],
   )
@@ -458,15 +592,15 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     () =>
       receiveHistoryEntries.length === 0 && hasAnyReceive
         ? [
-            {
-              title: isReceiveDone ? 'Đã nhập kho' : 'Nhập kho 1 phần',
-              detail: `${Math.max(0, Number(receipt?.receivedQty ?? 0))} số lượng`,
-              time: formatReceiptDateTime(receipt?.receivedAt ?? receipt?.completedAt ?? receipt?.updatedAt),
-              tone: 'text-sky-500',
-              linkLabel: null,
-              href: null,
-            },
-          ]
+          {
+            title: isReceiveDone ? 'Đã nhập kho' : 'Nhập kho 1 phần',
+            detail: `${Math.max(0, Number(receipt?.receivedQty ?? 0))} số lượng`,
+            time: formatReceiptDateTime(receipt?.receivedAt ?? receipt?.completedAt ?? receipt?.updatedAt),
+            tone: 'text-sky-500',
+            linkLabel: null,
+            href: null,
+          },
+        ]
         : [],
     [hasAnyReceive, isReceiveDone, receiveHistoryEntries.length, receipt],
   )
@@ -517,10 +651,10 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       ? { title: 'Hủy', meta: formatReceiptDateTime(receipt?.updatedAt), state: 'alert' as const }
       : hasAnyReturn
         ? {
-            title: 'Hoàn trả',
-            meta: returnHistoryEntries[0]?.time ?? formatReceiptDateTime(receipt?.updatedAt),
-            state: 'alert' as const,
-          }
+          title: 'Hoàn trả',
+          meta: returnHistoryEntries[0]?.time ?? formatReceiptDateTime(receipt?.updatedAt),
+          state: 'alert' as const,
+        }
         : { title: 'Hoàn trả', meta: '—', state: 'hidden' as const }
     return [
       {
@@ -610,7 +744,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     if (!supplierId) return item
     const latest = getLatestSupplierPrice(item.productId, item.productVariantId)
     if (!latest) return item
-    
+
     return { ...item, unitCost: Number(latest.unitCost ?? latest.unitPrice ?? item.unitCost) }
   }
 
@@ -649,24 +783,102 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     if (isExistingReceipt || hydratedSupplierDraftRef.current) return
     hydratedSupplierDraftRef.current = true
 
-    const rawDraft = window.localStorage.getItem(SUPPLIER_RECEIPT_DRAFT_KEY)
-    if (!rawDraft) return
-    window.localStorage.removeItem(SUPPLIER_RECEIPT_DRAFT_KEY)
+    const rawSupplierDraft = window.localStorage.getItem(SUPPLIER_RECEIPT_DRAFT_KEY)
+    if (rawSupplierDraft) {
+      window.localStorage.removeItem(SUPPLIER_RECEIPT_DRAFT_KEY)
 
     try {
-      const parsed = JSON.parse(rawDraft) as SupplierQuickDraftPayload
+      const parsed = JSON.parse(rawSupplierDraft) as SupplierQuickDraftPayload
       const draftItems = Array.isArray(parsed.items)
         ? parsed.items
-            .filter((item) => item?.productId && item?.name)
-            .map((item) => normalizeSupplierQuickDraftItem(item))
+          .filter((item) => item?.productId && item?.name)
+          .map((item) => normalizeSupplierQuickDraftItem(item))
         : []
       if (parsed.supplierId) setSupplierId(String(parsed.supplierId))
       if (parsed.notes) setNotes(String(parsed.notes))
       if (draftItems.length > 0) setItems(draftItems)
+      setIsLocalDraftHydrated(true)
+      return
     } catch {
       toast.error('Không đọc được dữ liệu nháp phiếu nhập từ màn nhà cung cấp.')
     }
+    }
+
+    const rawLocalDraft = window.localStorage.getItem(LOCAL_RECEIPT_DRAFT_KEY)
+    if (!rawLocalDraft) {
+      setIsLocalDraftHydrated(true)
+      return
+    }
+
+    try {
+      const parsed = JSON.parse(rawLocalDraft) as Partial<LocalReceiptDraftPayload>
+      const draftItems = restoreDraftItems(parsed.items)
+      if (parsed.branchId) setBranchId(String(parsed.branchId))
+      if (parsed.supplierId) setSupplierId(String(parsed.supplierId))
+      if (parsed.supplierQuery) setSupplierQuery(String(parsed.supplierQuery))
+      if (parsed.notes) setNotes(String(parsed.notes))
+      if (draftItems.length > 0) setItems(draftItems)
+      setReceiptDiscount(Math.max(0, Number(parsed.receiptDiscount ?? 0)))
+      setReceiptTax(Math.max(0, Number(parsed.receiptTax ?? 0)))
+      setExtraCosts(Array.isArray(parsed.extraCosts) ? parsed.extraCosts : [])
+      setShowExtraCosts(Boolean(parsed.showExtraCosts))
+      setSplitDuplicateLines(Boolean(parsed.splitDuplicateLines))
+      toast.success('Da khoi phuc phieu nhap tam luu tren may nay.')
+      setIsLocalDraftHydrated(true)
+      return
+      // eslint-disable-next-line no-unreachable
+      toast.success('ÄÃ£ khá»i phá»¥c phiáº¿u nháº­p tÃ¡m lÆ°u trÃªn mÃ¡y nÃ y.')
+    } catch {
+      window.localStorage.removeItem(LOCAL_RECEIPT_DRAFT_KEY)
+      toast.error('Khong doc duoc ban nhap phieu nhap tam luu.')
+      setIsLocalDraftHydrated(true)
+      return
+      // eslint-disable-next-line no-unreachable
+      toast.error('KhÃ´ng Ä‘á»c Ä‘Æ°á»£c báº£n nhÃ¡p phiáº¿u nháº­p tÃ¡m lÆ°u.')
+    }
+    // eslint-disable-next-line no-unreachable
+    setIsLocalDraftHydrated(true)
   }, [isExistingReceipt])
+
+  useEffect(() => {
+    if (isExistingReceipt || !isLocalDraftHydrated) return
+
+    if (!hasCreateDraftContent) {
+      window.localStorage.removeItem(LOCAL_RECEIPT_DRAFT_KEY)
+      return
+    }
+
+    const payload: LocalReceiptDraftPayload = {
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      branchId,
+      supplierId,
+      supplierQuery,
+      notes,
+      items,
+      receiptDiscount: discountAmount,
+      receiptTax: taxAmount,
+      extraCosts,
+      showExtraCosts,
+      splitDuplicateLines,
+    }
+
+    window.localStorage.setItem(LOCAL_RECEIPT_DRAFT_KEY, JSON.stringify(payload))
+  }, [
+    branchId,
+    discountAmount,
+    extraCosts,
+    hasCreateDraftContent,
+    isExistingReceipt,
+    isLocalDraftHydrated,
+    items,
+    notes,
+    showExtraCosts,
+    splitDuplicateLines,
+    supplierId,
+    supplierQuery,
+    taxAmount,
+  ])
 
   useEffect(() => {
     if (isAuthLoading) return
@@ -777,7 +989,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
           branchId: branchId || undefined,
         })
         if (scanRequestRef.current !== requestId) return
-        const results = getProducts(response)
+        const results = getProducts(response).map((product: any) => attachStockMetrics(product))
         const exact = findExactProductMatch(results, query)
         if (!exact) return
 
@@ -792,7 +1004,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
 
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branchId, manualSearching, productResults, search])
+  }, [attachStockMetrics, branchId, manualSearching, productResults, search])
 
   // ── Item handlers ─────────────────────────────────────────────────────────────
 
@@ -1088,7 +1300,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     onError: (error: any) => {
       toast.error(
         error.response?.data?.message ||
-          (isEditMode ? 'Không thể lưu cập nhật phiếu nhập.' : 'Lỗi khi tạo phiếu nhập.'),
+        (isEditMode ? 'Không thể lưu cập nhật phiếu nhập.' : 'Lỗi khi tạo phiếu nhập.'),
       )
     },
   })
@@ -1142,7 +1354,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     onError: (error: any) => {
       toast.error(
         error.response?.data?.message ||
-          (isEditMode ? 'Không thể lưu cập nhật phiếu nhập.' : 'Lỗi khi tạo phiếu nhập.'),
+        (isEditMode ? 'Không thể lưu cập nhật phiếu nhập.' : 'Lỗi khi tạo phiếu nhập.'),
       )
     },
   })
@@ -1161,7 +1373,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     onError: (error: any) => {
       toast.error(
         error.response?.data?.message ||
-          (isEditMode ? 'Không thể lưu cập nhật phiếu nhập.' : 'Lỗi khi tạo phiếu nhập.'),
+        (isEditMode ? 'Không thể lưu cập nhật phiếu nhập.' : 'Lỗi khi tạo phiếu nhập.'),
       )
     },
   })
@@ -1180,7 +1392,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     onError: (error: any) => {
       toast.error(
         error.response?.data?.message ||
-          (isEditMode ? 'Không thể lưu cập nhật phiếu nhập.' : 'Lỗi khi tạo phiếu nhập.'),
+        (isEditMode ? 'Không thể lưu cập nhật phiếu nhập.' : 'Lỗi khi tạo phiếu nhập.'),
       )
     },
   })
@@ -1219,12 +1431,12 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       const nextEditSession =
         isExistingReceipt && isEditMode && isEditingSession && hasPendingReceiptChanges
           ? {
-              id: `edit-session-${Date.now()}`,
-              editedAt: new Date().toISOString(),
-              editedBy: user?.fullName || user?.username || 'Chưa xác định',
-              itemCount: items.length,
-              totalQuantity,
-            }
+            id: `edit-session-${Date.now()}`,
+            editedAt: new Date().toISOString(),
+            editedBy: user?.fullName || user?.username || 'Chưa xác định',
+            itemCount: items.length,
+            totalQuantity,
+          }
           : null
       const nextEditSessions = nextEditSession ? [...editSessions, nextEditSession] : editSessions
       const payload = {
@@ -1270,6 +1482,9 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       }
     },
     onSuccess: ({ receiptId: savedReceiptId, action, nextEditSessions, receiptData }) => {
+      if (action === 'create') {
+        window.localStorage.removeItem(LOCAL_RECEIPT_DRAFT_KEY)
+      }
       queryClient.invalidateQueries({ queryKey: ['receipts'] })
       queryClient.invalidateQueries({ queryKey: ['suppliers'] })
       syncCurrentReceiptQueries(receiptData)
@@ -1292,7 +1507,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     onError: (error: any) => {
       toast.error(
         error.response?.data?.message ||
-          (isEditMode ? 'Không thể lưu cập nhật phiếu nhập.' : 'Lỗi khi tạo phiếu nhập.'),
+        (isEditMode ? 'Không thể lưu cập nhật phiếu nhập.' : 'Lỗi khi tạo phiếu nhập.'),
       )
     },
   })
@@ -1332,8 +1547,8 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       toast.error('Vui lòng nhập số tiền thanh toán lớn hơn 0.')
       return
     }
-    if (paymentForm.amount > currentDebt) {
-      toast.error('Số tiền thanh toán không được vượt quá công nợ hiện tại.')
+    if (paymentForm.amount > currentSupplierDebt) {
+      toast.error('Số tiền thanh toán không được vượt quá tổng công nợ NCC.')
       return
     }
     payMutation.mutate(paymentForm)
@@ -1345,9 +1560,9 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       items: current.items.map((item) =>
         item.receiptItemId === receiptItemId
           ? {
-              ...item,
-              quantity: Math.min(item.availableQty, Math.max(0, Math.floor(quantity || 0))),
-            }
+            ...item,
+            quantity: Math.min(item.availableQty, Math.max(0, Math.floor(quantity || 0))),
+          }
           : item,
       ),
     }))
@@ -1468,8 +1683,11 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     normalizedExtraCosts,
     hasPendingReceiptChanges,
     currentDebt,
+    currentSupplierDebt,
     currentReceiptPaidAmount,
     currentReceiptTotalAmount,
+    orderPaymentAmount,
+    debtSettlementAmount,
     latestPaymentAt,
     latestReceiveAt,
     paymentAllocationCount,

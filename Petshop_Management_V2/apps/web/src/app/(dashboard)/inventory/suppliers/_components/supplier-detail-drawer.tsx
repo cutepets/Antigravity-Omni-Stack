@@ -273,6 +273,7 @@ export function SupplierDetailDrawer({
 
   const score = Number(supplier?.evaluation?.score ?? supplierPreview?.evaluation?.score ?? 0)
   const stats = supplier?.stats ?? {}
+  const supplierDebt = Math.max(0, Number(stats.totalDebt ?? supplier?.debt ?? supplierPreview?.stats?.totalDebt ?? supplierPreview?.debt ?? 0))
   const evaluation = supplier?.evaluation ?? {}
   const receipts = Array.isArray(supplier?.recentReceipts) ? supplier.recentReceipts : []
   const products = Array.isArray(supplier?.products) ? supplier.products : []
@@ -542,6 +543,15 @@ export function SupplierDetailDrawer({
                 >
                   {supplier?.isActive !== false ? 'Đang hoạt động' : 'Tạm ngưng'}
                 </span>
+                <span
+                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                    supplierDebt > 0
+                      ? 'border-red-500/20 bg-red-500/10 text-red-400'
+                      : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                  }`}
+                >
+                  {supplierDebt > 0 ? `Công nợ ${formatCurrency(supplierDebt)}` : 'Không còn nợ'}
+                </span>
               </div>
               <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
                 <div className="min-w-0">
@@ -624,7 +634,7 @@ export function SupplierDetailDrawer({
                 />
                 <MetricCard
                   label="Công nợ"
-                  value={formatCurrency(stats.totalDebt)}
+                  value={formatCurrency(supplierDebt)}
                   icon={BadgeCheck}
                 />
                 <MetricCard

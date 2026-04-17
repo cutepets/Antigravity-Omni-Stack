@@ -29,37 +29,41 @@ export function useDataListCore<TColumnId extends string, TFilterId extends stri
     }
   }
 
-  const stored = getStoredState()
-
-  // Columns
-  const [columnOrder, setColumnOrder] = useState<TColumnId[]>(() => {
-    const rawOrder = stored?.columnOrder ?? initialColumnOrder
-    // If we added new columns to the code but local storage has an old list, append the new ones safely
-    const existing = new Set(rawOrder)
-    const missing = initialColumnOrder.filter((id) => !existing.has(id))
-    return [...rawOrder, ...missing]
-  })
-  
-  const [visibleColumns, setVisibleColumns] = useState<Set<TColumnId>>(
-    () => {
-      // If we don't have stored visible columns, use initial. But we always ensure standard columns are respected.
-      return new Set(stored?.visibleColumns ?? initialVisibleColumns)
-    }
-  )
+  const [columnOrder, setColumnOrder] = useState<TColumnId[]>(initialColumnOrder)
+  const [visibleColumns, setVisibleColumns] = useState<Set<TColumnId>>(new Set(initialVisibleColumns))
   const [draggingColumnId, setDraggingColumnId] = useState<TColumnId | null>(null)
 
   // Sort
-  const [columnSort, setColumnSort] = useState<ColumnSortState<TColumnId>>(
-    stored?.columnSort ?? { columnId: null, direction: null }
-  )
+  const [columnSort, setColumnSort] = useState<ColumnSortState<TColumnId>>({ columnId: null, direction: null })
 
   // Filters
-  const [topFilterVisibility, setTopFilterVisibility] = useState<Record<TFilterId, boolean>>(
-    stored?.topFilterVisibility ?? initialTopFilterVisibility
-  )
+  const [topFilterVisibility, setTopFilterVisibility] = useState<Record<TFilterId, boolean>>(initialTopFilterVisibility)
+
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Load state on mount
+  useEffect(() => {
+    const stored = getStoredState()
+    if (stored) {
+      if (stored.columnOrder) {
+        const rawOrder = stored.columnOrder
+        const existing = new Set(rawOrder)
+        const missing = initialColumnOrder.filter((id) => !existing.has(id as TColumnId))
+        setColumnOrder([...rawOrder, ...missing] as TColumnId[])
+      }
+      if (stored.visibleColumns) {
+        // Ensure standard columns are respected if missing
+        setVisibleColumns(new Set(stored.visibleColumns))
+      }
+      if (stored.columnSort) setColumnSort(stored.columnSort)
+      if (stored.topFilterVisibility) setTopFilterVisibility(stored.topFilterVisibility)
+    }
+    setIsInitialized(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey])
 
   useEffect(() => {
-    if (!storageKey) return
+    if (!storageKey || !isInitialized) return
     localStorage.setItem(
       storageKey,
       JSON.stringify({
@@ -69,7 +73,7 @@ export function useDataListCore<TColumnId extends string, TFilterId extends stri
         topFilterVisibility,
       })
     )
-  }, [storageKey, columnOrder, visibleColumns, columnSort, topFilterVisibility])
+  }, [storageKey, isInitialized, columnOrder, visibleColumns, columnSort, topFilterVisibility])
 
   const toggleColumn = useCallback((id: TColumnId) => {
     setVisibleColumns((current) => {

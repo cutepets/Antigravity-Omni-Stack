@@ -3,8 +3,8 @@ import { ProductList } from './_components/product-list'
 import { PageContainer } from '@/components/layout/PageLayout'
 
 export const metadata: Metadata = {
-  title: 'Kho & Sản phẩm | Petshop',
-  description: 'Quản lý sản phẩm và tồn kho',
+  title: 'Sản phẩm | Petshop',
+  description: 'Quản lý sản phẩm',
 }
 
 export default function InventoryPage() {

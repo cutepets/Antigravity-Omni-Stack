@@ -26,6 +26,8 @@ export interface CartItem {
   baseSku?: string
   image?: string
   variantName?: string
+  variantLabel?: string
+  unitLabel?: string
   variants?: any[]
   groomingDetails?: {
     petId: string

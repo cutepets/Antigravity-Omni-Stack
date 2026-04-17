@@ -46,6 +46,7 @@ type StockRow = {
   inventoryItemType: 'PRODUCT' | 'VARIANT'
   name: string
   variantName?: string | null
+  unitLabel?: string | null
   displayName: string
   sku?: string | null
   image?: string | null
@@ -365,7 +366,8 @@ export function StockList() {
                             </button>
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-foreground-muted">
                               <span>{row.unit ?? 'cai'}</span>
-                              {row.variantName ? <span className="rounded-full bg-background-secondary px-2 py-0.5">Phien ban</span> : null}
+                              {row.variantName ? <span className="rounded-full bg-background-secondary px-2 py-0.5">Phien ban: {row.variantName}</span> : null}
+                              {row.unitLabel ? <span className="rounded-full bg-background-secondary px-2 py-0.5">Don vi: {row.unitLabel}</span> : null}
                               <span>{row.completedBatchCount ? `${row.completedBatchCount} lo da ban het` : 'Chua du du lieu chu ky'}</span>
                             </div>
                           </div>

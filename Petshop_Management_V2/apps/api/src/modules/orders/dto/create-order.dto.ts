@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, ValidateNested, Min, IsIn, IsDateString } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, ValidateNested, Min, IsIn, IsDateString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 // === Grooming Details ===
@@ -200,6 +200,14 @@ export class CreateOrderItemDto {
   @Type(() => HotelDetailsDto)
   @IsOptional()
   hotelDetails?: HotelDetailsDto;
+
+  @IsBoolean()
+  @IsOptional()
+  isTemp?: boolean;
+
+  @IsString()
+  @IsOptional()
+  tempLabel?: string;
 }
 
 // === Payment ===

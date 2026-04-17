@@ -20,14 +20,16 @@ import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CancelOrderDto } from './dto/cancel-order.dto.js'
+import { RefundOrderDto } from './dto/refund-order.dto.js'
 import { CompleteOrderDto } from './dto/complete-order.dto.js'
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto.js'
 import { CreateOrderDto } from './dto/create-order.dto.js'
 import { PayOrderDto } from './dto/pay-order.dto.js'
 import { UpdateOrderDto } from './dto/update-order.dto.js'
-import { ApproveOrderDto } from './dto/approve-order.dto.js'
+
 import { ExportStockDto } from './dto/export-stock.dto.js'
 import { SettleOrderDto } from './dto/settle-order.dto.js'
+import { SwapTempItemDto } from './dto/swap-temp-item.dto.js'
 import { OrdersService } from './orders.service.js'
 
 interface AuthenticatedRequest extends Request {
@@ -131,6 +133,16 @@ export class OrdersController {
     return this.ordersService.cancelOrder(id, dto, this.getStaffId(req), req.user)
   }
 
+  @Post(':id/refund')
+  @Permissions('order.update', 'order.cancel')
+  refundOrder(
+    @Param('id') id: string,
+    @Body() dto: RefundOrderDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.ordersService.refundOrder(id, dto, this.getStaffId(req), req.user)
+  }
+
   @Delete(':id/items/:itemId')
   @Permissions('order.update')
   removeOrderItem(
@@ -148,6 +160,7 @@ export class OrdersController {
     @Query('paymentStatus') paymentStatus?: string,
     @Query('status') status?: string,
     @Query('customerId') customerId?: string,
+    @Query('productId') productId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('dateFrom') dateFrom?: string,
@@ -159,6 +172,7 @@ export class OrdersController {
       paymentStatus,
       status,
       customerId,
+      productId,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
       dateFrom,
@@ -172,15 +186,12 @@ export class OrdersController {
     return this.ordersService.findOne(id, req.user)
   }
 
-  @Post(':id/approve')
-  @Permissions('order.approve')
-  approveOrder(
-    @Param('id') id: string,
-    @Body() dto: ApproveOrderDto,
-    @Req() req: AuthenticatedRequest,
-  ): Promise<any> {
-    return this.ordersService.approveOrder(id, dto, this.getStaffId(req), req.user!)
+  @Get(':id/timeline')
+  @Permissions('order.read.all', 'order.read.assigned')
+  getTimeline(@Param('id') id: string): Promise<any> {
+    return this.ordersService.getTimeline(id)
   }
+
 
   @Post(':id/export-stock')
   @Permissions('order.export_stock')
@@ -206,5 +217,16 @@ export class OrdersController {
   @Permissions('order.read.all', 'order.read.assigned')
   getOrderTimeline(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.ordersService.getOrderTimeline(id, req.user!)
+  }
+
+  @Patch(':id/items/:itemId/swap-temp')
+  @Permissions('order.update')
+  swapTempItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: SwapTempItemDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.ordersService.swapTempItem(id, itemId, dto, this.getStaffId(req), req.user)
   }
 }

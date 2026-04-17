@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
+import { getRolePermissions, resolvePermissions } from '@petshop/auth'
 import { DatabaseService } from '../../database/database.service.js'
 import type { LoginResponse, AuthUser, JwtPayload } from '@petshop/shared'
 import { LoginDto } from './dto/login.dto.js'
@@ -34,6 +35,14 @@ export class AuthService {
         [...(user.branch ? [user.branch] : []), ...(user.authorizedBranches || [])].map((branch) => [branch.id, branch]),
       ).values(),
     ).filter((branch) => branch.isActive)
+  }
+
+  private resolveRolePermissions(roleCode: string, rolePermissions: unknown): string[] {
+    const storedPermissions = Array.isArray(rolePermissions) ? rolePermissions : []
+    return resolvePermissions([
+      ...storedPermissions,
+      ...getRolePermissions(roleCode as any),
+    ])
   }
 
   async login(dto: LoginDto): Promise<LoginResponse> {
@@ -68,7 +77,7 @@ export class AuthService {
     }
 
     const combinedRole = (user as any).role?.code ?? ''
-    const combinedPermissions = (user as any).role?.permissions ?? []
+    const combinedPermissions = this.resolveRolePermissions(combinedRole, (user as any).role?.permissions)
 
     let mappedAuthorizedBranches = this.mapAuthorizedBranches(user as any)
 
@@ -149,7 +158,7 @@ export class AuthService {
 
     const u = stored.user
     const combinedRole = u.role?.code ?? ''
-    const combinedPermissions = (u.role as any)?.permissions ?? []
+    const combinedPermissions = this.resolveRolePermissions(combinedRole, (u.role as any)?.permissions)
     let mappedAuthorizedBranches = this.mapAuthorizedBranches(u as any)
 
     if (combinedPermissions.includes('FULL_BRANCH_ACCESS') || combinedRole === 'SUPER_ADMIN' || combinedRole === 'ADMIN') {
@@ -219,7 +228,7 @@ export class AuthService {
     if (!user) throw new NotFoundException('Không tìm thấy người dùng')
 
     const combinedRole = (user as any).role?.code ?? ''
-    const combinedPermissions = (user as any).role?.permissions ?? []
+    const combinedPermissions = this.resolveRolePermissions(combinedRole, (user as any).role?.permissions)
 
     return {
       id: user.id,

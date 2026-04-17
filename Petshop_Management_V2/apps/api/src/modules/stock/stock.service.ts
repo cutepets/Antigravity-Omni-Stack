@@ -1,6 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import type { PaymentStatus } from '@petshop/database'
-import { normalizeBranchCode, suggestBranchCodeFromName } from '@petshop/shared'
+import {
+  buildProductVariantName,
+  getProductVariantGroupKey,
+  normalizeBranchCode,
+  resolveProductVariantLabels,
+  suggestBranchCodeFromName,
+} from '@petshop/shared'
 import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js'
 import { DatabaseService } from '../../database/database.service.js'
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js'
@@ -10,6 +16,8 @@ export interface FindReceiptsDto {
   limit?: number
   status?: string
   supplierId?: string
+  search?: string
+  productId?: string
 }
 
 export interface FindStockProductsDto {
@@ -212,11 +220,12 @@ function tokenizeSearch(value?: string | null) {
 function buildProductSearchHaystack(product: Record<string, any>) {
   const variantText = Array.isArray(product.variants)
     ? product.variants
-      .map((variant: Record<string, any>) =>
-        [variant.name, variant.sku, variant.barcode, variant.conversions, variant.pricePolicies, variant.priceBookPrices]
+      .map((variant: Record<string, any>) => {
+        const { variantLabel, unitLabel, displayName } = resolveProductVariantLabels(product.name, variant)
+        return [variant.name, displayName, variantLabel, unitLabel, variant.sku, variant.barcode, variant.conversions, variant.pricePolicies, variant.priceBookPrices]
           .filter(Boolean)
-          .join(' '),
-      )
+          .join(' ')
+      })
       .join(' ')
     : ''
 
@@ -242,6 +251,7 @@ function buildInventoryEntityKey(productId: string, productVariantId?: string | 
 }
 
 function buildInventoryEntitySearchHaystack(product: Record<string, any>, variant?: Record<string, any> | null) {
+  const { variantLabel, unitLabel, displayName } = resolveProductVariantLabels(product.name, variant)
   return normalizeSearchValue(
     [
       product.name,
@@ -253,6 +263,9 @@ function buildInventoryEntitySearchHaystack(product: Record<string, any>, varian
       product.tags,
       product.description,
       variant?.name,
+      displayName,
+      variantLabel,
+      unitLabel,
       variant?.sku,
       variant?.barcode,
       variant?.conversions,
@@ -300,6 +313,87 @@ function parseDateInput(value?: string | null) {
 
 function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function parseConversionRate(raw?: string | null) {
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw)
+    const value = Number(parsed?.rate ?? parsed?.conversionRate ?? parsed?.mainQty)
+    return Number.isFinite(value) && value > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+function isConversionVariant(variant?: { conversions?: string | null } | null) {
+  return !!parseConversionRate(variant?.conversions)
+}
+
+function getTrueVariants<T extends { conversions?: string | null }>(variants: T[]) {
+  return variants.filter((variant) => !isConversionVariant(variant))
+}
+
+function findParentTrueVariant<T extends { name?: string | null; conversions?: string | null }>(
+  variants: T[],
+  selectedVariant?: T | null,
+  productName?: string | null,
+) {
+  if (!selectedVariant) return null
+  if (!isConversionVariant(selectedVariant)) return selectedVariant
+
+  const trueVariants = getTrueVariants(variants)
+  const selectedGroupKey = getProductVariantGroupKey(productName, selectedVariant)
+  return trueVariants.find((variant) => getProductVariantGroupKey(productName, variant) === selectedGroupKey) ?? null
+}
+
+function getConversionVariants<T extends { name?: string | null; conversions?: string | null }>(
+  variants: T[],
+  currentTrueVariant?: T | null,
+  productName?: string | null,
+) {
+  const allConversions = variants.filter((variant) => isConversionVariant(variant))
+  const targetGroupKey = currentTrueVariant
+    ? getProductVariantGroupKey(productName, currentTrueVariant)
+    : '__base__'
+
+  return allConversions.filter((variant) => getProductVariantGroupKey(productName, variant) === targetGroupKey)
+}
+
+function aggregateBranchStocks(rows: any[]) {
+  const grouped = new Map<string, any>()
+
+  rows.forEach((row, index) => {
+    const key = row.branchId ?? row.branch?.id ?? row.id ?? `branch-${index}`
+    const existing = grouped.get(key)
+
+    if (existing) {
+      existing.stock = toInt(existing.stock) + toInt(row.stock)
+      existing.reservedStock = toInt(existing.reservedStock) + toInt(row.reservedStock)
+      existing.minStock = toInt(existing.minStock) + toInt(row.minStock)
+      return
+    }
+
+    grouped.set(key, {
+      ...row,
+      id: row.id ?? key,
+      stock: toInt(row.stock),
+      reservedStock: toInt(row.reservedStock),
+      minStock: toInt(row.minStock),
+    })
+  })
+
+  return Array.from(grouped.values())
+}
+
+function scaleBranchStocks(rows: any[], factor: number) {
+  return rows.map((row) => ({
+    ...row,
+    stock: toNumber(row.stock) * factor,
+    reservedStock: toNumber(row.reservedStock) * factor,
+    minStock: 0,
+  }))
 }
 
 function sanitizeSupplierDocuments(value: unknown): SupplierDocument[] | null {
@@ -790,9 +884,10 @@ export class StockService {
     let remaining = roundCurrency(amount)
     let appliedAmount = 0
 
+    const hasExplicitAllocations = Boolean(allocations && allocations.length > 0)
     const requestedAllocations =
-      allocations && allocations.length > 0
-        ? allocations
+      hasExplicitAllocations
+        ? (allocations ?? [])
         : preferredReceiptId
           ? [{ receiptId: preferredReceiptId, amount: remaining }]
           : []
@@ -840,9 +935,95 @@ export class StockService {
       await this.recalculateReceiptState(tx, receipt.id)
     }
 
+    if (remaining > 0 && !hasExplicitAllocations) {
+      const receipts = await tx.stockReceipt.findMany({
+        where: {
+          supplierId,
+          id: preferredReceiptId ? { not: preferredReceiptId } : undefined,
+          status: { not: 'CANCELLED' },
+          receiptStatus: { not: 'CANCELLED' },
+        },
+        include: SUPPLIER_RECEIPT_INCLUDE,
+        orderBy: { createdAt: 'asc' },
+      })
+
+      for (const receipt of receipts) {
+        if (remaining <= 0) break
+
+        const snapshot = this.buildReceiptSnapshot(receipt)
+        const receivable = Math.min(remaining, snapshot.outstandingAmount)
+        if (receivable <= 0) continue
+
+        await tx.supplierPaymentAllocation.create({
+          data: {
+            paymentId,
+            receiptId: receipt.id,
+            amount: roundCurrency(receivable),
+          } as any,
+        })
+
+        remaining = roundCurrency(remaining - receivable)
+        appliedAmount = roundCurrency(appliedAmount + receivable)
+        await this.recalculateReceiptState(tx, receipt.id)
+      }
+    }
+
     return {
       appliedAmount,
       unappliedAmount: roundCurrency(Math.max(0, remaining)),
+    }
+  }
+
+  private async attachReceiptPaymentSummary(receipt: any) {
+    if (!receipt?.id || !receipt?.supplierId) {
+      return {
+        ...receipt,
+        paymentSummary: {
+          orderPaymentAmount: roundCurrency(toNumber(receipt?.paidAmount)),
+          targetedPaymentAmount: 0,
+          debtSettlementAmount: 0,
+          unappliedCreditAmount: 0,
+        },
+      }
+    }
+
+    const targetedPayments = await this.db.supplierPayment.findMany({
+      where: {
+        supplierId: receipt.supplierId,
+        targetReceiptId: receipt.id,
+      },
+      select: {
+        id: true,
+        appliedAmount: true,
+        unappliedAmount: true,
+      },
+    })
+
+    const targetedPaymentIds = new Set(targetedPayments.map((payment) => payment.id))
+    const targetedPaymentAmount = roundCurrency(
+      targetedPayments.reduce((sum, payment) => sum + toNumber(payment.appliedAmount), 0),
+    )
+    const unappliedCreditAmount = roundCurrency(
+      targetedPayments.reduce((sum, payment) => sum + toNumber(payment.unappliedAmount), 0),
+    )
+    const targetedAppliedToCurrentReceipt = roundCurrency(
+      (receipt.paymentAllocations ?? []).reduce((sum: number, allocation: any) => {
+        const paymentId = allocation?.payment?.id
+        if (!paymentId || !targetedPaymentIds.has(paymentId)) return sum
+        return sum + toNumber(allocation.amount)
+      }, 0),
+    )
+
+    return {
+      ...receipt,
+      paymentSummary: {
+        orderPaymentAmount: roundCurrency(toNumber(receipt.paidAmount)),
+        targetedPaymentAmount,
+        debtSettlementAmount: roundCurrency(
+          Math.max(0, targetedPaymentAmount - targetedAppliedToCurrentReceipt),
+        ),
+        unappliedCreditAmount,
+      },
     }
   }
 
@@ -912,13 +1093,27 @@ export class StockService {
   }
 
   async findAllReceipts(query: FindReceiptsDto) {
-    const { page = 1, limit = 20, status, supplierId } = query
+    const { page = 1, limit = 20, status, supplierId, search, productId } = query
     const skip = (Number(page) - 1) * Number(limit)
     const where: Record<string, unknown> = {}
 
     if (supplierId) where.supplierId = supplierId
     if (status) {
       where.OR = [{ status }, { receiptStatus: status }, { paymentStatus: status as any }]
+    }
+    if (search) {
+      const searchClause = { contains: search, mode: 'insensitive' }
+      const existingOr = Array.isArray(where.OR) ? where.OR : []
+      where.OR = [
+        ...existingOr,
+        { receiptNumber: searchClause },
+        { supplier: { name: searchClause } },
+      ]
+    }
+    if (productId) {
+      where.items = {
+        some: { productId },
+      }
     }
 
     const [rows, total] = await Promise.all([
@@ -954,7 +1149,12 @@ export class StockService {
       include: SUPPLIER_RECEIPT_INCLUDE,
     })
     if (!receipt) throw new NotFoundException('Không tìm thấy phiếu nhập')
-    return { success: true, data: await this.attachPaymentTransactionVouchers(this.mapReceiptResponse(receipt)) }
+    const mappedReceipt = this.mapReceiptResponse(receipt)
+    const summarizedReceipt = await this.attachReceiptPaymentSummary(mappedReceipt)
+    return {
+      success: true,
+      data: await this.attachPaymentTransactionVouchers(summarizedReceipt),
+    }
   }
 
   async createReceipt(dto: CreateReceiptDto) {
@@ -1267,10 +1467,13 @@ export class StockService {
     const snapshot = this.buildReceiptSnapshot(receipt)
     const amount = toNumber(dto.amount || snapshot.outstandingAmount)
     if (amount <= 0) {
+      const summarizedReceipt = await this.attachReceiptPaymentSummary(
+        this.mapReceiptResponse(receipt),
+      )
       return {
         success: true,
         message: 'Phiếu nhập đã được thanh toán đủ',
-        data: await this.attachPaymentTransactionVouchers(this.mapReceiptResponse(receipt)),
+        data: await this.attachPaymentTransactionVouchers(summarizedReceipt),
       }
     }
 
@@ -1303,9 +1506,12 @@ export class StockService {
         return this.recalculateReceiptState(tx, id)
       })
 
+      const summarizedReceipt = await this.attachReceiptPaymentSummary(
+        this.mapReceiptResponse(updated.receipt),
+      )
       return {
         success: true,
-        data: await this.attachPaymentTransactionVouchers(this.mapReceiptResponse(updated.receipt)),
+        data: await this.attachPaymentTransactionVouchers(summarizedReceipt),
       }
     }
 
@@ -1315,7 +1521,13 @@ export class StockService {
       include: SUPPLIER_RECEIPT_INCLUDE,
     })
     if (!updatedReceipt) throw new NotFoundException('Không tìm thấy phiếu nhập')
-    return { success: true, data: await this.attachPaymentTransactionVouchers(this.mapReceiptResponse(updatedReceipt)) }
+    const summarizedReceipt = await this.attachReceiptPaymentSummary(
+      this.mapReceiptResponse(updatedReceipt),
+    )
+    return {
+      success: true,
+      data: await this.attachPaymentTransactionVouchers(summarizedReceipt),
+    }
   }
 
   async receiveReceipt(id: string, dto: ReceiveReceiptDto = {}, staffId?: string) {
@@ -1672,6 +1884,59 @@ export class StockService {
     return branchId ? sourceRows.filter((row: any) => row.branchId === branchId) : sourceRows
   }
 
+  private getDisplayInventorySourceRows(product: any, variant?: any | null, branchId?: string | null): any[] {
+    const variants = Array.isArray(product?.variants)
+      ? product.variants.filter((item: any) => !item?.deletedAt)
+      : []
+    const productRows = this.getInventorySourceRows(
+      {
+        branchStocks: Array.isArray(product?.branchStocks)
+          ? product.branchStocks.filter((row: any) => !row?.productVariantId)
+          : [],
+      },
+      branchId,
+    )
+
+    if (variant) {
+      const directRows = this.getInventorySourceRows(variant, branchId)
+      if (isConversionVariant(variant)) {
+        return directRows
+      }
+
+      const convertedRows = getConversionVariants(
+        variants,
+        findParentTrueVariant(variants, variant, product.name) ?? variant,
+        product.name,
+      )
+        .flatMap((conversionVariant: any) =>
+          scaleBranchStocks(
+            this.getInventorySourceRows(conversionVariant, branchId),
+            parseConversionRate(conversionVariant?.conversions) ?? 1,
+          ),
+        )
+
+      return aggregateBranchStocks([...directRows, ...convertedRows])
+    }
+
+    const trueVariants = getTrueVariants(variants)
+    if (trueVariants.length > 0) {
+      return aggregateBranchStocks(
+        trueVariants.flatMap((trueVariant: any) =>
+          this.getDisplayInventorySourceRows(product, trueVariant, branchId),
+        ),
+      )
+    }
+
+    const convertedRows = getConversionVariants(variants, null, product.name).flatMap((conversionVariant: any) =>
+      scaleBranchStocks(
+        this.getInventorySourceRows(conversionVariant, branchId),
+        parseConversionRate(conversionVariant?.conversions) ?? 1,
+      ),
+    )
+
+    return aggregateBranchStocks([...productRows, ...convertedRows])
+  }
+
   private buildInventoryStatus(currentStock: number, minStock: number) {
     if (currentStock <= 0) return 'OUT_OF_STOCK'
     if (currentStock <= minStock) return 'LOW_STOCK'
@@ -1915,9 +2180,11 @@ export class StockService {
 
       if (variants.length > 0) {
         return variants
-          .filter((variant: any) => !branchId || this.getInventorySourceRows(variant, branchId).length > 0)
+          .filter(
+            (variant: any) => !branchId || this.getDisplayInventorySourceRows(product, variant, branchId).length > 0,
+          )
           .map((variant: any) => {
-            const variantLabel = `${variant?.name ?? ''}`.trim() || `${variant?.sku ?? ''}`.trim() || 'Phien ban'
+            const { variantLabel, unitLabel, displayName } = resolveProductVariantLabels(product.name, variant)
 
             return {
               id: variant.id,
@@ -1925,8 +2192,9 @@ export class StockService {
               productVariantId: variant.id,
               inventoryItemType: 'VARIANT' as const,
               name: product.name,
-              variantName: variant.name ?? null,
-              displayName: `${product.name} - ${variantLabel}`,
+              variantName: variantLabel ?? null,
+              unitLabel: unitLabel ?? null,
+              displayName: displayName || `${product.name} - ${variant?.sku ?? 'Phien ban'}`,
               sku: variant.sku || product.sku,
               image: variant.image || product.image,
               unit: product.unit,
@@ -1947,6 +2215,7 @@ export class StockService {
           inventoryItemType: 'PRODUCT' as const,
           name: product.name,
           variantName: null,
+          unitLabel: null,
           displayName: product.name,
           sku: product.sku,
           image: product.image,
@@ -1979,7 +2248,14 @@ export class StockService {
     )
 
     const mappedRows = searchedRows.map((row) => {
-      const sourceRows = this.getInventorySourceRows(row.source, branchId || undefined)
+      const product = products.find((item: any) => item.id === row.productId)
+      const variant =
+        row.productVariantId && Array.isArray(product?.variants)
+          ? product.variants.find((item: any) => item.id === row.productVariantId) ?? null
+          : null
+      const sourceRows = product
+        ? this.getDisplayInventorySourceRows(product, variant, branchId || undefined)
+        : this.getInventorySourceRows(row.source, branchId || undefined)
       const currentStock = sourceRows.reduce((sum: number, item: any) => sum + toInt(item.stock), 0)
       const reservedStock = sourceRows.reduce((sum: number, item: any) => sum + toInt(item.reservedStock), 0)
       const minStock =
@@ -1996,6 +2272,7 @@ export class StockService {
         inventoryItemType: row.inventoryItemType,
         name: row.name,
         variantName: row.variantName,
+        unitLabel: row.unitLabel,
         displayName: row.displayName,
         sku: row.sku,
         image: row.image,
@@ -2134,12 +2411,16 @@ export class StockService {
         const rowDate = receipt.receivedAt ?? receipt.createdAt
         const quantity = Math.max(0, toInt(item.receivedQuantity) || toInt(item.quantity))
         if (!current) {
+          const { variantLabel, unitLabel } = resolveProductVariantLabels(item.product?.name, item.productVariant)
           productMap.set(key, {
             key,
             productId: item.productId,
             productVariantId: item.productVariantId ?? null,
-            name: item.productVariant?.name ? `${item.product?.name ?? 'Sản phẩm'} - ${item.productVariant.name}` : item.product?.name ?? 'Sản phẩm',
             sku: item.productVariant?.sku || item.product?.sku || null,
+            name:
+              buildProductVariantName(item.product?.name ?? 'San pham', variantLabel, unitLabel) ||
+              item.product?.name ||
+              'San pham',
             unit: item.product?.unit || 'cái',
             totalQty: quantity,
             lastUnitPrice: toNumber(item.unitPrice),

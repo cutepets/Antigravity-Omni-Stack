@@ -20,7 +20,9 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { getProductVariantGroupKey } from '@petshop/shared'
 import { inventoryApi } from '@/lib/api/inventory.api'
+import { getDisplayBranchStocks, getResolvedVariantLabels, parseConversionRate } from '@/lib/inventory-conversion-stock'
 import { toast } from 'sonner'
 import { ProductFormModal } from './product-form-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
@@ -88,24 +90,6 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(['product', 'sku', 'barcode', 'category', 'stock', 'price', 'status', 'lastCountShift'])
 
-function parseConversionRate(raw?: string | null) {
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw)
-    const value = Number(parsed?.rate ?? parsed?.conversionRate ?? parsed?.mainQty)
-    return Number.isFinite(value) && value > 0 ? value : null
-  } catch {
-    return null
-  }
-}
-
-function getTrailingLabel(name: string, baseName: string) {
-  if (!name) return ''
-  if (baseName && name.startsWith(`${baseName} - `)) return name.slice(baseName.length + 3)
-  const parts = name.split(' - ').filter(Boolean)
-  return parts[parts.length - 1] ?? name
-}
-
 function sumStock(rows: BranchStockRow[] | undefined, fallback = 0) {
   if (!rows || rows.length === 0) return fallback
   return rows.reduce((total, row) => total + (row.stock ?? 0), 0)
@@ -129,12 +113,13 @@ function buildVariantGroups(product: any) {
   const rawVariants = Array.isArray(product.variants) ? product.variants : []
   const items: ListVariantItem[] = rawVariants.map((variant: any) => {
     const conversionRate = parseConversionRate(variant.conversions)
-    const displayUnit = conversionRate ? getTrailingLabel(variant.name, product.name) : variant.unit || product.unit
+    const { variantLabel, unitLabel } = getResolvedVariantLabels(product.name, variant)
+    const displayUnit = conversionRate ? unitLabel || variant.unit || product.unit : variantLabel || variant.unit || product.unit
 
     return {
       id: variant.id,
       kind: conversionRate ? 'conversion' : 'variant',
-      name: variant.name,
+      name: variantLabel || variant.name,
       sku: variant.sku,
       barcode: variant.barcode,
       image: variant.image ?? product.image,
@@ -142,7 +127,7 @@ function buildVariantGroups(product: any) {
       price: variant.price ?? product.price,
       costPrice: variant.costPrice ?? product.costPrice,
       formula: conversionRate ? `${conversionRate} ${product.unit} = 1 ${displayUnit}` : null,
-      branchStocks: Array.isArray(variant.branchStocks) ? variant.branchStocks : [],
+      branchStocks: getDisplayBranchStocks(product, variant.id) as BranchStockRow[],
     }
   })
 
@@ -150,7 +135,9 @@ function buildVariantGroups(product: any) {
   const conversions = items.filter((item) => item.kind === 'conversion')
   const usedConversionIds = new Set<string>()
   const groups: VariantGroup[] = variants.map((item) => {
-    const children = conversions.filter((child) => child.name.startsWith(`${item.name} - `))
+    const children = conversions.filter(
+      (child) => getProductVariantGroupKey(product.name, child) === getProductVariantGroupKey(product.name, item),
+    )
     children.forEach((child) => usedConversionIds.add(child.id))
     return { item, children }
   })
@@ -303,20 +290,9 @@ export function ProductList() {
       const productBrand = `${product.brand ?? ''}`.toLowerCase()
       const active = Boolean(product.isActive ?? true)
 
-      const variantGroups = buildVariantGroups(product)
-      const variantStocks = variantGroups.groups.flatMap((group) => [group.item, ...group.children])
-      const combinedStocks = variantStocks.length > 0
-        ? variantStocks.flatMap((item) => item.branchStocks)
-        : Array.isArray(product.branchStocks)
-          ? product.branchStocks
-          : []
-
-      const totalStock = variantStocks.length > 0
-        ? variantStocks.reduce((sum, item) => sum + sumStock(item.branchStocks), 0)
-        : sumStock(combinedStocks, Number(product.stock ?? 0))
-      const minStock = variantStocks.length > 0
-        ? variantStocks.reduce((sum, item) => sum + sumMinStock(item.branchStocks), 0)
-        : sumMinStock(combinedStocks, Number(product.minStock ?? 0))
+      const productBranchStocks = getDisplayBranchStocks(product) as BranchStockRow[]
+      const totalStock = sumStock(productBranchStocks, Number(product.stock ?? 0))
+      const minStock = sumMinStock(productBranchStocks, Number(product.minStock ?? 0))
 
       const matchesBrand = !brandQuery || productBrand.includes(brandQuery.trim().toLowerCase())
       const matchesSaleStatus = saleStatus === 'all' || (saleStatus === 'active' ? active : !active)
@@ -333,18 +309,11 @@ export function ProductList() {
   const productRows = useMemo(() => {
     const rows = filteredProducts.map((product: any) => {
       const { groups, looseConversions, totalChildren } = buildVariantGroups(product)
-      const productStocks = Array.isArray(product.branchStocks) ? product.branchStocks : []
+      const productStocks = getDisplayBranchStocks(product) as BranchStockRow[]
       const hasVariants = totalChildren > 0
-      const nestedItems = groups.flatMap((group) => [group.item, ...group.children]).concat(looseConversions)
-      const totalStock = hasVariants
-        ? nestedItems.reduce((sum, item) => sum + sumStock(item.branchStocks), 0)
-        : sumStock(productStocks, Number(product.stock ?? 0))
-      const sellableStock = hasVariants
-        ? nestedItems.reduce((sum, item) => sum + Math.max(sumStock(item.branchStocks) - sumReservedStock(item.branchStocks), 0), 0)
-        : Math.max(sumStock(productStocks, Number(product.stock ?? 0)) - sumReservedStock(productStocks), 0)
-      const minStock = hasVariants
-        ? nestedItems.reduce((sum, item) => sum + sumMinStock(item.branchStocks), 0)
-        : sumMinStock(productStocks, Number(product.minStock ?? 0))
+      const totalStock = sumStock(productStocks, Number(product.stock ?? 0))
+      const sellableStock = Math.max(totalStock - sumReservedStock(productStocks), 0)
+      const minStock = sumMinStock(productStocks, Number(product.minStock ?? 0))
 
       return {
         ...product,

@@ -21,7 +21,7 @@ const CustomerSettingsDrawer = dynamic(
 )
 
 const InventorySettingsDrawer = dynamic(
-  () => import('@/app/(dashboard)/products/_components/inventory-settings-drawer').then(mod => mod.InventorySettingsDrawer),
+  () => import('@/components/products/inventory-settings-drawer').then(mod => mod.InventorySettingsDrawer),
   { ssr: false }
 )
 
@@ -38,7 +38,7 @@ const PetSettingsModal = dynamic(
 function resolveHeaderTitle(pathname: string) {
   if (pathname.startsWith('/pos')) return 'POS / Bán nhanh'
   if (pathname.startsWith('/finance')) return 'Sổ quỹ'
-  if (pathname.startsWith('/products')) return 'Sản phẩm & Kho'
+  if (pathname.startsWith('/products')) return 'Sản phẩm'
   if (pathname.startsWith('/orders')) return 'Quản lý Đơn hàng'
   if (pathname.startsWith('/customers')) return 'Khách hàng'
   if (pathname.startsWith('/pets')) return 'Thú cưng'
@@ -249,8 +249,8 @@ export function Header() {
                           router.refresh()
                         }}
                         className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors ${branch.id === activeBranchId
-                            ? 'bg-primary-500/10 text-primary-500'
-                            : 'text-foreground-base hover:bg-background-tertiary'
+                          ? 'bg-primary-500/10 text-primary-500'
+                          : 'text-foreground-base hover:bg-background-tertiary'
                           }`}
                       >
                         <div className="flex flex-col overflow-hidden">

@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { matchSearch } from '@petshop/shared'
+import { parseVariantConversionUnit, resolveProductVariantLabels, matchSearch } from '@petshop/shared'
 import { orderApi } from '@/lib/api/order.api'
 import { api } from '@/lib/api'
 
@@ -10,21 +10,6 @@ const buildSearchableText = (values: unknown[]): string =>
     .flatMap((value) => (Array.isArray(value) ? value : [value]))
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
-
-const getVariantLabel = (productName: string, variantName?: string | null) => {
-  if (!variantName) return undefined
-
-  const normalizedProductName = productName.trim()
-  const normalizedVariantName = variantName.trim()
-  if (!normalizedVariantName || normalizedVariantName === normalizedProductName) {
-    return undefined
-  }
-
-  const prefix = `${normalizedProductName} - `
-  return normalizedVariantName.startsWith(prefix)
-    ? normalizedVariantName.slice(prefix.length)
-    : normalizedVariantName
-}
 
 const normalizeSearchTerm = (value?: string) => value?.trim().toLowerCase() ?? ''
 const getMonthlySoldCount = (entry: any) => Number(entry?.salesMetrics?.monthQuantitySold ?? 0)
@@ -45,10 +30,10 @@ const compareProductEntries = (search?: string) => {
     if (leftPrefixCode !== rightPrefixCode) return rightPrefixCode ? 1 : -1
 
     const leftNameStarts = normalizedSearch
-      ? [left.productName, left.variantLabel, left.name].filter(Boolean).some((value: string) => value.toLowerCase().startsWith(normalizedSearch))
+      ? [left.displayName, left.productName, left.variantLabel, left.unitLabel, left.name].filter(Boolean).some((value: string) => value.toLowerCase().startsWith(normalizedSearch))
       : false
     const rightNameStarts = normalizedSearch
-      ? [right.productName, right.variantLabel, right.name].filter(Boolean).some((value: string) => value.toLowerCase().startsWith(normalizedSearch))
+      ? [right.displayName, right.productName, right.variantLabel, right.unitLabel, right.name].filter(Boolean).some((value: string) => value.toLowerCase().startsWith(normalizedSearch))
       : false
     if (leftNameStarts !== rightNameStarts) return rightNameStarts ? 1 : -1
 
@@ -60,11 +45,11 @@ const compareProductEntries = (search?: string) => {
 }
 
 const isConversionVariant = (variant: any) => {
-  return variant.conversions && Array.isArray(variant.conversions) && variant.conversions.length > 0
+  return Boolean(parseVariantConversionUnit(variant?.conversions))
 }
 
 const createProductEntry = (product: any, variant?: any) => {
-  const variantLabel = getVariantLabel(product.name, variant?.name)
+  const { variantLabel, unitLabel, displayName } = resolveProductVariantLabels(product.name, variant)
   const resolvedPrice = variant?.sellingPrice ?? variant?.price ?? product.sellingPrice ?? product.price ?? 0
 
   const rawVariants = Array.isArray(product.variants) ? product.variants : []
@@ -81,7 +66,9 @@ const createProductEntry = (product: any, variant?: any) => {
     productVariantId: variant?.id ?? undefined,
     productName: product.name,
     name: product.name,
+    displayName: displayName || product.name,
     variantLabel,
+    unitLabel,
     sku: variant?.sku ?? product.sku,
     barcode: variant?.barcode ?? product.barcode,
     image: variant?.image ?? product.image,
@@ -124,8 +111,10 @@ export function useCatalogProducts(search?: string) {
       return entries.filter((product: any) => {
         const searchableText = buildSearchableText([
           product.productName,
+          product.displayName,
           product.name,
           product.variantLabel,
+          product.unitLabel,
           product.sku,
           product.barcode,
         ])

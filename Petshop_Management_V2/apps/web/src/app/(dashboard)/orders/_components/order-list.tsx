@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
   Download,
@@ -51,15 +52,15 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'code', label: 'Mã đơn', sortable: false, width: 'w-24' },
   { id: 'customer', label: 'Tên khách', sortable: false, minWidth: 'min-w-[150px]' },
   { id: 'customerPhone', label: 'SĐT Khách', sortable: false, width: 'whitespace-nowrap' },
-  { id: 'items', label: 'Số SP', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'items', label: 'Số SP', sortable: false, width: 'w-16' },
   { id: 'discount', label: 'Tổng CK', sortable: false, width: 'w-28', align: 'right' },
   { id: 'shippingFee', label: 'Phí ship', sortable: false, width: 'w-28', align: 'right' },
-  { id: 'total', label: 'Tổng tiền', sortable: false, width: 'w-28', align: 'right' },
+  { id: 'total', label: 'Tổng tiền', sortable: false, width: 'w-34', align: 'right' },
   { id: 'customerPaid', label: 'Khách đã trả', sortable: false, width: 'whitespace-nowrap', align: 'right' },
   { id: 'payment', label: 'Hình thức TT', sortable: false, width: 'whitespace-nowrap' },
-  { id: 'status', label: 'Thanh toán', sortable: false, width: 'w-[4.5rem]', align: 'center' },
-  { id: 'orderStatus', label: 'Trạng thái', sortable: false, width: 'w-32' },
-  { id: 'stockStatus', label: 'Xuất kho', sortable: false, width: 'w-[4.5rem]', align: 'center' },
+  { id: 'status', label: 'Thanh toán', sortable: false, width: 'w-16', align: 'center' },
+  { id: 'orderStatus', label: 'Trạng thái', sortable: false, width: 'w-32', align: 'center' },
+  { id: 'stockStatus', label: 'Xuất kho', sortable: false, width: 'w-16', align: 'center' },
   { id: 'linkedCodes', label: 'Mã liên kết', sortable: false, minWidth: 'min-w-[180px]' },
   { id: 'note', label: 'Ghi chú', sortable: false, minWidth: 'min-w-[150px]' },
   { id: 'branch', label: 'Chi nhánh', sortable: false, width: 'whitespace-nowrap' },
@@ -83,6 +84,8 @@ function StockStatusBadge({ stockExportedAt, status }: { stockExportedAt?: strin
 
 export function OrderList() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlProductId = searchParams.get('productId') ?? ''
 
   const [search, setSearch] = useState('')
   const [paymentStatus, setPaymentStatus] = useState('')
@@ -93,19 +96,21 @@ export function OrderList() {
   // System hook for data-list standard
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialVisibleColumns: ['code', 'customer', 'items', 'discount', 'total', 'customerPaid', 'status', 'orderStatus', 'stockStatus', 'updated', 'creator'],
-    initialTopFilterVisibility: { paymentStatus: true, orderStatus: false }
+    initialVisibleColumns: ['code', 'customer', 'items', 'discount', 'total', 'customerPaid', 'payment', 'status', 'orderStatus', 'stockStatus', 'branch', 'creator'],
+    initialTopFilterVisibility: { paymentStatus: true, orderStatus: false },
+    storageKey: 'petshop:orderList:config_v2',
   })
 
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data, isLoading } = useQuery({
-    queryKey: ['orders', search, paymentStatus, orderStatus, page, pageSize],
+    queryKey: ['orders', search, paymentStatus, orderStatus, page, pageSize, urlProductId],
     queryFn: () => orderApi.list({
       search,
       paymentStatus: paymentStatus || undefined,
       status: orderStatus || undefined,
+      productId: urlProductId || undefined,
       page,
       limit: pageSize,
     }),

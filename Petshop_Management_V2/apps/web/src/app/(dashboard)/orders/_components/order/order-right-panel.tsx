@@ -31,6 +31,7 @@ interface OrderRightPanelProps {
   relatedDocuments: RelatedDocument[]
   itemsCount: number
   orderStatus?: string
+  paymentIntents?: any[]
 }
 
 function buildHistorySummary(entry: any) {
@@ -39,11 +40,11 @@ function buildHistorySummary(entry: any) {
   const statusLabel =
     entry.fromStatus || entry.toStatus
       ? [
-          entry.fromStatus ? ORDER_STATUS_LABEL[entry.fromStatus] ?? entry.fromStatus : null,
-          entry.toStatus ? `→ ${ORDER_STATUS_LABEL[entry.toStatus] ?? entry.toStatus}` : null,
-        ]
-          .filter(Boolean)
-          .join(' ')
+        entry.fromStatus ? ORDER_STATUS_LABEL[entry.fromStatus] ?? entry.fromStatus : null,
+        entry.toStatus ? `→ ${ORDER_STATUS_LABEL[entry.toStatus] ?? entry.toStatus}` : null,
+      ]
+        .filter(Boolean)
+        .join(' ')
       : null
 
   return [actorName, statusLabel, entry.note].filter(Boolean).join(' • ')
@@ -154,6 +155,7 @@ export function OrderRightPanel({
   relatedDocuments,
   itemsCount,
   orderStatus,
+  paymentIntents = [],
 }: OrderRightPanelProps) {
   return (
     <div className="flex h-full flex-col">
@@ -214,13 +216,28 @@ export function OrderRightPanel({
             <span className="text-sm text-foreground-muted">Trạng thái thanh toán</span>
             <PaymentStatusBadge status={paymentStatus} />
           </div>
+
           <div className="flex items-center justify-between">
             <span className="text-sm text-foreground-muted">Đã thu</span>
             <span className="text-sm font-semibold text-success tabular-nums">
               {formatCurrency(amountPaid)}
             </span>
           </div>
-          <div className="flex items-center justify-between">
+
+          {paymentIntents && paymentIntents.length > 0 ? (
+            <div className="flex flex-col items-end gap-1">
+              {paymentIntents
+                .filter((intent: any) => intent.status === 'PAID')
+                .map((intent: any, idx: number) => (
+                  <div key={intent.id || idx} className="flex items-center gap-2 text-[13px] text-foreground-muted">
+                    <span>{intent.paymentMethod?.name || 'Khác'}</span>
+                    <span className="tabular-nums">- {formatCurrency(intent.amount)}</span>
+                  </div>
+                ))}
+            </div>
+          ) : null}
+
+          <div className="mt-1 flex items-center justify-between pt-1">
             <span className="text-sm text-foreground-muted">Còn lại</span>
             <span className="text-sm font-semibold text-foreground tabular-nums">
               {formatCurrency(remainingAmount)}

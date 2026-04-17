@@ -13,9 +13,10 @@ interface StockPopoverProps {
 export function StockPopover({ item, branches }: StockPopoverProps) {
   const snapshot = getVariantSnapshot(item)
   const branchStocks: BranchStock[] = Array.isArray(snapshot.branchStocks) ? snapshot.branchStocks : []
+  const productHref = item.productId ? `/products/${item.productId}` : null
 
   return (
-    <div className="group/stock relative z-[60] flex shrink-0">
+    <div className="group/stock relative z-60 flex shrink-0">
       {/* Trigger: Info icon — hidden until row is hovered */}
       <Info
         size={15}
@@ -23,17 +24,23 @@ export function StockPopover({ item, branches }: StockPopoverProps) {
       />
 
       {/* Popup */}
-      <div className="absolute top-full left-1/2 -translate-x-[40%] mt-2 w-[340px] opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible transition-all duration-200 pointer-events-none group-hover/stock:pointer-events-auto before:absolute before:-top-4 before:left-0 before:w-full before:h-4 z-[100]">
+      <div className="absolute top-full left-1/2 -translate-x-[40%] mt-2 w-[340px] opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible transition-all duration-200 pointer-events-none group-hover/stock:pointer-events-auto before:absolute before:-top-4 before:left-0 before:w-full before:h-4 z-100">
         <div className="bg-background-secondary border border-border shadow-2xl rounded-xl overflow-hidden">
           {/* Header: product name (link) + SKU */}
           <div className="bg-background-tertiary px-4 py-3 border-b border-border">
-            <Link
-              href={`/inventory/products/${item.productId}`}
-              target="_blank"
-              className="font-bold text-[13px] text-foreground hover:text-primary-500 hover:underline leading-tight block cursor-pointer transition-colors"
-            >
-              {snapshot.displayName}
-            </Link>
+            {productHref ? (
+              <Link
+                href={productHref}
+                target="_blank"
+                className="font-bold text-[13px] text-foreground hover:text-primary-500 hover:underline leading-tight block cursor-pointer transition-colors"
+              >
+                {snapshot.displayName}
+              </Link>
+            ) : (
+              <div className="font-bold text-[13px] leading-tight text-foreground">
+                {snapshot.displayName}
+              </div>
+            )}
             <div className="text-[10px] text-foreground-muted mt-0.5 font-medium tracking-wide uppercase">
               {snapshot.displaySku || snapshot.displayBarcode || 'N/A'}
             </div>

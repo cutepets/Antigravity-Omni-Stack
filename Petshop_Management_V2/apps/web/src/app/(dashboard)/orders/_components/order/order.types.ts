@@ -16,11 +16,9 @@ export interface OrderActionFlags {
   canAccessOrders: boolean
   canUpdateOrder: boolean
   canPayOrder: boolean
-  canApproveOrder: boolean
   canExportStock: boolean
   canSettleOrder: boolean
   canEditCurrentOrder: boolean
-  canApproveCurrentOrder: boolean
   canExportCurrentOrder: boolean
   canSettleCurrentOrder: boolean
   canPayCurrentOrder: boolean

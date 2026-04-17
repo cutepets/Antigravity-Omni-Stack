@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@petshop/database'
+import { buildProductVariantName, resolveProductVariantLabels } from '@petshop/shared'
 import { DatabaseService } from '../../database/database.service.js'
 
 function normalizeSearchValue(value?: string | null) {
@@ -21,9 +22,13 @@ function tokenizeSearch(value?: string | null) {
 function buildProductSearchHaystack(product: Record<string, any>) {
   const variantText = Array.isArray(product.variants)
     ? product.variants
-      .map((variant: Record<string, any>) =>
-        [
+      .map((variant: Record<string, any>) => {
+        const { variantLabel, unitLabel, displayName } = resolveProductVariantLabels(product.name, variant)
+        return [
           variant.name,
+          displayName,
+          variantLabel,
+          unitLabel,
           variant.sku,
           variant.barcode,
           variant.conversions,
@@ -31,8 +36,8 @@ function buildProductSearchHaystack(product: Record<string, any>) {
           variant.priceBookPrices,
         ]
           .filter(Boolean)
-          .join(' '),
-      )
+          .join(' ')
+      })
       .join(' ')
     : ''
 
@@ -97,6 +102,8 @@ export interface UpdateProductDto extends Partial<CreateProductDto> { }
 
 export interface CreateVariantDto {
   name: string
+  variantLabel?: string
+  unitLabel?: string
   sku?: string
   barcode?: string
   costPrice?: number
@@ -125,6 +132,18 @@ export interface CreateServiceDto {
 }
 
 export interface UpdateServiceDto extends Partial<CreateServiceDto> { }
+
+function prepareVariantPayload(dto: Partial<CreateVariantDto>, productName?: string | null) {
+  const variantLabel = dto.variantLabel?.trim() || null
+  const unitLabel = dto.unitLabel?.trim() || null
+
+  return {
+    ...dto,
+    name: buildProductVariantName(productName, variantLabel, unitLabel) || dto.name,
+    variantLabel,
+    unitLabel,
+  }
+}
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -208,7 +227,22 @@ export class InventoryService {
       const exists = await this.db.product.findFirst({ where: { sku: dto.sku } })
       if (exists) throw new ConflictException('Mã SKU đã tồn tại')
     }
-    const product = await this.db.product.create({ data: dto as any })
+    const productData: any = { ...dto }
+    const normalizeVariants = (variants: CreateVariantDto[]) =>
+      variants.map((variant) => prepareVariantPayload(variant, dto.name))
+
+    if (Array.isArray(productData.variants?.create)) {
+      productData.variants = {
+        ...productData.variants,
+        create: normalizeVariants(productData.variants.create),
+      }
+    } else if (Array.isArray(productData.variants)) {
+      productData.variants = {
+        create: normalizeVariants(productData.variants),
+      }
+    }
+
+    const product = await this.db.product.create({ data: productData as any })
     return { success: true, data: product }
   }
 
@@ -312,19 +346,22 @@ export class InventoryService {
   }
 
   async batchCreateVariants(productId: string, variants: CreateVariantDto[]) {
-    await this.findProductById(productId)
+    const product = await this.findProductById(productId)
     const created = await this.db.$transaction(
       variants.map((v) =>
-        this.db.productVariant.create({ data: { ...v, productId } as any }),
+        this.db.productVariant.create({ data: { ...prepareVariantPayload(v, product.data?.name), productId } as any }),
       ),
     )
     return { success: true, data: created }
   }
 
   async updateVariant(vid: string, dto: Partial<CreateVariantDto>) {
-    const variant = await this.db.productVariant.findUnique({ where: { id: vid } })
+    const variant = await this.db.productVariant.findUnique({ where: { id: vid }, include: { product: true } })
     if (!variant) throw new NotFoundException('Không tìm thấy phiên bản sản phẩm')
-    const updated = await this.db.productVariant.update({ where: { id: vid }, data: dto as any })
+    const updated = await this.db.productVariant.update({
+      where: { id: vid },
+      data: prepareVariantPayload(dto, variant.product?.name) as any,
+    })
     return { success: true, data: updated }
   }
 

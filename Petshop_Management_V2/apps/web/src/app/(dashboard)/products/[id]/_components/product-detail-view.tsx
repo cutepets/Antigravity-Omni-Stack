@@ -8,7 +8,9 @@ import Link from 'next/link'
 import { ArrowLeft, Box, Copy, History, Layers, Package, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { toast } from 'sonner'
+import { getProductVariantGroupKey } from '@petshop/shared'
 import { inventoryApi } from '@/lib/api/inventory.api'
+import { getDisplayBranchStocks, getResolvedVariantLabels, parseConversionRate } from '@/lib/inventory-conversion-stock'
 import { ProductFormModal } from '../../_components/product-form-modal'
 import { settingsApi } from '@/lib/api'
 import { useAuthorization } from '@/hooks/useAuthorization'
@@ -80,28 +82,6 @@ function formatShift(shift?: string | null) {
 }
 
 
-function parseConversionRate(raw?: string | null) {
-  if (!raw) return null
-
-  try {
-    const parsed = JSON.parse(raw)
-    const value = Number(parsed?.rate ?? parsed?.conversionRate ?? parsed?.mainQty)
-    return Number.isFinite(value) && value > 0 ? value : null
-  } catch {
-    return null
-  }
-}
-
-function getTrailingLabel(name: string, baseName: string) {
-  if (!name) return ''
-  if (baseName && name.startsWith(`${baseName} - `)) {
-    return name.slice(baseName.length + 3)
-  }
-
-  const segments = name.split(' - ').filter(Boolean)
-  return segments[segments.length - 1] ?? name
-}
-
 function getIncomingStock(row: BranchStockRow) {
   const value = Number(row.incomingStock ?? row.incoming ?? row.onTheWay ?? 0)
   return Number.isFinite(value) ? value : 0
@@ -109,34 +89,6 @@ function getIncomingStock(row: BranchStockRow) {
 
 function normalizeBranchStocks(rows: BranchStockRow[] | undefined) {
   return Array.isArray(rows) ? rows : []
-}
-
-function aggregateBranchStocks(rows: BranchStockRow[]) {
-  const grouped = new Map<string, BranchStockRow>()
-
-  rows.forEach((row, index) => {
-    const key = row.branch?.id ?? row.branchId ?? row.branch?.name ?? row.id ?? `branch-${index}`
-    const existing = grouped.get(key)
-
-    if (existing) {
-      existing.stock = (existing.stock ?? 0) + (row.stock ?? 0)
-      existing.reservedStock = (existing.reservedStock ?? 0) + (row.reservedStock ?? 0)
-      existing.minStock = (existing.minStock ?? 0) + (row.minStock ?? 0)
-      existing.incomingStock = (existing.incomingStock ?? 0) + getIncomingStock(row)
-      return
-    }
-
-    grouped.set(key, {
-      ...row,
-      id: row.id ?? key,
-      stock: row.stock ?? 0,
-      reservedStock: row.reservedStock ?? 0,
-      minStock: row.minStock ?? 0,
-      incomingStock: getIncomingStock(row),
-    })
-  })
-
-  return Array.from(grouped.values())
 }
 
 function mergeBranchRowsWithBranches(rows: BranchStockRow[], branches: BranchOption[]) {
@@ -193,25 +145,21 @@ function mergeBranchRowsWithBranches(rows: BranchStockRow[], branches: BranchOpt
 }
 
 function buildDetailTree(product: any) {
-  const productBranchStocks = normalizeBranchStocks(product.branchStocks)
-  const rootBranchStocks = productBranchStocks.filter((row) => !row.productVariantId)
+  const rootBranchStocks = normalizeBranchStocks(getDisplayBranchStocks(product) as BranchStockRow[])
   const rawVariants = Array.isArray(product.variants) ? product.variants : []
 
   const detailItems: DetailItem[] = rawVariants.map((variant: any) => {
     const conversionRate = parseConversionRate(variant.conversions)
-    const branchStocks = normalizeBranchStocks(
-      variant.branchStocks?.length
-        ? variant.branchStocks
-        : productBranchStocks.filter((row) => row.productVariantId === variant.id),
-    )
-    const displayUnit = conversionRate ? getTrailingLabel(variant.name, product.name) : product.unit
+    const branchStocks = normalizeBranchStocks(getDisplayBranchStocks(product, variant.id) as BranchStockRow[])
+    const { variantLabel, unitLabel } = getResolvedVariantLabels(product.name, variant)
+    const displayUnit = conversionRate ? unitLabel || product.unit : product.unit
     const formula = conversionRate ? `${conversionRate} ${product.unit} = 1 ${displayUnit}` : null
 
     return {
       key: `variant:${variant.id}`,
       id: variant.id,
       kind: conversionRate ? 'conversion' : 'variant',
-      name: variant.name,
+      name: variantLabel || variant.name,
       sku: variant.sku,
       barcode: variant.barcode,
       image: variant.image ?? product.image,
@@ -223,9 +171,6 @@ function buildDetailTree(product: any) {
       branchStocks,
     } satisfies DetailItem
   })
-
-  const variantBranchStocks = detailItems.flatMap((item) => item.branchStocks)
-  const hasVariantSpecificStocks = variantBranchStocks.length > 0
 
   const rootItem = {
     key: `product:${product.id}`,
@@ -240,11 +185,7 @@ function buildDetailTree(product: any) {
     displayUnit: product.unit,
     conversionRate: null,
     formula: null,
-    branchStocks: hasVariantSpecificStocks
-      ? aggregateBranchStocks(variantBranchStocks)
-      : rootBranchStocks.length > 0
-        ? rootBranchStocks
-        : aggregateBranchStocks(productBranchStocks),
+    branchStocks: rootBranchStocks,
   } satisfies DetailItem
 
   const variantItems: DetailItem[] = detailItems.filter((item: DetailItem) => item.kind === 'variant')
@@ -252,7 +193,9 @@ function buildDetailTree(product: any) {
   const assignedConversions = new Set<string>()
 
   const groups: Array<{ item: DetailItem; children: DetailItem[] }> = variantItems.map((item: DetailItem) => {
-    const children = conversionItems.filter((child: DetailItem) => child.name.startsWith(`${item.name} - `))
+    const children = conversionItems.filter(
+      (child: DetailItem) => getProductVariantGroupKey(product.name, child) === getProductVariantGroupKey(product.name, item),
+    )
     children.forEach((child: DetailItem) => assignedConversions.add(child.key))
     return { item, children }
   })
@@ -690,6 +633,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                       <th className="py-3 px-4 text-[11px]">CHI NHÁNH</th>
                       <th className="py-3 px-4 text-[11px] text-right">TỒN KHO</th>
                       <th className="py-3 px-4 text-[11px] text-right">CÓ THỂ BÁN</th>
+                      <th className="py-3 px-4 text-[11px] text-right">ĐANG GIAO DỊCH</th>
                       <th className="py-3 px-4 text-[11px] text-right">ĐANG VỀ</th>
                     </tr>
                   </thead>
@@ -706,13 +650,38 @@ export function ProductDetailView({ productId }: { productId: string }) {
                             <td className="py-3 px-4 font-semibold text-sm">{row.branch?.name || `Chi nhánh ${index + 1}`}</td>
                             <td className="py-3 px-4 text-right font-semibold text-error">{stock}</td>
                             <td className="py-3 px-4 text-right text-sm">{sellable}</td>
-                            <td className="py-3 px-4 text-right text-sm">{incoming}</td>
+                            <td className="py-3 px-4 text-right text-sm">
+                              {reservedStock > 0 ? (
+                                <Link
+                                  href={`/orders?productId=${productId}&status=PROCESSING`}
+                                  className="font-semibold text-amber-500 hover:underline"
+                                  title="Xem đơn hàng đang xử lý có chứa sản phẩm này"
+                                >
+                                  {reservedStock}
+                                </Link>
+                              ) : (
+                                <span className="text-foreground-muted">0</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right text-sm">
+                              {incoming > 0 ? (
+                                <Link
+                                  href={`/inventory/receipts?productId=${productId}`}
+                                  className="font-semibold text-sky-500 hover:underline"
+                                  title="Xem phiếu nhập đang chờ hàng về có chứa sản phẩm này"
+                                >
+                                  {incoming}
+                                </Link>
+                              ) : (
+                                <span className="text-foreground-muted">0</span>
+                              )}
+                            </td>
                           </tr>
                         )
                       })
                     ) : (
                       <tr>
-                        <td colSpan={4} className="py-8 text-center text-sm text-foreground-muted">
+                        <td colSpan={5} className="py-8 text-center text-sm text-foreground-muted">
                           Chưa có dữ liệu tồn kho cho mục đang chọn
                         </td>
                       </tr>

@@ -8,7 +8,13 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useCreateOrder } from './_hooks/use-pos-mutations';
 import { useBranches } from './_hooks/use-pos-queries';
 import type { CreateOrderPayload, OrderPaymentIntent } from '@/lib/api/order.api';
-import type { CartItem, PaymentEntry } from '@petshop/shared';
+import {
+  buildProductVariantName,
+  getProductVariantGroupKey,
+  getProductVariantOptionLabel,
+  type CartItem,
+  type PaymentEntry,
+} from '@petshop/shared';
 import { settingsApi } from '@/lib/api/settings.api';
 import { filterVisiblePaymentMethods, getPaymentMethodColorClasses } from '@/lib/payment-methods';
 import { HotelCheckoutModal } from './components/HotelCheckoutModal';
@@ -18,15 +24,16 @@ import { PosPaymentModal } from './components/PosPaymentModal';
 import { PosQrPaymentModal } from './components/PosQrPaymentModal';
 import { PosShiftClosingModal } from './components/PosShiftClosingModal';
 import { PosOrderBookingModal } from './components/PosOrderBookingModal';
+import { ReceiptModal } from './components/ReceiptModal';
+
 
 import { PosProductSearch } from './components/PosProductSearch';
 import { PosNotifications } from './components/PosNotifications';
 import { PosBranchSelect } from './components/PosBranchSelect';
-import { Menu, X, Plus, Minus, Trash2, Home, NotebookText, Info, FileText, Settings, UserCircle2, Bell, LogOut, Scissors, Package, ShoppingCart, Maximize, Store, QrCode, Zap, EyeOff, Eye, ListChecks, ChevronDown, Check } from 'lucide-react';
+import { Menu, X, Plus, Minus, Trash2, Home, NotebookText, Info, FileText, Settings, UserCircle2, Bell, LogOut, Scissors, Package, ShoppingCart, Maximize, Store, QrCode, Zap, EyeOff, Eye, ListChecks, ChevronDown, Check, Pencil } from 'lucide-react';
 import Link from 'next/link';
 
 import { Suspense } from 'react';
-import { useRouter } from 'next/navigation';
 import { orderApi } from '@/lib/api/order.api';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
 import { usePaymentIntentStream } from '@/hooks/use-payment-intent-stream';
@@ -236,15 +243,16 @@ function resolveCartItemStockState(item: any, branchId?: string) {
   let currentTrueVariant: any = null;
   if (currentVariantObj) {
     if (isCurrentConversion) {
-      currentTrueVariant = trueVariants.find((variant: any) => currentVariantObj.name.startsWith(variant.name + ' - '));
+      const currentGroupKey = getProductVariantGroupKey(item.description, currentVariantObj);
+      currentTrueVariant = trueVariants.find((variant: any) => getProductVariantGroupKey(item.description, variant) === currentGroupKey);
     } else {
       currentTrueVariant = currentVariantObj;
     }
   }
 
   const conversionVariants = currentTrueVariant
-    ? allConversionVariants.filter((variant: any) => variant.name.startsWith(currentTrueVariant.name + ' - '))
-    : allConversionVariants.filter((variant: any) => !trueVariants.some((trueVariant: any) => variant.name.startsWith(trueVariant.name + ' - ')));
+    ? allConversionVariants.filter((variant: any) => getProductVariantGroupKey(item.description, variant) === getProductVariantGroupKey(item.description, currentTrueVariant))
+    : allConversionVariants.filter((variant: any) => getProductVariantGroupKey(item.description, variant) === '__base__');
   const stockSource = currentTrueVariant ?? currentVariantObj ?? item;
   const sellableQty = getSellableQuantity(stockSource, branchId);
 
@@ -263,8 +271,8 @@ function resolveCartItemStockState(item: any, branchId?: string) {
 }
 
 function PosPageContent() {
-  const router = useRouter()
   const queryClient = useQueryClient();
+
   const [showHotelCheckout, setShowHotelCheckout] = useState(false);
   const [selectedHotelPetId, setSelectedHotelPetId] = useState<string | undefined>();
   const [noteEditingId, setNoteEditingId] = useState<string | null>(null);
@@ -273,6 +281,8 @@ function PosPageContent() {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showQrPaymentModal, setShowQrPaymentModal] = useState(false);
   const [showShiftClosingModal, setShowShiftClosingModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [tempRow, setTempRow] = useState<{ label: string; unit: string; qty: number; price: string } | null>(null);
   const [activeQrIntent, setActiveQrIntent] = useState<OrderPaymentIntent | null>(null);
   const [isQrIntentPending, setIsQrIntentPending] = useState(false);
   const [isPaymentMenuOpen, setIsPaymentMenuOpen] = useState(false);
@@ -392,7 +402,7 @@ function PosPageContent() {
     );
   }, [activeTab?.payments, paymentMethods, store.defaultPayment, visiblePaymentMethods]);
   const allowMultiPayment = Boolean(paymentOptions?.allowMultiPayment);
-  const tabPayments = activeTab?.payments ?? [];
+  const tabPayments = useMemo(() => activeTab?.payments ?? [], [activeTab?.payments]);
   const isMultiPaymentSummary = tabPayments.length > 1;
   const selectedSinglePayment = tabPayments.length === 1 ? tabPayments[0] : null;
   const currentSinglePaymentMethod =
@@ -490,7 +500,9 @@ function PosPageContent() {
         image: item.image,
         unit: item.unit ?? 'cái',
         variants: item.variants,
-        variantName: item.variantLabel,
+        variantName: buildProductVariantName(item.productName ?? item.name, item.variantLabel, item.unitLabel) || undefined,
+        variantLabel: item.variantLabel,
+        unitLabel: item.unitLabel,
         baseSku: item.sku,
         baseUnitPrice: unitPrice,
         stock: item.stock,
@@ -626,6 +638,8 @@ function PosPageContent() {
             chargeWeightBandId: ci.hotelDetails.chargeWeightBandId ?? undefined,
             chargeWeightBandLabel: ci.hotelDetails.chargeWeightBandLabel ?? undefined,
           } : undefined,
+          isTemp: (ci as any).isTemp || undefined,
+          tempLabel: (ci as any).tempLabel || undefined,
         })),
         payments: !activeTab.linkedOrderId && checkoutPayments ? checkoutPayments : undefined,
         discount: activeTab.discountTotal,
@@ -638,12 +652,10 @@ function PosPageContent() {
 
   const handleGenerateQrPayment = useCallback(
     async (overrideNote?: string) => {
-      if (!activeTab || !currentSinglePaymentMethod?.id) return;
-      if (isMultiPaymentSummary) {
-        toast.error('QR POS hiện chỉ áp dụng cho 1 phương thức BANK trên mỗi đơn.');
-        return;
-      }
-      if (!currentSinglePaymentMethod.qrEnabled) {
+      if (!currentSinglePaymentMethod?.qrEnabled && !tabPayments.some((p) => {
+        const m = visiblePaymentMethods.find((vm) => vm.id === p.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === p.paymentAccountId);
+        return m?.type === 'BANK' && m?.qrEnabled;
+      })) {
         toast.error('Tài khoản BANK này chưa bật VietQR.');
         return;
       }
@@ -674,8 +686,35 @@ function PosPageContent() {
           branchId: orderResult?.branchId || activeTab.branchId,
         });
 
+        // Determine which QR-enabled BANK method to use
+        const qrMethodId = currentSinglePaymentMethod?.qrEnabled
+          ? currentSinglePaymentMethod.id
+          : (() => {
+            const bankPayment = tabPayments.find((p) => {
+              const m = visiblePaymentMethods.find((vm) => vm.id === p.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === p.paymentAccountId);
+              return m?.type === 'BANK' && (m as any)?.qrEnabled;
+            });
+            return bankPayment?.paymentAccountId;
+          })();
+        if (!qrMethodId) throw new Error('Không tìm thấy tài khoản BANK QR');
+
+        // Lấy đúng số tiền BANK (khi multi-payment chỉ lấy phần BANK, không lấy tổng)
+        const bankPaymentAmount = (() => {
+          if (currentSinglePaymentMethod?.qrEnabled) {
+            // Single payment mode: dùng cartTotal
+            return cartTotal;
+          }
+          // Multi-payment mode: lấy amount từ payment entry BANK
+          const bankEntry = tabPayments.find((p) => {
+            const m = visiblePaymentMethods.find((vm) => vm.id === p.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === p.paymentAccountId);
+            return m?.type === 'BANK' && (m as any)?.qrEnabled;
+          });
+          return Number(bankEntry?.amount) || cartTotal;
+        })();
+
         const intent = await orderApi.createPaymentIntent(orderId, {
-          paymentMethodId: currentSinglePaymentMethod.id,
+          paymentMethodId: qrMethodId,
+          amount: bankPaymentAmount,
         });
 
         handledQrPaidCodeRef.current = null;
@@ -695,7 +734,9 @@ function PosPageContent() {
       cartTotal,
       createOrder,
       currentSinglePaymentMethod,
-      isMultiPaymentSummary,
+      paymentMethods,
+      tabPayments,
+      visiblePaymentMethods,
       store,
     ],
   );
@@ -775,6 +816,7 @@ function PosPageContent() {
       }
 
       const oversoldItems = activeTab.cart
+        .filter((item) => !(item as any).isTemp)
         .map((item) => ({
           item,
           ...resolveCartItemStockState(item, activeTab.branchId),
@@ -790,7 +832,20 @@ function PosPageContent() {
         return;
       }
 
+      // Nếu single BANK payment bật QR → sinh QR trước
       if (isQrBankPayment) {
+        await handleGenerateQrPayment(overrideNote);
+        return;
+      }
+
+      // Nếu multi-payment có BANK qrEnabled → sinh QR trước cho phần BANK
+      const multiQrBankPayment = paymentMethod !== 'UNPAID' && effectivePayments.length > 1
+        ? effectivePayments.find((p) => {
+          const m = visiblePaymentMethods.find((vm) => vm.id === p.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === p.paymentAccountId);
+          return m?.type === 'BANK' && (m as any)?.qrEnabled;
+        })
+        : null;
+      if (multiQrBankPayment) {
         await handleGenerateQrPayment(overrideNote);
         return;
       }
@@ -867,11 +922,8 @@ function PosPageContent() {
         paidAmount: orderResult?.paidAmount ?? orderResult?.amountPaid ?? payload.payments?.reduce((sum: number, payment: any) => sum + payment.amount, 0) ?? 0,
       });
       setCustomerMoneyInput('');
-
-      // Redirect to order detail page
-      if (orderResult?.id) {
-        router.push(`/orders/${orderResult.id}`)
-      }
+      store.resetActiveTab();
+      setShowReceiptModal(true);
     },
     [
       activeTab,
@@ -880,10 +932,11 @@ function PosPageContent() {
       createOrder,
       handleGenerateQrPayment,
       isQrBankPayment,
+      paymentMethods,
       preferredPaymentMethod,
-      router,
       store,
       hasServiceItems,
+      visiblePaymentMethods,
     ],
   );
 
@@ -1030,7 +1083,7 @@ function PosPageContent() {
                     `}
                   >
                     <span className="truncate flex-1 text-[13px] font-medium">{tab.title}</span>
-                    <Zap size={12} className={isActive ? "text-amber-500" : "text-white/50"} />
+
                     {store.tabs.length > 1 && (
                       <button
                         className={`p-0.5 ml-1 rounded-sm flex items-center justify-center
@@ -1168,13 +1221,13 @@ function PosPageContent() {
                         </button>
                       </div>
 
-                      <div className="flex items-center justify-center">
-                        <div className="w-10 h-10 rounded border border-gray-200 flex items-center justify-center bg-white text-gray-400 relative group/img cursor-pointer hover:z-50">
+                      <div className="flex items-center justify-center overflow-visible">
+                        <div className="w-10 h-10 rounded border border-gray-200 flex items-center justify-center bg-white text-gray-400 relative group/img cursor-pointer overflow-visible">
                           {item.image ? (
                             <>
                               <Image src={item.image} alt={item.description} width={40} height={40} unoptimized className="h-full w-full rounded object-cover" />
                               {/* Hover 5x image */}
-                              <div className="absolute top-1/2 left-full ml-2 w-[200px] h-[200px] -translate-y-1/2 shadow-2xl rounded-lg border-4 border-white overflow-hidden opacity-0 invisible group-hover/img:opacity-100 group-hover/img:visible pointer-events-none transition-all z-999 origin-left">
+                              <div className="absolute top-1/2 left-full ml-2 w-[200px] h-[200px] -translate-y-1/2 shadow-2xl rounded-lg border-4 border-white overflow-hidden opacity-0 invisible group-hover/img:opacity-100 group-hover/img:visible pointer-events-none transition-all z-200 origin-left">
                                 <Image src={item.image} alt={item.description} width={200} height={200} unoptimized className="h-full w-full object-cover" />
                               </div>
                             </>
@@ -1187,7 +1240,25 @@ function PosPageContent() {
                       <div className="flex flex-col pr-2 min-w-0">
                         <div className="font-semibold text-[15px] text-gray-800 flex items-center gap-2 min-w-0" title={item.description}>
                           <span className="truncate shrink">{item.description}</span>
-                          {trueVariants.length > 0 && trueVariants.some((v: any) => v.name !== item.description && v.name !== `${item.description} - Default`) && (
+                          {(item as any).isTemp && (
+                            <button
+                              className="shrink-0 text-gray-400 hover:text-amber-500 transition-colors"
+                              title="Sửa sản phẩm tạm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTempRow({
+                                  label: (item as any).tempLabel ?? item.description,
+                                  unit: item.unit || 'Cái',
+                                  qty: item.quantity ?? 1,
+                                  price: String(item.unitPrice ?? 0),
+                                });
+                                store.removeItem(item.id);
+                              }}
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          )}
+                          {trueVariants.length > 0 && trueVariants.some((variant: any) => Boolean(variant.variantLabel ?? variant.name)) && (
                             <div className="relative inline-flex items-center shrink-0 group cursor-pointer -ml-1">
                               <select
                                 className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-normal"
@@ -1196,10 +1267,13 @@ function PosPageContent() {
                                   const newTrueVariantId = e.target.value;
                                   let targetVariantId = newTrueVariantId;
                                   if (isCurrentConversion && currentTrueVariant && currentVariantObj) {
-                                    const suffix = currentVariantObj.name.substring(currentTrueVariant.name.length);
+                                    const selectedUnitLabel = currentVariantObj.unitLabel ?? getProductVariantOptionLabel(item.description, currentVariantObj);
                                     const newTrueVariant = trueVariants.find((v: any) => v.id === newTrueVariantId);
                                     if (newTrueVariant && allConversionVariants) {
-                                      const matchingConv = allConversionVariants.find((c: any) => c.name === newTrueVariant.name + suffix);
+                                      const matchingConv = allConversionVariants.find((variant: any) =>
+                                        getProductVariantGroupKey(item.description, variant) === getProductVariantGroupKey(item.description, newTrueVariant)
+                                        && (variant.unitLabel ?? getProductVariantOptionLabel(item.description, variant)) === selectedUnitLabel,
+                                      );
                                       if (matchingConv) {
                                         targetVariantId = matchingConv.id;
                                       }
@@ -1209,8 +1283,8 @@ function PosPageContent() {
                                 }}
                               >
                                 <option value="base" className="hidden">Phiên bản</option>
-                                {trueVariants.map((v: any) => (
-                                  <option key={v.id} value={v.id}>{v.name.split(' - ').pop() || v.name}</option>
+                                {trueVariants.map((variant: any) => (
+                                  <option key={variant.id} value={variant.id}>{variant.variantLabel ?? getProductVariantOptionLabel(item.description, variant)}</option>
                                 ))}
                               </select>
                               <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 group-hover:text-primary-600 pointer-events-none transition-colors" size={14} />
@@ -1218,7 +1292,7 @@ function PosPageContent() {
                           )}
 
                           {/* Stock Popover */}
-                          <div className="group/stock relative shrink-0 z-60 flex">
+                          <div className={`group/stock relative shrink-0 z-60 flex${(item as any).isTemp ? ' hidden' : ''}`}>
                             <Info size={16} className="text-gray-300 opacity-0 group-hover:opacity-100 group-hover/stock:text-[#0089A1] cursor-help transition-all" />
                             <div className="absolute top-full left-1/2 -translate-x-[40%] mt-2 w-[340px] opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible group-hover/stock:pointer-events-auto transition-all duration-200 p-0 pointer-events-none before:absolute before:-top-4 before:left-0 before:w-full before:h-4 z-100">
                               <div className="bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden w-full h-full">
@@ -1364,8 +1438,8 @@ function PosPageContent() {
                               }}
                             >
                               <option value="base">{item.unit || 'cái'}</option>
-                              {conversionVariants.map((v: any) => (
-                                <option key={v.id} value={v.id}>{v.name.split(' - ').pop() || v.name}</option>
+                              {conversionVariants.map((variant: any) => (
+                                <option key={variant.id} value={variant.id}>{variant.unitLabel ?? getProductVariantOptionLabel(item.description, variant)}</option>
                               ))}
                             </select>
                             <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 group-hover:opacity-100" size={14} />
@@ -1379,8 +1453,8 @@ function PosPageContent() {
 
                       <div className="flex items-center justify-center">
                         <div
-                          className={`flex items-center rounded overflow-hidden h-8 transition-colors ${item.type === 'hotel'
-                            ? 'border-gray-200 bg-gray-50'
+                          className={`flex items-center rounded h-8 transition-colors ${item.type === 'hotel'
+                            ? 'border border-gray-200 bg-gray-50'
                             : isOverSellableQty
                               ? 'border border-red-500 bg-red-50'
                               : 'border border-gray-300 bg-white focus-within:border-primary-500'
@@ -1397,14 +1471,22 @@ function PosPageContent() {
                           <input
                             id={`quantity-input-${item.id}`}
                             type="text"
-                            readOnly
+                            inputMode="numeric"
                             disabled={item.type === 'hotel'}
                             value={item.quantity ?? 1}
                             onChange={(e) => {
                               const v = parseCartQuantityInput(e.target.value);
-                              store.updateQuantity(item.id, Number.isNaN(v) ? getCartQuantityStep(item) : v);
+                              if (!Number.isNaN(v)) {
+                                store.updateQuantity(item.id, v);
+                              }
                             }}
-                            className={`w-10 text-center font-bold text-[15px] outline-none border-none h-full cursor-default ${item.type === 'hotel' ? 'bg-gray-50 text-gray-500' : isOverSellableQty ? 'bg-red-50 text-red-600' : 'bg-transparent text-gray-900'
+                            onBlur={(e) => {
+                              const v = parseCartQuantityInput(e.target.value);
+                              if (Number.isNaN(v) || v <= 0) {
+                                store.updateQuantity(item.id, getCartQuantityStep(item));
+                              }
+                            }}
+                            className={`w-10 text-center font-bold text-[15px] outline-none border-none h-full ${item.type === 'hotel' ? 'bg-gray-50 text-gray-500 cursor-default' : isOverSellableQty ? 'bg-red-50 text-red-600 cursor-text' : 'bg-transparent text-gray-900 cursor-text'
                               }`}
                           />
                           <button
@@ -1513,7 +1595,7 @@ function PosPageContent() {
                       <div className="flex-1 flex flex-col pr-8">
                         <div className="font-semibold text-[15px] text-gray-800 leading-tight mb-1 flex items-center gap-2 flex-wrap" title={item.description}>
                           <span>{item.description}</span>
-                          {trueVariants.length > 0 && trueVariants.some((v: any) => v.name !== item.description && v.name !== `${item.description} - Default`) && (
+                          {trueVariants.length > 0 && trueVariants.some((variant: any) => Boolean(variant.variantLabel ?? variant.name)) && (
                             <div className="relative inline-flex items-center shrink-0 group cursor-pointer -ml-1">
                               <select
                                 className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-normal"
@@ -1522,10 +1604,13 @@ function PosPageContent() {
                                   const newTrueVariantId = e.target.value;
                                   let targetVariantId = newTrueVariantId;
                                   if (isCurrentConversion && currentTrueVariant && currentVariantObj) {
-                                    const suffix = currentVariantObj.name.substring(currentTrueVariant.name.length);
+                                    const selectedUnitLabel = currentVariantObj.unitLabel ?? getProductVariantOptionLabel(item.description, currentVariantObj);
                                     const newTrueVariant = trueVariants.find((v: any) => v.id === newTrueVariantId);
                                     if (newTrueVariant && allConversionVariants) {
-                                      const matchingConv = allConversionVariants.find((c: any) => c.name === newTrueVariant.name + suffix);
+                                      const matchingConv = allConversionVariants.find((variant: any) =>
+                                        getProductVariantGroupKey(item.description, variant) === getProductVariantGroupKey(item.description, newTrueVariant)
+                                        && (variant.unitLabel ?? getProductVariantOptionLabel(item.description, variant)) === selectedUnitLabel,
+                                      );
                                       if (matchingConv) {
                                         targetVariantId = matchingConv.id;
                                       }
@@ -1535,8 +1620,8 @@ function PosPageContent() {
                                 }}
                               >
                                 <option value="base" className="hidden">Phiên bản</option>
-                                {trueVariants.map((v: any) => (
-                                  <option key={v.id} value={v.id}>{v.name.split(' - ').pop() || v.name}</option>
+                                {trueVariants.map((variant: any) => (
+                                  <option key={variant.id} value={variant.id}>{variant.variantLabel ?? getProductVariantOptionLabel(item.description, variant)}</option>
                                 ))}
                               </select>
                               <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 group-hover:text-primary-600 pointer-events-none transition-colors" size={14} />
@@ -1560,8 +1645,8 @@ function PosPageContent() {
                                 }}
                               >
                                 <option value="base">{item.unit || 'cái'}</option>
-                                {conversionVariants.map((v: any) => (
-                                  <option key={v.id} value={v.id}>{v.name.split(' - ').pop() || v.name}</option>
+                                {conversionVariants.map((variant: any) => (
+                                  <option key={variant.id} value={variant.id}>{variant.unitLabel ?? getProductVariantOptionLabel(item.description, variant)}</option>
                                 ))}
                               </select>
                               <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" size={14} />
@@ -1698,6 +1783,102 @@ function PosPageContent() {
                 );
               })
             )}
+
+            {/* Inline temp product row — spreadsheet style */}
+            {tempRow !== null && (() => {
+              const commitTemp = () => {
+                if (!tempRow.label.trim()) { setTempRow(null); return; }
+                const unitPrice = Number(tempRow.price) || 0;
+                store.addItem({
+                  id: `temp-${Date.now()}`,
+                  name: tempRow.label.trim(),
+                  description: tempRow.label.trim(),
+                  variantName: '',
+                  variantLabel: '',
+                  unitLabel: '',
+                  sku: '',
+                  unit: tempRow.unit || 'Cái',
+                  price: unitPrice,
+                  unitPrice,
+                  quantity: tempRow.qty,
+                  discountItem: 0,
+                  vatRate: 0,
+                  type: 'product',
+                  image: '',
+                  isTemp: true,
+                  tempLabel: tempRow.label.trim(),
+                } as any);
+                setTempRow(null);
+              };
+              return (
+                <div
+                  className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-2 border-b border-dashed border-gray-200 bg-gray-50/80"
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) commitTemp();
+                  }}
+                >
+                  <div />
+                  <div />
+                  <div />
+                  {/* Tên sản phẩm */}
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Tên sản phẩm.."
+                    value={tempRow.label}
+                    onChange={(e) => setTempRow({ ...tempRow, label: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') { e.preventDefault(); setTempRow(null); }
+                      if (e.key === 'Enter') commitTemp();
+                    }}
+                    className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-sm outline-none focus:border-primary-400 placeholder:text-gray-300"
+                  />
+                  {/* \u0110\u01a1n v\u1ecb */}
+                  <input
+                    data-field="unit"
+                    type="text"
+                    placeholder="Cái"
+                    value={tempRow.unit ?? ''}
+                    onChange={(e) => setTempRow({ ...tempRow, unit: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') { e.preventDefault(); setTempRow(null); }
+                      if (e.key === 'Enter') commitTemp();
+                    }}
+                    className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-center text-sm outline-none focus:border-primary-400 placeholder:text-gray-300"
+                  />
+                  {/* S\u1ed1 l\u01b0\u1ee3ng */}
+                  <input
+                    data-field="qty"
+                    type="number"
+                    min={1}
+                    value={tempRow.qty}
+                    onChange={(e) => setTempRow({ ...tempRow, qty: Math.max(1, Number(e.target.value)) })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') { e.preventDefault(); setTempRow(null); }
+                      if (e.key === 'Enter') commitTemp();
+                    }}
+                    className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-center text-sm outline-none focus:border-primary-400"
+                  />
+                  {/* Đơn giá */}
+                  <div className="relative">
+                    <input
+                      data-field="price"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0"
+                      value={tempRow.price}
+                      onChange={(e) => setTempRow({ ...tempRow, price: e.target.value.replace(/\D/g, '') })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') { e.preventDefault(); setTempRow(null); }
+                        if (e.key === 'Enter') commitTemp();
+                      }}
+                      className="w-full rounded border border-gray-200 bg-white px-2 py-1 pr-4 text-right text-sm outline-none focus:border-primary-400 placeholder:text-gray-300"
+                    />
+                  </div>
+                  <div />
+                </div>
+              );
+            })()}
           </div>
 
           {/* Bottom Toolbar & Notes */}
@@ -1711,20 +1892,23 @@ function PosPageContent() {
                 }}
               >Xoá tất cả</button>
               <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">Khuyến mại</button>
-              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">Đổi trả hàng</button>
-              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">Xem đơn hàng</button>
-              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">In phiếu</button>
+              <button
+                className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors"
+                onClick={() => {
+                  const staffId = useAuthStore.getState().user?.id;
+                  const url = staffId ? `/orders?staff=${staffId}` : '/orders';
+                  window.open(url, '_blank');
+                }}
+              >Xem đơn hàng</button>
 
               <div className="flex-1"></div>
 
               <button
-                onClick={() => setShowHotelCheckout(true)}
                 className="px-4 py-1.5 text-sm bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100 transition-colors font-medium"
+                onClick={() => {
+                  if (!tempRow) setTempRow({ label: '', unit: 'Cái', qty: 1, price: '' });
+                }}
               >
-                + Trả chuồng (Hotel)
-              </button>
-
-              <button className="px-4 py-1.5 text-sm bg-primary-50 border border-primary-200 text-primary-700 rounded hover:bg-primary-100 transition-colors font-medium">
                 + Sản phẩm tạm
               </button>
             </div>
@@ -1838,6 +2022,31 @@ function PosPageContent() {
                     <div className={`text-[11px] sm:text-xs font-semibold ${multiPaymentTotal >= cartTotal ? 'text-emerald-600' : 'text-rose-500'}`}>
                       {multiPaymentTotal >= cartTotal ? 'Đã đủ thanh toán' : `Còn thiếu ${moneyRaw(cartTotal - multiPaymentTotal)}`}
                     </div>
+                    {(() => {
+                      const bankQrPayment = tabPayments.find((p) => {
+                        const m = visiblePaymentMethods.find((vm) => vm.id === p.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === p.paymentAccountId);
+                        return m?.type === 'BANK' && (m as any)?.qrEnabled;
+                      });
+                      const bankQrMethod = bankQrPayment ? (visiblePaymentMethods.find((vm) => vm.id === bankQrPayment.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === bankQrPayment.paymentAccountId)) : null;
+                      if (!bankQrMethod) return null;
+                      return (
+                        <button
+                          type="button"
+                          disabled={isQrIntentPending}
+                          onClick={() => {
+                            if (activeQrIntent) {
+                              setShowQrPaymentModal(true);
+                            } else {
+                              void handleGenerateQrPayment();
+                            }
+                          }}
+                          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-semibold text-sky-600 transition-colors hover:bg-sky-100 disabled:opacity-60"
+                        >
+                          <QrCode size={15} />
+                          {isQrIntentPending ? 'Đang tạo QR...' : activeQrIntent ? 'Xem lại mã QR' : `Tạo QR - ${bankQrMethod.name}`}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               ) : (
@@ -1930,11 +2139,31 @@ function PosPageContent() {
                       ))}
                     </div>
                   ) : currentSinglePaymentMethod?.type === 'BANK' && currentSinglePaymentMethod?.accountNumber ? (
-                    <div className="truncate rounded-xl bg-gray-50 px-3 py-2 text-[13.5px] text-gray-600 font-medium tracking-tight">
-                      {currentSinglePaymentMethod.bankName} • {currentSinglePaymentMethod.accountNumber}
-                      {currentSinglePaymentMethod.accountHolder && ` • ${currentSinglePaymentMethod.accountHolder}`}
+                    <div className="space-y-2">
+                      <div className="truncate rounded-xl bg-gray-50 px-3 py-2 text-[13.5px] text-gray-600 font-medium tracking-tight">
+                        {currentSinglePaymentMethod.bankName} • {currentSinglePaymentMethod.accountNumber}
+                        {currentSinglePaymentMethod.accountHolder && ` • ${currentSinglePaymentMethod.accountHolder}`}
+                      </div>
+                      {currentSinglePaymentMethod?.qrEnabled && (
+                        <button
+                          type="button"
+                          disabled={isQrIntentPending}
+                          onClick={() => {
+                            if (activeQrIntent) {
+                              setShowQrPaymentModal(true);
+                            } else {
+                              void handleGenerateQrPayment();
+                            }
+                          }}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-semibold text-sky-600 transition-colors hover:bg-sky-100 disabled:opacity-60"
+                        >
+                          <QrCode size={15} />
+                          {isQrIntentPending ? 'Đang tạo QR...' : activeQrIntent ? 'Xem lại mã QR' : 'Tạo mã QR chuyển khoản'}
+                        </button>
+                      )}
                     </div>
                   ) : null}
+
                 </div>
               )}
             </div>
@@ -2010,7 +2239,12 @@ function PosPageContent() {
         }}
       />
 
-      {/* ReceiptModal removed: checkout now redirects to /orders/:id */}
+      <ReceiptModal
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        orderData={store.receiptData}
+      />
+
 
       <PosPaymentModal
         isOpen={showPaymentModal}

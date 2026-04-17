@@ -3,7 +3,7 @@ import Image from 'next/image';
 
 import type { KeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { Minus, Package2, Percent, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, Minus, Package2, Percent, Plus, Trash2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { getCartQuantityStep } from './order.utils'
 import { OrderStockPopover } from './order-stock-popover'
@@ -19,6 +19,7 @@ interface OrderItemsTableProps {
   onChangeQuantity: (index: number, value: string) => void
   onChangeItemDiscount: (index: number, value: string) => void
   onRemoveItem: (index: number) => void
+  onSwapItem?: (item: any) => void
 }
 
 function getItemCode(item: any) {
@@ -50,6 +51,7 @@ export function OrderItemsTable({
   onChangeQuantity,
   onChangeItemDiscount,
   onRemoveItem,
+  onSwapItem,
 }: OrderItemsTableProps) {
   const [editingDiscountIndex, setEditingDiscountIndex] = useState<number | null>(null)
   const [discountModes, setDiscountModes] = useState<Record<number, DiscountMode>>({})
@@ -229,9 +231,26 @@ export function OrderItemsTable({
                     <div className="truncate text-sm font-semibold text-foreground" title={item.description}>
                       {item.description}
                     </div>
+                    {item.isTemp && (
+                      <span className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 border border-amber-100">
+                        TẠM
+                      </span>
+                    )}
+                    {item.isTemp && onSwapItem && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onSwapItem(item) }}
+                        title="Đổi sang sản phẩm thật"
+                        className="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-md bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors border border-primary-200"
+                      >
+                        <ArrowLeftRight size={11} />
+                      </button>
+                    )}
                     <OrderStockPopover item={item} />
                   </div>
-                  <div className="mt-1 truncate text-xs text-foreground-muted">{getItemMeta(item) || '-'}</div>
+                  <div className="mt-1 flex items-center gap-2 truncate text-xs text-foreground-muted">
+                    <span>{getItemMeta(item) || '-'}</span>
+                  </div>
                 </div>
 
                 <div className="text-center text-sm text-foreground-muted">{item.unit || '-'}</div>
@@ -255,7 +274,7 @@ export function OrderItemsTable({
                       onFocus={() => onSelectRow(index)}
                       onChange={(event) => onChangeQuantity(index, event.target.value)}
                       onKeyDown={(event) => handleRowKeyDown(event, index, item)}
-                      className="h-full w-full border-x border-border bg-transparent px-2 text-center text-sm font-semibold text-foreground outline-none disabled:cursor-not-allowed disabled:text-foreground-muted"
+                      className="h-full w-full border-x border-border bg-transparent px-2 text-center text-sm font-semibold text-foreground outline-none disabled:cursor-not-allowed disabled:text-foreground-muted [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
                     <button
                       type="button"

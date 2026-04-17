@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -13,7 +14,6 @@ import {
   UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
-  FileTypeValidator,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { diskStorage } from 'multer'
@@ -36,6 +36,27 @@ import { SyncAttributeDto } from './dto/sync-attribute.dto.js'
 
 interface AuthenticatedRequest extends Request {
   user?: JwtPayload
+}
+
+const MAX_IMAGE_UPLOAD_SIZE = 5 * 1024 * 1024
+const ALLOWED_PET_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+])
+
+const imageUploadFileFilter = (
+  _req: Request,
+  file: Express.Multer.File,
+  cb: (error: Error | null, acceptFile: boolean) => void,
+) => {
+  if (ALLOWED_PET_IMAGE_MIME_TYPES.has(file.mimetype)) {
+    cb(null, true)
+    return
+  }
+
+  cb(new BadRequestException(`Định dạng ảnh không hợp lệ: ${file.mimetype}`), false)
 }
 
 @Controller('pets')
@@ -103,6 +124,8 @@ export class PetController {
           cb(null, `${uniqueSuffix}${ext}`)
         },
       }),
+      fileFilter: imageUploadFileFilter,
+      limits: { fileSize: MAX_IMAGE_UPLOAD_SIZE },
     }),
   )
   uploadAvatar(
@@ -111,8 +134,7 @@ export class PetController {
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB limit
-          new FileTypeValidator({ fileType: /^(image\/png|image\/jpeg|image\/jpg|image\/webp)$/ }),
+          new MaxFileSizeValidator({ maxSize: MAX_IMAGE_UPLOAD_SIZE }),
         ],
       }),
     )
@@ -140,6 +162,8 @@ export class PetController {
           cb(null, `${uniqueSuffix}${ext}`)
         },
       }),
+      fileFilter: imageUploadFileFilter,
+      limits: { fileSize: MAX_IMAGE_UPLOAD_SIZE },
     }),
   )
   uploadVaccinePhoto(
@@ -147,8 +171,7 @@ export class PetController {
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: /^(image\/png|image\/jpeg|image\/jpg|image\/webp)$/ }),
+          new MaxFileSizeValidator({ maxSize: MAX_IMAGE_UPLOAD_SIZE }),
         ],
       }),
     )

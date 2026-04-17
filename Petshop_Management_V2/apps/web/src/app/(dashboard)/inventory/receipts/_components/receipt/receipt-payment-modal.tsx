@@ -10,12 +10,19 @@ export function ReceiptPaymentModal({
   isOpen,
   form,
   debtAmount,
+  supplierDebtAmount,
+  orderAmount,
   isPending,
   onClose,
   onChange,
   onConfirm,
 }: ReceiptPaymentModalProps) {
   if (!isOpen) return null
+
+  const suggestions = [
+    { label: 'Tổng công nợ', value: supplierDebtAmount },
+    { label: 'Số tiền đơn hàng', value: orderAmount },
+  ].filter((item) => item.value > 0)
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
@@ -44,6 +51,23 @@ export function ReceiptPaymentModal({
         </div>
 
         <div className="space-y-5 px-6 py-5">
+          <div className="grid gap-3 md:grid-cols-2">
+            {suggestions.map((suggestion) => (
+              <button
+                key={suggestion.label}
+                type="button"
+                onClick={() => onChange('amount', suggestion.value)}
+                disabled={isPending}
+                className="rounded-2xl border border-border bg-background-secondary px-4 py-3 text-left transition-colors hover:border-primary-500/40 hover:bg-primary-500/8 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="block text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                  {suggestion.label}
+                </span>
+                <span className="mt-1 block text-lg font-bold text-foreground">{fmt(suggestion.value)} đ</span>
+              </button>
+            ))}
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">

@@ -57,6 +57,7 @@ export function ReceiptHeader({ form }: ReceiptHeaderProps) {
     allowedBranches,
     applyLatestSupplierPricesToItems,
     currentDebt,
+    currentSupplierDebt,
     supplierPanelRef,
     user,
     visibleProgressSteps,
@@ -450,6 +451,11 @@ export function ReceiptHeader({ form }: ReceiptHeaderProps) {
               <div className="text-xs text-foreground-muted">
                 {displaySupplier?.phone || 'Chưa chọn'}
               </div>
+              {displaySupplier ? (
+                <div className={`mt-0.5 text-xs font-semibold ${currentSupplierDebt > 0 ? 'text-error' : 'text-success'}`}>
+                  {currentSupplierDebt > 0 ? `Nợ NCC: ${fmt(currentSupplierDebt)}` : 'Không còn nợ NCC'}
+                </div>
+              ) : null}
             </div>
           </div>
 

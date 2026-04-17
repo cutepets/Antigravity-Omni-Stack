@@ -1,4 +1,4 @@
-import type { CartItem } from '@petshop/shared'
+import { buildProductVariantName, type CartItem } from '@petshop/shared'
 import type { CreateOrderPayload, UpdateOrderPayload } from '@/lib/api/order.api'
 import {
   ORDER_STATUS_BADGE,
@@ -68,12 +68,14 @@ export function createEmptyDraft(branchId?: string): OrderDraft {
 }
 
 export function buildProductCartItem(product: any): CartItem {
+  const variantName = buildProductVariantName(product.productName ?? product.name, product.variantLabel, product.unitLabel)
   return {
     id: buildCartLineId('product', product.productId ?? product.id, product.productVariantId ?? 'base'),
     productId: product.productId ?? product.id,
     productVariantId: product.productVariantId,
     description: product.productName ?? product.name,
     sku: product.sku,
+    barcode: product.barcode,
     quantity: 1,
     unitPrice: Number(product.sellingPrice ?? product.price ?? 0),
     discountItem: 0,
@@ -81,8 +83,16 @@ export function buildProductCartItem(product: any): CartItem {
     type: 'product',
     unit: product.unit ?? 'cai',
     image: product.image,
-    variantName: product.variantLabel ?? undefined,
+    variantName: variantName || undefined,
+    variantLabel: product.variantLabel ?? undefined,
+    unitLabel: product.unitLabel ?? undefined,
     variants: product.variants ?? [],
+    // Stock fields cho StockBranchPopover
+    stock: product.stock,
+    availableStock: product.availableStock,
+    trading: product.trading,
+    reserved: product.reserved,
+    branchStocks: product.branchStocks,
   }
 }
 
@@ -209,6 +219,16 @@ export function buildDraftFromOrder(order: any): OrderDraft {
       unit: item.unit || 'cai',
       quantity: Number(item.quantity) || 1,
       variantName: item.variantName ?? undefined,
+      // Stock fields cho StockBranchPopover
+      branchStocks: item.product?.branchStocks ?? item.branchStocks ?? undefined,
+      variants: item.product?.variants ?? item.variants ?? undefined,
+      stock: item.product?.stock ?? item.stock ?? undefined,
+      totalStock: item.product?.totalStock ?? item.totalStock ?? item.product?.stock ?? item.stock ?? undefined,
+      availableStock: item.product?.availableStock ?? item.availableStock ?? undefined,
+      trading: item.product?.trading ?? item.trading ?? undefined,
+      isTemp: item.isTemp === true || (item.type === 'product' && !item.productId && !item.productVariantId),
+      tempLabel: item.tempLabel ?? undefined,
+
       hotelDetails: item.hotelDetails
         ? {
           petId: item.hotelDetails.petId,
@@ -265,6 +285,8 @@ export function buildOrderPayload(draft: OrderDraft): CreateOrderPayload | Updat
       discountItem: Number(item.discountItem) || 0,
       vatRate: Number(item.vatRate) || 0,
       type: item.type,
+      isTemp: (item as any).isTemp ?? false,
+      tempLabel: (item as any).tempLabel ?? undefined,
       groomingDetails: item.groomingDetails
         ? {
           petId: item.groomingDetails.petId,
@@ -309,9 +331,14 @@ export function isOrderReadonly(status?: string) {
   return ['COMPLETED', 'CANCELLED'].includes(status ?? '')
 }
 
-export function canApproveCurrentOrder(order: any, canApproveOrder: boolean) {
-  return Boolean(canApproveOrder && order?.status === 'PENDING')
+export function canCancelCurrentOrder(order: any, hasCancelPermission: boolean) {
+  if (!order || !hasCancelPermission) return false
+  if (['CANCELLED', 'COMPLETED', 'FULLY_REFUNDED', 'PARTIALLY_REFUNDED'].includes(order.status)) return false
+  if (order.stockExportedAt) return false
+  if (['PAID', 'PARTIAL', 'COMPLETED'].includes(order.paymentStatus) || order.paidAmount > 0) return false
+  return true
 }
+
 
 export function canExportCurrentOrder(order: any, canExportStock: boolean) {
   return Boolean(
@@ -337,4 +364,8 @@ export function canSettleCurrentOrder(
 
 export function canPayCurrentOrder(order: any, canPayOrder: boolean) {
   return Boolean(canPayOrder && !['PAID', 'COMPLETED'].includes(order?.paymentStatus ?? ''))
+}
+
+export function canRefundCurrentOrder(order: any, canRefundOrder: boolean) {
+  return Boolean(canRefundOrder && ['COMPLETED', 'PARTIALLY_REFUNDED'].includes(order?.status ?? ''))
 }

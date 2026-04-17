@@ -60,9 +60,10 @@ interface OrderTopBarProps {
   onSelectCustomer: (customer: any) => void
   onClearCustomer: () => void
   onOpenPay: () => void
-  onOpenApprove: () => void
+
   onOpenExportStock: () => void
   onOpenSettle: () => void
+  onOpenRefund: () => void
   onCancelOrder: () => void
   onOpenPos: () => void
 }
@@ -114,9 +115,10 @@ export function OrderTopBar({
   onSelectCustomer,
   onClearCustomer,
   onOpenPay,
-  onOpenApprove,
+
   onOpenExportStock,
   onOpenSettle,
+  onOpenRefund,
   onCancelOrder,
   onOpenPos,
 }: OrderTopBarProps) {
@@ -336,7 +338,7 @@ export function OrderTopBar({
         </div>
 
         <div className="flex flex-col items-end justify-center gap-2 px-5 py-4">
-          {isEditing ? (
+          {mode === 'create' ? (
             <button
               type="button"
               onClick={onSave}
@@ -344,25 +346,7 @@ export function OrderTopBar({
               className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               {pendingAction ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {mode === 'create' ? 'Tạo đơn hàng' : 'Lưu cập nhật'}
-            </button>
-          ) : mode === 'detail' && canEdit && !isEditing ? (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="btn-outline h-9 px-4 hover:border-primary-500/40 hover:text-primary-500"
-            >
-              <PencilLine size={14} />
-              Chỉnh sửa
-            </button>
-          ) : mode === 'detail' && isEditing ? (
-            <button
-              type="button"
-              onClick={onCancelEdit}
-              className="btn-outline h-9 px-4 text-foreground-muted hover:bg-background-tertiary"
-            >
-              <XCircle size={14} />
-              Hủy sửa
+              Tạo đơn hàng
             </button>
           ) : null}
 
@@ -378,16 +362,6 @@ export function OrderTopBar({
               </button>
             ) : null}
 
-            {actionFlags.canApproveCurrentOrder ? (
-              <button
-                type="button"
-                onClick={onOpenApprove}
-                className="btn-primary h-9 px-4 shadow-sm"
-              >
-                <CheckSquare size={14} />
-                Duyệt đơn
-              </button>
-            ) : null}
 
             {actionFlags.canExportCurrentOrder ? (
               <button
@@ -411,12 +385,23 @@ export function OrderTopBar({
               </button>
             ) : null}
 
+            {actionFlags.canRefundCurrentOrder ? (
+              <button
+                type="button"
+                onClick={onOpenRefund}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-amber-500/35 bg-amber-500/12 px-4 text-sm font-semibold text-amber-300 shadow-[0_10px_24px_rgba(245,158,11,0.12)] transition-colors hover:border-amber-400/55 hover:bg-amber-500/20"
+              >
+                <TriangleAlert size={14} />
+                Hoàn tiền
+              </button>
+            ) : null}
+
             {actionFlags.canCancelOrder ? (
               <button
                 type="button"
                 onClick={onCancelOrder}
                 disabled={pendingAction}
-                className="btn-outline border-error/30 text-error hover:bg-error/10 h-9 px-4 disabled:opacity-60"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-500/35 bg-rose-500/12 px-4 text-sm font-semibold text-rose-300 shadow-[0_10px_24px_rgba(244,63,94,0.12)] transition-colors hover:border-rose-400/55 hover:bg-rose-500/20 disabled:opacity-60"
               >
                 <XCircle size={14} />
                 Hủy đơn

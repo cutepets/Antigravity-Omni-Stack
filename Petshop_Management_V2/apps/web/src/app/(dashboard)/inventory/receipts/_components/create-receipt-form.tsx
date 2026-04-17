@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 import Image from 'next/image';
 
 
@@ -13,6 +14,7 @@ import {
   Copy,
   FileDown,
   FileSpreadsheet,
+  MessageSquare,
   Minus,
   Phone,
   Package2,
@@ -112,7 +114,7 @@ export function CreateReceiptForm({
     selectedSupplier, displaySupplier, currentBranch,
     totalQuantity, merchandiseTotal, discountAmount, taxAmount,
     extraCostTotal, grandTotal, normalizedExtraCosts,
-    hasPendingReceiptChanges, currentDebt,
+    hasPendingReceiptChanges, currentDebt, currentSupplierDebt,
     currentReceiptPaidAmount, currentReceiptTotalAmount,
     latestPaymentAt, latestReceiveAt, paymentAllocationCount,
     returnableReceiptItems,
@@ -132,6 +134,8 @@ export function CreateReceiptForm({
     saveMutation, payMutation, receiveMutation, cancelMutation,
     returnMutation, createSupplierMutation,
   } = useReceiptForm({ mode, receiptId })
+
+  const [discountEditingReceiptId, setDiscountEditingReceiptId] = useState<string | null>(null)
 
   if (isAuthLoading || (isExistingReceipt && isReceiptLoading)) {
     return (
@@ -186,7 +190,7 @@ export function CreateReceiptForm({
     )
   }
 
-  const cols = '36px 36px 52px 96px 1fr 64px 80px 112px 112px 88px 108px'
+  const cols = '36px 36px 52px 96px minmax(220px,1fr) 64px 80px 104px 104px 120px 136px'
 
   // ── Print / Export handlers ───────────────────────────────────────────────────
   const handleDuplicateReceipt = () => {
@@ -378,7 +382,9 @@ export function CreateReceiptForm({
       <ReceiptPaymentModal
         isOpen={showPaymentModal}
         form={paymentForm}
-        debtAmount={currentDebt}
+        debtAmount={currentSupplierDebt}
+        supplierDebtAmount={currentSupplierDebt}
+        orderAmount={currentDebt}
         isPending={payMutation.isPending}
         onClose={() => {
           if (payMutation.isPending) return
@@ -556,9 +562,9 @@ export function CreateReceiptForm({
                 <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground-muted">
                   {displaySupplier?.code || 'Mã NCC: Tự động'}
                 </span>
-                {currentDebt > 0 ? (
+                {currentSupplierDebt > 0 ? (
                   <span className="rounded-full border border-error/20 bg-error/10 px-3 py-1 text-xs font-semibold text-error">
-                    Nợ NCC: {fmt(currentDebt)}
+                    Nợ NCC: {fmt(currentSupplierDebt)}
                   </span>
                 ) : null}
               </div>
@@ -721,365 +727,511 @@ export function CreateReceiptForm({
 
       {/* ── SEARCH BAR + MAIN BODY IN ONE BLOCK ───────────────────────────── */}
       <div className="m-4 mt-2 mb-4 flex flex-1 flex-col overflow-hidden rounded-[26px] border border-border bg-background-secondary/35 shadow-sm">
-      
+
         {/* ─── TOP BAR ─────────────────────────────────────────────────────────── */}
         <div className="flex shrink-0 items-center gap-3 border-b border-border/60 bg-background/50 px-4 py-2.5">
-        {/* Search bar */}
-        <div ref={searchPanelRef} className="relative max-w-lg flex-1">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none"
-          />
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="Tìm hàng hóa theo tên, mã, barcode (F3)"
-            className="h-9 w-full rounded-lg border border-border bg-background-secondary pl-9 pr-9 text-sm text-foreground placeholder:text-foreground-muted outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-            onFocus={() => {
-              if (productResults.length > 0) setIsSuggestionOpen(true)
-            }}
-            disabled={manualSearching || isReadOnly}
-          />
-          {manualSearching || isSearchingSuggestions ? (
-            <div className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
-          ) : (
-            <ScanSearch
-              size={13}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none"
+          {/* Search bar */}
+          <div ref={searchPanelRef} className="relative max-w-lg flex-1">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none"
             />
-          )}
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Tìm hàng hóa theo tên, mã, barcode (F3)"
+              className="h-9 w-full rounded-lg border border-border bg-background-secondary pl-9 pr-9 text-sm text-foreground placeholder:text-foreground-muted outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              onFocus={() => {
+                if (productResults.length > 0) setIsSuggestionOpen(true)
+              }}
+              disabled={manualSearching || isReadOnly}
+            />
+            {manualSearching || isSearchingSuggestions ? (
+              <div className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+            ) : (
+              <ScanSearch
+                size={13}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none"
+              />
+            )}
 
-          {/* Suggestions dropdown */}
-          {isSuggestionOpen && search.trim() && productResults.length > 0 && (
-            <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
-              <div className="max-h-72 overflow-y-auto custom-scrollbar">
-                {productResults.map((product: any, index: number) => (
-                  <button
-                    key={product.id}
-                    type="button"
-                    className={`flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left text-sm last:border-0 transition-colors ${index === highlightedIndex
-                      ? 'bg-primary-500/10 text-primary-600'
-                      : 'hover:bg-background-secondary'
-                      }`}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => addProductToReceipt(product)}
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-background-tertiary">
-                      {product.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <Image src={product.image}
-                          alt={product.name}
-                          className="h-full w-full object-cover" width={400} height={400} unoptimized />
-                      ) : (
-                        <Package2 size={14} className="text-foreground-muted" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-foreground">{product.name}</div>
-                      <div className="text-[11px] text-foreground-muted mt-0.5">
-                        {product.sku || product.barcode || '—'}
-                        {product.stock !== undefined && (
-                          <span className="ml-2 text-primary-500 font-medium">
-                            Tồn: {product.stock}
-                          </span>
+            {/* Suggestions dropdown */}
+            {isSuggestionOpen && search.trim() && productResults.length > 0 && (
+              <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
+                <div className="max-h-72 overflow-y-auto custom-scrollbar">
+                  {productResults.map((product: any, index: number) => {
+                    const selectableVariants = (() => {
+                      const trueVariants = getTrueVariants(product.variants)
+                      if (trueVariants.length > 0) return trueVariants
+                      return Array.isArray(product.variants) ? product.variants : []
+                    })()
+
+                    return (
+                      <div
+                        key={product.id}
+                        className={`border-b border-border px-3 py-2.5 text-sm last:border-0 transition-colors ${index === highlightedIndex
+                          ? 'bg-primary-500/10 text-primary-600'
+                          : 'hover:bg-background-secondary'
+                          }`}
+                      >
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-3 text-left"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => addProductToReceipt(product)}
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-background-tertiary">
+                            {product.image ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <Image src={product.image}
+                                alt={product.name}
+                                className="h-full w-full object-cover" width={400} height={400} unoptimized />
+                            ) : (
+                              <Package2 size={14} className="text-foreground-muted" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium text-foreground">{product.name}</div>
+                            <div className="mt-0.5 text-[11px] text-foreground-muted">
+                              {product.sku || product.barcode || '�'}
+                              {product.stock !== undefined && (
+                                <span className="ml-2 font-medium text-primary-500">
+                                  {'T\u1ed3n:'} {product.stock}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-semibold text-foreground">
+                              {fmt(Number(product.costPrice ?? 0))}
+                            </div>
+                          </div>
+                        </button>
+
+                        {selectableVariants.length > 1 && (
+                          <div className="mt-2 flex flex-wrap gap-2 pl-12">
+                            {selectableVariants.map((variant: any) => (
+                              <button
+                                key={variant.id}
+                                type="button"
+                                className="inline-flex items-center rounded-lg border border-border bg-background-secondary px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => addProductToReceipt(product, { productVariantId: variant.id })}
+                              >
+                                <span>{variant.unitLabel || variant.variantLabel || getVariantShortLabel(variant.name) || variant.name}</span>{/*
+                                {variant.sku || variant.barcode || '�'}
+                            */}</button>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-semibold text-foreground">
-                        {fmt(Number(product.costPrice ?? 0))}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setSplitDuplicateLines((current) => !current)
-            window.setTimeout(() => searchInputRef.current?.focus(), 10)
-          }}
-          aria-pressed={splitDuplicateLines}
-          aria-label="Tách dòng sản phẩm trùng"
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-all ${splitDuplicateLines
-            ? 'border-primary-500 bg-primary-500/10 text-primary-500'
-            : 'border-border bg-background-secondary text-foreground-muted hover:text-foreground'
-            }`}
-          title={splitDuplicateLines ? 'Đang bật tách dòng sản phẩm trùng' : 'Đang tự gộp sản phẩm trùng vào cùng một dòng'}
-        >
-          <FileSpreadsheet size={14} />
-        </button>
-
-        {isExistingReceipt ? (
-          <button
-            type="button"
-            onClick={handleDuplicateReceipt}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background-secondary text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
-            title="Copy đơn nhập"
-            aria-label="Copy đơn nhập"
-          >
-            <Copy size={14} />
-          </button>
-        ) : null}
-
-        {resolvedReceiptId ? (
-          <div ref={exportMenuRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setShowExportMenu((v) => !v)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background-secondary px-3 text-sm font-semibold text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
-            >
-              <Printer size={15} />
-              In / Xuất đơn
-              <ChevronDown size={13} className={`transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showExportMenu && (
-              <div className="absolute left-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-border bg-background shadow-lg">
-                <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Thao tác Excel</div>
-                <button
-                  type="button"
-                  onClick={() => setShowReceiptExcelModal(true)}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                >
-                  <FileUp size={14} className="text-foreground-muted" />
-                  Nhập từ Excel
-                </button>
-                <div className="my-1 h-px bg-border" />
-                <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">In phiếu</div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExportMenu(false)
-                    handlePrintReceipt('a4')
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                >
-                  <Printer size={14} className="text-foreground-muted" />
-                  In khổ A4
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExportMenu(false)
-                    handlePrintReceipt('k80')
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                >
-                  <Printer size={14} className="text-foreground-muted" />
-                  In khổ K80 (nhiệt)
-                </button>
-
-                <div className="mx-3 my-1 border-t border-border" />
-
-                <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Xuất đơn</div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExportMenu(false)
-                    handlePrintReceipt('pdf')
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                >
-                  <FileDown size={14} className="text-foreground-muted" />
-                  Xuất PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExportMenu(false)
-                    handleExportExcel()
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
-                >
-                  <FileSpreadsheet size={14} className="text-foreground-muted" />
-                  Xuất Excel (.xlsx)
-                </button>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>
-        ) : null}
-
-        {isExistingReceipt && !isReceiptLocked && canUpdateReceipt ? (
           <button
             type="button"
             onClick={() => {
-              if (isEditingSession) {
-                handleSubmit('draft')
-                return
-              }
-              handleStartEditing()
+              setSplitDuplicateLines((current) => !current)
+              window.setTimeout(() => searchInputRef.current?.focus(), 10)
             }}
-            disabled={
-              isEditingSession
-                ? saveMutation.isPending || !hasPendingReceiptChanges || items.length === 0 || !branchId
-                : false
-            }
-            className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${isEditingSession
-              ? 'bg-primary-500 text-white shadow-[0_10px_30px_rgba(16,185,129,0.25)]'
-              : 'border border-border bg-background-secondary text-foreground hover:border-primary-500/30 hover:text-primary-500'
+            aria-pressed={splitDuplicateLines}
+            aria-label="Tách dòng sản phẩm trùng"
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-all ${splitDuplicateLines
+              ? 'border-primary-500 bg-primary-500/10 text-primary-500'
+              : 'border-border bg-background-secondary text-foreground-muted hover:text-foreground'
               }`}
+            title={splitDuplicateLines ? 'Đang bật tách dòng sản phẩm trùng' : 'Đang tự gộp sản phẩm trùng vào cùng một dòng'}
           >
-            {isEditingSession ? (saveMutation.isPending ? 'Đang lưu...' : 'Lưu cập nhật') : 'Cập nhật'}
+            <FileSpreadsheet size={14} />
           </button>
-        ) : null}
 
-
-      </div>
-
-      {/* ─── MAIN CONTENT ──────────────────────────────────────────────────────── */}
-      <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_420px]">
-        {/* ── LEFT: Product Table ─────────────────────────────────────────────── */}
-
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {/* Table header */}
-          <div className="shrink-0 border-b border-border bg-background-secondary/60">
-            <div
-              className="grid items-center px-0 py-2.5 text-xs font-semibold uppercase tracking-wide text-foreground-muted"
-              style={{ gridTemplateColumns: cols }}
+          {isExistingReceipt ? (
+            <button
+              type="button"
+              onClick={handleDuplicateReceipt}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background-secondary text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
+              title="Copy đơn nhập"
+              aria-label="Copy đơn nhập"
             >
-              <div className="text-center">Xóa</div>
-              <div className="text-center">STT</div>
-              <div className="text-center">Ảnh</div>
-              <div className="pl-1">Mã hàng</div>
-              <div>Tên hàng</div>
-              <div className="text-center">ĐVT</div>
-              <div className="text-center">Tồn kho</div>
-              <div className="text-center">Số lượng</div>
-              <div className="pr-1 text-right">Đơn giá</div>
-              <div className="text-right">Giảm giá</div>
-              <div className="pr-4 text-right">Thành tiền</div>
-            </div>
-          </div>
+              <Copy size={14} />
+            </button>
+          ) : null}
 
-          {/* Table body */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {items.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-foreground-muted">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-background-secondary border border-border">
-                  <Package2 size={28} className="opacity-40" />
+          {resolvedReceiptId ? (
+            <div ref={exportMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setShowExportMenu((v) => !v)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background-secondary px-3 text-sm font-semibold text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
+              >
+                <Printer size={15} />
+                In / Xuất đơn
+                <ChevronDown size={13} className={`transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showExportMenu && (
+                <div className="absolute left-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-border bg-background shadow-lg">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Thao tác Excel</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowReceiptExcelModal(true)}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
+                  >
+                    <FileUp size={14} className="text-foreground-muted" />
+                    Nhập từ Excel
+                  </button>
+                  <div className="my-1 h-px bg-border" />
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">In phiếu</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportMenu(false)
+                      handlePrintReceipt('a4')
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
+                  >
+                    <Printer size={14} className="text-foreground-muted" />
+                    In khổ A4
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportMenu(false)
+                      handlePrintReceipt('k80')
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
+                  >
+                    <Printer size={14} className="text-foreground-muted" />
+                    In khổ K80 (nhiệt)
+                  </button>
+
+                  <div className="mx-3 my-1 border-t border-border" />
+
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Xuất đơn</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportMenu(false)
+                      handlePrintReceipt('pdf')
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
+                  >
+                    <FileDown size={14} className="text-foreground-muted" />
+                    Xuất PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportMenu(false)
+                      handleExportExcel()
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground transition-colors hover:bg-background-secondary"
+                  >
+                    <FileSpreadsheet size={14} className="text-foreground-muted" />
+                    Xuất Excel (.xlsx)
+                  </button>
                 </div>
-                <p className="text-sm font-medium">Chưa có hàng hóa trong đơn</p>
-                <p className="text-xs text-foreground-muted">
-                  Dùng thanh tìm kiếm phía trên để thêm sản phẩm
-                </p>
-                <button
-                  onClick={() => setShowReceiptExcelModal(true)}
-                  className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-primary-500 hover:text-primary-600 transition-colors bg-primary-500/10 hover:bg-primary-500/15 px-3 py-1.5 rounded-lg"
-                >
-                  <FileUp size={14} /> Hoặc nhập từ Excel
-                </button>
+              )}
+            </div>
+          ) : null}
+
+          {isExistingReceipt && !isReceiptLocked && canUpdateReceipt ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (isEditingSession) {
+                  handleSubmit('draft')
+                  return
+                }
+                handleStartEditing()
+              }}
+              disabled={
+                isEditingSession
+                  ? saveMutation.isPending || !hasPendingReceiptChanges || items.length === 0 || !branchId
+                  : false
+              }
+              className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${isEditingSession
+                ? 'bg-primary-500 text-white shadow-[0_10px_30px_rgba(16,185,129,0.25)]'
+                : 'border border-border bg-background-secondary text-foreground hover:border-primary-500/30 hover:text-primary-500'
+                }`}
+            >
+              {isEditingSession ? (saveMutation.isPending ? 'Đang lưu...' : 'Lưu cập nhật') : 'Cập nhật'}
+            </button>
+          ) : null}
+
+
+        </div>
+
+        {/* ─── MAIN CONTENT ──────────────────────────────────────────────────────── */}
+        <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_420px]">
+          {/* ── LEFT: Product Table ─────────────────────────────────────────────── */}
+
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {/* Table header */}
+            <div className="shrink-0 border-b border-border bg-background-secondary/60">
+              <div
+                className="grid items-center px-0 py-2.5 text-xs font-semibold uppercase tracking-wide text-foreground-muted"
+                style={{ gridTemplateColumns: cols }}
+              >
+                <div className="text-center">Xóa</div>
+                <div className="text-center">STT</div>
+                <div className="text-center">Ảnh</div>
+                <div className="pl-1">Mã hàng</div>
+                <div>Tên hàng</div>
+                <div className="text-center">ĐVT</div>
+                <div className="text-center">Tồn kho</div>
+                <div className="text-center">{'Hi\u1ec7u xu\u1ea5t b\u00e1n'}</div>
+                <div className="text-center">Số lượng</div>
+                <div className="pr-3 text-right">Đơn giá</div>
+                <div className="pr-5 text-right">Thành tiền</div>
               </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {items.map((item, idx) => {
-                  const lineAmount = item.quantity * item.unitCost - item.discount
-                  const isEditingNote = editingNoteForId === item.lineId
-                  const variants = item.variants ?? []
-                  const trueVariants = getTrueVariants(variants)
-                  const snapshot = getVariantSnapshot(item)
-                  const currentVariant = snapshot.selectedVariant
-                  const isCurrentConversion = isConversionVariant(currentVariant)
-                  const currentTrueVariant = currentVariant
-                    ? findParentTrueVariant(variants, currentVariant)
-                    : (trueVariants[0] ?? null)
-                  const conversionVariants = getConversionVariants(variants, currentTrueVariant)
-                  const itemCode = snapshot.displaySku || snapshot.displayBarcode || '—'
-                  const itemBarcode = snapshot.displayBarcode || '—'
-                  const unitLabel =
-                    currentVariant && isConversionVariant(currentVariant)
-                      ? getVariantShortLabel(currentVariant.name) || item.baseUnit || item.unit || '—'
-                      : item.baseUnit || item.unit || '—'
+            </div>
 
-                  const itemIdentity = getItemIdentity(item.productId, item.productVariantId)
-                  const duplicateCount = items.filter(
-                    (candidate) =>
-                      candidate.lineId !== item.lineId &&
-                      getItemIdentity(candidate.productId, candidate.productVariantId) === itemIdentity,
-                  ).length
-                  // Stock for current branch
-                  const currentBranchStock = (() => {
-                    if (!branchId || !snapshot.branchStocks?.length) return snapshot.totalStock
-                    const bs = snapshot.branchStocks.find(
-                      (s) => s.branchId === branchId || s.branch?.id === branchId,
-                    )
-                    if (!bs) return null
-                    return bs.availableStock !== undefined && bs.availableStock !== null
-                      ? bs.availableStock
-                      : (bs.stock ?? 0) - (bs.reservedStock ?? 0)
-                  })()
+            {/* Table body */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              {items.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3 text-foreground-muted">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-background-secondary border border-border">
+                    <Package2 size={28} className="opacity-40" />
+                  </div>
+                  <p className="text-sm font-medium">Chưa có hàng hóa trong đơn</p>
+                  <p className="text-xs text-foreground-muted">
+                    Dùng thanh tìm kiếm phía trên để thêm sản phẩm
+                  </p>
+                  <button
+                    onClick={() => setShowReceiptExcelModal(true)}
+                    className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-primary-500 hover:text-primary-600 transition-colors bg-primary-500/10 hover:bg-primary-500/15 px-3 py-1.5 rounded-lg"
+                  >
+                    <FileUp size={14} /> Hoặc nhập từ Excel
+                  </button>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {items.map((item, idx) => {
+                    const lineAmount = item.quantity * item.unitCost - item.discount
+                    const isEditingNote = editingNoteForId === item.lineId
+                    const variants = item.variants ?? []
+                    const trueVariants = getTrueVariants(variants)
+                    const snapshot = getVariantSnapshot(item)
+                    const currentVariant = snapshot.selectedVariant
+                    const isCurrentConversion = isConversionVariant(currentVariant)
+                    const currentTrueVariant = currentVariant
+                      ? findParentTrueVariant(variants, currentVariant, item.name)
+                      : (trueVariants[0] ?? null)
+                    const conversionVariants = getConversionVariants(variants, currentTrueVariant, item.name)
+                    const itemCode = snapshot.displaySku || snapshot.displayBarcode || '—'
+                    const itemBarcode = snapshot.displayBarcode || '—'
+                    const currentMonthlySellThrough =
+                      snapshot.selectedVariant?.monthlySellThrough ??
+                      item.baseMonthlySellThrough ??
+                      item.monthlySellThrough ??
+                      null
+                    const unitLabel =
+                      currentVariant && isConversionVariant(currentVariant)
+                        ? currentVariant.unitLabel || getVariantShortLabel(currentVariant.name) || item.baseUnit || item.unit || '—'
+                        : item.baseUnit || item.unit || '—'
 
-                  return (
-                    <div
-                      key={item.lineId}
-                      className="group hover:bg-background-secondary/40 transition-colors"
-                    >
+                    const itemIdentity = getItemIdentity(item.productId, item.productVariantId)
+                    const duplicateCount = items.filter(
+                      (candidate) =>
+                        candidate.lineId !== item.lineId &&
+                        getItemIdentity(candidate.productId, candidate.productVariantId) === itemIdentity,
+                    ).length
+                    // Stock for current branch
+                    const currentBranchStock = (() => {
+                      if (!branchId || !snapshot.branchStocks?.length) return snapshot.totalStock
+                      const bs = snapshot.branchStocks.find(
+                        (s) => s.branchId === branchId || s.branch?.id === branchId,
+                      )
+                      if (!bs) return null
+                      return bs.availableStock !== undefined && bs.availableStock !== null
+                        ? bs.availableStock
+                        : (bs.stock ?? 0) - (bs.reservedStock ?? 0)
+                    })()
+
+                    return (
                       <div
-                        className="grid items-center py-3"
-                        style={{ gridTemplateColumns: cols }}
+                        key={item.lineId}
+                        className="group hover:bg-background-secondary/40 transition-colors"
                       >
-                        {/* Xóa */}
-                        <div className="flex justify-center">
-                          <button
-                            type="button"
-                            onClick={() => removeItem(item.lineId)}
-                            disabled={isReadOnly}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-30"
-                            title="Xóa khỏi giỏ hàng"
-                            aria-label="Xóa khỏi giỏ hàng"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-
-                        {/* STT */}
-                        <div className="text-center text-xs text-foreground-muted font-medium">
-                          {idx + 1}
-                        </div>
-
-                        {/* Image */}
-                        <div className="flex justify-center">
-                          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-border bg-background-tertiary text-foreground-muted">
-                            {item.image ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <Image src={item.image}
-                                alt={snapshot.displayName}
-                                className="h-full w-full object-cover" width={400} height={400} unoptimized />
-                            ) : (
-                              <Package2 size={16} />
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Mã hàng */}
-                        <div className="pl-1">
-                          <span className="text-xs font-medium text-primary-500 hover:text-primary-600 cursor-pointer">
-                            {itemCode}
-                          </span>
-                        </div>
-
-                        {/* Tên hàng + ghi chú + Detail link + Stock popup */}
-                        <div className="min-w-0 pr-2">
-                          {/* Product name row */}
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span
-                              className="truncate text-sm font-medium text-foreground"
-                              title={snapshot.displayName}
+                        <div
+                          className="grid items-center py-3"
+                          style={{ gridTemplateColumns: cols }}
+                        >
+                          {/* Xóa */}
+                          <div className="flex justify-center">
+                            <button
+                              type="button"
+                              onClick={() => removeItem(item.lineId)}
+                              disabled={isReadOnly}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-30"
+                              title="Xóa khỏi giỏ hàng"
+                              aria-label="Xóa khỏi giỏ hàng"
                             >
-                              {snapshot.displayName}
-                            </span>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
 
-                            {trueVariants.length > 0 ? (
-                              <div className="relative shrink-0">
+                          {/* STT */}
+                          <div className="text-center text-xs text-foreground-muted font-medium">
+                            {idx + 1}
+                          </div>
+
+                          {/* Image */}
+                          <div className="flex justify-center">
+                            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-border bg-background-tertiary text-foreground-muted">
+                              {item.image ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <Image src={item.image}
+                                  alt={snapshot.displayName}
+                                  className="h-full w-full object-cover" width={400} height={400} unoptimized />
+                              ) : (
+                                <Package2 size={16} />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Mã hàng */}
+                          <div className="pl-1">
+                            <span className="text-xs font-medium text-primary-500 hover:text-primary-600 cursor-pointer">
+                              {itemCode}
+                            </span>
+                          </div>
+
+                          {/* Tên hàng + ghi chú + Detail link + Stock popup */}
+                          <div className="min-w-0 pr-2">
+                            {/* Product name row */}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className="truncate text-sm font-medium text-foreground"
+                                title={snapshot.displayName}
+                              >
+                                {item.name}
+                              </span>
+
+                              {trueVariants.length > 1 ? (
+                                <div className="relative inline-flex items-center shrink-0 group cursor-pointer -ml-1">
+                                  <select
+                                    className="appearance-none bg-transparent text-primary-500 text-[13px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-600 transition-colors leading-normal"
+                                    value={currentTrueVariant?.id ?? item.productVariantId ?? ''}
+                                    disabled={isReadOnly || hasLockedReceiptQuantity(item)}
+                                    onChange={(e) =>
+                                      updateItemVariant(
+                                        item.lineId,
+                                        e.target.value === 'base'
+                                          ? currentTrueVariant?.id ?? 'base'
+                                          : e.target.value,
+                                      )
+                                    }
+                                  >
+                                    {trueVariants.map((variant) => (
+                                      <option key={variant.id} value={variant.id}>
+                                        {variant.variantLabel || getVariantShortLabel(variant.name) || variant.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown
+                                    className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 group-hover:text-primary-600 pointer-events-none transition-colors"
+                                    size={11}
+                                  />
+                                </div>
+                              ) : null}
+
+                              {/* Stock info popup – identical mechanism to POS */}
+                              <StockPopover item={item} branches={branches} />
+                            </div>
+
+                            <div className="mt-0.5 flex items-center gap-2 text-[11px] text-foreground-muted">
+                              <span className="truncate font-medium uppercase tracking-wide">
+                                {itemBarcode}
+                              </span>
+                              {!isReadOnly && duplicateCount > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => mergeDuplicateItems(item.lineId)}
+                                  className="shrink-0 font-semibold text-primary-500 transition-colors hover:text-primary-600"
+                                >
+                                  Gộp dòng
+                                </button>
+                              ) : null}
+                              {!isReadOnly && !isEditingNote ? (
+                                <button
+                                  type="button"
+                                  className={`shrink-0 transition-colors ${item.note ? 'text-amber-400 hover:text-amber-500' : 'text-foreground-muted/40 hover:text-foreground-muted'}`}
+                                  title={item.note || 'Thêm ghi chú'}
+                                  onClick={() => {
+                                    setTempNote(item.note)
+                                    setEditingNoteForId(item.lineId)
+                                  }}
+                                >
+                                  <MessageSquare size={12} />
+                                </button>
+                              ) : null}
+                              {!isReadOnly && !isEditingNote && item.note ? (
+                                <span
+                                  className="truncate text-amber-400 cursor-pointer hover:text-amber-500 transition-colors"
+                                  onClick={() => {
+                                    setTempNote(item.note)
+                                    setEditingNoteForId(item.lineId)
+                                  }}
+                                >
+                                  {item.note}
+                                </span>
+                              ) : null}
+                            </div>
+
+                            {/* Inline note */}
+                            {isEditingNote ? (
+                              <div className="mt-1 flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  className="h-5 flex-1 rounded border border-border bg-background px-1.5 text-xs text-foreground placeholder:text-foreground-muted outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/30"
+                                  placeholder="Nhập ghi chú..."
+                                  value={tempNote}
+                                  onChange={(e) => setTempNote(e.target.value)}
+                                  onBlur={() => {
+                                    updateItemNote(item.lineId, tempNote)
+                                    setEditingNoteForId(null)
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      updateItemNote(item.lineId, tempNote)
+                                      setEditingNoteForId(null)
+                                    } else if (e.key === 'Escape') {
+                                      setEditingNoteForId(null)
+                                    }
+                                  }}
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  className="text-foreground-muted hover:text-error"
+                                  onMouseDown={() => {
+                                    setTempNote('')
+                                    setEditingNoteForId(null)
+                                  }}
+                                >
+                                  <X size={10} />
+                                </button>
+                              </div>
+                            ) : null}
+
+
+                          </div>
+
+                          {/* ĐVT */}
+                          <div className="text-center">
+                            {conversionVariants.length > 0 ? (
+                              <div className={`relative inline-flex items-center group cursor-pointer transition-colors ${isCurrentConversion ? 'text-primary-500' : 'text-foreground-muted hover:text-primary-500'}`}>
                                 <select
-                                  className="h-6 appearance-none rounded-md border border-orange-200 bg-orange-500/10 px-2 pr-5 text-[11px] font-semibold text-orange-300 outline-none transition-all hover:border-orange-300 focus:border-orange-300 focus:ring-1 focus:ring-orange-300/30"
-                                  value={currentTrueVariant?.id ?? item.productVariantId ?? ''}
+                                  className={`appearance-none bg-transparent text-sm font-medium outline-none cursor-pointer pr-4 w-full text-center transition-colors ${isCurrentConversion ? 'text-primary-500 font-semibold' : 'text-foreground-muted hover:text-primary-500'}`}
+                                  value={isCurrentConversion ? item.productVariantId ?? 'base' : 'base'}
                                   disabled={isReadOnly || hasLockedReceiptQuantity(item)}
                                   onChange={(e) =>
                                     updateItemVariant(
@@ -1090,378 +1242,347 @@ export function CreateReceiptForm({
                                     )
                                   }
                                 >
-                                  {trueVariants.map((variant) => (
+                                  <option value="base">{item.baseUnit || item.unit || '—'}</option>
+                                  {conversionVariants.map((variant) => (
                                     <option key={variant.id} value={variant.id}>
-                                      {getVariantShortLabel(variant.name) || variant.name}
+                                      {variant.unitLabel || getVariantShortLabel(variant.name) || variant.name}
                                     </option>
                                   ))}
                                 </select>
                                 <ChevronDown
-                                  size={11}
-                                  className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-orange-300"
+                                  className={`absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${isCurrentConversion ? 'opacity-80 text-primary-500' : 'opacity-50 group-hover:opacity-100'}`} size={11}
                                 />
                               </div>
-                            ) : null}
-
-                            {/* Stock info popup – identical mechanism to POS */}
-                            <StockPopover item={item} branches={branches} />
+                            ) : (
+                              <span className="text-sm text-foreground-muted">{unitLabel}</span>
+                            )}
                           </div>
 
-                          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-foreground-muted">
-                            <span className="truncate font-medium uppercase tracking-wide">
-                              {itemBarcode}
-                            </span>
-                            {!isReadOnly && duplicateCount > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => mergeDuplicateItems(item.lineId)}
-                                className="shrink-0 font-semibold text-primary-500 transition-colors hover:text-primary-600"
+                          {/* Tồn kho (before quantity) */}
+                          <div className="text-center">
+                            {currentBranchStock !== null && currentBranchStock !== undefined ? (
+                              <span
+                                className={`text-xs font-semibold tabular-nums ${currentBranchStock <= 0
+                                  ? 'text-error'
+                                  : currentBranchStock <= 10
+                                    ? 'text-warning'
+                                    : 'text-foreground-muted'
+                                  }`}
                               >
-                                Gộp dòng
-                              </button>
-                            ) : null}
-                            {!isReadOnly && !isEditingNote ? (
-                              <button
-                                type="button"
-                                className="shrink-0 transition-colors hover:text-primary-500"
-                                onClick={() => {
-                                  setTempNote(item.note)
-                                  setEditingNoteForId(item.lineId)
-                                }}
-                              >
-                                {item.note ? 'Có ghi chú' : 'Ghi chú'}
-                              </button>
-                            ) : null}
+                                {currentBranchStock}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-foreground-muted opacity-40">—</span>
+                            )}
                           </div>
 
-                          {/* Inline note */}
-                          {isEditingNote ? (
-                            <div className="mt-1 flex items-center gap-1">
+                          <div className="text-center">
+                            {currentMonthlySellThrough != null ? (
+                              <span className="text-xs font-semibold tabular-nums text-foreground">
+                                {Math.round(currentMonthlySellThrough).toLocaleString('vi-VN')}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-foreground-muted opacity-40">-</span>
+                            )}
+                          </div>
+
+                          {/* Số lượng */}
+                          <div className="flex justify-center">
+                            <div className="inline-flex items-center rounded-lg border border-border overflow-hidden">
+                              <button
+                                type="button"
+                                className="flex h-7 w-6 items-center justify-center text-foreground-muted hover:bg-background-secondary disabled:opacity-30 transition-colors"
+                                onClick={() => updateItem(item.lineId, 'quantity', item.quantity - 1)}
+                                disabled={item.quantity <= 1}
+                              >
+                                <Minus size={11} />
+                              </button>
                               <input
-                                type="text"
-                                className="h-5 flex-1 rounded border border-border bg-background px-1.5 text-xs text-foreground placeholder:text-foreground-muted outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/30"
-                                placeholder="Nhập ghi chú..."
-                                value={tempNote}
-                                onChange={(e) => setTempNote(e.target.value)}
-                                onBlur={() => {
-                                  updateItemNote(item.lineId, tempNote)
-                                  setEditingNoteForId(null)
-                                }}
+                                type="number"
+                                min={1}
+                                data-quantity-input={idx}
+                                className="h-7 w-11 border-x border-border bg-transparent p-0 text-center text-sm font-semibold text-foreground outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                value={item.quantity}
+                                onChange={(e) => updateItem(item.lineId, 'quantity', Number(e.target.value))}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    updateItemNote(item.lineId, tempNote)
-                                    setEditingNoteForId(null)
-                                  } else if (e.key === 'Escape') {
-                                    setEditingNoteForId(null)
+                                  if (e.key === 'ArrowUp') {
+                                    e.preventDefault()
+                                    if (idx > 0) {
+                                      const prev = document.querySelector(`[data-quantity-input="${idx - 1}"]`) as HTMLInputElement
+                                      prev?.focus()
+                                    }
+                                  } else if (e.key === 'ArrowDown') {
+                                    e.preventDefault()
+                                    if (idx < items.length - 1) {
+                                      const next = document.querySelector(`[data-quantity-input="${idx + 1}"]`) as HTMLInputElement
+                                      next?.focus()
+                                    }
+                                  } else if (e.key === 'ArrowLeft') {
+                                    e.preventDefault()
+                                    if (item.quantity > 1) {
+                                      updateItem(item.lineId, 'quantity', item.quantity - 1)
+                                    }
+                                  } else if (e.key === 'ArrowRight') {
+                                    e.preventDefault()
+                                    updateItem(item.lineId, 'quantity', item.quantity + 1)
                                   }
                                 }}
-                                autoFocus
                               />
                               <button
                                 type="button"
-                                className="text-foreground-muted hover:text-error"
-                                onMouseDown={() => {
-                                  setTempNote('')
-                                  setEditingNoteForId(null)
-                                }}
+                                className="flex h-7 w-6 items-center justify-center text-foreground-muted hover:bg-background-secondary transition-colors"
+                                onClick={() => updateItem(item.lineId, 'quantity', item.quantity + 1)}
                               >
-                                <X size={10} />
+                                <Plus size={11} />
                               </button>
                             </div>
-                          ) : null}
-
-
-                        </div>
-
-                        {/* ĐVT */}
-                        <div className="text-center text-xs text-foreground-muted">
-                          {conversionVariants.length > 0 ? (
-                            <div className="relative inline-flex max-w-full items-center">
-                              <select
-                                className="h-6 max-w-full appearance-none rounded-md border border-sky-200 bg-sky-500/10 px-2 pr-5 text-center text-[11px] font-semibold text-sky-300 outline-none transition-all hover:border-sky-300 focus:border-sky-300 focus:ring-1 focus:ring-sky-300/30"
-                                value={isCurrentConversion ? item.productVariantId ?? 'base' : 'base'}
-                                disabled={isReadOnly || hasLockedReceiptQuantity(item)}
-                                onChange={(e) =>
-                                  updateItemVariant(
-                                    item.lineId,
-                                    e.target.value === 'base'
-                                      ? currentTrueVariant?.id ?? 'base'
-                                      : e.target.value,
-                                  )
-                                }
-                              >
-                                <option value="base">{item.baseUnit || item.unit || '—'}</option>
-                                {conversionVariants.map((variant) => (
-                                  <option key={variant.id} value={variant.id}>
-                                    {getVariantShortLabel(variant.name) || variant.name}
-                                  </option>
-                                ))}
-                              </select>
-                              <ChevronDown
-                                size={11}
-                                className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-sky-300"
-                              />
-                            </div>
-                          ) : (
-                            unitLabel
-                          )}
-                        </div>
-
-                        {/* Tồn kho (before quantity) */}
-                        <div className="text-center">
-                          {currentBranchStock !== null && currentBranchStock !== undefined ? (
-                            <span
-                              className={`text-xs font-semibold tabular-nums ${currentBranchStock <= 0
-                                ? 'text-error'
-                                : currentBranchStock <= 10
-                                  ? 'text-warning'
-                                  : 'text-foreground-muted'
-                                }`}
-                            >
-                              {currentBranchStock}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-foreground-muted opacity-40">—</span>
-                          )}
-                        </div>
-
-                        {/* Số lượng */}
-                        <div className="flex justify-center">
-                          <div className="inline-flex items-center rounded-lg border border-border overflow-hidden">
-                            <button
-                              type="button"
-                              className="flex h-7 w-6 items-center justify-center text-foreground-muted hover:bg-background-secondary disabled:opacity-30 transition-colors"
-                              onClick={() => updateItem(item.lineId, 'quantity', item.quantity - 1)}
-                              disabled={item.quantity <= 1}
-                            >
-                              <Minus size={11} />
-                            </button>
-                            <input
-                              type="number"
-                              min={1}
-                              data-quantity-input={idx}
-                              className="h-7 w-11 border-x border-border bg-transparent p-0 text-center text-sm font-semibold text-foreground outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              value={item.quantity}
-                              onChange={(e) => updateItem(item.lineId, 'quantity', Number(e.target.value))}
-                              onKeyDown={(e) => {
-                                if (e.key === 'ArrowUp') {
-                                  e.preventDefault()
-                                  if (idx > 0) {
-                                    const prev = document.querySelector(`[data-quantity-input="${idx - 1}"]`) as HTMLInputElement
-                                    prev?.focus()
-                                  }
-                                } else if (e.key === 'ArrowDown') {
-                                  e.preventDefault()
-                                  if (idx < items.length - 1) {
-                                    const next = document.querySelector(`[data-quantity-input="${idx + 1}"]`) as HTMLInputElement
-                                    next?.focus()
-                                  }
-                                } else if (e.key === 'ArrowLeft') {
-                                  e.preventDefault()
-                                  if (item.quantity > 1) {
-                                    updateItem(item.lineId, 'quantity', item.quantity - 1)
-                                  }
-                                } else if (e.key === 'ArrowRight') {
-                                  e.preventDefault()
-                                  updateItem(item.lineId, 'quantity', item.quantity + 1)
-                                }
-                              }}
-                            />
-                            <button
-                              type="button"
-                              className="flex h-7 w-6 items-center justify-center text-foreground-muted hover:bg-background-secondary transition-colors"
-                              onClick={() => updateItem(item.lineId, 'quantity', item.quantity + 1)}
-                            >
-                              <Plus size={11} />
-                            </button>
                           </div>
-                        </div>
 
-                        {/* Đơn giá */}
-                        <div className="pr-1">
-                          <NumericFormat
-                            thousandSeparator="."
-                            decimalSeparator=","
-                            allowNegative={false}
-                            className="h-7 w-full rounded-lg border border-border bg-transparent px-2 text-right text-sm font-medium text-foreground outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
-                            value={item.unitCost}
-                            onValueChange={(values) => updateItem(item.lineId, 'unitCost', values.floatValue || 0)}
-                          />
-                        </div>
+                          {/* Đơn giá */}
+                          <div className="relative pr-4">
+                            {
+                              discountEditingReceiptId === item.lineId ? (
+                                <>
+                                  <div className="fixed inset-0 z-40 cursor-default" onClick={() => setDiscountEditingReceiptId(null)} />
+                                  <div className="absolute right-0 z-50 mt-1 w-72 rounded-xl border border-border bg-background p-4 shadow-2xl shadow-black/20 animate-in fade-in zoom-in-95 duration-150">
+                                    <div className="flex items-center justify-between border-b border-border pb-2 mb-3">
+                                      <h4 className="font-bold text-foreground text-sm">Giá &amp; Chiết khấu</h4>
+                                      <button className="text-foreground-muted hover:text-foreground transition-colors" onClick={() => setDiscountEditingReceiptId(null)}><X size={16} /></button>
+                                    </div>
+                                    <div className="space-y-3">
+                                      <div>
+                                        <label className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted mb-1">Đơn giá (VNĐ)</label>
+                                        <NumericFormat
+                                          thousandSeparator="."
+                                          decimalSeparator=","
+                                          allowNegative={false}
+                                          className="h-8 w-full rounded-lg border border-border bg-background-secondary px-2.5 text-right text-sm font-medium text-foreground outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                                          value={item.unitCost}
+                                          onValueChange={(values) => updateItem(item.lineId, 'unitCost', values.floatValue || 0)}
+                                          autoFocus
+                                        />
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted mb-1">CK (VNĐ)</label>
+                                          <div className="relative">
+                                            <NumericFormat
+                                              thousandSeparator="."
+                                              decimalSeparator=","
+                                              allowNegative={false}
+                                              className="h-8 w-full rounded-lg border border-amber-500/30 bg-amber-500/8 px-2.5 pr-6 text-right text-sm font-medium text-amber-400 outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 transition-all placeholder:text-amber-500/40"
+                                              value={item.discount || ''}
+                                              placeholder="0"
+                                              onValueChange={(values) => updateItem(item.lineId, 'discount', values.floatValue || 0)}
+                                            />
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-amber-500 select-none">đ</span>
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <label className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted mb-1">CK (%)</label>
+                                          <div className="relative">
+                                            <input
+                                              type="text"
+                                              className="h-8 w-full rounded-lg border border-amber-500/30 bg-amber-500/8 px-2.5 pr-6 text-right text-sm font-medium text-amber-400 outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 transition-all placeholder:text-amber-500/40"
+                                              placeholder="0"
+                                              value={item.discount > 0 && item.unitCost > 0 ? Math.round((item.discount / item.unitCost) * 100) : ''}
+                                              onChange={(e) => {
+                                                const pct = parseFloat(e.target.value.replace(/[^\d.]/g, ''));
+                                                const val = isNaN(pct) ? 0 : Math.round(item.unitCost * Math.min(100, Math.max(0, pct)) / 100);
+                                                updateItem(item.lineId, 'discount', val);
+                                              }}
+                                            />
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-amber-500 select-none">%</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {(item.discount ?? 0) > 0 && (
+                                        <div className="pt-2 border-t border-border flex justify-between items-center text-xs">
+                                          <span className="text-foreground-muted">Giảm giá:</span>
+                                          <span className="font-bold text-amber-400">-{item.discount.toLocaleString('vi-VN')}đ ({Math.round((item.discount / item.unitCost) * 100)}%)</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </>
+                              ) : null
+                            }
+                            <div
+                              className="group/price relative cursor-pointer flex flex-col items-end"
+                              onClick={() => !isReadOnly && setDiscountEditingReceiptId(item.lineId)}
+                            >
+                              <div className={`text-sm font-medium text-foreground border-b border-dashed transition-colors pb-0.5 text-right ${isReadOnly ? 'border-transparent cursor-default' : 'border-border hover:border-primary-500 group-hover/price:border-primary-500'}`}>
+                                {(item.unitCost).toLocaleString('vi-VN')}
+                              </div>
+                              {(item.discount ?? 0) > 0 && (
+                                <div className="flex items-center gap-1 mt-0.5 text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded">
+                                  <span>-{Math.round((item.discount / item.unitCost) * 100)}%</span>
+                                  <span className="opacity-70">(-{item.discount.toLocaleString('vi-VN')}đ)</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
 
-                        {/* Giảm giá */}
-                        <div>
-                          <NumericFormat
-                            thousandSeparator="."
-                            decimalSeparator=","
-                            allowNegative={false}
-                            className="h-7 w-full rounded-lg border border-border bg-transparent px-2 text-right text-sm text-foreground outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
-                            value={item.discount || ''}
-                            placeholder="0"
-                            onValueChange={(values) => updateItem(item.lineId, 'discount', values.floatValue || 0)}
-                          />
-                        </div>
-
-                        {/* Thành tiền */}
-                        <div className="pr-4 text-right">
-                          <span className="text-sm font-semibold text-foreground tabular-nums">
-                            {fmt(lineAmount)}
-                          </span>
+                          {/* Thành tiền */}
+                          <div className="pl-3 pr-5 text-right">
+                            <span className="text-sm font-semibold text-foreground tabular-nums">
+                              {fmt(lineAmount)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── RIGHT SIDEBAR ──────────────────────────────────────────────────── */}
-        <div className="flex min-h-0 w-[420px] shrink-0 flex-col overflow-y-auto border-l border-border bg-background custom-scrollbar">
-
-
-
-
-          {/* Totals */}
-          <div className="border-b border-border px-3 py-3 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground-muted flex items-center gap-1.5">
-                Tổng tiền hàng
-                {items.length > 0 && (
-                  <span className="badge badge-primary text-[10px] px-1.5 py-0">
-                    {items.length}
-                  </span>
-                )}
-              </span>
-              <span className="text-sm font-semibold text-foreground tabular-nums">
-                {fmt(merchandiseTotal)}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-foreground-muted shrink-0">Giảm giá</span>
-              <NumericFormat
-                thousandSeparator="."
-                decimalSeparator=","
-                allowNegative={false}
-                className="h-7 w-28 rounded-lg border border-border bg-background-secondary px-2 text-right text-sm text-foreground outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
-                value={receiptDiscount || ''}
-                placeholder="0"
-                onValueChange={(values) => setReceiptDiscount(Math.max(0, values.floatValue || 0))}
-                disabled={isReadOnly}
-              />
-            </div>
-
-            {/* Extra costs – hidden from UI but still computed for legacy data */}
-
-            {/* Grand total */}
-            <div className="flex items-center justify-between rounded-xl bg-background-secondary px-3 py-2.5 border border-border">
-              <span className="text-sm font-semibold text-foreground">Cần trả NCC</span>
-              <span className="text-base font-black text-primary-500 tabular-nums">
-                {fmt(grandTotal)}
-              </span>
-            </div>
-          </div>
-
-          {/* Payment info */}
-          <div className="border-b border-border px-3 py-2.5 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-foreground-muted">Tiền trả NCC (F8)</span>
-              <span className="text-xs font-medium text-foreground">0</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-foreground-muted">Tính vào công nợ</span>
-              <span className="text-xs font-semibold text-foreground tabular-nums">
-                {fmt(grandTotal)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-foreground-muted shrink-0">Chi phí phát sinh</span>
-              <NumericFormat
-                thousandSeparator="."
-                decimalSeparator=","
-                allowNegative={false}
-                className="h-6 w-24 rounded-lg border border-border bg-background-secondary px-2 text-right text-xs text-foreground outline-none focus:border-primary-500"
-                value={taxAmount || ''}
-                placeholder="0"
-                onValueChange={(values) => setReceiptTax(Math.max(0, values.floatValue || 0))}
-                disabled={isReadOnly}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-foreground-muted">Dự kiến ngày nhập hàng</span>
-              <button
-                type="button"
-                className="text-foreground-muted hover:text-primary-500 transition-colors"
-              >
-                <CalendarDays size={14} />
-              </button>
-            </div>
-          </div>
-
-
-          {/* Notes */}
-          <div className="px-3 py-2.5">
-            <textarea
-              rows={1}
-              className="w-full resize-none rounded-xl border border-border bg-background-secondary p-2.5 text-sm text-foreground placeholder:text-foreground-muted outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all overflow-hidden"
-              placeholder="Ghi chú cho đơn hàng..."
-              value={notes}
-              onChange={(e) => {
-                setNotes(e.target.value)
-                e.target.style.height = 'auto'
-                e.target.style.height = `${e.target.scrollHeight}px`
-              }}
-            />
-          </div>
-
-          <div className="border-b border-border px-3 py-3">
-            <div className="rounded-xl border border-border bg-background-secondary p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                  Lịch sử
+                    )
+                  })}
                 </div>
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusView.toneClass}`}>
-                  {statusView.label}
+              )}
+            </div>
+          </div>
+
+          {/* ── RIGHT SIDEBAR ──────────────────────────────────────────────────── */}
+          <div className="flex min-h-0 w-[420px] shrink-0 flex-col overflow-y-auto border-l border-border bg-background custom-scrollbar">
+
+
+
+
+            {/* Totals */}
+            <div className="border-b border-border px-3 py-3 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-foreground-muted flex items-center gap-1.5">
+                  Tổng tiền hàng
+                  {items.length > 0 && (
+                    <span className="badge badge-primary text-[10px] px-1.5 py-0">
+                      {items.length}
+                    </span>
+                  )}
+                </span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">
+                  {fmt(merchandiseTotal)}
                 </span>
               </div>
 
-              <div className="mt-3 space-y-3">
-                {enhancedActivityTimelineEntries.map((entry, index) => (
-                  <div key={`${entry.title}-${entry.time}-${entry.detail}-${index}`} className="grid grid-cols-[18px_1fr] gap-3">
-                    <div className="flex flex-col items-center">
-                      <span className={`mt-1 h-2.5 w-2.5 rounded-full ${entry.tone === 'text-primary-500' ? 'bg-primary-500' : entry.tone === 'text-amber-500' ? 'bg-amber-500' : 'bg-border'}`} />
-                      {index < enhancedActivityTimelineEntries.length - 1 ? (
-                        <span className="mt-1 h-full w-px bg-border" />
-                      ) : null}
-                    </div>
-                    <div className="pb-1">
-                      <div className={`text-sm font-semibold ${entry.tone}`}>{entry.title}</div>
-                      <div className="mt-0.5 text-xs text-foreground flex items-center gap-2">
-                        <span>{entry.detail}</span>
-                        <span className="text-[11px] text-foreground-muted whitespace-nowrap ml-auto">{entry.time}</span>
-                      </div>
-                      {entry.href && entry.linkLabel ? (
-                        <Link
-                          href={entry.href}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 inline-flex text-[11px] font-medium text-amber-400 transition-colors hover:text-amber-300"
-                        >
-                          {entry.linkLabel}
-                        </Link>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-foreground-muted shrink-0">Giảm giá</span>
+                <NumericFormat
+                  thousandSeparator="."
+                  decimalSeparator=","
+                  allowNegative={false}
+                  className="h-7 w-28 rounded-lg border border-border bg-background-secondary px-2 text-right text-sm text-foreground outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                  value={receiptDiscount || ''}
+                  placeholder="0"
+                  onValueChange={(values) => setReceiptDiscount(Math.max(0, values.floatValue || 0))}
+                  disabled={isReadOnly}
+                />
+              </div>
+
+              {/* Extra costs – hidden from UI but still computed for legacy data */}
+
+              {/* Grand total */}
+              <div className="flex items-center justify-between rounded-xl bg-background-secondary px-3 py-2.5 border border-border">
+                <span className="text-sm font-semibold text-foreground">Cần trả NCC</span>
+                <span className="text-base font-black text-primary-500 tabular-nums">
+                  {fmt(grandTotal)}
+                </span>
               </div>
             </div>
-          </div>
 
+            {/* Payment info */}
+            <div className="border-b border-border px-3 py-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-foreground-muted">Tiền trả NCC (F8)</span>
+                <span className="text-xs font-medium text-foreground">0</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-foreground-muted">Tính vào công nợ</span>
+                <span className="text-xs font-semibold text-foreground tabular-nums">
+                  {fmt(grandTotal)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-foreground-muted shrink-0">Chi phí phát sinh</span>
+                <NumericFormat
+                  thousandSeparator="."
+                  decimalSeparator=","
+                  allowNegative={false}
+                  className="h-6 w-24 rounded-lg border border-border bg-background-secondary px-2 text-right text-xs text-foreground outline-none focus:border-primary-500"
+                  value={taxAmount || ''}
+                  placeholder="0"
+                  onValueChange={(values) => setReceiptTax(Math.max(0, values.floatValue || 0))}
+                  disabled={isReadOnly}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-foreground-muted">Dự kiến ngày nhập hàng</span>
+                <button
+                  type="button"
+                  className="text-foreground-muted hover:text-primary-500 transition-colors"
+                >
+                  <CalendarDays size={14} />
+                </button>
+              </div>
+            </div>
+
+
+            {/* Notes */}
+            <div className="px-3 py-2.5">
+              <textarea
+                rows={1}
+                className="w-full resize-none rounded-xl border border-border bg-background-secondary p-2.5 text-sm text-foreground placeholder:text-foreground-muted outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all overflow-hidden"
+                placeholder="Ghi chú cho đơn hàng..."
+                value={notes}
+                onChange={(e) => {
+                  setNotes(e.target.value)
+                  e.target.style.height = 'auto'
+                  e.target.style.height = `${e.target.scrollHeight}px`
+                }}
+              />
+            </div>
+
+            <div className="border-b border-border px-3 py-3">
+              <div className="rounded-xl border border-border bg-background-secondary p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">
+                    Lịch sử
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusView.toneClass}`}>
+                    {statusView.label}
+                  </span>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  {enhancedActivityTimelineEntries.map((entry, index) => (
+                    <div key={`${entry.title}-${entry.time}-${entry.detail}-${index}`} className="grid grid-cols-[18px_1fr] gap-3">
+                      <div className="flex flex-col items-center">
+                        <span className={`mt-1 h-2.5 w-2.5 rounded-full ${entry.tone === 'text-primary-500' ? 'bg-primary-500' : entry.tone === 'text-amber-500' ? 'bg-amber-500' : 'bg-border'}`} />
+                        {index < enhancedActivityTimelineEntries.length - 1 ? (
+                          <span className="mt-1 h-full w-px bg-border" />
+                        ) : null}
+                      </div>
+                      <div className="pb-1">
+                        <div className={`text-sm font-semibold ${entry.tone}`}>{entry.title}</div>
+                        <div className="mt-0.5 text-xs text-foreground flex items-center gap-2">
+                          <span>{entry.detail}</span>
+                          <span className="text-[11px] text-foreground-muted whitespace-nowrap ml-auto">{entry.time}</span>
+                        </div>
+                        {entry.href && entry.linkLabel ? (
+                          <Link
+                            href={entry.href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-1 inline-flex text-[11px] font-medium text-amber-400 transition-colors hover:text-amber-300"
+                          >
+                            {entry.linkLabel}
+                          </Link>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
-      </div>
-      
+
       </div>
     </ReceiptWorkspace>
   )

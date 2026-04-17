@@ -1808,7 +1808,7 @@ function UnifiedHotelPricingPanel({
                           />
                         ) : (
                           <span className="text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 whitespace-nowrap">
-                            {skuValue || '-'}``
+                            {skuValue || '-'}
                           </span>
                         )}
                       </td>,

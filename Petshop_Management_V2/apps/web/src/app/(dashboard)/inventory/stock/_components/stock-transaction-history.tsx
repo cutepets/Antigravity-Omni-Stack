@@ -6,22 +6,16 @@ import { ArrowLeft, ArrowUpRight, ArrowDownRight, RefreshCcw, Package } from 'lu
 import Link from 'next/link'
 import dayjs from 'dayjs'
 import { useRouter } from 'next/navigation'
+import { resolveProductVariantLabels } from '@petshop/shared'
 import { stockApi } from '@/lib/api/stock.api'
 import { inventoryApi } from '@/lib/api/inventory.api'
+import { getDisplayBranchStocks, sumBranchStockRows } from '@/lib/inventory-conversion-stock'
 
 function getCurrentStock(product: any, productVariantId?: string | null) {
-  if (productVariantId) {
-    const variant = Array.isArray(product?.variants)
-      ? product.variants.find((item: any) => item?.id === productVariantId)
-      : null
-    const rows = Array.isArray(variant?.branchStocks) ? variant.branchStocks : []
-    return rows.reduce((sum: number, row: any) => sum + Number(row?.stock ?? 0), 0)
-  }
-
-  const rows = Array.isArray(product?.branchStocks)
-    ? product.branchStocks.filter((row: any) => !row?.productVariantId)
-    : []
-  return rows.reduce((sum: number, row: any) => sum + Number(row?.stock ?? 0), 0)
+  return sumBranchStockRows(
+    getDisplayBranchStocks(product, productVariantId ?? null) as any[],
+    'stock',
+  )
 }
 
 function getVariant(product: any, productVariantId?: string | null) {
@@ -54,7 +48,7 @@ export function StockTransactionHistory({
   const currentStock = product ? getCurrentStock(product, productVariantId) : 0
   const displayName = product
     ? variant
-      ? `${product.name} - ${variant.name || variant.sku || 'Phien ban'}`
+      ? resolveProductVariantLabels(product.name, variant).displayName || `${product.name} - ${variant.sku || 'Phien ban'}`
       : product.name
     : ''
 

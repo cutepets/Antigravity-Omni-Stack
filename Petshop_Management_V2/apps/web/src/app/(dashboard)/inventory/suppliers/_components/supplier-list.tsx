@@ -274,6 +274,12 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
 
   const total = sortedSuppliers.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
   const visibleRowIds = useMemo(() => paginatedSuppliers.map((supplier: any) => `supplier:${supplier.id}`), [paginatedSuppliers])
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd = total === 0 ? 0 : Math.min(total, page * pageSize)

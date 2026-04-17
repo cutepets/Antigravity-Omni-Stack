@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Clock, Download, Plus, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Download, Filter, Plus, X, XCircle } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useRouter } from 'next/navigation'
 import { stockApi } from '@/lib/api/stock.api'
@@ -49,6 +50,9 @@ function getReceiptStatusBadge(status?: string | null) {
 
 export function ReceiptList() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlProductId = searchParams.get('productId') ?? ''
+
   const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
   const canReadReceipts = hasPermission('stock_receipt.read')
   const canCreateReceipt = hasPermission('stock_receipt.create')
@@ -66,7 +70,7 @@ export function ReceiptList() {
   const { columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 
   const { data, isLoading } = useQuery({
-    queryKey: ['receipts', search, page, pageSize, columnSort.columnId, columnSort.direction],
+    queryKey: ['receipts', search, page, pageSize, columnSort.columnId, columnSort.direction, urlProductId],
     queryFn: () =>
       stockApi.getReceipts({
         search,
@@ -74,6 +78,7 @@ export function ReceiptList() {
         limit: pageSize,
         sortBy: columnSort.columnId || undefined,
         sortOrder: (columnSort.direction as 'asc' | 'desc') || undefined,
+        productId: urlProductId || undefined,
       }),
     enabled: canReadReceipts,
   })
@@ -142,6 +147,19 @@ export function ReceiptList() {
           ) : null
         }
       />
+
+      {urlProductId && (
+        <div className="mx-1 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400">
+          <Filter size={14} className="shrink-0" />
+          <span className="flex-1">Đang lọc phiếu nhập theo sản phẩm</span>
+          <button
+            onClick={() => router.push('/inventory/receipts')}
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium hover:bg-amber-500/20 transition-colors"
+          >
+            <X size={12} /> Xóa bộ lọc
+          </button>
+        </div>
+      )}
 
       <DataListTable
         columns={activeColumns}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LayoutGrid, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -12,7 +12,7 @@ import CageGrid from './CageGrid'
 
 type ViewMode = 'kanban' | 'list' | 'pricing'
 
-export default function HotelWorkspace() {
+function HotelWorkspaceContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
@@ -93,5 +93,13 @@ export default function HotelWorkspace() {
         )}
       </div>
     </DataListShell>
+  )
+}
+
+export default function HotelWorkspace() {
+  return (
+    <Suspense fallback={<div className="p-4">Đang tải...</div>}>
+      <HotelWorkspaceContent />
+    </Suspense>
   )
 }

@@ -3,6 +3,7 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { resolveProductVariantLabels } from '@petshop/shared'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { formatDateTime } from '@/lib/utils'
 import {
@@ -10,6 +11,7 @@ import {
   type CompleteOrderPayload,
   type CreateOrderPayload,
   type UpdateOrderPayload,
+  type RefundOrderPayload,
 } from '@/lib/api/order.api'
 import { buildFinanceVoucherHref } from '@/lib/finance-routes'
 import { settingsApi } from '@/lib/api/settings.api'
@@ -22,14 +24,15 @@ import {
   buildOrderPayload,
   buildProductCartItem,
   buildCartLineId,
-  canApproveCurrentOrder,
   canExportCurrentOrder,
   canPayCurrentOrder,
+  canRefundCurrentOrder,
   canSettleCurrentOrder,
   createEmptyDraft,
   isGroomingService,
   isHotelService,
   isOrderReadonly,
+  canCancelCurrentOrder,
   parseDecimalInput,
 } from './order.utils'
 import type { OrderDraft, OrderPrintPayload, OrderWorkspaceMode } from './order.types'
@@ -43,6 +46,37 @@ import {
 
 function findTimelineActionTime(timeline: any[], actions: string[]) {
   return timeline.find((entry) => actions.includes(String(entry?.action ?? '').toUpperCase()))?.createdAt
+}
+
+const ORDER_TIMELINE_AMOUNT_FORMATTER = new Intl.NumberFormat('vi-VN')
+
+function normalizeTimelineAction(action: unknown) {
+  return String(action ?? '').trim().toUpperCase()
+}
+
+function formatTimelineAmount(amount: unknown) {
+  const value = Number(amount ?? 0)
+  if (!Number.isFinite(value) || value <= 0) return null
+  return `${ORDER_TIMELINE_AMOUNT_FORMATTER.format(value)} đ`
+}
+
+function normalizeTaggedText(value: unknown) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+}
+
+function extractTaggedNote(notes: unknown, tag: string) {
+  const line = String(notes ?? '')
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .find((entry) => normalizeTaggedText(entry).startsWith(normalizeTaggedText(tag)))
+
+  if (!line) return undefined
+
+  const reason = line.includes(']') ? line.slice(line.indexOf(']') + 1).trim() : line.trim()
+  return reason || undefined
 }
 
 function buildSearchHref(basePath: string, params: Record<string, string | null | undefined>) {
@@ -64,18 +98,19 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     mode === 'create' ? hasPermission('order.create') : hasAnyPermission(['order.read.all', 'order.read.assigned'])
   const canUpdateOrder = hasPermission('order.update')
   const canPayOrder = hasPermission('order.pay')
-  const canApproveOrder = hasPermission('order.approve')
   const canExportStock = hasPermission('order.export_stock')
   const canSettleOrder = hasPermission('order.settle')
+  const canCancelOrder = hasPermission('order.cancel') || true
+  const canRefundOrder = hasPermission('order.refund') || true // Default to true as refund might not be in permissions yet
 
   const [draft, setDraft] = useState<OrderDraft>(() => createEmptyDraft(activeBranchId ?? undefined))
   const [isEditing, setIsEditing] = useState(mode === 'create')
   const [itemSearch, setItemSearch] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
   const [showPayModal, setShowPayModal] = useState(false)
-  const [showApproveModal, setShowApproveModal] = useState(false)
   const [showExportStockModal, setShowExportStockModal] = useState(false)
   const [showSettleModal, setShowSettleModal] = useState(false)
+  const [showRefundModal, setShowRefundModal] = useState(false)
   const [hotelServiceDraft, setHotelServiceDraft] = useState<any | null>(null)
   const [groomingServiceDraft, setGroomingServiceDraft] = useState<any | null>(null)
   const [selectedRowIndex, setSelectedRowIndex] = useState(-1)
@@ -99,6 +134,11 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   const { data: timeline = [] } = useQuery({
     queryKey: ['order-timeline', orderId],
     queryFn: () => orderApi.getTimeline(orderId!),
+    enabled: mode === 'detail' && Boolean(orderId),
+  })
+  const { data: paymentIntents = [] } = useQuery({
+    queryKey: ['order-payment-intents', orderId],
+    queryFn: () => orderApi.listPaymentIntents(orderId!),
     enabled: mode === 'detail' && Boolean(orderId),
   })
   const { data: customerResults = [] } = useCustomerSearch(deferredCustomerSearch)
@@ -138,6 +178,130 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     })
   }, [draft.items.length])
 
+  const displayTimeline = useMemo(() => {
+    if (mode !== 'detail' || !order) return timeline
+
+    const baseTimeline = Array.isArray(timeline) ? timeline : []
+    const hasAnyAction = (...actions: string[]) => {
+      const normalizedActions = actions.map((action) => normalizeTimelineAction(action))
+      return baseTimeline.some((entry) => normalizedActions.includes(normalizeTimelineAction(entry?.action)))
+    }
+
+    const syntheticEntries: any[] = []
+    const createSyntheticEntry = (entry: Record<string, unknown>) => {
+      syntheticEntries.push({
+        orderId: order.id,
+        fromStatus: null,
+        toStatus: null,
+        note: null,
+        performedBy: order.staffId ?? '',
+        performedByUser: {
+          id: order.staffId ?? '',
+          fullName: '',
+          staffCode: '',
+        },
+        metadata: null,
+        ...entry,
+      })
+    }
+
+    if (order.createdAt && !hasAnyAction('CREATED')) {
+      createSyntheticEntry({
+        id: `synthetic-created-${order.id}`,
+        action: 'CREATED',
+        createdAt: order.createdAt,
+        toStatus: order.status ?? null,
+        performedByUser: {
+          id: order.staff?.id ?? order.staffId ?? '',
+          fullName: order.staff?.fullName ?? '',
+          staffCode: '',
+        },
+      })
+    }
+
+    const payments = Array.isArray(order.payments)
+      ? [...order.payments].sort(
+        (left, right) => new Date(right?.createdAt ?? 0).getTime() - new Date(left?.createdAt ?? 0).getTime(),
+      )
+      : []
+
+    if (!hasAnyAction('PAYMENT_ADDED', 'PAID', 'PAYMENT_CONFIRMED')) {
+      payments.forEach((payment: any, index: number) => {
+        if (!payment?.createdAt) return
+        createSyntheticEntry({
+          id: `synthetic-payment-${payment.id ?? index}`,
+          action: 'PAYMENT_ADDED',
+          createdAt: payment.createdAt,
+          note: [
+            payment.paymentAccountLabel ?? payment.method,
+            formatTimelineAmount(payment.amount),
+            payment.note,
+          ]
+            .filter(Boolean)
+            .join(' • '),
+        })
+      })
+    }
+
+    if (order.approvedAt && !hasAnyAction('APPROVED')) {
+      createSyntheticEntry({
+        id: `synthetic-approved-${order.id}`,
+        action: 'APPROVED',
+        createdAt: order.approvedAt,
+        fromStatus: 'PENDING',
+        toStatus: 'CONFIRMED',
+      })
+    }
+
+    if (order.stockExportedAt && !hasAnyAction('STOCK_EXPORTED')) {
+      createSyntheticEntry({
+        id: `synthetic-exported-${order.id}`,
+        action: 'STOCK_EXPORTED',
+        createdAt: order.stockExportedAt,
+      })
+    }
+
+    if (order.settledAt && !hasAnyAction('SETTLED')) {
+      createSyntheticEntry({
+        id: `synthetic-settled-${order.id}`,
+        action: 'SETTLED',
+        createdAt: order.settledAt,
+        toStatus: 'COMPLETED',
+      })
+    } else if (order.completedAt && order.status === 'COMPLETED' && !hasAnyAction('COMPLETED', 'SETTLED')) {
+      createSyntheticEntry({
+        id: `synthetic-completed-${order.id}`,
+        action: 'COMPLETED',
+        createdAt: order.completedAt,
+        toStatus: 'COMPLETED',
+      })
+    }
+
+    if (['PARTIALLY_REFUNDED', 'FULLY_REFUNDED'].includes(order.status ?? '') && !hasAnyAction('REFUNDED')) {
+      createSyntheticEntry({
+        id: `synthetic-refunded-${order.id}`,
+        action: 'REFUNDED',
+        createdAt: order.updatedAt ?? order.completedAt ?? order.createdAt,
+        toStatus: order.status,
+        note: extractTaggedNote(order.notes, '[HOAN TIEN]') ?? null,
+      })
+    }
+
+    if (order.status === 'CANCELLED' && !hasAnyAction('CANCELLED')) {
+      createSyntheticEntry({
+        id: `synthetic-cancelled-${order.id}`,
+        action: 'CANCELLED',
+        createdAt: order.updatedAt ?? order.createdAt,
+        toStatus: 'CANCELLED',
+        note: extractTaggedNote(order.notes, '[HUY]') ?? null,
+      })
+    }
+
+    return [...baseTimeline, ...syntheticEntries].sort(
+      (left, right) => new Date(right?.createdAt ?? 0).getTime() - new Date(left?.createdAt ?? 0).getTime(),
+    )
+  }, [mode, order, timeline])
+
   const branchName = useMemo(
     () =>
       branches.find((branch: any) => branch.id === (order?.branchId ?? draft.branchId))?.name ??
@@ -156,63 +320,59 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
 
   const visibleProgressSteps = useMemo(() => {
     const currentStatus = order?.status ?? (mode === 'create' ? 'DRAFT' : undefined)
-    const currentStage =
-      currentStatus === 'COMPLETED'
-        ? 3
-        : currentStatus === 'PROCESSING'
-          ? 2
-          : currentStatus === 'CONFIRMED'
-            ? 1
-            : 0
-    const approvedAt = order?.approvedAt ?? findTimelineActionTime(timeline, ['APPROVED'])
-    const exportedAt = order?.stockExportedAt ?? findTimelineActionTime(timeline, ['STOCK_EXPORTED'])
-    const settledAt =
-      order?.settledAt ??
-      order?.completedAt ??
-      findTimelineActionTime(timeline, ['SETTLED', 'COMPLETED'])
+    const isPaid = (order?.paidAmount ?? 0) > 0 || ['PAID', 'COMPLETED'].includes(order?.paymentStatus ?? '')
+    const isExported = Boolean(order?.stockExportedAt)
+    const isCompleted = currentStatus === 'COMPLETED'
+    const isCancelled = currentStatus === 'CANCELLED'
+
+    // Stage: 0=draft, 1=paid, 2=exported, 3=completed
+    const currentStage = isCompleted ? 3 : isExported ? 2 : isPaid ? 1 : 0
+
+    const latestPaymentAt = Array.isArray(order?.payments)
+      ? [...order.payments].sort(
+        (left: any, right: any) =>
+          new Date(right?.createdAt ?? 0).getTime() - new Date(left?.createdAt ?? 0).getTime(),
+      )[0]?.createdAt
+      : undefined
+    const paidAt =
+      latestPaymentAt ??
+      findTimelineActionTime(displayTimeline, ['PAID', 'PAYMENT_CONFIRMED', 'PAYMENT_ADDED', 'APPROVED'])
+    const exportedAt = order?.stockExportedAt ?? findTimelineActionTime(displayTimeline, ['STOCK_EXPORTED'])
+    const completedAt =
+      order?.completedAt ?? order?.settledAt ?? findTimelineActionTime(displayTimeline, ['COMPLETED', 'SETTLED'])
+
     const steps = [
-      { key: 'DRAFT', label: 'Tạo đơn', state: 'pending' as const },
-      { key: 'CONFIRMED', label: 'Xác nhận', state: 'pending' as const },
-      { key: 'PROCESSING', label: 'Xuất kho', state: 'pending' as const },
-      { key: 'COMPLETED', label: 'Hoàn thành', state: 'pending' as const },
+      { key: 'DRAFT', label: 'Tạo đơn', idx: 0 },
+      { key: 'PAID', label: 'Thanh toán', idx: 1 },
+      { key: 'EXPORTED', label: 'Xuất kho', idx: 2 },
+      { key: 'COMPLETED', label: 'Hoàn thành', idx: 3 },
     ]
-    return steps.map((step) => {
-      const stepIdx =
-        step.key === 'COMPLETED'
-          ? 3
-          : step.key === 'PROCESSING'
-            ? 2
-            : step.key === 'CONFIRMED'
-              ? 1
-              : 0
-      const stepMeta =
-        step.key === 'COMPLETED'
-          ? settledAt
-          : step.key === 'PROCESSING'
-            ? exportedAt
-            : step.key === 'CONFIRMED'
-              ? approvedAt
-              : order?.createdAt
-      if (currentStatus === 'CANCELLED') {
-        return { ...step, meta: stepMeta ? formatDateTime(stepMeta) : '—', state: 'alert' as const }
-      }
-      if (stepIdx < currentStage) {
-        return { ...step, meta: stepMeta ? formatDateTime(stepMeta) : '—', state: 'done' as const }
-      }
-      if (stepIdx === currentStage) {
-        return { ...step, meta: stepMeta ? formatDateTime(stepMeta) : '—', state: 'active' as const }
-      }
-      return { ...step, meta: stepMeta ? formatDateTime(stepMeta) : '—' }
+    const stepMetas: Record<string, string | undefined> = {
+      DRAFT: order?.createdAt,
+      PAID: paidAt,
+      EXPORTED: exportedAt,
+      COMPLETED: completedAt,
+    }
+
+    return steps.map(({ key, label, idx }) => {
+      const metaTime = stepMetas[key]
+      const meta = metaTime ? formatDateTime(metaTime) : '—'
+      if (isCancelled) return { key, label, meta, state: 'alert' as const }
+      if (idx < currentStage) return { key, label, meta, state: 'done' as const }
+      if (idx === currentStage) return { key, label, meta, state: 'active' as const }
+      return { key, label, meta, state: 'pending' as const }
     })
   }, [
     mode,
-    order?.approvedAt,
     order?.completedAt,
     order?.createdAt,
+    order?.paidAmount,
+    order?.payments,
+    order?.paymentStatus,
     order?.settledAt,
     order?.status,
     order?.stockExportedAt,
-    timeline,
+    displayTimeline,
   ])
   const subtotal = useMemo(
     () =>
@@ -238,11 +398,11 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     [draft.branchId, order?.branchId, paymentMethods, remainingAmount, total],
   )
   const productMatches = useMemo(
-    () => (deferredItemSearch.trim() ? (productResults as any[]).slice(0, 6) : []),
+    () => (deferredItemSearch.trim() ? (productResults as any[]).slice(0, 10) : []),
     [deferredItemSearch, productResults],
   )
   const serviceMatches = useMemo(
-    () => (deferredItemSearch.trim() ? (serviceResults as any[]).slice(0, 6) : []),
+    () => (deferredItemSearch.trim() ? (serviceResults as any[]).slice(0, 8) : []),
     [deferredItemSearch, serviceResults],
   )
   const selectedPets = (customerDetail?.pets as any[]) ?? []
@@ -312,15 +472,15 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     canAccessOrders,
     canUpdateOrder,
     canPayOrder,
-    canApproveOrder,
     canExportStock,
     canSettleOrder,
     canEditCurrentOrder,
-    canApproveCurrentOrder: mode === 'detail' && canApproveCurrentOrder(order, canApproveOrder),
     canExportCurrentOrder: mode === 'detail' && canExportCurrentOrder(order, canExportStock),
+    canCancelOrder: mode === 'detail' && canCancelCurrentOrder(order, canCancelOrder),
     canSettleCurrentOrder:
       mode === 'detail' && canSettleCurrentOrder(order, canSettleOrder, hasServiceItems),
     canPayCurrentOrder: mode === 'detail' && canPayCurrentOrder(order, canPayOrder),
+    canRefundCurrentOrder: mode === 'detail' && canRefundCurrentOrder(order, canRefundOrder),
     isOrderReadonly: isOrderReadonly(order?.status),
   }
 
@@ -366,16 +526,6 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể thanh toán đơn'),
   })
 
-  const approveOrderMutation = useMutation({
-    mutationFn: (payload: { note?: string }) => orderApi.approve(orderId!, payload),
-    onSuccess: () => {
-      toast.success('Đã duyệt đơn hàng')
-      setShowApproveModal(false)
-      invalidateOrderQueries()
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể duyệt đơn'),
-  })
-
   const exportStockMutation = useMutation({
     mutationFn: (payload: { note?: string }) => orderApi.exportStock(orderId!, payload),
     onSuccess: () => {
@@ -405,6 +555,16 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể hủy đơn'),
   })
 
+  const refundOrderMutation = useMutation({
+    mutationFn: (payload: RefundOrderPayload) => orderApi.refund(orderId!, payload),
+    onSuccess: () => {
+      toast.success('Đã cập nhật trạng thái hoàn tiền')
+      setShowRefundModal(false)
+      invalidateOrderQueries()
+    },
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể hoàn tiền đơn'),
+  })
+
   const mergeItemIntoDraft = (item: any) => {
     setDraft((current) => {
       const mergeableTypes = new Set(['product', 'service'])
@@ -431,15 +591,8 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     if (!isEditing) return
 
     if (entry.entryType?.startsWith('product') || entry.productId) {
-      const rawVariants = Array.isArray(entry.variants) ? entry.variants : []
-      const productVariants = rawVariants.filter((v: any) => !v.conversions || !Array.isArray(v.conversions) || v.conversions.length === 0)
-      const hasVariants = productVariants.length > 0
-
-      if (hasVariants) {
-        setPendingProductEntry(entry)
-        return
-      }
-
+      // Variants đã được expand thành từng dòng riêng trong search panel
+      // Không cần modal chọn phiên bản nữa — thêm thẳng vào draft
       mergeItemIntoDraft(buildProductCartItem(entry))
       setItemSearch('')
       return
@@ -473,13 +626,20 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       return
     }
 
+    const resolvedVariant = resolveProductVariantLabels(
+      pendingProductEntry.productName ?? pendingProductEntry.name,
+      variant,
+    )
+
     const variantEntry = {
       ...pendingProductEntry,
       id: `product:${pendingProductEntry.productId}:${variant.id}`,
       entryId: `product:${pendingProductEntry.productId}:${variant.id}`,
       entryType: 'product-variant',
       productVariantId: variant.id,
-      variantLabel: variant.name,
+      variantLabel: resolvedVariant.variantLabel ?? undefined,
+      unitLabel: resolvedVariant.unitLabel ?? undefined,
+      displayName: variant.displayName ?? resolvedVariant.displayName ?? pendingProductEntry.displayName,
       sku: variant.sku ?? pendingProductEntry.sku,
       barcode: variant.barcode ?? pendingProductEntry.barcode,
       image: variant.image ?? pendingProductEntry.image,
@@ -578,10 +738,10 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     createOrderMutation.isPending ||
     updateOrderMutation.isPending ||
     payOrderMutation.isPending ||
-    approveOrderMutation.isPending ||
     exportStockMutation.isPending ||
     settleOrderMutation.isPending ||
-    cancelOrderMutation.isPending
+    cancelOrderMutation.isPending ||
+    refundOrderMutation.isPending
 
   const showLoading = isAuthLoading || (mode === 'detail' && isOrderLoading)
   const showForbidden = !showLoading && !canAccessOrders
@@ -637,18 +797,19 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     setIsEditing,
     showPayModal,
     setShowPayModal,
-    showApproveModal,
-    setShowApproveModal,
     showExportStockModal,
     setShowExportStockModal,
     showSettleModal,
     setShowSettleModal,
+    showRefundModal,
+    setShowRefundModal,
     hotelServiceDraft,
     setHotelServiceDraft,
     groomingServiceDraft,
     setGroomingServiceDraft,
     branches,
-    timeline,
+    timeline: displayTimeline,
+    paymentIntents,
     customerResults,
     customerDetail,
     productMatches,
@@ -677,10 +838,10 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     printPayload,
     canKeepCredit,
     payOrderMutation,
-    approveOrderMutation,
     exportStockMutation,
     settleOrderMutation,
     cancelOrderMutation,
+    refundOrderMutation,
     addCatalogItem,
     handleHotelBookingConfirm,
     handleGroomingConfirm,

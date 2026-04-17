@@ -117,10 +117,11 @@ function CatalogSearchResultRow({
 }) {
   const entryKey = getEntryKey(entry)
   const service = isServiceEntry(entry)
-  const displayName = entry.productName ?? entry.name
+  const displayName = entry.displayName ?? entry.productName ?? entry.name
   const price = Number(entry.sellingPrice ?? entry.price ?? 0)
-  const finalVariantLabel = entry.variantLabel && entry.variantLabel !== displayName ? entry.variantLabel : null
-  const meta = getEntryMeta?.(entry) ?? [finalVariantLabel, entry.sku].filter(Boolean).join(' - ')
+  const finalVariantLabel = entry.variantLabel ? entry.variantLabel : null
+  const finalUnitLabel = entry.unitLabel ? entry.unitLabel : null
+  const meta = getEntryMeta?.(entry) ?? [finalVariantLabel, finalUnitLabel, entry.sku].filter(Boolean).join(' • ')
 
   if (variant === 'pos') {
     return (

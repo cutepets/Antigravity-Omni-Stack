@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo } from 'react'
 import { useQueries } from '@tanstack/react-query'
+import { buildProductVariantName, resolveProductVariantLabels } from '@petshop/shared'
 import { AnimatePresence, motion } from 'framer-motion'
 import { BarChart3, CalendarDays, ChevronRight, Crown, Download, Landmark, Package, PiggyBank, TrendingUp, Truck, Users, Wallet } from 'lucide-react'
 import {
@@ -83,6 +84,12 @@ function formatCurrency(value: number) {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat('vi-VN').format(value)
+}
+
+function getLowStockVariantLabel(item: LowStockSuggestion) {
+  if (!item.variant) return ''
+  const labels = resolveProductVariantLabels(item.product?.name, item.variant)
+  return buildProductVariantName(null, labels.variantLabel, labels.unitLabel) || item.variant.name || ''
 }
 
 function formatCompactCurrency(value: number) {
@@ -525,7 +532,7 @@ export function ReportsWorkspace() {
         return inventorySuggestions.map((item, index) => ({
           'Hạng': index + 1,
           'Sản phẩm': item.product?.name ?? 'Sản phẩm',
-          'Biến thể': item.variant?.name ?? '',
+          'Biến thể': getLowStockVariantLabel(item),
           'SKU': item.product?.sku ?? 'N/A',
           'Chi nhánh': item.branch?.name ?? '',
           'Tồn hiện tại': item.stock,
@@ -1180,13 +1187,16 @@ function InventoryTab({
       <SectionCard title="Danh sách sắp thiếu hàng" description="Xếp theo mức độ thiếu hụt để nhập kho bổ sung." action={<Link href={inventoryHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mở kho</Link>}>
         {sortedSuggestions.length > 0 ? (
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {sortedSuggestions.slice(0, 12).map((item) => (
+            {sortedSuggestions.slice(0, 12).map((item) => {
+              const variantLabel = getLowStockVariantLabel(item)
+
+              return (
               <div key={item.id} className="rounded-2xl border border-border/50 bg-background-base p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-bold text-foreground-base">
                       {item.product?.name ?? 'Sản phẩm'}
-                      {item.variant?.name ? ` • ${item.variant.name}` : ''}
+                      {variantLabel ? ` • ${variantLabel}` : ''}
                     </div>
                     <div className="mt-1 text-xs text-foreground-muted">
                       {(item.product?.sku ?? 'N/A')} • {item.branch?.name ?? 'Chưa rõ chi nhánh'}
@@ -1199,7 +1209,8 @@ function InventoryTab({
                   <span>Min: {formatNumber(item.minStock)}</span>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <EmptyState message="Không có mặt hàng cảnh báo trong kho." />

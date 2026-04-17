@@ -29,7 +29,7 @@ import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile'
 
 
 type SpeciesFilter = '' | 'Chó' | 'Mèo' | 'Chim' | 'Khác'
-type DisplayColumnId = 'avatar' | 'pet' | 'breed' | 'color' | 'owner' | 'weight' | 'dob' | 'allergies' | 'status' | 'petCode'
+type DisplayColumnId = 'avatar' | 'pet' | 'breed' | 'color' | 'owner' | 'weight' | 'age' | 'dob' | 'allergies' | 'status' | 'petCode'
 type PinFilterId = 'species'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
@@ -45,6 +45,8 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'petCode', label: 'Mã PET', sortable: true, width: 'w-24' },
 ]
 
+COLUMN_OPTIONS.splice(6, 0, { id: 'age', label: 'Tu\u1ed5i', minWidth: 'min-w-[90px]' })
+
 const SPECIES_OPTIONS: { value: SpeciesFilter; label: string }[] = [
   { value: 'Chó', label: 'Chó' },
   { value: 'Mèo', label: 'Mèo' },
@@ -55,6 +57,34 @@ const SORTABLE_COLUMNS = new Set<DisplayColumnId>(['pet', 'owner', 'petCode'])
 
 const fmt = (d?: string | null) =>
   d ? new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null
+
+const getAgeLabel = (dateOfBirth?: string | null) => {
+  if (!dateOfBirth) return null
+
+  const dob = new Date(dateOfBirth)
+  if (Number.isNaN(dob.getTime())) return null
+
+  const now = new Date()
+  let years = now.getFullYear() - dob.getFullYear()
+  let months = now.getMonth() - dob.getMonth()
+
+  if (now.getDate() < dob.getDate()) months -= 1
+
+  if (months < 0) {
+    years -= 1
+    months += 12
+  }
+
+  if (years > 0) {
+    return months > 0 ? `${years} tu\u1ed5i ${months} th\u00e1ng` : `${years} tu\u1ed5i`
+  }
+
+  if (months > 0) return `${months} th\u00e1ng`
+
+  const msPerDay = 1000 * 60 * 60 * 24
+  const days = Math.max(0, Math.floor((now.getTime() - dob.getTime()) / msPerDay))
+  return `${days} ng\u00e0y`
+}
 
 function getEmoji(s?: string) {
   if (s === 'Chó') return '🐕'
@@ -96,9 +126,9 @@ export function PetList() {
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((c) => c.id),
-    initialVisibleColumns: ['avatar', 'pet', 'breed', 'owner', 'weight', 'dob', 'petCode'],
+    initialVisibleColumns: ['avatar', 'pet', 'breed', 'owner', 'weight', 'age', 'dob', 'petCode'],
     initialTopFilterVisibility: { species: true },
-    storageKey: 'pet-list-columns-v2',
+    storageKey: 'pet-list-columns-v3',
   })
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 
@@ -428,6 +458,24 @@ export function PetList() {
                     <td key={colId} className="px-3 py-2.5">
                       <div className="text-sm font-medium text-foreground">
                         {p.weight ? `${p.weight} kg` : '—'}
+                      </div>
+                    </td>
+                  )
+                }
+                if (['age'].includes(colId)) {
+                  return (
+                    <td key={colId} className="px-3 py-2.5">
+                      <div className="text-sm text-foreground-muted">
+                        {getAgeLabel(p.dateOfBirth) || '-'}
+                      </div>
+                    </td>
+                  )
+                }
+                if (colId === 'age') {
+                  return (
+                    <td key={colId} className="px-3 py-2.5">
+                      <div className="text-sm text-foreground-muted">
+                        {getAgeLabel(p.dateOfBirth) || 'â€”'}
                       </div>
                     </td>
                   )

@@ -3,7 +3,16 @@
 // No React imports — safe to use in server components and tests.
 
 import dayjs from 'dayjs'
-import { suggestBranchCodeFromName } from '@petshop/shared'
+import { buildProductVariantName, getProductVariantOptionLabel, suggestBranchCodeFromName } from '@petshop/shared'
+import {
+  findParentTrueVariant as resolveParentTrueVariant,
+  getConversionVariants as resolveConversionVariants,
+  getDisplayBranchStocks,
+  getResolvedVariantLabels as resolveVariantLabels,
+  getTrueVariants as resolveTrueVariants,
+  isConversionVariant as isConversionVariantValue,
+  sumBranchStockRows,
+} from '@/lib/inventory-conversion-stock'
 import type {
   BranchStock,
   ExtraCostRow,
@@ -157,81 +166,67 @@ export function safeParseJson(value?: string | null) {
 // ─── Variant helpers ──────────────────────────────────────────────────────────
 
 export function isConversionVariant(variant?: ProductVariantOption | null) {
-  const parsed = safeParseJson(variant?.conversions)
-  return !!(parsed?.rate || parsed?.conversionRate || parsed?.mainQty)
+  return isConversionVariantValue(variant)
 }
 
 export function getTrueVariants(variants?: ProductVariantOption[]) {
-  return (variants ?? []).filter((variant) => !isConversionVariant(variant))
+  return resolveTrueVariants(variants)
 }
 
 export function getVariantShortLabel(name?: string | null) {
-  const parts = `${name ?? ''}`
-    .split(' - ')
-    .map((part) => part.trim())
-    .filter(Boolean)
-  if (parts.length === 0) return ''
-  return parts[parts.length - 1]
+  return getProductVariantOptionLabel(null, { name })
 }
 
 export function findParentTrueVariant(
   variants: ProductVariantOption[],
   selectedVariant?: ProductVariantOption | null,
+  productName?: string | null,
 ) {
-  if (!selectedVariant) return null
-  if (!isConversionVariant(selectedVariant)) return selectedVariant
-  const trueVariants = getTrueVariants(variants)
-  return (
-    trueVariants.find((variant) => selectedVariant.name.startsWith(`${variant.name} - `)) ?? null
-  )
+  return resolveParentTrueVariant(variants, selectedVariant, productName)
 }
 
 export function getConversionVariants(
   variants: ProductVariantOption[],
   currentTrueVariant?: ProductVariantOption | null,
+  productName?: string | null,
 ) {
-  const allConversions = variants.filter((variant) => isConversionVariant(variant))
-  if (!currentTrueVariant) {
-    return allConversions.filter(
-      (variant) =>
-        !getTrueVariants(variants).some((trueVariant) =>
-          variant.name.startsWith(`${trueVariant.name} - `),
-        ),
-    )
-  }
-  return allConversions.filter((variant) =>
-    variant.name.startsWith(`${currentTrueVariant.name} - `),
-  )
+  return resolveConversionVariants(variants, currentTrueVariant, productName)
 }
 
 // ─── Stock ─────────────────────────────────────────────────────────────────────
 
 export function sumBranchStock(branchStocks?: BranchStock[]) {
-  return (branchStocks ?? []).reduce((sum, stock) => sum + Number(stock.stock ?? 0), 0)
+  return sumBranchStockRows(branchStocks, 'stock')
 }
 
 export function getVariantSnapshot(item: SelectedItem) {
   const variants = item.variants ?? []
   const selectedVariant =
     variants.find((variant) => variant.id === item.productVariantId) ?? null
-  const selectedBranchStocks = Array.isArray(selectedVariant?.branchStocks)
-    ? selectedVariant.branchStocks
-    : undefined
-  const branchStocks =
-    selectedBranchStocks ??
-    (item.productVariantId ? [] : item.baseBranchStocks ?? item.branchStocks ?? [])
+  const selectedLabels = selectedVariant ? resolveVariantLabels(item.name, selectedVariant) : null
+  const branchStocks = getDisplayBranchStocks(
+    {
+      name: item.name,
+      branchStocks: item.baseBranchStocks ?? item.branchStocks ?? [],
+      variants,
+    },
+    selectedVariant?.id ?? item.productVariantId ?? null,
+  ) as BranchStock[]
 
-  const totalStock = selectedVariant
-    ? selectedVariant.stock !== undefined && selectedVariant.stock !== null
-      ? Number(selectedVariant.stock)
-      : sumBranchStock(branchStocks)
-    : item.baseTotalStock ?? item.totalStock ?? sumBranchStock(branchStocks)
+  const totalStock =
+    branchStocks.length > 0
+      ? sumBranchStock(branchStocks)
+      : selectedVariant
+        ? selectedVariant.stock !== undefined && selectedVariant.stock !== null
+          ? Number(selectedVariant.stock)
+          : 0
+        : item.baseTotalStock ?? item.totalStock ?? 0
 
   return {
     selectedVariant,
     branchStocks,
     totalStock,
-    displayName: selectedVariant?.name || item.name,
+    displayName: selectedLabels ? buildProductVariantName(item.name, selectedLabels.variantLabel, selectedLabels.unitLabel) : item.name,
     displaySku: selectedVariant?.sku ?? item.sku ?? item.baseSku ?? null,
     displayBarcode: selectedVariant?.barcode ?? item.barcode ?? item.baseBarcode ?? null,
   }
@@ -243,6 +238,8 @@ export function applyVariantSelection(item: SelectedItem, variantId: string): Se
       ...item,
       productVariantId: null,
       variantName: null,
+      variantLabel: null,
+      unitLabel: null,
       sku: item.baseSku ?? item.sku,
       barcode: item.baseBarcode ?? item.barcode,
       unitCost: item.baseUnitCost ?? item.unitCost,
@@ -266,6 +263,7 @@ export function applyVariantSelection(item: SelectedItem, variantId: string): Se
 
   if (!selectedVariant) return item
 
+  const selectedLabels = resolveVariantLabels(item.name, selectedVariant)
   const branchStocks = Array.isArray(selectedVariant.branchStocks)
     ? selectedVariant.branchStocks
     : []
@@ -273,7 +271,9 @@ export function applyVariantSelection(item: SelectedItem, variantId: string): Se
   return {
     ...item,
     productVariantId: selectedVariant.id,
-    variantName: selectedVariant.name,
+    variantName: buildProductVariantName(item.name, selectedLabels.variantLabel, selectedLabels.unitLabel),
+    variantLabel: selectedLabels.variantLabel,
+    unitLabel: selectedLabels.unitLabel,
     sku: selectedVariant.sku ?? item.baseSku ?? item.sku,
     barcode: selectedVariant.barcode ?? item.baseBarcode ?? item.barcode,
     unitCost: Number(selectedVariant.costPrice ?? item.baseUnitCost ?? item.unitCost),
@@ -290,12 +290,10 @@ export function applyVariantSelection(item: SelectedItem, variantId: string): Se
 export function normalizeProduct(product: any): SelectedItem {
   const variants: ProductVariantOption[] = Array.isArray(product.variants) ? product.variants : []
   const defaultVariant = getTrueVariants(variants)[0] ?? variants[0] ?? null
-  const defaultBranchStocks = Array.isArray(defaultVariant?.branchStocks)
-    ? defaultVariant.branchStocks
-    : Array.isArray(product.branchStocks)
-      ? product.branchStocks
-      : []
+  const defaultBranchStocks = getDisplayBranchStocks(product, defaultVariant?.id ?? null) as BranchStock[]
+  const baseDisplayBranchStocks = getDisplayBranchStocks(product) as BranchStock[]
 
+  const defaultLabels = defaultVariant ? resolveVariantLabels(product.name, defaultVariant) : null
   return {
     lineId: createLineId(),
     productId: product.id,
@@ -312,20 +310,32 @@ export function normalizeProduct(product: any): SelectedItem {
     unitCost: Number(defaultVariant?.costPrice ?? product.costPrice ?? 0),
     discount: 0,
     note: '',
+    monthlySellThrough:
+      defaultVariant?.monthlySellThrough ?? product.monthlySellThrough ?? null,
     totalStock:
-      defaultVariant?.stock !== undefined && defaultVariant?.stock !== null
-        ? Number(defaultVariant.stock)
-        : product.stock !== undefined
-          ? Number(product.stock)
-          : sumBranchStock(defaultBranchStocks),
+      defaultBranchStocks.length > 0
+        ? sumBranchStock(defaultBranchStocks)
+        : defaultVariant?.stock !== undefined && defaultVariant?.stock !== null
+          ? Number(defaultVariant.stock)
+          : product.stock !== undefined
+            ? Number(product.stock)
+            : 0,
     branchStocks: defaultBranchStocks,
     variants,
-    variantName: defaultVariant?.name ?? null,
+    variantName: defaultLabels ? buildProductVariantName(product.name, defaultLabels.variantLabel, defaultLabels.unitLabel) : null,
+    variantLabel: defaultLabels?.variantLabel ?? null,
+    unitLabel: defaultLabels?.unitLabel ?? null,
     baseSku: product.sku ?? null,
     baseBarcode: product.barcode ?? null,
     baseUnit: product.unit ?? null,
     baseUnitCost: Number(product.costPrice ?? 0),
-    baseTotalStock: product.stock !== undefined ? Number(product.stock) : null,
+    baseTotalStock:
+      baseDisplayBranchStocks.length > 0
+        ? sumBranchStock(baseDisplayBranchStocks)
+        : product.stock !== undefined
+          ? Number(product.stock)
+          : null,
+    baseMonthlySellThrough: product.monthlySellThrough ?? null,
     baseBranchStocks: Array.isArray(product.branchStocks) ? product.branchStocks : [],
   }
 }
@@ -345,15 +355,19 @@ export function normalizeSupplierQuickDraftItem(item: SupplierQuickDraftItem): S
     unitCost: Math.max(0, Number(item.unitCost ?? 0)),
     discount: 0,
     note: '',
+    monthlySellThrough: null,
     totalStock: null,
     branchStocks: [],
     variants: [],
     variantName: null,
+    variantLabel: null,
+    unitLabel: null,
     baseSku: item.sku ?? null,
     baseBarcode: null,
     baseUnit: item.unit ?? null,
     baseUnitCost: Math.max(0, Number(item.unitCost ?? 0)),
     baseTotalStock: null,
+    baseMonthlySellThrough: null,
     baseBranchStocks: [],
   }
 }
@@ -361,6 +375,7 @@ export function normalizeSupplierQuickDraftItem(item: SupplierQuickDraftItem): S
 export function normalizeReceiptItem(item: any): SelectedItem {
   const product = item?.product ?? {}
   const selectedVariant = item?.productVariant ?? null
+  const selectedLabels = selectedVariant ? resolveVariantLabels(product?.name, selectedVariant) : null
 
   return {
     lineId: item?.id ?? createLineId(),
@@ -383,6 +398,7 @@ export function normalizeReceiptItem(item: any): SelectedItem {
     unitCost: Math.max(0, Number(item?.unitPrice ?? item?.unitCost ?? 0)),
     discount: 0,
     note: `${item?.notes ?? item?.note ?? ''}`.trim(),
+    monthlySellThrough: null,
     totalStock: null,
     branchStocks: [],
     variants: selectedVariant
@@ -390,6 +406,8 @@ export function normalizeReceiptItem(item: any): SelectedItem {
         {
           id: selectedVariant.id,
           name: selectedVariant.name,
+          variantLabel: selectedLabels?.variantLabel ?? null,
+          unitLabel: selectedLabels?.unitLabel ?? null,
           sku: selectedVariant.sku ?? null,
           barcode: selectedVariant.barcode ?? null,
           price: selectedVariant.price ?? null,
@@ -404,12 +422,15 @@ export function normalizeReceiptItem(item: any): SelectedItem {
         },
       ]
       : [],
-    variantName: selectedVariant?.name ?? null,
+    variantName: selectedLabels ? buildProductVariantName(product?.name, selectedLabels.variantLabel, selectedLabels.unitLabel) : null,
+    variantLabel: selectedLabels?.variantLabel ?? null,
+    unitLabel: selectedLabels?.unitLabel ?? null,
     baseSku: product?.sku ?? null,
     baseBarcode: product?.barcode ?? null,
     baseUnit: product?.unit ?? null,
     baseUnitCost: Number(product?.costPrice ?? item?.unitPrice ?? item?.unitCost ?? 0),
     baseTotalStock: null,
+    baseMonthlySellThrough: null,
     baseBranchStocks: [],
     receivedQuantity: Math.max(0, Number(item?.receivedQuantity ?? 0)),
     returnedQuantity: Math.max(0, Number(item?.returnedQuantity ?? 0)),

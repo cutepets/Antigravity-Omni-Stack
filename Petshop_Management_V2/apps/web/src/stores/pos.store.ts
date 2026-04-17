@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { CartItem, OrderTab, PaymentEntry, PaymentMethod } from '@petshop/shared';
+import { buildProductVariantName, type CartItem, type OrderTab, type PaymentEntry, type PaymentMethod } from '@petshop/shared';
 
 type PosRoundingUnit = 100 | 1000;
 
 // ─── Default tab factory ──────────────────────────────────────────────────────
-const createNewTab = (id?: string): OrderTab => ({
+const createNewTab = (id?: string, tabNumber?: number): OrderTab => ({
   id: id ?? `tab-${Date.now()}`,
-  title: 'Đơn mới',
+  title: tabNumber != null ? `Đơn ${tabNumber}` : 'Đơn mới',
   customerId: undefined,
   customerName: 'Khách lẻ',
   productSearch: '',
@@ -81,6 +81,7 @@ interface PosStore {
   // ── Multi-tab state ──────────────────────────────────────────
   tabs: OrderTab[];
   activeTabId: string;
+  tabCounter: number;
   // ── UI Settings ──────────────────────────────────────────────
   outOfStockHidden: boolean;
   setOutOfStockHidden: (hidden: boolean) => void;
@@ -193,11 +194,12 @@ function updateActiveTab(
 export const usePosStore = create<PosStore>()(
   persist(
     (set, get) => {
-      const firstTab = createNewTab('tab-1');
+      const firstTab = createNewTab('tab-1', 1);
 
       return {
         tabs: [firstTab],
         activeTabId: firstTab.id,
+        tabCounter: 1,
         outOfStockHidden: true,
         setOutOfStockHidden: (hidden) => set({ outOfStockHidden: hidden }),
         isMultiSelect: false,
@@ -242,19 +244,24 @@ export const usePosStore = create<PosStore>()(
 
         // ── Tab Actions ──────────────────────────────────────────
         addTab: () => {
-          const newTab = createNewTab();
-          set((s) => ({
-            tabs: [...s.tabs, newTab],
-            activeTabId: newTab.id,
-          }));
+          set((s) => {
+            const nextCounter = (s.tabCounter ?? 1) + 1;
+            const newTab = createNewTab(undefined, nextCounter);
+            return {
+              tabs: [...s.tabs, newTab],
+              activeTabId: newTab.id,
+              tabCounter: nextCounter,
+            };
+          });
         },
 
         closeTab: (id) => {
           set((s) => {
             const remaining = s.tabs.filter((t) => t.id !== id);
             if (remaining.length === 0) {
-              const fresh = createNewTab('tab-1');
-              return { tabs: [fresh], activeTabId: fresh.id };
+              // Tất cả đơn đã đóng → reset counter về 1
+              const fresh = createNewTab('tab-1', 1);
+              return { tabs: [fresh], activeTabId: fresh.id, tabCounter: 1 };
             }
             const newActiveId = s.activeTabId === id ? remaining[0].id : s.activeTabId;
             return { tabs: remaining, activeTabId: newActiveId };
@@ -351,6 +358,8 @@ export const usePosStore = create<PosStore>()(
                       ...c,
                       productVariantId: undefined,
                       variantName: undefined,
+                      variantLabel: undefined,
+                      unitLabel: undefined,
                       sku: baseSku,
                       unitPrice: baseUnitPrice,
                       baseSku,
@@ -375,7 +384,12 @@ export const usePosStore = create<PosStore>()(
                       return {
                         ...c,
                         productVariantId: variant.id,
-                        variantName: variant.name,
+                        variantName:
+                          variant.displayName ??
+                          buildProductVariantName(c.description, variant.variantLabel, variant.unitLabel) ??
+                          variant.name,
+                        variantLabel: variant.variantLabel,
+                        unitLabel: variant.unitLabel,
                         sku: variant.sku ?? baseSku,
                         unitPrice: variant.sellingPrice ?? variant.price ?? baseUnitPrice,
                         stock: variant.stock ?? c.stock,
@@ -498,15 +512,19 @@ export const usePosStore = create<PosStore>()(
         // ── Reset ────────────────────────────────────────────────
         resetActiveTab: () =>
           set((s) => {
-            const fresh = createNewTab(s.activeTabId);
+            // Nếu chỉ còn 1 tab → reset số về 1 (tránh số phình to)
+            const isOnlyTab = s.tabs.length === 1;
+            const nextCounter = isOnlyTab ? 1 : (s.tabCounter ?? 1) + 1;
+            const fresh = createNewTab(s.activeTabId, nextCounter);
             return {
               tabs: s.tabs.map((t) => (t.id === s.activeTabId ? fresh : t)),
+              tabCounter: nextCounter,
             };
           }),
 
         resetAll: () => {
-          const fresh = createNewTab('tab-1');
-          set({ tabs: [fresh], activeTabId: fresh.id });
+          const fresh = createNewTab('tab-1', 1);
+          set({ tabs: [fresh], activeTabId: fresh.id, tabCounter: 1 });
         },
       };
     },
@@ -522,6 +540,7 @@ export const usePosStore = create<PosStore>()(
         return {
           tabs: persistTabs,
           activeTabId: persistActiveTabId,
+          tabCounter: state.tabCounter,
           outOfStockHidden: state.outOfStockHidden,
           autoFocusSearch: state.autoFocusSearch,
           barcodeMode: state.barcodeMode,
@@ -547,11 +566,18 @@ export const usePosStore = create<PosStore>()(
           mergedState.tabs?.map((tab) => reconcileTabDiscounts(tab, roundingEnabled, roundingUnit)) ??
           currentState.tabs;
 
+        // Tính lại tabCounter từ tên tab hiện có để tránh trùng số sau reload
+        const maxTabNumber = tabs.reduce((max, tab) => {
+          const match = tab.title?.match(/^Đơn (\d+)$/);
+          return match ? Math.max(max, parseInt(match[1], 10)) : max;
+        }, mergedState.tabCounter ?? 1);
+
         return {
           ...mergedState,
           tabs,
           roundingEnabled,
           roundingUnit,
+          tabCounter: maxTabNumber,
         };
       },
     },

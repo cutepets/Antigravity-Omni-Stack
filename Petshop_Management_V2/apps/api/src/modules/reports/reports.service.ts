@@ -987,7 +987,7 @@ export class ReportsService {
       include: {
         branch: { select: { id: true, name: true } },
         product: { select: { id: true, name: true, sku: true, unit: true } },
-        variant: { select: { id: true, name: true } },
+        variant: { select: { id: true, name: true, variantLabel: true, unitLabel: true } },
       },
       orderBy: [{ stock: 'asc' }, { updatedAt: 'asc' }],
     })

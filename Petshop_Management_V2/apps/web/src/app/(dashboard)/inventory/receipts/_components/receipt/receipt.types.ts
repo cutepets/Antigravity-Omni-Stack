@@ -25,14 +25,18 @@ export interface SelectedItem {
   discount: number
   note: string
   totalStock?: number | null
+  monthlySellThrough?: number | null
   branchStocks?: BranchStock[]
   variants?: ProductVariantOption[]
   variantName?: string | null
+  variantLabel?: string | null
+  unitLabel?: string | null
   baseSku?: string | null
   baseBarcode?: string | null
   baseUnit?: string | null
   baseUnitCost?: number
   baseTotalStock?: number | null
+  baseMonthlySellThrough?: number | null
   baseBranchStocks?: BranchStock[]
   receivedQuantity?: number
   returnedQuantity?: number
@@ -42,6 +46,8 @@ export interface SelectedItem {
 export interface ProductVariantOption {
   id: string
   name: string
+  variantLabel?: string | null
+  unitLabel?: string | null
   sku?: string | null
   barcode?: string | null
   price?: number | null
@@ -52,6 +58,7 @@ export interface ProductVariantOption {
   branchStocks?: BranchStock[]
   stock?: number | null
   availableStock?: number | null
+  monthlySellThrough?: number | null
   trading?: number | null
 }
 
@@ -134,6 +141,8 @@ export interface ReceiptPaymentModalProps {
   isOpen: boolean
   form: ReceiptPaymentFormState
   debtAmount: number
+  supplierDebtAmount: number
+  orderAmount: number
   isPending: boolean
   onClose: () => void
   onChange: (
