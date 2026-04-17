@@ -19,6 +19,32 @@ export interface PetFormModalProps {
   onSaved?: (pet: any) => void;
 }
 
+const getAgeLabel = (dateOfBirth?: string) => {
+  if (!dateOfBirth) return null;
+
+  const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return null;
+
+  const now = new Date();
+  let years = now.getFullYear() - dob.getFullYear();
+  let months = now.getMonth() - dob.getMonth();
+  let days = now.getDate() - dob.getDate();
+
+  if (days < 0) {
+    months -= 1;
+    days += new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+  }
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  if (years > 0) return `${years} tuổi ${months} tháng`;
+  if (months > 0) return `${months} tháng`;
+  return `${Math.max(days, 0)} ngày`;
+};
+
 export function PetFormModal({ isOpen, onClose, customerId, customerName, customerPhone, initialData, onSaved }: PetFormModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,6 +67,7 @@ export function PetFormModal({ isOpen, onClose, customerId, customerName, custom
   const [tempersList, setTempersList] = useState<TemperEntry[]>([]);
   const [showBreedDropdown, setShowBreedDropdown] = useState(false);
   const [showTraitDropdown, setShowTraitDropdown] = useState(false);
+  const ageLabel = getAgeLabel(dob);
 
   useEffect(() => {
     if (isOpen) {
@@ -118,10 +145,9 @@ export function PetFormModal({ isOpen, onClose, customerId, customerName, custom
         name,
         species,
         gender,
-        birthDate: dob ? new Date(dob).toISOString() : null,
+        dateOfBirth: dob ? new Date(dob).toISOString() : undefined,
         weight: weight ? parseFloat(weight) : null,
         breed,
-        traits: trait ? [trait] : [],
         temperament: trait,
         notes: note,
         customerId
@@ -244,6 +270,7 @@ export function PetFormModal({ isOpen, onClose, customerId, customerName, custom
             <div>
               <label className="text-sm font-medium text-foreground block mb-1">Ngày sinh</label>
               <input type="date" className={inputClass} value={dob} onChange={e => setDob(e.target.value)} />
+              {ageLabel ? <p className="mt-1 text-xs text-foreground-muted">Tuổi hiện tại: {ageLabel}</p> : null}
             </div>
             <div>
               <label className="text-sm font-medium text-foreground block mb-1">Cân nặng (kg)</label>

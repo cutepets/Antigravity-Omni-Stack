@@ -55,11 +55,11 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'discount', label: 'Tổng CK', sortable: false, width: 'w-28', align: 'right' },
   { id: 'shippingFee', label: 'Phí ship', sortable: false, width: 'w-28', align: 'right' },
   { id: 'total', label: 'Tổng tiền', sortable: false, width: 'w-28', align: 'right' },
-  { id: 'customerPaid', label: 'Khách đã trả', sortable: false, width: 'w-28', align: 'right' },
-  { id: 'payment', label: 'Hình thức TT', sortable: false, width: 'w-32' },
-  { id: 'status', label: 'Thanh toán', sortable: false, width: 'w-32' },
+  { id: 'customerPaid', label: 'Khách đã trả', sortable: false, width: 'whitespace-nowrap', align: 'right' },
+  { id: 'payment', label: 'Hình thức TT', sortable: false, width: 'whitespace-nowrap' },
+  { id: 'status', label: 'Thanh toán', sortable: false, width: 'w-[4.5rem]', align: 'center' },
   { id: 'orderStatus', label: 'Trạng thái', sortable: false, width: 'w-32' },
-  { id: 'stockStatus', label: 'Xuất kho', sortable: false, width: 'w-28' },
+  { id: 'stockStatus', label: 'Xuất kho', sortable: false, width: 'w-[4.5rem]', align: 'center' },
   { id: 'linkedCodes', label: 'Mã liên kết', sortable: false, minWidth: 'min-w-[180px]' },
   { id: 'note', label: 'Ghi chú', sortable: false, minWidth: 'min-w-[150px]' },
   { id: 'branch', label: 'Chi nhánh', sortable: false, width: 'whitespace-nowrap' },
@@ -451,14 +451,14 @@ export function OrderList() {
                     </td>
                   );
                   case 'customerPaid': return (
-                    <td key={columnId} className="px-3 py-3 w-28 text-right">
+                    <td key={columnId} className="px-3 py-3 whitespace-nowrap text-right">
                       <div className="text-sm font-medium text-foreground">
                         {formatCurrency(o.paidAmount || 0)}
                       </div>
                     </td>
                   );
                   case 'payment': return (
-                    <td key={columnId} className="px-3 py-3 w-32">
+                    <td key={columnId} className="px-3 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-1.5 text-xs text-foreground-secondary font-medium">
                         <CreditCard size={13} className="text-foreground-muted" />
                         {o.paymentMethod?.replace('_', ' ') || '—'}
