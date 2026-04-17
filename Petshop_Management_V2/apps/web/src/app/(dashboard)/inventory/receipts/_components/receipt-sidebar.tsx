@@ -22,6 +22,7 @@ export function ReceiptSidebar({ form }: ReceiptSidebarProps) {
     supplierQuery,
     setSupplierQuery,
     applyLatestSupplierPricesToItems,
+    currentDebt,
     currentSupplierDebt,
     supplierReceipts,
     handleOpenQuickSupplier,
@@ -50,6 +51,7 @@ export function ReceiptSidebar({ form }: ReceiptSidebarProps) {
     handleSubmit,
     saveMutation
   } = form
+  const supplierOtherDebt = Math.max(0, currentSupplierDebt - (isExistingReceipt ? currentDebt : 0))
 
   const statusView = getReceiptStatusView(receipt)
 
@@ -88,11 +90,28 @@ export function ReceiptSidebar({ form }: ReceiptSidebarProps) {
               Áp giá NCC gần nhất
             </button>
             {selectedSupplier && (
-              <div className={`mt-2 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 ${currentSupplierDebt > 0 ? 'bg-error/8' : 'bg-success/8'}`}>
-                <span className="text-xs text-foreground-muted">{currentSupplierDebt > 0 ? 'Công nợ NCC:' : 'Trạng thái:'}</span>
-                <span className={`text-xs font-bold ${currentSupplierDebt > 0 ? 'text-error' : 'text-success'}`}>
-                  {currentSupplierDebt > 0 ? fmt(currentSupplierDebt) : 'Đã thanh toán'}
-                </span>
+              <div className="mt-2 space-y-1 rounded-lg border border-border bg-background px-2.5 py-2">
+                {isExistingReceipt ? (
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-foreground-muted">Nợ phiếu này</span>
+                    <span className={`font-bold ${currentDebt > 0 ? 'text-error' : 'text-success'}`}>
+                      {currentDebt > 0 ? fmt(currentDebt) : 'Đã thanh toán'}
+                    </span>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-foreground-muted">
+                    {isExistingReceipt ? 'Tổng nợ' : 'Nợ NCC hiện có'}
+                  </span>
+                  <span className={`font-bold ${currentSupplierDebt > 0 ? 'text-warning' : 'text-success'}`}>
+                    {currentSupplierDebt > 0 ? fmt(currentSupplierDebt) : 'Không còn nợ'}
+                  </span>
+                </div>
+                {isExistingReceipt && supplierOtherDebt > 0 ? (
+                  <div className="text-[11px] text-foreground-muted">
+                    Trong đó nợ phiếu khác: <span className="font-semibold text-warning">{fmt(supplierOtherDebt)}</span>
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -264,8 +283,15 @@ export function ReceiptSidebar({ form }: ReceiptSidebarProps) {
               </div>
             </div>
             {selectedSupplier ? (
-              <div className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${currentSupplierDebt > 0 ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}`}>
-                {currentSupplierDebt > 0 ? `Công nợ: ${fmt(currentSupplierDebt)}` : 'Đã thanh toán'}
+              <div className="space-y-1 text-right">
+                {isExistingReceipt ? (
+                  <div className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${currentDebt > 0 ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}`}>
+                    {currentDebt > 0 ? `Nợ phiếu: ${fmt(currentDebt)}` : 'Phiếu đã thanh toán'}
+                  </div>
+                ) : null}
+                <div className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${currentSupplierDebt > 0 ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>
+                  {currentSupplierDebt > 0 ? `Tổng nợ: ${fmt(currentSupplierDebt)}` : 'NCC không còn nợ'}
+                </div>
               </div>
             ) : null}
           </div>

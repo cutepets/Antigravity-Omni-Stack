@@ -21,6 +21,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CancelOrderDto } from './dto/cancel-order.dto.js'
 import { RefundOrderDto } from './dto/refund-order.dto.js'
+import { CreateReturnRequestDto } from './dto/create-return-request.dto.js'
 import { CompleteOrderDto } from './dto/complete-order.dto.js'
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto.js'
 import { CreateOrderDto } from './dto/create-order.dto.js'
@@ -143,6 +144,22 @@ export class OrdersController {
     return this.ordersService.refundOrder(id, dto, this.getStaffId(req), req.user)
   }
 
+  @Post(':id/return')
+  @Permissions('order.update', 'order.cancel')
+  async createReturnRequest(
+    @Param('id') id: string,
+    @Body() dto: CreateReturnRequestDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    try {
+      return await this.ordersService.createReturnRequest(id, dto, this.getStaffId(req), req.user)
+    } catch (error: any) {
+      if (error instanceof HttpException) throw error
+      console.error('[createReturnRequest] Internal error:', error?.message, error?.stack)
+      throw new InternalServerErrorException(error?.message || String(error))
+    }
+  }
+
   @Delete(':id/items/:itemId')
   @Permissions('order.update')
   removeOrderItem(
@@ -221,12 +238,18 @@ export class OrdersController {
 
   @Patch(':id/items/:itemId/swap-temp')
   @Permissions('order.update')
-  swapTempItem(
+  async swapTempItem(
     @Param('id') id: string,
     @Param('itemId') itemId: string,
     @Body() dto: SwapTempItemDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<any> {
-    return this.ordersService.swapTempItem(id, itemId, dto, this.getStaffId(req), req.user)
+    try {
+      return await this.ordersService.swapTempItem(id, itemId, dto, this.getStaffId(req), req.user)
+    } catch (error: any) {
+      if (error instanceof HttpException) throw error
+      console.error('[swapTempItem] Internal error:', error?.message, error?.stack)
+      throw new InternalServerErrorException(error?.message || String(error))
+    }
   }
 }

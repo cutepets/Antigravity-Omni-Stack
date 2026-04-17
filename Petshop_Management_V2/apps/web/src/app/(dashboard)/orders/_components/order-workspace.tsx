@@ -11,6 +11,7 @@ import { OrderPaymentModal } from './order-payment-modal'
 import { OrderPetPickerModal } from './order-pet-picker-modal'
 import { OrderSettlementModal } from './order-settlement-modal'
 import { OrderRefundModal } from './order-refund-modal'
+import { OrderReturnModal } from './order-return-modal'
 import { OrderTopBar } from './order/order-top-bar'
 import { OrderSearchPanel } from './order/order-search-panel'
 import { OrderItemsTable } from './order/order-items-table'
@@ -183,6 +184,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
         onOpenExportStock={() => workspace.setShowExportStockModal(true)}
         onOpenSettle={() => workspace.setShowSettleModal(true)}
         onOpenRefund={() => workspace.setShowRefundModal(true)}
+        onOpenReturn={() => workspace.setShowReturnModal(true)}
         onCancelOrder={() => {
           if (!window.confirm('Bạn chắc chắn muốn huỷ đơn hàng này?')) return
           workspace.cancelOrderMutation.mutate()
@@ -218,6 +220,18 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             <RefreshCw size={13} />
             Đổi hình thức TT
           </button>
+        </div>
+      )}
+
+      {/* Banner: còn item tạm chưa swap sau khi đã xuất kho */}
+      {workspace.order?.stockExportedAt && workspace.order?.items?.some((i: any) => i.isTemp) && (
+        <div className="mx-4 mt-2 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-2.5">
+          <AlertCircle size={16} className="shrink-0 text-amber-500" />
+          <span className="flex-1 text-sm font-medium text-foreground">
+            Đơn có{' '}
+            <strong>{workspace.order.items.filter((i: any) => i.isTemp).length} sản phẩm tạm</strong>{' '}
+            chưa được đổi sang thật — tồn kho chưa cập nhật
+          </span>
         </div>
       )}
 
@@ -329,7 +343,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
           ) : null}
         </div>
 
-        <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_480px]">
           <div className="flex min-h-0 flex-col overflow-hidden border-r border-border/60">
             <OrderItemsTable
               items={workspace.draft.items}
@@ -406,6 +420,13 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             onConfirm={(payload) => workspace.refundOrderMutation.mutate(payload)}
             orderNumber={workspace.order?.orderNumber || '--'}
             isPending={workspace.refundOrderMutation.isPending}
+          />
+          <OrderReturnModal
+            open={workspace.showReturnModal}
+            onClose={() => workspace.setShowReturnModal(false)}
+            order={workspace.order}
+            onConfirm={(payload) => workspace.createReturnRequestMutation.mutate(payload)}
+            isLoading={workspace.createReturnRequestMutation.isPending}
           />
         </>
       ) : null}

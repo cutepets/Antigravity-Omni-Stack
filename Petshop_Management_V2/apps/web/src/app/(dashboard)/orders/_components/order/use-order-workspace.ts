@@ -12,6 +12,7 @@ import {
   type CreateOrderPayload,
   type UpdateOrderPayload,
   type RefundOrderPayload,
+  type CreateReturnRequestPayload,
 } from '@/lib/api/order.api'
 import { buildFinanceVoucherHref } from '@/lib/finance-routes'
 import { settingsApi } from '@/lib/api/settings.api'
@@ -27,6 +28,7 @@ import {
   canExportCurrentOrder,
   canPayCurrentOrder,
   canRefundCurrentOrder,
+  canReturnCurrentOrder,
   canSettleCurrentOrder,
   createEmptyDraft,
   isGroomingService,
@@ -111,6 +113,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   const [showExportStockModal, setShowExportStockModal] = useState(false)
   const [showSettleModal, setShowSettleModal] = useState(false)
   const [showRefundModal, setShowRefundModal] = useState(false)
+  const [showReturnModal, setShowReturnModal] = useState(false)
   const [hotelServiceDraft, setHotelServiceDraft] = useState<any | null>(null)
   const [groomingServiceDraft, setGroomingServiceDraft] = useState<any | null>(null)
   const [selectedRowIndex, setSelectedRowIndex] = useState(-1)
@@ -261,6 +264,12 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       })
     }
 
+    // QUICK order: ẩn synthetic COMPLETED (Tạo đơn → Thanh toán → Xuất kho là đủ)
+    const isQuickOrder = !order.items?.some((i: any) =>
+      i.groomingSessionId || i.hotelStayId || i.type === 'grooming' || i.type === 'hotel'
+    )
+    const hasStockExported = hasAnyAction('STOCK_EXPORTED')
+
     if (order.settledAt && !hasAnyAction('SETTLED')) {
       createSyntheticEntry({
         id: `synthetic-settled-${order.id}`,
@@ -268,7 +277,12 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
         createdAt: order.settledAt,
         toStatus: 'COMPLETED',
       })
-    } else if (order.completedAt && order.status === 'COMPLETED' && !hasAnyAction('COMPLETED', 'SETTLED')) {
+    } else if (
+      order.completedAt &&
+      order.status === 'COMPLETED' &&
+      !hasAnyAction('COMPLETED', 'SETTLED') &&
+      !(isQuickOrder && hasStockExported) // ẩn Hoàn thành cho QUICK order đã có Xuất kho
+    ) {
       createSyntheticEntry({
         id: `synthetic-completed-${order.id}`,
         action: 'COMPLETED',
@@ -297,9 +311,19 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       })
     }
 
-    return [...baseTimeline, ...syntheticEntries].sort(
-      (left, right) => new Date(right?.createdAt ?? 0).getTime() - new Date(left?.createdAt ?? 0).getTime(),
-    )
+    // Priority để tie-break khi cùng timestamp: CREATED < PAYMENT < STOCK_EXPORTED < COMPLETED
+    const ACTION_PRIORITY: Record<string, number> = {
+      CREATED: 1, PAYMENT_ADDED: 2, PAID: 2, PAYMENT_CONFIRMED: 2,
+      APPROVED: 3, STOCK_EXPORTED: 4, SETTLED: 5, COMPLETED: 6,
+    }
+    const getPriority = (action: string) => ACTION_PRIORITY[action] ?? 99
+
+    return [...baseTimeline, ...syntheticEntries].sort((left, right) => {
+      const timeDiff = new Date(right?.createdAt ?? 0).getTime() - new Date(left?.createdAt ?? 0).getTime()
+      if (timeDiff !== 0) return timeDiff
+      // Cùng timestamp: action có priority cao hơn → hiện trên (newest first)
+      return getPriority(right?.action ?? '') - getPriority(left?.action ?? '')
+    })
   }, [mode, order, timeline])
 
   const branchName = useMemo(
@@ -325,8 +349,15 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     const isCompleted = currentStatus === 'COMPLETED'
     const isCancelled = currentStatus === 'CANCELLED'
 
+    // QUICK order (POS thuần sản phẩm): ẩn bước Hoàn thành
+    const isQuickOrder = mode === 'detail' && !order?.items?.some((i: any) =>
+      i.groomingSessionId || i.hotelStayId || i.type === 'grooming' || i.type === 'hotel'
+    )
+
     // Stage: 0=draft, 1=paid, 2=exported, 3=completed
-    const currentStage = isCompleted ? 3 : isExported ? 2 : isPaid ? 1 : 0
+    // QUICK: max stage = 2 (Xuất kho là xong)
+    const rawStage = isCompleted ? 3 : isExported ? 2 : isPaid ? 1 : 0
+    const currentStage = isQuickOrder ? Math.min(rawStage, 2) : rawStage
 
     const latestPaymentAt = Array.isArray(order?.payments)
       ? [...order.payments].sort(
@@ -341,12 +372,15 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     const completedAt =
       order?.completedAt ?? order?.settledAt ?? findTimelineActionTime(displayTimeline, ['COMPLETED', 'SETTLED'])
 
-    const steps = [
+    const allSteps = [
       { key: 'DRAFT', label: 'Tạo đơn', idx: 0 },
       { key: 'PAID', label: 'Thanh toán', idx: 1 },
       { key: 'EXPORTED', label: 'Xuất kho', idx: 2 },
       { key: 'COMPLETED', label: 'Hoàn thành', idx: 3 },
     ]
+    // QUICK order: chỉ hiện 3 bước đầu
+    const steps = isQuickOrder ? allSteps.slice(0, 3) : allSteps
+
     const stepMetas: Record<string, string | undefined> = {
       DRAFT: order?.createdAt,
       PAID: paidAt,
@@ -366,6 +400,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     mode,
     order?.completedAt,
     order?.createdAt,
+    order?.items,
     order?.paidAmount,
     order?.payments,
     order?.paymentStatus,
@@ -481,6 +516,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       mode === 'detail' && canSettleCurrentOrder(order, canSettleOrder, hasServiceItems),
     canPayCurrentOrder: mode === 'detail' && canPayCurrentOrder(order, canPayOrder),
     canRefundCurrentOrder: mode === 'detail' && canRefundCurrentOrder(order, canRefundOrder),
+    canReturnCurrentOrder: mode === 'detail' && canReturnCurrentOrder(order, canRefundOrder),
     isOrderReadonly: isOrderReadonly(order?.status),
   }
 
@@ -563,6 +599,26 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       invalidateOrderQueries()
     },
     onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể hoàn tiền đơn'),
+  })
+
+  const createReturnRequestMutation = useMutation({
+    mutationFn: (payload: CreateReturnRequestPayload) => orderApi.createReturnRequest(orderId!, payload),
+    onSuccess: (data: any) => {
+      setShowReturnModal(false)
+      invalidateOrderQueries()
+      if (data?.exchangeOrderId) {
+        toast.success(`Đã tạo đổi trả. Đơn đổi #${data.exchangeOrderNumber} đã sẵn sàng (credit: ${(data.totalCredit ?? 0).toLocaleString('vi-VN')}đ)`)
+        router.push(`/orders/${data.exchangeOrderId}`)
+      } else {
+        const refundAmount = data?.refundAmount ?? 0
+        toast.success(
+          refundAmount > 0
+            ? `Đã ghi nhận trả hàng. Cần hoàn ${refundAmount.toLocaleString('vi-VN')}đ cho khách.`
+            : 'Đã ghi nhận đổi/trả hàng.',
+        )
+      }
+    },
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể tạo yêu cầu đổi trả'),
   })
 
   const mergeItemIntoDraft = (item: any) => {
@@ -803,6 +859,8 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     setShowSettleModal,
     showRefundModal,
     setShowRefundModal,
+    showReturnModal,
+    setShowReturnModal,
     hotelServiceDraft,
     setHotelServiceDraft,
     groomingServiceDraft,
@@ -842,6 +900,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     settleOrderMutation,
     cancelOrderMutation,
     refundOrderMutation,
+    createReturnRequestMutation,
     addCatalogItem,
     handleHotelBookingConfirm,
     handleGroomingConfirm,

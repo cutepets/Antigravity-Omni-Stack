@@ -447,6 +447,10 @@ model Order {
   settledAt        DateTime?
   settledBy        String?
 
+  // Đổi hàng: link đến return request gốc (nếu đồy là đơn exchange)
+  linkedReturnId   String?           // OrderReturnRequest.id
+  creditAmount     Float             @default(0) // Số tiền credit từ đơn cũ
+
   groomingSessions GroomingSession[]
   hotelStays       HotelStay[]
   items            OrderItem[]
@@ -455,6 +459,7 @@ model Order {
   bankTransactions BankTransaction[]
   webhookEvents    PaymentWebhookEvent[]
   timeline         OrderTimeline[]
+  returnRequests   OrderReturnRequest[]
   branch           Branch?           @relation(fields: [branchId], references: [id])
   customer         Customer?         @relation(fields: [customerId], references: [id])
   staff            User              @relation(fields: [staffId], references: [id])
@@ -576,6 +581,8 @@ model OrderItem {
   type              String
   isTemp            Boolean          @default(false)
   tempLabel         String?
+  stockExportedAt   DateTime?        // Thời điểm xuất kho item này (Phương án B)
+  stockExportedBy   String?          // Staff thực hiện xuất kho item này
   createdAt         DateTime         @default(now())
   groomingSession   GroomingSession? @relation(fields: [groomingSessionId], references: [id])
   hotelStay         HotelStay?       @relation(fields: [hotelStayId], references: [id])
@@ -584,10 +591,51 @@ model OrderItem {
   productVariant    ProductVariant?  @relation(fields: [productVariantId], references: [id])
   service           Service?         @relation(fields: [serviceId], references: [id])
   serviceVariant    ServiceVariant?  @relation(fields: [serviceVariantId], references: [id])
+  returnItems       OrderReturnItem[]
 
   @@index([orderId])
   @@index([hotelStayId])
   @@map("order_items")
+}
+
+// ============================================================================
+// Order Return Request / Yêu cầu đổi trả hàng
+// ============================================================================
+
+model OrderReturnRequest {
+  id            String             @id @default(cuid())
+  orderId       String
+  type          String             // 'PARTIAL' | 'FULL'
+  reason        String?
+  refundAmount  Float?             @default(0)
+  refundMethod  String?            // 'CASH' | 'BANK' | etc.
+  status        String             @default("PENDING") // 'PENDING' | 'APPROVED'
+  performedBy   String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  order         Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  items         OrderReturnItem[]
+
+  @@index([orderId])
+  @@index([performedBy])
+  @@index([createdAt])
+  @@map("order_return_requests")
+}
+
+model OrderReturnItem {
+  id              String             @id @default(cuid())
+  returnRequestId String
+  orderItemId     String
+  quantity        Float
+  action          String             // 'EXCHANGE' | 'RETURN'
+  reason          String?
+  createdAt       DateTime           @default(now())
+  returnRequest   OrderReturnRequest @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
+  orderItem       OrderItem          @relation(fields: [orderItemId], references: [id])
+
+  @@index([returnRequestId])
+  @@index([orderItemId])
+  @@map("order_return_items")
 }
 
 model ProductSalesDaily {
@@ -1664,6 +1712,7 @@ enum OrderAction {
   NOTE_UPDATED
   ITEM_ADDED
   ITEM_REMOVED
+  ITEM_SWAPPED
   DISCOUNT_APPLIED
   SETTLED
 }

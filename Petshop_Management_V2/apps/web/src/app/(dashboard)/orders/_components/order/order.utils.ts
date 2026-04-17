@@ -287,6 +287,7 @@ export function buildOrderPayload(draft: OrderDraft): CreateOrderPayload | Updat
       type: item.type,
       isTemp: (item as any).isTemp ?? false,
       tempLabel: (item as any).tempLabel ?? undefined,
+      stockExportedAt: (item as any).stockExportedAt ?? null,
       groomingDetails: item.groomingDetails
         ? {
           petId: item.groomingDetails.petId,
@@ -368,4 +369,8 @@ export function canPayCurrentOrder(order: any, canPayOrder: boolean) {
 
 export function canRefundCurrentOrder(order: any, canRefundOrder: boolean) {
   return Boolean(canRefundOrder && ['COMPLETED', 'PARTIALLY_REFUNDED'].includes(order?.status ?? ''))
+}
+
+export function canReturnCurrentOrder(order: any, hasPermission: boolean) {
+  return Boolean(hasPermission && order?.status === 'COMPLETED')
 }

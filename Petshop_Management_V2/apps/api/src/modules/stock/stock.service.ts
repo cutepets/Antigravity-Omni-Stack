@@ -190,6 +190,10 @@ const SUPPLIER_RECEIPT_INCLUDE = {
     include: {
       items: true,
       refunds: {
+        include: {
+          staff: { select: { id: true, fullName: true } },
+          branch: { select: { id: true, name: true, code: true } },
+        },
         orderBy: { receivedAt: 'desc' as const },
       },
       staff: { select: { id: true, fullName: true } },
@@ -1092,6 +1096,47 @@ export class StockService {
     return Promise.all(receipts.map((receipt) => this.attachPaymentTransactionVouchers(receipt)))
   }
 
+  private async attachSupplierReturnRefundTransactionVouchers(supplierReturn: any) {
+    if (!supplierReturn?.refunds?.length) return supplierReturn
+
+    const transactionIds = Array.from(
+      new Set(
+        supplierReturn.refunds
+          .map((refund: any) => refund?.transactionId)
+          .filter(Boolean) as string[],
+      ),
+    )
+
+    if (transactionIds.length === 0) return supplierReturn
+
+    const transactions = await this.db.transaction.findMany({
+      where: { id: { in: transactionIds } },
+      select: { id: true, voucherNumber: true },
+    })
+    const voucherMap = new Map(transactions.map((transaction) => [transaction.id, transaction.voucherNumber]))
+
+    return {
+      ...supplierReturn,
+      refunds: supplierReturn.refunds.map((refund: any) => ({
+        ...refund,
+        transactionVoucherNumber: refund.transactionId ? voucherMap.get(refund.transactionId) ?? null : null,
+      })),
+    }
+  }
+
+  private async attachSupplierReturnTransactionVouchers(receipt: any) {
+    if (!receipt?.supplierReturns?.length) return receipt
+
+    return {
+      ...receipt,
+      supplierReturns: await Promise.all(
+        receipt.supplierReturns.map((supplierReturn: any) =>
+          this.attachSupplierReturnRefundTransactionVouchers(supplierReturn),
+        ),
+      ),
+    }
+  }
+
   async findAllReceipts(query: FindReceiptsDto) {
     const { page = 1, limit = 20, status, supplierId, search, productId } = query
     const skip = (Number(page) - 1) * Number(limit)
@@ -1151,9 +1196,10 @@ export class StockService {
     if (!receipt) throw new NotFoundException('Không tìm thấy phiếu nhập')
     const mappedReceipt = this.mapReceiptResponse(receipt)
     const summarizedReceipt = await this.attachReceiptPaymentSummary(mappedReceipt)
+    const receiptWithPaymentVouchers = await this.attachPaymentTransactionVouchers(summarizedReceipt)
     return {
       success: true,
-      data: await this.attachPaymentTransactionVouchers(summarizedReceipt),
+      data: await this.attachSupplierReturnTransactionVouchers(receiptWithPaymentVouchers),
     }
   }
 
@@ -1809,7 +1855,12 @@ export class StockService {
       include: {
         supplier: true,
         receipt: true,
-        refunds: true,
+        refunds: {
+          include: {
+            staff: { select: { id: true, fullName: true } },
+            branch: { select: { id: true, name: true, code: true } },
+          },
+        },
       },
     })
     if (!supplierReturn) throw new NotFoundException('Không tìm thấy phiếu trả hàng NCC')
@@ -1871,12 +1922,17 @@ export class StockService {
         include: {
           supplier: true,
           receipt: true,
-          refunds: true,
+          refunds: {
+            include: {
+              staff: { select: { id: true, fullName: true } },
+              branch: { select: { id: true, name: true, code: true } },
+            },
+          },
         },
       })
     })
 
-    return { success: true, data: refund }
+    return { success: true, data: await this.attachSupplierReturnRefundTransactionVouchers(refund) }
   }
 
   private getInventorySourceRows(entity: { branchStocks?: any[] } | null | undefined, branchId?: string | null) {

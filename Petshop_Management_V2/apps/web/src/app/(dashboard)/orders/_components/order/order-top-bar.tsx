@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
+  ArrowLeftRight,
   CheckCircle2,
   CheckSquare,
   CreditCard,
@@ -64,6 +65,7 @@ interface OrderTopBarProps {
   onOpenExportStock: () => void
   onOpenSettle: () => void
   onOpenRefund: () => void
+  onOpenReturn: () => void
   onCancelOrder: () => void
   onOpenPos: () => void
 }
@@ -119,6 +121,7 @@ export function OrderTopBar({
   onOpenExportStock,
   onOpenSettle,
   onOpenRefund,
+  onOpenReturn,
   onCancelOrder,
   onOpenPos,
 }: OrderTopBarProps) {
@@ -385,14 +388,15 @@ export function OrderTopBar({
               </button>
             ) : null}
 
-            {actionFlags.canRefundCurrentOrder ? (
+
+            {actionFlags.canReturnCurrentOrder ? (
               <button
                 type="button"
-                onClick={onOpenRefund}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-amber-500/35 bg-amber-500/12 px-4 text-sm font-semibold text-amber-300 shadow-[0_10px_24px_rgba(245,158,11,0.12)] transition-colors hover:border-amber-400/55 hover:bg-amber-500/20"
+                onClick={onOpenReturn}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-amber-500/35 bg-amber-500/12 px-4 text-sm font-semibold text-amber-600 shadow-[0_10px_24px_rgba(245,158,11,0.12)] transition-colors hover:border-amber-400/55 hover:bg-amber-500/20"
               >
-                <TriangleAlert size={14} />
-                Hoàn tiền
+                <ArrowLeftRight size={14} />
+                Đổi/trả
               </button>
             ) : null}
 

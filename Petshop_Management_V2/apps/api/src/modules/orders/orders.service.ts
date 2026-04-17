@@ -1504,6 +1504,8 @@ export class OrdersService {
           status: orderStatus as any,
           paymentStatus: paymentStatus as any,
           completedAt: orderStatus === 'COMPLETED' ? new Date() : null,
+          stockExportedAt: orderStatus === 'COMPLETED' ? new Date() : null,
+          stockExportedBy: orderStatus === 'COMPLETED' ? staffId : null,
           subtotal,
           discount,
           shippingFee,
@@ -1557,7 +1559,7 @@ export class OrdersService {
           if (!product) throw new BadRequestException(`Sản phẩm ${item.productId} không tồn tại`);
 
           if (orderType === 'QUICK') {
-            // QUICK: deduct stock immediately
+            // QUICK: deduct stock immediately + mark item-level export timestamp
             await this.deductProductBranchStock(tx as any, {
               branchId: data.branchId ?? null,
               productId: item.productId,
@@ -1566,6 +1568,12 @@ export class OrdersService {
               orderId: order.id,
               reason: `Bán hàng đơn ${order.orderNumber}`,
             });
+            if (orderStatus === 'COMPLETED' && orderItem) {
+              await tx.orderItem.update({
+                where: { id: orderItem.id },
+                data: { stockExportedAt: order.completedAt ?? new Date(), stockExportedBy: staffId } as any,
+              });
+            }
           }
           // SERVICE stock reservation handled by BranchStock if needed
         }
@@ -1820,6 +1828,24 @@ export class OrdersService {
             subtotal: item.subtotal,
           })),
         });
+
+        // Tạo STOCK_EXPORTED timeline entry cho POS QUICK order
+        const physicalItemCount = order.items.filter((i) => i.productId).length;
+        if (physicalItemCount > 0) {
+          const exportedNow = order.completedAt ?? new Date();
+          await tx.orderTimeline.create({
+            data: {
+              orderId: order.id,
+              action: 'STOCK_EXPORTED',
+              note: [
+                `Xuất kho lúc ${exportedNow.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
+                `${physicalItemCount} sản phẩm được trừ kho`,
+              ].join(' · '),
+              performedBy: staffId,
+              metadata: { source: 'POS_CREATE', exportedItemCount: physicalItemCount } as any,
+            },
+          });
+        }
       }
 
       return order;
@@ -2574,7 +2600,10 @@ export class OrdersService {
       const extraPaidAmount = extraPayments.reduce((sum, payment) => sum + payment.amount, 0);
       const traceParts = this.buildOrderServiceTraceParts(order);
 
-      // Deduct stock for product items
+      const now = new Date();
+
+      // Deduct stock for product items + mark stockExportedAt per-item
+      const exportedProductItems: typeof order.items = [];
       for (const item of order.items) {
         if (!item.productId) continue;
         await this.deductProductBranchStock(tx as any, {
@@ -2585,6 +2614,15 @@ export class OrdersService {
           orderId: order.id,
           reason: `Hoàn thành đơn ${order.orderNumber}`,
         });
+        // Mark item-level export timestamp
+        await tx.orderItem.update({
+          where: { id: item.id },
+          data: {
+            stockExportedAt: now,
+            stockExportedBy: staffId,
+          } as any,
+        });
+        exportedProductItems.push(item);
       }
 
       for (const payment of extraPayments) {
@@ -2676,16 +2714,18 @@ export class OrdersService {
 
       const paymentStatus = this.calculatePaymentStatus(order.total, Math.min(finalPaidAmount, order.total));
 
-      // Complete order
+      // Complete order (+ set stockExportedAt nếu có sản phẩm vật lý)
+      const hasPhysicalItems = exportedProductItems.length > 0;
       const completed = await tx.order.update({
         where: { id },
         data: {
           status: 'COMPLETED' as any,
-          completedAt: new Date(),
+          completedAt: now,
           paidAmount: finalPaidAmount,
           remainingAmount: 0,
           paymentStatus: paymentStatus as any,
-        },
+          ...(hasPhysicalItems ? { stockExportedAt: now, stockExportedBy: staffId } : {}),
+        } as any,
         include: {
           customer: true,
           items: { include: { product: true, service: true } },
@@ -2693,11 +2733,33 @@ export class OrdersService {
         },
       });
 
+      // Tạo STOCK_EXPORTED timeline entry cho đơn POS (không đi qua exportStock)
+      if (hasPhysicalItems) {
+        const pendingTempCount = order.items.filter((i) => (i as any).isTemp).length;
+        await tx.orderTimeline.create({
+          data: {
+            orderId: id,
+            action: 'STOCK_EXPORTED',
+            note: [
+              `Xuất kho lúc ${now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
+              `${exportedProductItems.length} sản phẩm được trừ kho`,
+              pendingTempCount > 0 ? `${pendingTempCount} sản phẩm tạm chưa đổi` : null,
+            ].filter(Boolean).join(' · '),
+            performedBy: staffId,
+            metadata: {
+              source: 'POS_COMPLETE',
+              exportedItemCount: exportedProductItems.length,
+              pendingTempCount,
+            } as any,
+          },
+        });
+      }
+
       // Update customer spending
       // QUICK orders handle this at createOrder, but they cannot reach here since they are COMPLETED
       await this.incrementCustomerStats(tx as any, order.customerId, order.total);
       await this.applyCompletedProductSalesDelta(tx as any, {
-        completedAt: completed.completedAt ?? new Date(),
+        completedAt: completed.completedAt ?? now,
         branchId: completed.branchId ?? null,
         items: completed.items.map((item) => ({
           productId: item.productId,
@@ -3146,6 +3208,35 @@ export class OrdersService {
   // EXPORT STOCK
   // =============================================================================
 
+  // ─── Private helper: trừ kho và đánh dấu item đã xuất ─────────────────────
+  private async _decrementStockForItem(
+    prismaOrTx: any,
+    params: {
+      orderItemId: string;
+      productVariantId: string;
+      quantity: number;
+      exportedBy: string;
+      exportedAt: Date;
+    },
+  ): Promise<void> {
+    const { orderItemId, productVariantId, quantity, exportedBy, exportedAt } = params;
+
+    // Trừ tồn kho productVariant
+    await prismaOrTx.productVariant.update({
+      where: { id: productVariantId },
+      data: { stockQuantity: { decrement: quantity } },
+    });
+
+    // Đánh dấu item đã xuất kho với timestamp
+    await prismaOrTx.orderItem.update({
+      where: { id: orderItemId },
+      data: {
+        stockExportedAt: exportedAt,
+        stockExportedBy: exportedBy,
+      } as any,
+    });
+  }
+
   async exportStock(id: string, dto: { note?: string }, staffId: string, user: AccessUser) {
     const order = await this.prisma.order.findUnique({
       where: { id },
@@ -3192,12 +3283,37 @@ export class OrdersService {
 
     const now = new Date();
 
+    // Phương án B: Chỉ xuất item thật (isTemp=false) có productVariantId, chưa xuất kho
+    const exportableItems = order.items.filter(
+      (item: any) =>
+        item.type === 'product' &&
+        item.productVariantId &&
+        !(item as any).isTemp &&
+        !(item as any).stockExportedAt,
+    );
+
+    // Cảnh báo: còn item tạm chưa swap (không chặn, cho phép partial export)
+    const pendingTempCount = order.items.filter(
+      (item: any) => item.type === 'product' && (item as any).isTemp,
+    ).length;
+
     // Determine next status
     const isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'COMPLETED';
     const nextStatus = isPaid ? 'COMPLETED' : 'PROCESSING';
 
     await this.prisma.$transaction(async (tx) => {
-      // Update order
+      // Trừ kho từng item thật (Phương án B — item-level tracking)
+      for (const item of exportableItems) {
+        await this._decrementStockForItem(tx, {
+          orderItemId: item.id,
+          productVariantId: item.productVariantId!,
+          quantity: item.quantity,
+          exportedBy: staffId,
+          exportedAt: now,
+        });
+      }
+
+      // Update order status
       await tx.order.update({
         where: { id },
         data: {
@@ -3214,15 +3330,25 @@ export class OrdersService {
           action: 'STOCK_EXPORTED',
           fromStatus: order.status,
           toStatus: nextStatus,
-          note: dto.note ?? null,
+          note: [
+            `Xuất kho lúc ${now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
+            `${exportableItems.length} sản phẩm được trừ kho`,
+            pendingTempCount > 0 ? `${pendingTempCount} sản phẩm tạm chưa đổi` : null,
+            dto.note ?? null,
+          ].filter(Boolean).join(' · '),
           performedBy: staffId,
-          metadata: { hasServiceItems } as any,
+          metadata: {
+            hasServiceItems,
+            exportedItemCount: exportableItems.length,
+            pendingTempCount,
+          } as any,
         },
       });
     });
 
     return this.findOne(id, user);
   }
+
 
   // =============================================================================
   // SETTLE ORDER (for service orders)
@@ -3335,7 +3461,8 @@ export class OrdersService {
 
     const item = order.items.find((i) => i.id === itemId);
     if (!item) throw new NotFoundException('Không tìm thấy dòng hàng');
-    if (!(item as any).isTemp) throw new BadRequestException('Dòng hàng này không phải sản phẩm tạm');
+    const isTempItem = (item as any).isTemp === true || (item.type === 'product' && !item.productId && !item.productVariantId);
+    if (!isTempItem) throw new BadRequestException('Dòng hàng này không phải sản phẩm tạm');
 
     // Lấy thông tin sản phẩm thật
     const realVariant = await this.prisma.productVariant.findUnique({
@@ -3372,13 +3499,230 @@ export class OrdersService {
       } as any,
     });
 
+    const swapAt = new Date();
+
+    // ─── Phương án B: Tự động xuất kho nếu đơn đã được làm nguồn hàng trước ───
+    // Nếu order.stockExportedAt có giá trị → đơn đã xuất kho rồi
+    // → Item vừa swap cần được trừ kho ngay tại thời điểm swap (không phải lúc bán)
+    if (order.stockExportedAt) {
+      await this._decrementStockForItem(this.prisma, {
+        orderItemId: itemId,
+        productVariantId: dto.realProductVariantId,
+        quantity: item.quantity,
+        exportedBy: staffId,
+        exportedAt: swapAt,
+      });
+    }
+
+    // Timeline: dùng ITEM_SWAPPED thay vì ITEM_ADDED cho đúng semantic
     await this.createTimelineEntry({
       orderId,
-      action: 'UPDATED',
-      note: `Đổi SP tạm "${oldLabel}" → "${newDescription}"`,
+      action: 'ITEM_SWAPPED',
+      note: `Đổi SP tạm "${oldLabel}" → "${newDescription}"` +
+        (order.stockExportedAt ? ` (đã trừ kho ${item.quantity} × ${newDescription})` : ' (chưa xuất kho — sẽ trừ khi xuất)'),
       performedBy: staffId,
     });
 
     return this.findOne(orderId, user);
+  }
+
+  // ─── createReturnRequest ──────────────────────────────────────────────────
+  // T\u1ea1o y\u00eau c\u1ea7u \u0111\u1ed5i tr\u1ea3 h\u00e0ng t\u1eeb \u0111\u01a1n \u0111\u00e3 ho\u00e0n th\u00e0nh.
+  // - items c\u00f3 action=RETURN: ghi nh\u1eadn tr\u1ea3 h\u00e0ng, t\u00ednh ti\u1ec1n ho\u00e0n
+  // - items c\u00f3 action=EXCHANGE: t\u1ea1o \u0111\u01a1n m\u1edbi v\u1edbi credit pre-applied (\u0111\u1ec3 staff th\u00eam s\u1ea3n ph\u1ea9m v\u00e0o)
+  async createReturnRequest(
+    orderId: string,
+    dto: import('./dto/create-return-request.dto.js').CreateReturnRequestDto,
+    staffId: string,
+    user?: AccessUser,
+  ): Promise<any> {
+    // Load order
+    const order = await this.prisma.order.findFirst({
+      where: { OR: [{ id: orderId }, { orderNumber: orderId }] },
+      include: { items: true, customer: true, branch: true },
+    });
+    if (!order) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y \u0111\u01a1n h\u00e0ng');
+    this.assertOrderScope(order, user);
+    orderId = order.id;
+
+    if (order.status !== 'COMPLETED') {
+      throw new BadRequestException('Ch\u1ec9 c\u00f3 th\u1ec3 \u0111\u1ed5i/tr\u1ea3 h\u00e0ng cho \u0111\u01a1n \u0111\u00e3 ho\u00e0n th\u00e0nh');
+    }
+
+    if (!dto.items || dto.items.length === 0) {
+      throw new BadRequestException('Ph\u1ea3i ch\u1ecdn \u00edt nh\u1ea5t m\u1ed9t s\u1ea3n ph\u1ea9m \u0111\u1ed5i/tr\u1ea3');
+    }
+
+    // Validate items belong to the order
+    const orderItemMap = new Map(order.items.map((item: any) => [item.id, item]));
+    for (const reqItem of dto.items) {
+      if (!orderItemMap.has(reqItem.orderItemId)) {
+        throw new BadRequestException(`S\u1ea3n ph\u1ea9m ${reqItem.orderItemId} kh\u00f4ng thu\u1ed9c \u0111\u01a1n n\u00e0y`);
+      }
+      const orderItem = orderItemMap.get(reqItem.orderItemId) as any;
+      if (reqItem.quantity > orderItem.quantity) {
+        throw new BadRequestException(`S\u1ed1 l\u01b0\u1ee3ng tr\u1ea3 kh\u00f4ng th\u1ec3 v\u01b0\u1ee3t qu\u00e1 s\u1ed1 l\u01b0\u1ee3ng \u0111\u00e3 mua (${orderItem.quantity})`);
+      }
+    }
+
+    // Tính credit = tổng giá trị items được đổi/trả (theo đơn giá)
+    let totalCredit = 0;
+    for (const reqItem of dto.items) {
+      const orderItem = orderItemMap.get(reqItem.orderItemId) as any;
+      // Tính credit theo tỷ lệ: (unitPrice - discountItem/qty) * qty_return
+      const effectiveUnitPrice =
+        orderItem.unitPrice - (orderItem.discountItem ?? 0) / orderItem.quantity;
+      totalCredit += Math.max(0, effectiveUnitPrice * reqItem.quantity);
+    }
+
+    const hasExchange = dto.items.some((item) => item.action === 'EXCHANGE');
+    const hasReturn = dto.items.some((item) => item.action === 'RETURN');
+    const returnType = dto.type; // 'PARTIAL' | 'FULL'
+
+    const itemSummary = dto.items
+      .map((item) => {
+        const oi = orderItemMap.get(item.orderItemId) as any;
+        const action = item.action === 'EXCHANGE' ? '\u0110\u1ed4I' : 'TR\u1ea2';
+        return `${action}: ${oi?.description ?? item.orderItemId} x${item.quantity}`;
+      })
+      .join(', ');
+
+    const now = new Date();
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Tạo OrderReturnRequest
+      const returnRequest = await (tx as any).orderReturnRequest.create({
+        data: {
+          orderId,
+          type: returnType,
+          reason: dto.reason ?? null,
+          refundAmount: hasReturn ? (dto.refundAmount ?? totalCredit) : 0,
+          refundMethod: hasReturn ? (dto.refundMethod ?? null) : null,
+          status: 'PENDING',
+          performedBy: staffId,
+          items: {
+            create: dto.items.map((item) => ({
+              orderItemId: item.orderItemId,
+              quantity: item.quantity,
+              action: item.action,
+              reason: item.reason ?? null,
+            })),
+          },
+          updatedAt: now,
+        },
+        include: { items: true },
+      });
+
+      // 2. Cập nhật trạng thái đơn gốc
+      const newStatus = returnType === 'FULL' ? 'RETURNED' : 'PARTIALLY_RETURNED';
+      await (tx as any).order.update({
+        where: { id: orderId },
+        data: { status: newStatus, updatedAt: now },
+      });
+
+      // 3. Ghi timeline đơn gốc
+      await (tx as any).orderTimeline.create({
+        data: {
+          orderId,
+          action: 'RETURN_REQUESTED',
+          fromStatus: 'COMPLETED',
+          toStatus: newStatus,
+          note: `\u0110\u1ed5i/tr\u1ea3: ${itemSummary}` +
+            (dto.reason ? ` — L\u00fd do: ${dto.reason}` : '') +
+            `. Credit: ${totalCredit.toLocaleString('vi-VN')}\u0111`,
+          performedBy: staffId,
+          metadata: {
+            returnRequestId: returnRequest.id,
+            type: returnType,
+            totalCredit,
+            hasExchange,
+            hasReturn,
+          },
+          createdAt: now,
+        },
+      });
+
+      // 4. Nếu có EXCHANGE: tạo đơn mới với credit pre-applied
+      let exchangeOrder: any = null;
+      if (hasExchange) {
+        const exchangeOrderNumber = await this.generateOrderNumber();
+        const creditForExchange = dto.items
+          .filter((item) => item.action === 'EXCHANGE')
+          .reduce((sum, item) => {
+            const oi = orderItemMap.get(item.orderItemId) as any;
+            const effectiveUnitPrice =
+              oi.unitPrice - (oi.discountItem ?? 0) / oi.quantity;
+            return sum + Math.max(0, effectiveUnitPrice * item.quantity);
+          }, 0);
+
+        exchangeOrder = await (tx as any).order.create({
+          data: {
+            orderNumber: exchangeOrderNumber,
+            customerId: order.customerId,
+            customerName: (order.customer as any)?.fullName ??
+              (order.customer as any)?.name ??
+              (order as any).customerName ??
+              'Kh\u00e1ch l\u1ebb',
+            staffId,
+            branchId: order.branchId ?? null,
+            status: 'DRAFT',
+            paymentStatus: 'UNPAID',
+            subtotal: 0,
+            discount: 0,
+            shippingFee: 0,
+            total: 0,
+            paidAmount: creditForExchange,
+            remainingAmount: 0,
+            creditAmount: creditForExchange,
+            linkedReturnId: returnRequest.id,
+            notes: `\u0110\u01a1n \u0111\u1ed5i h\u00e0ng t\u1eeb #${order.orderNumber}. Credit \u0111\u01b0\u1ee3c \u00e1p d\u1ee5ng: ${creditForExchange.toLocaleString('vi-VN')}\u0111`,
+            createdAt: now,
+            updatedAt: now,
+          } as any,
+        });
+
+        // Tạo payment record cho credit từ đơn cũ
+        if (creditForExchange > 0) {
+          await (tx as any).orderPayment.create({
+            data: {
+              orderId: exchangeOrder.id,
+              method: 'ORDER_CREDIT',
+              amount: creditForExchange,
+              note: `Credit t\u1eeb \u0111\u01a1n #${order.orderNumber}`,
+              paymentAccountId: null,
+              paymentAccountLabel: `\u0110\u1ed5i h\u00e0ng t\u1eeb ${order.orderNumber}`,
+              createdAt: now,
+            } as any,
+          });
+
+          // Tạo timeline entry cho đơn mới
+          await (tx as any).orderTimeline.create({
+            data: {
+              orderId: exchangeOrder.id,
+              action: 'CREATED',
+              fromStatus: null,
+              toStatus: 'DRAFT',
+              note: `\u0110\u01a1n \u0111\u1ed5i h\u00e0ng t\u1eeb #${order.orderNumber}. Credit ${creditForExchange.toLocaleString('vi-VN')}\u0111 \u0111\u00e3 \u0111\u01b0\u1ee3c \u00e1p d\u1ee5ng.`,
+              performedBy: staffId,
+              metadata: {
+                sourceOrderId: orderId,
+                sourceOrderNumber: order.orderNumber,
+                returnRequestId: returnRequest.id,
+                creditAmount: creditForExchange,
+              },
+              createdAt: now,
+            },
+          });
+        }
+      }
+
+      return {
+        returnRequest,
+        exchangeOrderId: exchangeOrder?.id ?? null,
+        exchangeOrderNumber: exchangeOrder?.orderNumber ?? null,
+        totalCredit,
+        refundAmount: hasReturn ? (dto.refundAmount ?? (hasExchange ? 0 : totalCredit)) : 0,
+      };
+    });
   }
 }

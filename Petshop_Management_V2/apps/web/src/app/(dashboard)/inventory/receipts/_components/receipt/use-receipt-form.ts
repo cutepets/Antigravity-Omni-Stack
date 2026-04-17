@@ -13,6 +13,7 @@ import { useAuthorization } from '@/hooks/useAuthorization'
 import { api } from '@/lib/api'
 import { stockApi } from '@/lib/api/stock.api'
 import { inventoryApi } from '@/lib/api/inventory.api'
+import { buildFinanceVoucherHref } from '@/lib/finance-routes'
 import { normalizeBranchCode, suggestBranchCodeFromName } from '@petshop/shared'
 
 import type {
@@ -69,6 +70,18 @@ interface LocalReceiptDraftPayload {
   extraCosts: ExtraCostRow[]
   showExtraCosts: boolean
   splitDuplicateLines: boolean
+}
+
+interface ReceiptTimelineEntry {
+  title: string
+  detail: string | null
+  actor: string | null
+  time: string
+  tone: string
+  sortAt: number
+  sortOrder: number
+  voucherLabel?: string | null
+  voucherHref?: string | null
 }
 
 function restoreDraftItems(rawItems: unknown): SelectedItem[] {
@@ -204,6 +217,8 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   const [returnForm, setReturnForm] = useState<ReceiptReturnFormState>({
     notes: '',
     items: [],
+    settlementMode: 'OFFSET_DEBT',
+    refundPaymentMethod: 'BANK',
   })
 
   const deferredSearch = useDeferredValue(search.trim())
@@ -359,22 +374,57 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     0,
     Number(isExistingReceipt ? receipt?.totalAmount ?? grandTotal : grandTotal),
   )
+  const currentReceiptPayableAmount = Math.max(
+    0,
+    Number(isExistingReceipt ? receipt?.payableAmount ?? currentReceiptTotalAmount : grandTotal),
+  )
+  const currentReceiptOverpaidAmount = Math.max(0, Number(receipt?.overpaidAmount ?? 0))
   const receiptPaymentSummary = receipt?.paymentSummary ?? null
   const orderPaymentAmount = Math.max(
     0,
     Number(isExistingReceipt ? receiptPaymentSummary?.orderPaymentAmount ?? currentReceiptPaidAmount : 0),
   )
+  const currentReceiptOutstandingAmount = Math.max(
+    0,
+    currentReceiptTotalAmount - orderPaymentAmount,
+  )
   const debtSettlementAmount = Math.max(
     0,
     Number(isExistingReceipt ? receiptPaymentSummary?.debtSettlementAmount ?? 0 : 0),
   )
+  const totalAppliedPaymentAmount = Math.max(
+    0,
+    orderPaymentAmount + debtSettlementAmount,
+  )
   const currentDebt = isExistingReceipt
-    ? Math.max(currentReceiptDebtAmount, currentReceiptTotalAmount - currentReceiptPaidAmount, 0)
-    : Math.max(0, Number(selectedSupplier?.debt ?? 0))
+    ? currentReceiptDebtAmount
+    : 0
   const currentSupplierDebt = Math.max(
     currentDebt,
     Number(selectedSupplier?.stats?.totalDebt ?? selectedSupplier?.debt ?? displaySupplier?.stats?.totalDebt ?? displaySupplier?.debt ?? 0),
   )
+  const otherSupplierDebt = Math.max(0, currentSupplierDebt - currentDebt)
+  const maxPayableAmount = Math.max(0, otherSupplierDebt + currentReceiptOutstandingAmount)
+  const selectedReturnAmount = useMemo(
+    () =>
+      returnForm.items.reduce(
+        (sum, item) => sum + Math.max(0, Number(item.quantity ?? 0)) * Math.max(0, Number(item.unitPrice ?? 0)),
+        0,
+      ),
+    [returnForm.items],
+  )
+  const estimatedRefundAmount = useMemo(() => {
+    if (!isExistingReceipt || selectedReturnAmount <= 0) return 0
+    const nextPayableAmount = Math.max(0, currentReceiptPayableAmount - selectedReturnAmount)
+    const nextOverpaidAmount = Math.max(0, currentReceiptPaidAmount - nextPayableAmount)
+    return Math.max(0, nextOverpaidAmount - currentReceiptOverpaidAmount)
+  }, [
+    currentReceiptOverpaidAmount,
+    currentReceiptPaidAmount,
+    currentReceiptPayableAmount,
+    isExistingReceipt,
+    selectedReturnAmount,
+  ])
 
   const paymentAllocationCount = Array.isArray(receipt?.paymentAllocations)
     ? receipt.paymentAllocations.length
@@ -389,6 +439,12 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       new Date(right?.receivedAt ?? 0).getTime() - new Date(left?.receivedAt ?? 0).getTime(),
   )[0]
   const latestPaymentAt = latestPaymentAllocation?.payment?.paidAt ?? receipt?.paymentDate ?? null
+  const latestPaymentMethodLabel =
+    latestPaymentAllocation?.payment?.paymentMethod
+      ? getPaymentMethodLabel(latestPaymentAllocation.payment.paymentMethod)
+      : receipt?.paymentMethod
+        ? getPaymentMethodLabel(receipt.paymentMethod)
+        : '—'
   const latestReceiveAt =
     latestReceiveEvent?.receivedAt ?? receipt?.receivedAt ?? receipt?.completedAt ?? null
   const hasAnyPayment = currentReceiptPaidAmount > 0 || paymentAllocationCount > 0
@@ -435,6 +491,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
               item.productVariant?.barcode ||
               item.product?.barcode ||
               null,
+            unitPrice: Number(item.unitPrice ?? 0),
             availableQty,
             quantity: 0,
           }
@@ -496,80 +553,88 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     [receipt, user],
   )
 
-  const activityTimeline = useMemo(
+  const toTimelineTimestamp = (value?: string | Date | null) => {
+    if (!value) return 0
+    const timestamp = new Date(value).getTime()
+    return Number.isFinite(timestamp) ? timestamp : 0
+  }
+
+  const activityTimeline = useMemo<ReceiptTimelineEntry[]>(
     () => [
       {
-        title: 'Tạo phiếu đặt hàng',
-        detail: `Người tạo: ${creatorDisplayName}`,
+        title: 'Tạo đơn nhập',
+        detail: null,
+        actor: creatorDisplayName,
         time: receipt?.createdAt ? formatReceiptDateTime(receipt.createdAt) : dayjs().format('DD/MM/YYYY HH:mm'),
         tone: 'text-primary-500',
-        linkLabel: null,
-        href: null,
+        sortAt: toTimelineTimestamp(receipt?.createdAt),
+        sortOrder: 0,
       },
       ...editSessions
-        .slice()
-        .sort((a, b) => new Date(b.editedAt).getTime() - new Date(a.editedAt).getTime())
         .map((session) => ({
           title: 'Cập nhật sản phẩm',
-          detail: `${session.itemCount} mặt hàng • ${session.totalQuantity} số lượng`,
-          time: `${formatReceiptDateTime(session.editedAt)} • ${session.editedBy}`,
+          detail: `${session.itemCount} mặt hàng - ${session.totalQuantity} số lượng`,
+          actor: session.editedBy,
+          time: formatReceiptDateTime(session.editedAt),
           tone: 'text-foreground',
-          linkLabel: null,
-          href: null,
+          sortAt: toTimelineTimestamp(session.editedAt),
+          sortOrder: 1,
         })),
     ],
     [creatorDisplayName, editSessions, receipt?.createdAt],
   )
 
-  const paymentTimelineEntries = useMemo(() => {
+  const paymentTimelineEntries = useMemo<ReceiptTimelineEntry[]>(() => {
     const sorted = (receipt?.paymentAllocations ?? [])
       .slice()
       .sort(
         (a: any, b: any) =>
           new Date(b?.payment?.paidAt ?? 0).getTime() - new Date(a?.payment?.paidAt ?? 0).getTime(),
       )
-    return sorted.map((allocation: any, index: number) => {
-      const voucherNumber = sorted[index]?.payment?.transactionVoucherNumber || null
+    return sorted.map((allocation: any) => {
+      const voucherNumber = allocation?.payment?.transactionVoucherNumber || null
+      const paymentTotalAmount = Math.max(
+        0,
+        Number(allocation?.payment?.appliedAmount ?? allocation?.payment?.amount ?? allocation?.amount ?? 0),
+      )
+      const paymentMethodLabel = getPaymentMethodLabel(allocation.payment?.paymentMethod)
       return {
         title: 'Thanh toán',
-        detail: [
-          `${fmt(Number(allocation.amount ?? 0))} đ`,
-          getPaymentMethodLabel(allocation.payment?.paymentMethod),
-        ]
-          .filter(Boolean)
-          .join(' • '),
-        time: `${formatReceiptDateTime(allocation.payment?.paidAt ?? receipt?.paymentDate ?? receipt?.updatedAt)}${allocation.payment?.staff?.fullName ? ` • ${allocation.payment.staff.fullName}` : ''
-          }`,
+        detail: `${paymentMethodLabel} - ${fmt(paymentTotalAmount)} đ`,
+        actor: allocation.payment?.staff?.fullName || creatorDisplayName,
+        time: formatReceiptDateTime(allocation.payment?.paidAt ?? receipt?.paymentDate ?? receipt?.updatedAt),
         tone: 'text-primary-500',
-        linkLabel: voucherNumber ? `Phiếu chi: ${voucherNumber}` : null,
-        href: voucherNumber ? `/finance/${encodeURIComponent(voucherNumber)}` : null,
+        sortAt: toTimelineTimestamp(allocation.payment?.paidAt ?? receipt?.paymentDate ?? receipt?.updatedAt),
+        sortOrder: 2,
+        voucherLabel: voucherNumber,
+        voucherHref: voucherNumber ? buildFinanceVoucherHref(voucherNumber) : null,
       }
     })
-  }, [receipt?.paymentAllocations, receipt?.paymentDate, receipt?.updatedAt])
+  }, [creatorDisplayName, receipt?.paymentAllocations, receipt?.paymentDate, receipt?.updatedAt])
 
-  const fallbackPaymentEntries = useMemo(
+  const fallbackPaymentEntries = useMemo<ReceiptTimelineEntry[]>(
     () =>
       paymentTimelineEntries.length === 0 && hasAnyPayment
         ? [
           {
             title: isFullyPaid ? 'Đã thanh toán' : 'Thanh toán 1 phần',
-            detail: [
-              `${fmt(currentReceiptPaidAmount)} đ`,
-              receipt?.paymentMethod ? getPaymentMethodLabel(receipt.paymentMethod) : null,
-            ]
-              .filter(Boolean)
-              .join(' • '),
+            detail: `${receipt?.paymentMethod ? getPaymentMethodLabel(receipt.paymentMethod) : 'Thanh toán'} - ${fmt(totalAppliedPaymentAmount || currentReceiptPaidAmount)} đ`,
+            actor: latestPaymentAllocation?.payment?.staff?.fullName || creatorDisplayName,
             time: formatReceiptDateTime(receipt?.paymentDate ?? receipt?.updatedAt),
             tone: 'text-primary-500',
-            linkLabel: null,
-            href: null,
+            sortAt: toTimelineTimestamp(receipt?.paymentDate ?? receipt?.updatedAt),
+            sortOrder: 2,
+            voucherLabel: latestPaymentAllocation?.payment?.transactionVoucherNumber || null,
+            voucherHref: latestPaymentAllocation?.payment?.transactionVoucherNumber
+              ? buildFinanceVoucherHref(latestPaymentAllocation.payment.transactionVoucherNumber)
+              : null,
           },
         ]
         : [],
-    [currentReceiptPaidAmount, hasAnyPayment, isFullyPaid, paymentTimelineEntries.length, receipt],
+    [creatorDisplayName, currentReceiptPaidAmount, hasAnyPayment, isFullyPaid, latestPaymentAllocation?.payment?.staff?.fullName, paymentTimelineEntries.length, receipt, totalAppliedPaymentAmount],
   )
 
-  const receiveHistoryEntries = useMemo(
+  const receiveHistoryEntries = useMemo<ReceiptTimelineEntry[]>(
     () =>
       (receipt?.receiveEvents ?? [])
         .slice()
@@ -579,52 +644,74 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
         )
         .map((event: any) => ({
           title: 'Nhập kho',
-          detail: `${Number(event.totalQuantity ?? 0)} số lượng • ${fmt(Number(event.totalAmount ?? 0))} đ`,
-          time: `${formatReceiptDateTime(event.receivedAt)}${event.staff?.fullName ? ` • ${event.staff.fullName}` : ''}`,
+          detail: `Nhập kho ${Number(event.totalQuantity ?? 0)} SP - ${fmt(Number(event.totalAmount ?? 0))} đ`,
+          actor: event.staff?.fullName || creatorDisplayName,
+          time: formatReceiptDateTime(event.receivedAt),
           tone: 'text-sky-500',
-          linkLabel: null,
-          href: null,
+          sortAt: toTimelineTimestamp(event.receivedAt),
+          sortOrder: 3,
         })),
-    [receipt?.receiveEvents],
+    [creatorDisplayName, receipt?.receiveEvents],
   )
 
-  const fallbackReceiveEntries = useMemo(
+  const fallbackReceiveEntries = useMemo<ReceiptTimelineEntry[]>(
     () =>
       receiveHistoryEntries.length === 0 && hasAnyReceive
         ? [
           {
             title: isReceiveDone ? 'Đã nhập kho' : 'Nhập kho 1 phần',
-            detail: `${Math.max(0, Number(receipt?.receivedQty ?? 0))} số lượng`,
+            detail: `Nhập kho ${Math.max(0, Number(receipt?.receivedQty ?? 0))} SP${Number(receipt?.totalReceivedAmount ?? 0) > 0 ? ` - ${fmt(Number(receipt?.totalReceivedAmount ?? 0))} đ` : ''}`,
+            actor: latestReceiveEvent?.staff?.fullName || creatorDisplayName,
             time: formatReceiptDateTime(receipt?.receivedAt ?? receipt?.completedAt ?? receipt?.updatedAt),
             tone: 'text-sky-500',
-            linkLabel: null,
-            href: null,
+            sortAt: toTimelineTimestamp(receipt?.receivedAt ?? receipt?.completedAt ?? receipt?.updatedAt),
+            sortOrder: 3,
           },
         ]
         : [],
-    [hasAnyReceive, isReceiveDone, receiveHistoryEntries.length, receipt],
+    [creatorDisplayName, hasAnyReceive, isReceiveDone, latestReceiveEvent?.staff?.fullName, receiveHistoryEntries.length, receipt],
   )
 
-  const returnHistoryEntries = useMemo(
-    () =>
-      (receipt?.supplierReturns ?? [])
-        .slice()
-        .sort(
-          (a: any, b: any) =>
-            new Date(b?.returnedAt ?? 0).getTime() - new Date(a?.returnedAt ?? 0).getTime(),
-        )
-        .map((supplierReturn: any) => ({
-          title: 'Hoàn trả nhà cung cấp',
-          detail: `${fmt(Number(supplierReturn.totalAmount ?? 0))} đ • ${Number(
-            supplierReturn.items?.reduce((sum: number, item: any) => sum + Number(item.quantity ?? 0), 0) ?? 0,
-          )} số lượng`,
-          time: formatReceiptDateTime(supplierReturn.returnedAt),
-          tone: 'text-orange-400',
-          linkLabel: null,
-          href: null,
-        })),
-    [receipt?.supplierReturns],
-  )
+  const returnHistoryEntries = useMemo<ReceiptTimelineEntry[]>(() => {
+    const supplierReturns = (receipt?.supplierReturns ?? [])
+      .slice()
+      .sort(
+        (a: any, b: any) =>
+          new Date(b?.returnedAt ?? 0).getTime() - new Date(a?.returnedAt ?? 0).getTime(),
+      )
+
+    return supplierReturns.flatMap((supplierReturn: any) => {
+      const returnedQuantity = Number(
+        supplierReturn.items?.reduce((sum: number, item: any) => sum + Number(item.quantity ?? 0), 0) ?? 0,
+      )
+      const returnEntry: ReceiptTimelineEntry = {
+        title: 'Hoàn trả NCC',
+        detail: `Hoàn trả ${returnedQuantity} SP - ${fmt(Number(supplierReturn.totalAmount ?? 0))} đ`,
+        actor: supplierReturn.staff?.fullName || creatorDisplayName,
+        time: formatReceiptDateTime(supplierReturn.returnedAt),
+        tone: 'text-orange-400',
+        sortAt: toTimelineTimestamp(supplierReturn.returnedAt),
+        sortOrder: 4,
+      }
+
+      const refundEntries: ReceiptTimelineEntry[] = (supplierReturn.refunds ?? []).map((refund: any) => {
+        const voucherNumber = refund?.transactionVoucherNumber || null
+        return {
+          title: 'Nhận tiền hoàn trả',
+          detail: `${getPaymentMethodLabel(refund?.paymentMethod)} - ${fmt(Number(refund?.amount ?? 0))} đ`,
+          actor: refund?.staff?.fullName || supplierReturn.staff?.fullName || creatorDisplayName,
+          time: formatReceiptDateTime(refund?.receivedAt ?? refund?.createdAt ?? supplierReturn.returnedAt),
+          tone: 'text-emerald-400',
+          sortAt: toTimelineTimestamp(refund?.receivedAt ?? refund?.createdAt ?? supplierReturn.returnedAt),
+          sortOrder: 5,
+          voucherLabel: voucherNumber,
+          voucherHref: voucherNumber ? buildFinanceVoucherHref(voucherNumber) : null,
+        }
+      })
+
+      return [returnEntry, ...refundEntries]
+    })
+  }, [creatorDisplayName, receipt?.supplierReturns])
 
   const hasAnyReturn = useMemo(
     () =>
@@ -635,14 +722,21 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   )
 
   const enhancedActivityTimelineEntries = useMemo(
-    () => [
-      ...activityTimeline,
-      ...paymentTimelineEntries,
-      ...fallbackPaymentEntries,
-      ...receiveHistoryEntries,
-      ...fallbackReceiveEntries,
-      ...returnHistoryEntries,
-    ],
+    () =>
+      [
+        ...activityTimeline,
+        ...paymentTimelineEntries,
+        ...fallbackPaymentEntries,
+        ...receiveHistoryEntries,
+        ...fallbackReceiveEntries,
+        ...returnHistoryEntries,
+      ]
+        .map((entry, index) => ({ ...entry, _index: index }))
+        .sort((left, right) => {
+          if (left.sortAt !== right.sortAt) return right.sortAt - left.sortAt
+          return right._index - left._index
+        })
+        .map(({ sortAt, sortOrder, _index, ...entry }) => entry),
     [activityTimeline, fallbackPaymentEntries, fallbackReceiveEntries, paymentTimelineEntries, receiveHistoryEntries, returnHistoryEntries],
   )
 
@@ -682,8 +776,8 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   )
 
   const canShowPaymentAction = useMemo(
-    () => isExistingReceipt && canPayReceipt && !isCancelled && !isCompleted && currentDebt > 0,
-    [canPayReceipt, currentDebt, isCancelled, isCompleted, isExistingReceipt],
+    () => isExistingReceipt && canPayReceipt && !isCancelled && !isCompleted && maxPayableAmount > 0,
+    [canPayReceipt, isCancelled, isCompleted, isExistingReceipt, maxPayableAmount],
   )
   const canShowReceiveAction = useMemo(
     () => isExistingReceipt && canReceiveReceipt && !isCancelled && !isCompleted && !isReceiveDone,
@@ -752,8 +846,12 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   // ── Modal openers ─────────────────────────────────────────────────────────────
 
   const openPaymentModal = () => {
-    if (!resolvedReceiptId || currentDebt <= 0) return
-    setPaymentForm({ amount: currentDebt, paymentMethod: 'BANK', notes: '' })
+    if (!resolvedReceiptId || maxPayableAmount <= 0) return
+    setPaymentForm({
+      amount: currentReceiptOutstandingAmount > 0 ? currentReceiptOutstandingAmount : maxPayableAmount,
+      paymentMethod: 'BANK',
+      notes: '',
+    })
     setShowPaymentModal(true)
   }
 
@@ -762,6 +860,8 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     setReturnForm({
       notes: '',
       items: returnableReceiptItems.map((item) => ({ ...item, quantity: 0 })),
+      settlementMode: 'OFFSET_DEBT',
+      refundPaymentMethod: 'BANK',
     })
     setShowReturnModal(true)
   }
@@ -827,14 +927,14 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       setIsLocalDraftHydrated(true)
       return
       // eslint-disable-next-line no-unreachable
-      toast.success('ÄÃ£ khá»i phá»¥c phiáº¿u nháº­p tÃ¡m lÆ°u trÃªn mÃ¡y nÃ y.')
+      toast.success('Đã khôi phục phiếu nhập tạm lưu trên máy này.')
     } catch {
       window.localStorage.removeItem(LOCAL_RECEIPT_DRAFT_KEY)
-      toast.error('Khong doc duoc ban nhap phieu nhap tam luu.')
+      toast.error('Không đọc được bản nháp phiếu nhập tạm lưu.')
       setIsLocalDraftHydrated(true)
       return
       // eslint-disable-next-line no-unreachable
-      toast.error('KhÃ´ng Ä‘á»c Ä‘Æ°á»£c báº£n nhÃ¡p phiáº¿u nháº­p tÃ¡m lÆ°u.')
+      toast.error('Không đọc được bản nháp phiếu nhập tạm lưu.')
     }
     // eslint-disable-next-line no-unreachable
     setIsLocalDraftHydrated(true)
@@ -1398,24 +1498,59 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   })
 
   const returnMutation = useMutation({
-    mutationFn: (payload: ReceiptReturnFormState) =>
-      stockApi.returnReceipt(resolvedReceiptId, {
-        notes: payload.notes.trim() || undefined,
-        items: payload.items
-          .filter((item) => item.quantity > 0)
-          .map((item) => ({
-            receiptItemId: item.receiptItemId,
-            productId: item.productId,
-            productVariantId: item.productVariantId || undefined,
-            quantity: item.quantity,
-            reason: payload.notes.trim() || undefined,
-          })),
-      }),
-    onSuccess: async (response) => {
-      const nextReceipt = response?.data?.data ?? response?.data ?? null
+    mutationFn: async (payload: ReceiptReturnFormState) =>
+      (async () => {
+        const returnResponse = await stockApi.returnReceipt(resolvedReceiptId, {
+          notes: payload.notes.trim() || undefined,
+          items: payload.items
+            .filter((item) => item.quantity > 0)
+            .map((item) => ({
+              receiptItemId: item.receiptItemId,
+              productId: item.productId,
+              productVariantId: item.productVariantId || undefined,
+              quantity: item.quantity,
+              reason: payload.notes.trim() || undefined,
+            })),
+        })
+
+        let nextReceipt = returnResponse?.data?.data ?? returnResponse?.data ?? null
+        let refundProcessed = false
+        let refundAmount = 0
+
+        if (payload.settlementMode === 'CREATE_REFUND') {
+          const latestSupplierReturn = Array.isArray(nextReceipt?.supplierReturns)
+            ? nextReceipt.supplierReturns[0]
+            : null
+          const refundableAmount = Math.max(
+            0,
+            Number(latestSupplierReturn?.creditedAmount ?? 0) - Number(latestSupplierReturn?.refundedAmount ?? 0),
+          )
+
+          if (latestSupplierReturn?.id && refundableAmount > 0) {
+            await stockApi.refundSupplierReturn(latestSupplierReturn.id, {
+              amount: refundableAmount,
+              paymentMethod: payload.refundPaymentMethod,
+              notes: payload.notes.trim() || undefined,
+              receivedAt: new Date().toISOString(),
+              branchId: branchId || undefined,
+            })
+            refundProcessed = true
+            refundAmount = refundableAmount
+            const refreshedReceipt = await stockApi.getReceipt(resolvedReceiptId)
+            nextReceipt = refreshedReceipt?.data?.data ?? refreshedReceipt?.data ?? nextReceipt
+          }
+        }
+
+        return { nextReceipt, refundProcessed, refundAmount }
+      })(),
+    onSuccess: async ({ nextReceipt, refundProcessed, refundAmount }) => {
       syncCurrentReceiptQueries(nextReceipt)
       await refetchCurrentReceiptQueries()
-      toast.success('Đã ghi nhận hoàn trả cho phiếu nhập.')
+      toast.success(
+        refundProcessed
+          ? `Đã ghi nhận hoàn trả và tạo phiếu thu ${fmt(refundAmount)} đ.`
+          : 'Đã ghi nhận hoàn trả cho phiếu nhập.',
+      )
       setShowReturnModal(false)
       invalidateCurrentReceiptQueries()
       queryClient.invalidateQueries({ queryKey: ['receipts'] })
@@ -1547,8 +1682,8 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       toast.error('Vui lòng nhập số tiền thanh toán lớn hơn 0.')
       return
     }
-    if (paymentForm.amount > currentSupplierDebt) {
-      toast.error('Số tiền thanh toán không được vượt quá tổng công nợ NCC.')
+    if (paymentForm.amount > maxPayableAmount) {
+      toast.error('Số tiền thanh toán không được vượt quá số tiền còn có thể thanh toán cho NCC.')
       return
     }
     payMutation.mutate(paymentForm)
@@ -1684,14 +1819,19 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     hasPendingReceiptChanges,
     currentDebt,
     currentSupplierDebt,
+    maxPayableAmount,
     currentReceiptPaidAmount,
     currentReceiptTotalAmount,
+    currentReceiptOutstandingAmount,
     orderPaymentAmount,
     debtSettlementAmount,
+    totalAppliedPaymentAmount,
+    latestPaymentMethodLabel,
     latestPaymentAt,
     latestReceiveAt,
     paymentAllocationCount,
     returnableReceiptItems,
+    estimatedRefundAmount,
 
     // helpers
     getLockedReceiptQuantity,

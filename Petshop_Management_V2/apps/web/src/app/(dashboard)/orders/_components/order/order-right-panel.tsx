@@ -96,7 +96,7 @@ function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatu
   return (
     <div className="px-4 py-4">
       <div className="rounded-2xl border border-border bg-background-secondary p-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 mb-4">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-foreground-muted">
             Lịch sử
           </div>
@@ -104,31 +104,55 @@ function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatu
         </div>
 
         {timeline.length > 0 ? (
-          <div className="mt-4 space-y-3">
-            {timeline.map((entry: any, index: number) => (
-              <div key={entry.id} className="grid grid-cols-[16px_1fr] gap-3">
-                <div className="flex flex-col items-center">
-                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary-500" />
-                  {index < timeline.length - 1 ? <span className="mt-1 h-full w-px bg-border" /> : null}
-                </div>
-                <div className="rounded-xl border border-border/70 bg-background px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="truncate text-sm font-semibold text-primary-400">
-                      {ORDER_ACTION_LABELS[entry.action] ?? entry.action}
+          <div className="relative">
+            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border/60" />
+            <div className="space-y-0">
+              {timeline.map((entry: any) => {
+                const actorName = entry.performedByUser?.fullName ?? entry.performedByUser?.staffCode ?? null
+                // Gộp ghi chú nhưng bỏ dòng "Xuất kho lúc..." vì timestamp đã hiện ở trên
+                const rawNote: string = entry.note ?? ''
+                const cleanNote = rawNote
+                  .split(' · ')
+                  .filter((part) => !part.startsWith('Xuất kho lúc'))
+                  .join(' · ')
+                  .trim()
+
+                return (
+                  <div key={entry.id} className="relative grid grid-cols-[16px_1fr] gap-x-3 pb-4 last:pb-0">
+                    {/* Dot */}
+                    <div className="flex justify-center pt-[5px]">
+                      <span className="h-[9px] w-[9px] shrink-0 rounded-full bg-primary-500 ring-2 ring-background-secondary" />
                     </div>
-                    <div className="shrink-0 whitespace-nowrap text-[11px] text-foreground-muted">
-                      {formatDateTime(entry.createdAt)}
+
+                    {/* Content — compact 2 dòng */}
+                    <div>
+                      {/* Dòng 1: Tên hành động + NV + thời gian */}
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-sm font-semibold text-foreground leading-snug">
+                          {ORDER_ACTION_LABELS[entry.action] ?? entry.action}
+                          {actorName ? (
+                            <span className="ml-1.5 text-xs font-normal text-foreground-muted">{actorName}</span>
+                          ) : null}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-foreground-muted tabular-nums">
+                          {formatDateTime(entry.createdAt)}
+                        </span>
+                      </div>
+
+                      {/* Dòng 2: note súc tích (nếu có) */}
+                      {cleanNote ? (
+                        <div className="mt-0.5 text-xs text-foreground-muted leading-relaxed">
+                          {cleanNote}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
-                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-foreground-muted">
-                    {buildHistorySummary(entry) || 'Không có thêm thông tin'}
-                  </div>
-                </div>
-              </div>
-            ))}
+                )
+              })}
+            </div>
           </div>
         ) : (
-          <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-5 text-sm text-foreground-muted">
+          <div className="rounded-xl border border-dashed border-border px-4 py-5 text-sm text-foreground-muted">
             Chưa có lịch sử thao tác cho đơn hàng này.
           </div>
         )}
@@ -136,6 +160,7 @@ function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatu
     </div>
   )
 }
+
 
 export function OrderRightPanel({
   mode,

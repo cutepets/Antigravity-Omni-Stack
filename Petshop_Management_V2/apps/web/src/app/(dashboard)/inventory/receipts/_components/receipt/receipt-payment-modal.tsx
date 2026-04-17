@@ -9,7 +9,7 @@ import { fmt } from './receipt.utils'
 export function ReceiptPaymentModal({
   isOpen,
   form,
-  debtAmount,
+  debtAmount: _debtAmount,
   supplierDebtAmount,
   orderAmount,
   isPending,
@@ -20,8 +20,8 @@ export function ReceiptPaymentModal({
   if (!isOpen) return null
 
   const suggestions = [
-    { label: 'Tổng công nợ', value: supplierDebtAmount },
     { label: 'Số tiền đơn hàng', value: orderAmount },
+    { label: 'Tổng nợ', value: supplierDebtAmount },
   ].filter((item) => item.value > 0)
 
   return (
@@ -35,10 +35,19 @@ export function ReceiptPaymentModal({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-500">
               Thanh toán phiếu nhập
             </p>
-            <h2 className="mt-2 text-xl font-bold text-foreground">Ghi nhận thanh toán cho nhà cung cấp</h2>
-            <p className="mt-1 text-sm text-foreground-muted">
-              Công nợ hiện tại: <span className="font-semibold text-foreground">{fmt(debtAmount)} đ</span>
-            </p>
+            <h2 className="mt-2 text-xl font-bold text-foreground">
+              Ghi nhận thanh toán cho nhà cung cấp
+            </h2>
+            <div className="mt-2 space-y-1 text-sm text-foreground-muted">
+              <p>
+                Số tiền đơn hàng:{' '}
+                <span className="font-semibold text-foreground">{fmt(orderAmount)} đ</span>
+              </p>
+              <p>
+                Tổng nợ:{' '}
+                <span className="font-semibold text-foreground">{fmt(supplierDebtAmount)} đ</span>
+              </p>
+            </div>
           </div>
           <button
             type="button"
@@ -63,7 +72,9 @@ export function ReceiptPaymentModal({
                 <span className="block text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                   {suggestion.label}
                 </span>
-                <span className="mt-1 block text-lg font-bold text-foreground">{fmt(suggestion.value)} đ</span>
+                <span className="mt-1 block text-lg font-bold text-foreground">
+                  {fmt(suggestion.value)} đ
+                </span>
               </button>
             ))}
           </div>

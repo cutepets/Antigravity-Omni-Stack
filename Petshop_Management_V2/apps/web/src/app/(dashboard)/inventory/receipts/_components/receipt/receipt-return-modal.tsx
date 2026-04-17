@@ -2,17 +2,24 @@
 
 import { X } from 'lucide-react'
 import type { ReceiptReturnModalProps } from './receipt.types'
+import { RECEIPT_PAYMENT_METHOD_OPTIONS } from './receipt.constants'
+import { fmt } from './receipt.utils'
 
 export function ReceiptReturnModal({
   isOpen,
   form,
+  estimatedRefundAmount,
   isPending,
   onClose,
   onChangeNotes,
   onChangeQuantity,
+  onChangeSettlementMode,
+  onChangeRefundPaymentMethod,
   onConfirm,
 }: ReceiptReturnModalProps) {
   if (!isOpen) return null
+
+  const shouldShowSettlementOptions = estimatedRefundAmount > 0
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
@@ -66,6 +73,75 @@ export function ReceiptReturnModal({
               </div>
             ))}
           </div>
+
+          {shouldShowSettlementOptions ? (
+            <div className="space-y-3 rounded-2xl border border-warning/20 bg-warning/5 px-4 py-4">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-warning">
+                  Tiền NCC hoàn lại
+                </div>
+                <div className="mt-1 text-sm text-foreground-muted">
+                  Đợt hoàn này dự kiến tạo ra khoản hoàn lại <span className="font-semibold text-foreground">{fmt(estimatedRefundAmount)} đ</span>.
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => onChangeSettlementMode('CREATE_REFUND')}
+                  disabled={isPending}
+                  className={`rounded-2xl border px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${form.settlementMode === 'CREATE_REFUND'
+                    ? 'border-primary-500/40 bg-primary-500/10'
+                    : 'border-border bg-background-secondary hover:border-primary-500/30'
+                    }`}
+                >
+                  <span className="block text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                    Tạo phiếu thu
+                  </span>
+                  <span className="mt-1 block text-sm font-semibold text-foreground">
+                    Ghi nhận NCC hoàn tiền ngay
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onChangeSettlementMode('OFFSET_DEBT')}
+                  disabled={isPending}
+                  className={`rounded-2xl border px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${form.settlementMode === 'OFFSET_DEBT'
+                    ? 'border-primary-500/40 bg-primary-500/10'
+                    : 'border-border bg-background-secondary hover:border-primary-500/30'
+                    }`}
+                >
+                  <span className="block text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                    Trừ nợ
+                  </span>
+                  <span className="mt-1 block text-sm font-semibold text-foreground">
+                    Giữ lại để bù công nợ NCC
+                  </span>
+                </button>
+              </div>
+
+              {form.settlementMode === 'CREATE_REFUND' ? (
+                <label className="block space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+                    Hình thức thanh toán
+                  </span>
+                  <select
+                    value={form.refundPaymentMethod}
+                    onChange={(event) => onChangeRefundPaymentMethod(event.target.value)}
+                    disabled={isPending}
+                    className="h-11 w-full rounded-2xl border border-border bg-background px-4 text-sm font-medium text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {RECEIPT_PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          ) : null}
 
           <label className="block space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">

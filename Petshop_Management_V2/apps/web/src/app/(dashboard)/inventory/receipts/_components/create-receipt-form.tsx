@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Building2,
-  CalendarDays,
   ChevronDown,
   Copy,
   FileDown,
@@ -114,10 +113,11 @@ export function CreateReceiptForm({
     selectedSupplier, displaySupplier, currentBranch,
     totalQuantity, merchandiseTotal, discountAmount, taxAmount,
     extraCostTotal, grandTotal, normalizedExtraCosts,
-    hasPendingReceiptChanges, currentDebt, currentSupplierDebt,
-    currentReceiptPaidAmount, currentReceiptTotalAmount,
+    hasPendingReceiptChanges, currentDebt, currentSupplierDebt, maxPayableAmount,
+    currentReceiptPaidAmount, currentReceiptTotalAmount, currentReceiptOutstandingAmount,
+    orderPaymentAmount, debtSettlementAmount, totalAppliedPaymentAmount, latestPaymentMethodLabel,
     latestPaymentAt, latestReceiveAt, paymentAllocationCount,
-    returnableReceiptItems,
+    returnableReceiptItems, estimatedRefundAmount,
     // helpers
     getLockedReceiptQuantity, hasLockedReceiptQuantity,
     openPaymentModal, openReturnModal,
@@ -383,8 +383,8 @@ export function CreateReceiptForm({
         isOpen={showPaymentModal}
         form={paymentForm}
         debtAmount={currentSupplierDebt}
-        supplierDebtAmount={currentSupplierDebt}
-        orderAmount={currentDebt}
+        supplierDebtAmount={maxPayableAmount}
+        orderAmount={currentReceiptOutstandingAmount}
         isPending={payMutation.isPending}
         onClose={() => {
           if (payMutation.isPending) return
@@ -401,6 +401,7 @@ export function CreateReceiptForm({
       <ReceiptReturnModal
         isOpen={showReturnModal}
         form={returnForm}
+        estimatedRefundAmount={estimatedRefundAmount}
         isPending={returnMutation.isPending}
         onClose={() => {
           if (returnMutation.isPending) return
@@ -413,6 +414,18 @@ export function CreateReceiptForm({
           }))
         }
         onChangeQuantity={handleReturnItemQuantityChange}
+        onChangeSettlementMode={(value) =>
+          setReturnForm((current) => ({
+            ...current,
+            settlementMode: value,
+          }))
+        }
+        onChangeRefundPaymentMethod={(value) =>
+          setReturnForm((current) => ({
+            ...current,
+            refundPaymentMethod: value,
+          }))
+        }
         onConfirm={handleConfirmReturn}
       />
       <ReceiptExcelModal
@@ -421,11 +434,11 @@ export function CreateReceiptForm({
         onImported={handleExcelImport}
       />
       <div className="shrink-0 border-b border-border bg-[linear-gradient(135deg,rgba(14,165,233,0.08),rgba(255,255,255,0))]">
-        <div className="grid gap-3 px-5 py-4 xl:grid-cols-[minmax(240px,0.68fr)_minmax(420px,1.04fr)_minmax(392px,0.94fr)_minmax(176px,0.38fr)]">
+        <div className="grid gap-2.5 px-5 py-3 xl:grid-cols-[minmax(240px,0.68fr)_minmax(420px,1.04fr)_minmax(392px,0.94fr)_minmax(176px,0.38fr)]">
           <div className="flex items-start gap-3">
             <Link
               href="/inventory/receipts"
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border bg-background text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-border bg-background text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
             >
               <ArrowLeft size={18} />
             </Link>
@@ -434,10 +447,10 @@ export function CreateReceiptForm({
                 {isEditMode ? 'Cập nhật phiếu nhập' : 'Tạo phiếu nhập'}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-start gap-3">
+              <div className="mt-2 flex flex-wrap items-start gap-2.5">
                 <div ref={supplierPanelRef} className="relative min-w-[200px] flex-1">
                   {displaySupplier ? (
-                    <div className="flex h-11 items-center justify-between rounded-xl border border-border bg-background px-3">
+                    <div className="flex h-10 items-center justify-between rounded-xl border border-border bg-background px-3">
                       <a
                         href={displaySupplier.code ? `/inventory/suppliers/${displaySupplier.code}` : undefined}
                         target="_blank"
@@ -472,7 +485,7 @@ export function CreateReceiptForm({
                       />
                       <input
                         type="text"
-                        className="h-11 w-full rounded-xl border border-border bg-background pl-9 pr-10 text-sm text-foreground placeholder:text-foreground-muted outline-none transition-all focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+                        className="h-10 w-full rounded-xl border border-border bg-background pl-9 pr-10 text-sm text-foreground placeholder:text-foreground-muted outline-none transition-all focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                         placeholder="Tìm nhà cung cấp"
                         value={supplierQuery}
                         onChange={(e) => {
@@ -555,7 +568,7 @@ export function CreateReceiptForm({
 
 
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground-muted">
                   {displaySupplier?.phone || 'Chưa có SĐT nhà cung cấp'}
                 </span>
@@ -563,45 +576,43 @@ export function CreateReceiptForm({
                   {displaySupplier?.code || 'Mã NCC: Tự động'}
                 </span>
                 {currentSupplierDebt > 0 ? (
-                  <span className="rounded-full border border-error/20 bg-error/10 px-3 py-1 text-xs font-semibold text-error">
-                    Nợ NCC: {fmt(currentSupplierDebt)}
+                  <span className="rounded-full border border-warning/20 bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
+                    Tổng nợ: {fmt(currentSupplierDebt)}
                   </span>
                 ) : null}
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border bg-background/80 px-4 py-3 flex flex-col justify-center">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-              <div className="space-y-4">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                    Mã đơn nhập
-                  </div>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">
-                      {receipt?.receiptNumber || 'Tự động tạo khi lưu phiếu'}
-                    </span>
-                    <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${statusView.toneClass}`}>
-                      {statusView.label}
-                    </span>
-                  </div>
+          <div className="rounded-2xl border border-border bg-background/80 px-4 py-2.5 flex flex-col justify-center">
+            <div className="grid gap-2.5 md:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
+                    Mã đơn nhập:
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {receipt?.receiptNumber || 'Tự động tạo khi lưu phiếu'}
+                  </span>
+                  <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${statusView.toneClass}`}>
+                    {statusView.label}
+                  </span>
                 </div>
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                    Nhân viên
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-foreground">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
+                    Nhân viên:
+                  </span>
+                  <span className="font-semibold text-foreground">
                     {creatorDisplayName}
-                  </div>
+                  </span>
                 </div>
               </div>
-              <div className="rounded-xl border border-border bg-background px-3 py-3">
+              <div className="rounded-xl border border-border bg-background px-3 py-2.5">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
                   Chi nhánh nhận hàng
                 </div>
                 <select
-                  className="mt-2 h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-all focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+                  className="mt-1.5 h-10 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-all focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                   value={branchId}
                   onChange={(e) => setBranchId(e.target.value)}
                   disabled={isReadOnly}
@@ -618,7 +629,7 @@ export function CreateReceiptForm({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border bg-background/80 px-6 py-4">
+          <div className="rounded-2xl border border-border bg-background/80 px-5 py-3">
             <div className="hidden mb-2 items-center justify-between text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
               <span>Tiến trình đơn nhập</span>
               <span>Giai đoạn 1/4</span>
@@ -627,11 +638,11 @@ export function CreateReceiptForm({
               {visibleProgressSteps.map((step, index) => (
                 <div
                   key={`${step.title}-${index}`}
-                  className="relative flex flex-1 min-w-0 flex-col items-center justify-start gap-1.5 py-2 text-center"
+                  className="relative flex flex-1 min-w-0 flex-col items-center justify-start gap-1 py-1 text-center"
                 >
                   <div className="relative flex w-full justify-center px-1">
                     <div
-                      className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${step.state === 'alert'
+                      className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${step.state === 'alert'
                         ? 'border-rose-500/50 bg-rose-500/12 text-rose-300'
                         : step.state === 'completed' || step.state === 'active'
                           ? 'border-primary-500/50 bg-primary-500/10 text-primary-500'
@@ -648,13 +659,13 @@ export function CreateReceiptForm({
                             ? 'bg-primary-500/50'
                             : 'bg-border'
                           }`}
-                        style={{ left: 'calc(50% + 18px)', right: 'calc(-50% + 18px)' }}
+                        style={{ left: 'calc(50% + 16px)', right: 'calc(-50% + 16px)' }}
                       />
                     ) : null}
                   </div>
-                  <div className="flex min-h-[56px] flex-col items-center justify-start mt-1 space-y-1">
-                    <div className={`text-[13px] font-semibold ${step.state === 'alert' ? 'text-rose-300' : 'text-foreground'}`}>{step.title}</div>
-                    <div className={`whitespace-nowrap text-[11px] leading-4 ${step.state === 'alert' ? 'text-rose-200/85' : 'text-foreground-muted'}`}>{step.meta}</div>
+                  <div className="mt-0.5 flex min-h-[40px] flex-col items-center justify-start space-y-0.5">
+                    <div className={`text-[12px] font-semibold leading-4 ${step.state === 'alert' ? 'text-rose-300' : 'text-foreground'}`}>{step.title}</div>
+                    <div className={`whitespace-nowrap text-[10px] leading-3.5 ${step.state === 'alert' ? 'text-rose-200/85' : 'text-foreground-muted'}`}>{step.meta}</div>
                   </div>
                 </div>
               ))}
@@ -662,15 +673,15 @@ export function CreateReceiptForm({
 
           </div>
 
-          <div className="flex min-w-[176px] flex-col gap-2 xl:items-end xl:justify-center">
+          <div className="flex min-w-[176px] flex-col gap-1.5 xl:items-end xl:justify-center">
 
-            <div className="flex flex-col gap-2 xl:items-end">
+            <div className="flex flex-col gap-1.5 xl:items-end">
               {isCreateMode ? (
                 <button
                   type="button"
                   onClick={() => handleSubmit('draft')}
                   disabled={saveMutation.isPending || items.length === 0 || !branchId}
-                  className="btn-primary min-w-[176px] justify-center rounded-xl py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-primary min-w-[176px] justify-center rounded-xl py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saveMutation.isPending ? 'Đang xử lý...' : 'Tạo đơn nhập'}
                 </button>
@@ -682,10 +693,10 @@ export function CreateReceiptForm({
                   disabled={
                     payMutation.isPending ||
                     !resolvedReceiptId ||
-                    currentDebt <= 0 ||
+                    maxPayableAmount <= 0 ||
                     receipt?.status === 'CANCELLED'
                   }
-                  className="btn-primary min-w-[176px] justify-center rounded-xl py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-primary min-w-[176px] justify-center rounded-xl py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {payMutation.isPending ? 'Đang xử lý...' : 'Thanh toán'}
                 </button>
@@ -695,7 +706,7 @@ export function CreateReceiptForm({
                   type="button"
                   onClick={() => receiveMutation.mutate()}
                   disabled={receiveMutation.isPending || !resolvedReceiptId}
-                  className="btn-primary min-w-[176px] justify-center rounded-xl py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-primary min-w-[176px] justify-center rounded-xl py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {receiveMutation.isPending ? 'Đang xử lý...' : 'Nhập kho'}
                 </button>
@@ -705,7 +716,7 @@ export function CreateReceiptForm({
                   type="button"
                   onClick={() => cancelMutation.mutate()}
                   disabled={cancelMutation.isPending || !resolvedReceiptId}
-                  className="btn-outline min-w-[176px] justify-center rounded-xl border-error/40 py-2.5 text-sm text-error disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-outline min-w-[176px] justify-center rounded-xl border-error/40 py-2 text-sm text-error disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {cancelMutation.isPending ? 'Đang xử lý...' : 'Hủy phiếu'}
                 </button>
@@ -715,7 +726,7 @@ export function CreateReceiptForm({
                   type="button"
                   onClick={openReturnModal}
                   disabled={returnMutation.isPending || !resolvedReceiptId}
-                  className="inline-flex min-w-[176px] items-center justify-center rounded-xl border border-amber-500/40 bg-amber-500/12 px-4 py-2.5 text-sm font-semibold text-amber-300 transition-colors hover:border-amber-500/60 hover:bg-amber-500/18 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-w-[176px] items-center justify-center rounded-xl border border-amber-500/40 bg-amber-500/12 px-4 py-2 text-sm font-semibold text-amber-300 transition-colors hover:border-amber-500/60 hover:bg-amber-500/18 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {returnMutation.isPending ? 'Đang xử lý...' : 'Hoàn trả'}
                 </button>
@@ -1439,7 +1450,7 @@ export function CreateReceiptForm({
           </div>
 
           {/* ── RIGHT SIDEBAR ──────────────────────────────────────────────────── */}
-          <div className="flex min-h-0 w-[420px] shrink-0 flex-col overflow-y-auto border-l border-border bg-background custom-scrollbar">
+          <div className="flex min-h-0 w-[420px] shrink-0 flex-col overflow-hidden border-l border-border bg-background">
 
 
 
@@ -1448,10 +1459,10 @@ export function CreateReceiptForm({
             <div className="border-b border-border px-3 py-3 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-foreground-muted flex items-center gap-1.5">
-                  Tổng tiền hàng
-                  {items.length > 0 && (
+                  Tổng tiền hàng ({totalQuantity})
+                  {totalQuantity > 0 && (
                     <span className="badge badge-primary text-[10px] px-1.5 py-0">
-                      {items.length}
+                      {totalQuantity}
                     </span>
                   )}
                 </span>
@@ -1476,8 +1487,7 @@ export function CreateReceiptForm({
 
               {/* Extra costs – hidden from UI but still computed for legacy data */}
 
-              {/* Grand total */}
-              <div className="flex items-center justify-between rounded-xl bg-background-secondary px-3 py-2.5 border border-border">
+              <div className="flex items-center justify-between rounded-xl border border-border bg-background-secondary px-3 py-2.5">
                 <span className="text-sm font-semibold text-foreground">Cần trả NCC</span>
                 <span className="text-base font-black text-primary-500 tabular-nums">
                   {fmt(grandTotal)}
@@ -1487,16 +1497,6 @@ export function CreateReceiptForm({
 
             {/* Payment info */}
             <div className="border-b border-border px-3 py-2.5 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-foreground-muted">Tiền trả NCC (F8)</span>
-                <span className="text-xs font-medium text-foreground">0</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-foreground-muted">Tính vào công nợ</span>
-                <span className="text-xs font-semibold text-foreground tabular-nums">
-                  {fmt(grandTotal)}
-                </span>
-              </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs text-foreground-muted shrink-0">Chi phí phát sinh</span>
                 <NumericFormat
@@ -1510,20 +1510,26 @@ export function CreateReceiptForm({
                   disabled={isReadOnly}
                 />
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-foreground-muted">Dự kiến ngày nhập hàng</span>
-                <button
-                  type="button"
-                  className="text-foreground-muted hover:text-primary-500 transition-colors"
-                >
-                  <CalendarDays size={14} />
-                </button>
+              <div className="rounded-xl border border-border bg-background-secondary px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-foreground-muted">
+                    Đã Thanh toán: <span className="font-semibold text-foreground">{latestPaymentMethodLabel}</span>
+                  </span>
+                  <span className="text-xs font-semibold text-foreground tabular-nums">
+                    {fmt(totalAppliedPaymentAmount)}
+                  </span>
+                </div>
+                <div className="mt-2 space-y-1.5 pl-3">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="text-foreground-muted">Tiền hàng</span>
+                    <span className="font-medium text-foreground tabular-nums">{fmt(orderPaymentAmount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="text-foreground-muted">Nợ cũ</span>
+                    <span className="font-medium text-foreground tabular-nums">{fmt(debtSettlementAmount)}</span>
+                  </div>
+                </div>
               </div>
-            </div>
-
-
-            {/* Notes */}
-            <div className="px-3 py-2.5">
               <textarea
                 rows={1}
                 className="w-full resize-none rounded-xl border border-border bg-background-secondary p-2.5 text-sm text-foreground placeholder:text-foreground-muted outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all overflow-hidden"
@@ -1537,8 +1543,8 @@ export function CreateReceiptForm({
               />
             </div>
 
-            <div className="border-b border-border px-3 py-3">
-              <div className="rounded-xl border border-border bg-background-secondary p-3">
+            <div className="flex min-h-0 flex-1 flex-col px-3 py-3">
+              <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-background-secondary p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">
                     Lịch sử
@@ -1548,30 +1554,51 @@ export function CreateReceiptForm({
                   </span>
                 </div>
 
-                <div className="mt-3 space-y-3">
+                <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 custom-scrollbar">
                   {enhancedActivityTimelineEntries.map((entry, index) => (
                     <div key={`${entry.title}-${entry.time}-${entry.detail}-${index}`} className="grid grid-cols-[18px_1fr] gap-3">
                       <div className="flex flex-col items-center">
-                        <span className={`mt-1 h-2.5 w-2.5 rounded-full ${entry.tone === 'text-primary-500' ? 'bg-primary-500' : entry.tone === 'text-amber-500' ? 'bg-amber-500' : 'bg-border'}`} />
+                        <span className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                          entry.tone === 'text-primary-500'
+                            ? 'bg-primary-500'
+                            : entry.tone === 'text-amber-500'
+                              ? 'bg-amber-500'
+                              : entry.tone === 'text-sky-500'
+                                ? 'bg-sky-500'
+                                : entry.tone === 'text-orange-400'
+                                  ? 'bg-orange-400'
+                                  : entry.tone === 'text-emerald-400'
+                                    ? 'bg-emerald-400'
+                                    : 'bg-border'
+                        }`} />
                         {index < enhancedActivityTimelineEntries.length - 1 ? (
                           <span className="mt-1 h-full w-px bg-border" />
                         ) : null}
                       </div>
-                      <div className="pb-1">
-                        <div className={`text-sm font-semibold ${entry.tone}`}>{entry.title}</div>
-                        <div className="mt-0.5 text-xs text-foreground flex items-center gap-2">
-                          <span>{entry.detail}</span>
-                          <span className="text-[11px] text-foreground-muted whitespace-nowrap ml-auto">{entry.time}</span>
+                      <div className="min-w-0 pb-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex items-center gap-2">
+                            <span className={`truncate text-sm font-semibold ${entry.tone}`}>{entry.title}</span>
+                            {entry.actor ? (
+                              <span className="truncate text-[11px] text-foreground-muted">{entry.actor}</span>
+                            ) : null}
+                          </div>
+                          <span className="shrink-0 text-[11px] text-foreground-muted whitespace-nowrap">{entry.time}</span>
                         </div>
-                        {entry.href && entry.linkLabel ? (
-                          <Link
-                            href={entry.href}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-1 inline-flex text-[11px] font-medium text-amber-400 transition-colors hover:text-amber-300"
-                          >
-                            {entry.linkLabel}
-                          </Link>
+                        {entry.detail || entry.voucherHref || entry.voucherLabel ? (
+                          <div className="mt-0.5 flex items-start justify-between gap-3 text-xs text-foreground-muted">
+                            <span className="min-w-0 truncate">{entry.detail ?? '—'}</span>
+                            {entry.voucherHref && entry.voucherLabel ? (
+                              <Link
+                                href={entry.voucherHref}
+                                className="shrink-0 text-primary-400 transition hover:text-primary-300"
+                              >
+                                {entry.voucherLabel}
+                              </Link>
+                            ) : entry.voucherLabel ? (
+                              <span className="shrink-0 text-primary-400">{entry.voucherLabel}</span>
+                            ) : null}
+                          </div>
                         ) : null}
                       </div>
                     </div>

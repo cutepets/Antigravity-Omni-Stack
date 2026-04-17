@@ -84,6 +84,7 @@ export function ReceiptHeader({ form }: ReceiptHeaderProps) {
     grandTotal,
     notes,
   } = form
+  const supplierOtherDebt = Math.max(0, currentSupplierDebt - (isExistingReceipt ? currentDebt : 0))
 
   const creatorDisplayName =
     receipt?.createdBy?.fullName ||
@@ -452,8 +453,20 @@ export function ReceiptHeader({ form }: ReceiptHeaderProps) {
                 {displaySupplier?.phone || 'Chưa chọn'}
               </div>
               {displaySupplier ? (
-                <div className={`mt-0.5 text-xs font-semibold ${currentSupplierDebt > 0 ? 'text-error' : 'text-success'}`}>
-                  {currentSupplierDebt > 0 ? `Nợ NCC: ${fmt(currentSupplierDebt)}` : 'Không còn nợ NCC'}
+                <div className="mt-1 space-y-0.5 text-xs">
+                  {isExistingReceipt ? (
+                    <div className={`font-semibold ${currentDebt > 0 ? 'text-error' : 'text-success'}`}>
+                      {currentDebt > 0 ? `Nợ phiếu này: ${fmt(currentDebt)}` : 'Phiếu đã thanh toán'}
+                    </div>
+                  ) : null}
+                  <div className={`font-semibold ${currentSupplierDebt > 0 ? 'text-warning' : 'text-success'}`}>
+                    {currentSupplierDebt > 0 ? `Tổng nợ: ${fmt(currentSupplierDebt)}` : 'Không còn nợ NCC'}
+                  </div>
+                  {isExistingReceipt && supplierOtherDebt > 0 ? (
+                    <div className="text-foreground-muted">
+                      Nợ phiếu khác: {fmt(supplierOtherDebt)}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>

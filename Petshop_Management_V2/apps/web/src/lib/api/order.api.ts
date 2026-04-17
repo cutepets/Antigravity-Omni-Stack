@@ -191,6 +191,9 @@ export const orderApi = {
   refund: (id: string, data: RefundOrderPayload) =>
     api.post(`/orders/${id}/refund`, data).then((r) => r.data),
 
+  createReturnRequest: (id: string, data: CreateReturnRequestPayload) =>
+    api.post(`/orders/${id}/return`, data).then((r) => r.data),
+
   removeItem: (orderId: string, itemId: string) =>
     api.delete(`/orders/${orderId}/items/${itemId}`).then((r) => r.data),
 
@@ -216,3 +219,18 @@ export const orderApi = {
   ) =>
     api.patch(`/orders/${orderId}/items/${itemId}/swap-temp`, data).then((r) => r.data),
 };
+
+export interface ReturnItemPayload {
+  orderItemId: string;
+  quantity: number;
+  action: 'EXCHANGE' | 'RETURN';
+  reason?: string;
+}
+
+export interface CreateReturnRequestPayload {
+  type: 'PARTIAL' | 'FULL';
+  reason?: string;
+  refundAmount?: number;
+  refundMethod?: string;
+  items: ReturnItemPayload[];
+}

@@ -1,6 +1,6 @@
 ALTER TABLE "product_variants"
-ADD COLUMN "variantLabel" TEXT,
-ADD COLUMN "unitLabel" TEXT;
+ADD COLUMN IF NOT EXISTS "variantLabel" TEXT,
+ADD COLUMN IF NOT EXISTS "unitLabel" TEXT;
 
 WITH resolved AS (
   SELECT

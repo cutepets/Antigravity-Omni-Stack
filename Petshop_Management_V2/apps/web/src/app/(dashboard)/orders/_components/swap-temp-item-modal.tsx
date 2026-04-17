@@ -41,7 +41,9 @@ export function SwapTempItemModal({
             orderApi.swapTempItem(orderId, itemId, { realProductId: productId, realProductVariantId: variantId }),
         onSuccess: () => {
             toast.success('Đã đổi sang sản phẩm thật')
+            // Invalidate cả UUID key lẫn orderNumber key (useOrderWorkspace dùng orderNumber làm queryKey)
             void queryClient.invalidateQueries({ queryKey: ['order', orderId] })
+            void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'order' })
             onSuccess?.()
             onClose()
         },

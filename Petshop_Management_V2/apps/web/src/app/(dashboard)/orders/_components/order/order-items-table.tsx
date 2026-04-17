@@ -72,61 +72,58 @@ export function OrderItemsTable({
     rowRefs.current[selectedRowIndex]?.focus({ preventScroll: true })
   }, [selectedRowIndex])
 
+  function adjustQuantity(index: number, item: any, step: number) {
+    const current = Math.max(Number(item.quantity || 0), 0)
+    const quantityStep = getCartQuantityStep(item)
+    const next = Math.max(quantityStep, current + step)
+    onChangeQuantity(index, String(next))
+  }
+
   const focusRow = (index: number) => {
     requestAnimationFrame(() => {
       rowRefs.current[index]?.focus({ preventScroll: true })
     })
   }
 
-  const adjustQuantity = (index: number, item: any, delta: number) => {
-    const quantityStep = getCartQuantityStep(item)
-    const nextQuantity = Math.max(quantityStep, Number(item.quantity || 0) + delta)
-    onChangeQuantity(index, String(nextQuantity))
-  }
-
-  const handleRowKeyDown = (event: KeyboardEvent<HTMLElement>, index: number, item: any) => {
-    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
-
-    event.preventDefault()
-    event.stopPropagation()
-
-    if (event.key === 'ArrowUp' && index > 0) {
-      onSelectRow(index - 1)
-      focusRow(index - 1)
-      return
-    }
-
-    if (event.key === 'ArrowDown' && index < items.length - 1) {
-      onSelectRow(index + 1)
-      focusRow(index + 1)
-      return
-    }
-
-    onSelectRow(index)
-
-    if (!isEditing) return
-
-    if (event.key === 'ArrowLeft') {
-      adjustQuantity(index, item, -getCartQuantityStep(item))
-      return
-    }
-
-    if (event.key === 'ArrowRight') {
-      adjustQuantity(index, item, getCartQuantityStep(item))
+  function handleRowKeyDown(event: KeyboardEvent<HTMLDivElement>, index: number, item: any) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      const nextIndex = Math.min(index + 1, items.length - 1)
+      onSelectRow(nextIndex)
+      focusRow(nextIndex)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      const prevIndex = Math.max(index - 1, 0)
+      onSelectRow(prevIndex)
+      focusRow(prevIndex)
+    } else if (event.key === 'Delete' && isEditing) {
+      event.preventDefault()
+      onRemoveItem(index)
     }
   }
 
-  const applyDiscountValue = (index: number, item: any, rawValue: string, mode: DiscountMode) => {
-    const parsedValue = Number(rawValue || 0)
-    const safeValue = Number.isFinite(parsedValue) ? Math.max(0, parsedValue) : 0
+  function applyDiscountValue(
+    index: number,
+    item: any,
+    rawValue: string,
+    mode: DiscountMode,
+  ) {
     const quantity = Math.max(Number(item.quantity || 0), 0)
     const unitPrice = Math.max(Number(item.unitPrice || 0), 0)
     const lineBasePrice = quantity * unitPrice
+    const parsed = Number(rawValue)
 
+    if (Number.isNaN(parsed)) return
+
+    let safeValue: number
     if (mode === 'percent') {
-      const percent = Math.min(safeValue, 100)
-      const percentDiscount = clampLineDiscount((lineBasePrice * percent) / 100, lineBasePrice)
-      onChangeItemDiscount(index, String(percentDiscount))
+      const clampedPercent = Math.max(0, Math.min(parsed, 100))
+      safeValue = Math.round(lineBasePrice * clampedPercent / 100)
+    } else {
+      safeValue = parsed
+    }
+
+    if (safeValue < 0) {
       return
     }
 
@@ -231,11 +228,6 @@ export function OrderItemsTable({
                     <div className="truncate text-sm font-semibold text-foreground" title={item.description}>
                       {item.description}
                     </div>
-                    {item.isTemp && (
-                      <span className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 border border-amber-100">
-                        TẠM
-                      </span>
-                    )}
                     {item.isTemp && onSwapItem && (
                       <button
                         type="button"
@@ -245,6 +237,15 @@ export function OrderItemsTable({
                       >
                         <ArrowLeftRight size={11} />
                       </button>
+                    )}
+                    {/* Badge xuất kho per-item (Phương án B) */}
+                    {!item.isTemp && item.stockExportedAt && (
+                      <span
+                        title={`Đã xuất kho lúc ${new Date(item.stockExportedAt).toLocaleString('vi-VN')}`}
+                        className="shrink-0 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 border border-emerald-200"
+                      >
+                        Đã xuất
+                      </span>
                     )}
                     <OrderStockPopover item={item} />
                   </div>

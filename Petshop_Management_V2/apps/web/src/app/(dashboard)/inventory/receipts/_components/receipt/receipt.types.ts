@@ -120,13 +120,18 @@ export interface ReceiptReturnLineDraft {
   productVariantId?: string | null
   name: string
   sku?: string | null
+  unitPrice: number
   availableQty: number
   quantity: number
 }
 
+export type ReceiptReturnSettlementMode = 'OFFSET_DEBT' | 'CREATE_REFUND'
+
 export interface ReceiptReturnFormState {
   notes: string
   items: ReceiptReturnLineDraft[]
+  settlementMode: ReceiptReturnSettlementMode
+  refundPaymentMethod: string
 }
 
 export type SubmitMode = 'draft' | 'receive'
@@ -155,9 +160,12 @@ export interface ReceiptPaymentModalProps {
 export interface ReceiptReturnModalProps {
   isOpen: boolean
   form: ReceiptReturnFormState
+  estimatedRefundAmount: number
   isPending: boolean
   onClose: () => void
   onChangeNotes: (value: string) => void
   onChangeQuantity: (receiptItemId: string, quantity: number) => void
+  onChangeSettlementMode: (value: ReceiptReturnSettlementMode) => void
+  onChangeRefundPaymentMethod: (value: string) => void
   onConfirm: () => void
 }
