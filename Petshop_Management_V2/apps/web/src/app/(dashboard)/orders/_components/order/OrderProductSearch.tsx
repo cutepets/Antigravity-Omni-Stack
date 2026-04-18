@@ -38,14 +38,13 @@ export function OrderProductSearch(props: OrderProductSearchProps) {
                 title={outOfStockHidden ? 'Đang ẩn hàng hết — bấm để hiện lại' : 'Ẩn hàng hết hàng'}
                 onClick={() => setOutOfStockHidden((v) => !v)}
                 className={[
-                    'shrink-0 flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-medium transition-colors duration-150',
+                    'shrink-0 flex h-8 w-8 items-center justify-center rounded-lg border transition-colors duration-150',
                     outOfStockHidden
                         ? 'border-primary-500/40 bg-primary-500/10 text-primary-600'
                         : 'border-border bg-background-secondary/50 text-foreground-muted hover:border-border-strong hover:text-foreground',
                 ].join(' ')}
             >
-                {outOfStockHidden ? <EyeOff size={13} /> : <Eye size={13} />}
-                <span className="hidden sm:inline">Hết hàng</span>
+                {outOfStockHidden ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
 
             {/* Toggle: Chọn nhiều */}
@@ -54,14 +53,13 @@ export function OrderProductSearch(props: OrderProductSearchProps) {
                 title={props.isMultiSelectValue ? 'Đang chọn nhiều — bấm để tắt' : 'Bật chọn nhiều sản phẩm'}
                 onClick={() => props.onSetMultiSelect?.(!props.isMultiSelectValue)}
                 className={[
-                    'shrink-0 flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-medium transition-colors duration-150',
+                    'shrink-0 flex h-8 w-8 items-center justify-center rounded-lg border transition-colors duration-150',
                     props.isMultiSelectValue
                         ? 'border-primary-500/40 bg-primary-500/10 text-primary-600'
                         : 'border-border bg-background-secondary/50 text-foreground-muted hover:border-border-strong hover:text-foreground',
                 ].join(' ')}
             >
-                <ListChecks size={13} />
-                <span className="hidden sm:inline">Chọn nhiều</span>
+                <ListChecks size={14} />
             </button>
         </div>
     )

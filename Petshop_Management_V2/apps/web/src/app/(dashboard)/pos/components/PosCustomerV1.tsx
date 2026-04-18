@@ -13,11 +13,21 @@ import { PetFormModal } from '../../pets/_components/pet-form-modal';
 import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile';
 
 
+// ── Callback interface (dùng khi override store) ─────────────────────────────
+export type CustomerCallbacks = {
+  customerId?: string;
+  customerName?: string;
+  onSelectCustomer: (id: string, name: string) => void;
+  onRemoveCustomer: () => void;
+};
+
 export interface PosCustomerV1Props {
   onSelectSuggestedService?: (service: any, petId: string, petName?: string) => void;
+  // Optional — khi có callbacks, bypass usePosStore (dùng cho OrderWorkspace)
+  callbacks?: CustomerCallbacks;
 }
 
-export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) {
+export function PosCustomerV1({ onSelectSuggestedService, callbacks }: PosCustomerV1Props) {
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [customerQuery, setCustomerQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -27,19 +37,25 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
   const [showPetModal, setShowPetModal] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
 
+  // Always call hooks unconditionally (Rules of Hooks)
+  // When callbacks provided, store values won't be used for customer mutations
   const store = usePosStore();
   const activeTab = useActiveTab();
+
+  // Customer ID/name resolved from callbacks (Order mode) or store (POS mode)
+  const customerId = callbacks ? callbacks.customerId : activeTab?.customerId;
+  const customerDisplayName = callbacks ? callbacks.customerName : activeTab?.customerName;
 
   const { data: customers = [] } = useCustomerSearch(customerQuery);
 
   const { data: customerDetail, refetch: refetchCustomerDetail } = useQuery({
-    queryKey: ['pos', 'customer', activeTab?.customerId],
+    queryKey: ['customer-detail', customerId],  // neutral key — không dùng pos prefix
     queryFn: async () => {
-      if (!activeTab?.customerId) return null;
-      const res = await api.get(`/customers/${activeTab.customerId}`);
+      if (!customerId) return null;
+      const res = await api.get(`/customers/${customerId}`);
       return res.data?.data || res.data;
     },
-    enabled: !!activeTab?.customerId,
+    enabled: !!customerId,
   });
 
   const handleQuickAddClick = () => {
@@ -60,7 +76,11 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
   };
 
   const handleCustomerSaved = (savedCustomer: any) => {
-    store.setCustomer(savedCustomer.id, savedCustomer.fullName);
+    if (callbacks) {
+      callbacks.onSelectCustomer(savedCustomer.id, savedCustomer.fullName);
+    } else {
+      store.setCustomer(savedCustomer.id, savedCustomer.fullName);
+    }
     refetchCustomerDetail();
     setShowCustomerModal(false);
     setCustomerQuery('');
@@ -101,19 +121,27 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (!activeTab) return null;
+  if (!callbacks && !activeTab) return null;
+
+  const hasCustomer = !!customerId;
 
   const handleSelectCustomer = (customer: any) => {
-    store.setCustomer(customer.id, customer.fullName);
+    if (callbacks) {
+      callbacks.onSelectCustomer(customer.id, customer.fullName || customer.name || 'Khách lẻ');
+    } else {
+      store.setCustomer(customer.id, customer.fullName);
+    }
     setShowCustomerSearch(false);
     setCustomerQuery('');
   };
 
   const handleRemoveCustomer = () => {
-    store.setCustomer(undefined, 'Khách lẻ');
+    if (callbacks) {
+      callbacks.onRemoveCustomer();
+    } else {
+      store.setCustomer(undefined, 'Khách lẻ');
+    }
   };
-
-  const hasCustomer = !!activeTab.customerId;
 
   return (
     <div className="w-full relative" ref={containerRef}>
@@ -129,13 +157,13 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
             </button>
             <div className="flex gap-4 items-start">
               <div className="w-14 h-14 rounded-full bg-cyan-500 text-white flex items-center justify-center text-2xl font-bold shrink-0 uppercase shadow-sm">
-                {activeTab.customerName?.charAt(0) || 'U'}
+                {customerDisplayName?.charAt(0) || 'U'}
               </div>
 
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-[17px] font-bold text-[#2a3042]">{activeTab.customerName}</span>
-                  {activeTab.customerName?.toLowerCase() !== 'khách lẻ' && (
+                  <span className="text-[17px] font-bold text-[#2a3042]">{customerDisplayName}</span>
+                  {customerDisplayName?.toLowerCase() !== 'khách lẻ' && (
                     <button onClick={handleEditCustomerClick} className="text-gray-400 hover:text-primary-600" title="Chỉnh sửa">
                       <Pencil size={14} />
                     </button>
@@ -223,7 +251,11 @@ export function PosCustomerV1({ onSelectSuggestedService }: PosCustomerV1Props) 
             showGuest={false}
             guestLabel="Khách lẻ"
             onSelectGuest={() => {
-              store.setCustomer(undefined, 'Khách lẻ');
+              if (callbacks) {
+                callbacks.onSelectCustomer('', 'Khách lẻ');
+              } else {
+                store.setCustomer(undefined, 'Khách lẻ');
+              }
               setShowCustomerSearch(false);
             }}
             onSelectCustomer={handleSelectCustomer}

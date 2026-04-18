@@ -27,6 +27,7 @@ import { usePaymentIntentSession } from '@/app/(dashboard)/_shared/payment/use-p
 import { OrderProductSearch } from './order/OrderProductSearch'
 import { OrderCartItems, type CartItemCallbacks } from './order/OrderCartItems'
 import { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches'
+import { OrderCustomerSection } from './order/OrderCustomerSection'
 
 export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; orderId?: string }) {
   const { data: branches = [] } = useBranches()
@@ -338,6 +339,20 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
           </div>
 
           <div className="flex min-h-0 flex-col overflow-y-auto custom-scrollbar">
+            {/* Customer section — top of right panel */}
+            <div className="shrink-0 border-b border-border/60">
+              <OrderCustomerSection
+                customerId={workspace.draft.customerId}
+                customerName={workspace.draft.customerName}
+                isEditing={workspace.isEditing}
+                onSelectCustomer={(id, name) =>
+                  workspace.handleSelectCustomer({ id, fullName: name })
+                }
+                onRemoveCustomer={workspace.handleClearCustomer}
+                onSelectSuggestedService={workspace.addCatalogItem}
+              />
+            </div>
+
             <OrderRightPanel
               mode={mode}
               subtotal={workspace.subtotal}
