@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { CartItem } from '@petshop/shared';
+import { getProductVariantOptionLabel } from '@petshop/shared';
 import { FileText, Info, Minus, Package, Plus, Scissors, ShoppingCart, Trash2, X, ChevronDown } from 'lucide-react';
 import { money, moneyRaw } from '@/app/(dashboard)/_shared/payment/payment.utils';
 import {
@@ -57,6 +58,13 @@ type PosCartQuantityControlProps = {
   isOverSellableQty: boolean;
   store: any;
   mobile?: boolean;
+};
+
+const normalizeLabel = (value?: string | null) => `${value ?? ''}`.trim().toLowerCase();
+
+const getVariantOptionText = (productName: string, variant: any) => {
+  const label = getProductVariantOptionLabel(productName, variant);
+  return label || variant?.unitLabel || variant?.variantLabel || variant?.name || '—';
 };
 
 export function PosCartItems({
@@ -130,6 +138,12 @@ function PosCartRow({
   const discountedUnitPrice = Math.max(0, (item.unitPrice || 0) - itemDiscountAmount);
   const itemDiscountPercent =
     item.unitPrice && item.unitPrice > 0 ? Math.round((itemDiscountAmount / item.unitPrice) * 100) : 0;
+  const baseUnit = (item as any).baseUnit ?? item.unit ?? 'cái';
+  const normalizedDescription = normalizeLabel(item.description);
+  const displayTrueVariants = trueVariants.filter((variant: any) => {
+    const optionLabel = normalizeLabel(getVariantOptionText(item.description, variant));
+    return optionLabel.length > 0 && optionLabel !== normalizedDescription;
+  });
 
   return (
     <div
@@ -145,7 +159,7 @@ function PosCartRow({
           <button
             onClick={() => store.removeItem(item.id)}
             className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
-            title="Xoá"
+            title="Xóa"
           >
             <Trash2 size={16} />
           </button>
@@ -171,7 +185,7 @@ function PosCartRow({
         <div className="flex flex-col pr-2 min-w-0">
           <div className="font-semibold text-[15px] text-gray-800 flex items-center gap-2 min-w-0" title={item.description}>
             <span className="truncate shrink">{item.description}</span>
-            {trueVariants.length > 0 && trueVariants.some((variant: any) => variant.name !== item.description && variant.name !== `${item.description} - Default`) ? (
+            {displayTrueVariants.length > 0 ? (
               <div className="relative inline-flex items-center shrink-0 group cursor-pointer -ml-1">
                 <select
                   className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-normal"
@@ -180,10 +194,14 @@ function PosCartRow({
                     const newTrueVariantId = event.target.value;
                     let targetVariantId = newTrueVariantId;
                     if (isCurrentConversion && currentTrueVariant && currentVariantObj) {
-                      const suffix = currentVariantObj.name.substring(currentTrueVariant.name.length);
-                      const newTrueVariant = trueVariants.find((variant: any) => variant.id === newTrueVariantId);
+                      const newTrueVariant = displayTrueVariants.find((variant: any) => variant.id === newTrueVariantId);
                       if (newTrueVariant && allConversionVariants) {
-                        const matchingConversion = allConversionVariants.find((conversion: any) => conversion.name === newTrueVariant.name + suffix);
+                        const currentConversionLabel = normalizeLabel(getVariantOptionText(item.description, currentVariantObj));
+                        const newTrueVariantLabel = normalizeLabel(newTrueVariant.variantLabel);
+                        const matchingConversion = allConversionVariants.find((conversion: any) =>
+                          normalizeLabel(getVariantOptionText(item.description, conversion)) === currentConversionLabel &&
+                          normalizeLabel(conversion.variantLabel) === newTrueVariantLabel,
+                        );
                         if (matchingConversion) targetVariantId = matchingConversion.id;
                       }
                     }
@@ -191,8 +209,8 @@ function PosCartRow({
                   }}
                 >
                   <option value="base" className="hidden">Phiên bản</option>
-                  {trueVariants.map((variant: any) => (
-                    <option key={variant.id} value={variant.id}>{variant.name.split(' - ').pop() || variant.name}</option>
+                  {displayTrueVariants.map((variant: any) => (
+                    <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 group-hover:text-primary-600 pointer-events-none transition-colors" size={14} />
@@ -260,15 +278,15 @@ function PosCartRow({
                   else store.updateItemVariant(item.id, event.target.value);
                 }}
               >
-                <option value="base">{item.unit || 'cái'}</option>
+                <option value="base">{baseUnit}</option>
                 {conversionVariants.map((variant: any) => (
-                  <option key={variant.id} value={variant.id}>{variant.name.split(' - ').pop() || variant.name}</option>
+                  <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
                 ))}
               </select>
               <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 group-hover:opacity-100" size={14} />
             </div>
           ) : (
-            <span className="text-gray-700">{item.unit || 'cái'}</span>
+            <span className="text-gray-700">{item.unit || baseUnit}</span>
           )}
         </div>
 
@@ -311,7 +329,7 @@ function PosCartRow({
         <div className="flex-1 flex flex-col pr-8">
           <div className="font-semibold text-[15px] text-gray-800 leading-tight mb-1 flex items-center gap-2 flex-wrap" title={item.description}>
             <span>{item.description}</span>
-            {trueVariants.length > 0 && trueVariants.some((variant: any) => variant.name !== item.description && variant.name !== `${item.description} - Default`) ? (
+            {displayTrueVariants.length > 0 ? (
               <div className="relative inline-flex items-center shrink-0 group cursor-pointer -ml-1">
                 <select
                   className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-normal"
@@ -320,10 +338,14 @@ function PosCartRow({
                     const newTrueVariantId = event.target.value;
                     let targetVariantId = newTrueVariantId;
                     if (isCurrentConversion && currentTrueVariant && currentVariantObj) {
-                      const suffix = currentVariantObj.name.substring(currentTrueVariant.name.length);
-                      const newTrueVariant = trueVariants.find((variant: any) => variant.id === newTrueVariantId);
+                      const newTrueVariant = displayTrueVariants.find((variant: any) => variant.id === newTrueVariantId);
                       if (newTrueVariant && allConversionVariants) {
-                        const matchingConversion = allConversionVariants.find((conversion: any) => conversion.name === newTrueVariant.name + suffix);
+                        const currentConversionLabel = normalizeLabel(getVariantOptionText(item.description, currentVariantObj));
+                        const newTrueVariantLabel = normalizeLabel(newTrueVariant.variantLabel);
+                        const matchingConversion = allConversionVariants.find((conversion: any) =>
+                          normalizeLabel(getVariantOptionText(item.description, conversion)) === currentConversionLabel &&
+                          normalizeLabel(conversion.variantLabel) === newTrueVariantLabel,
+                        );
                         if (matchingConversion) targetVariantId = matchingConversion.id;
                       }
                     }
@@ -331,15 +353,15 @@ function PosCartRow({
                   }}
                 >
                   <option value="base" className="hidden">Phiên bản</option>
-                  {trueVariants.map((variant: any) => (
-                    <option key={variant.id} value={variant.id}>{variant.name.split(' - ').pop() || variant.name}</option>
+                  {displayTrueVariants.map((variant: any) => (
+                    <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 group-hover:text-primary-600 pointer-events-none transition-colors" size={14} />
               </div>
             ) : null}
 
-            <Info
+              <Info
               size={16}
               className="text-[#0089A1] ml-1 cursor-pointer"
               onClick={() => window.alert(`Tổng tồn: ${(item as any).stock ?? 'N/A'}\nKhả dụng: ${(item as any).availableStock ?? 'N/A'}`)}
@@ -355,9 +377,9 @@ function PosCartRow({
                     else store.updateItemVariant(item.id, event.target.value);
                   }}
                 >
-                  <option value="base">{item.unit || 'cái'}</option>
+                  <option value="base">{baseUnit}</option>
                   {conversionVariants.map((variant: any) => (
-                    <option key={variant.id} value={variant.id}>{variant.name.split(' - ').pop() || variant.name}</option>
+                    <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" size={14} />
@@ -366,7 +388,7 @@ function PosCartRow({
           </div>
           <div className="text-[13px] text-gray-500 mb-0.5 uppercase tracking-wide">
             SKU: {item.sku || 'N/A'}
-            {weightBandLabel ? ` · Hạng cân: ${weightBandLabel}` : ''}
+            {weightBandLabel ? ` • Hạng cân: ${weightBandLabel}` : ''}
           </div>
 
           <PosCartDiscountEditor
@@ -409,6 +431,13 @@ function PosCartStockPopover({
   currentTrueVariant: any;
   activeBranches: any[];
 }) {
+  const currentVariantObj =
+    Array.isArray((item as any).variants)
+      ? (item as any).variants.find((variant: any) => variant.id === (item as any).productVariantId)
+      : null;
+  const headerName = currentVariantObj?.name || item.description;
+  const headerSku = item.sku || currentVariantObj?.sku || currentTrueVariant?.sku || 'N/A';
+
   return (
     <div className="group/stock relative shrink-0 z-60 flex">
       <Info size={16} className="text-gray-300 opacity-0 group-hover:opacity-100 group-hover/stock:text-[#0089A1] cursor-help transition-all" />
@@ -416,10 +445,10 @@ function PosCartStockPopover({
         <div className="bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden w-full h-full">
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
             <Link href={item.productId ? `/products/${item.productId}` : '#'} target="_blank" className="font-bold text-[13px] text-gray-800 hover:text-[#0089A1] hover:underline leading-tight block cursor-pointer transition-colors">
-              {currentTrueVariant ? currentTrueVariant.name : item.description}
+              {headerName}
             </Link>
             <div className="text-[10px] text-gray-500 mt-0.5 font-medium tracking-wide uppercase">
-              {currentTrueVariant ? currentTrueVariant.sku || item.sku || 'N/A' : item.sku || 'N/A'}
+              {headerSku}
             </div>
           </div>
 

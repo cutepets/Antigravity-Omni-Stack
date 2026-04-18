@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { buildProductVariantName, type CartItem, type OrderTab, type PaymentEntry, type PaymentMethod } from '@petshop/shared';
+import { resolveProductVariantLabels, type CartItem, type OrderTab, type PaymentEntry, type PaymentMethod } from '@petshop/shared';
 import { getCartQuantityStep, roundCartQuantity } from '@/app/(dashboard)/_shared/cart/cart.utils';
 
 type PosRoundingUnit = 100 | 1000;
@@ -360,6 +360,7 @@ export const usePosStore = create<PosStore>()(
                   // Capture base values if not set yet so we can restore them later
                   const baseSku = c.baseSku ?? c.sku;
                   const baseUnitPrice = c.baseUnitPrice ?? c.unitPrice;
+                  const baseUnit = (c as any).baseUnit ?? c.unit ?? 'cái';
 
                   if (variantId === 'base') {
                     // Reset to base product
@@ -370,9 +371,11 @@ export const usePosStore = create<PosStore>()(
                       variantLabel: undefined,
                       unitLabel: undefined,
                       sku: baseSku,
+                      unit: baseUnit,
                       unitPrice: baseUnitPrice,
                       baseSku,
                       baseUnitPrice,
+                      baseUnit,
                     };
                   }
 
@@ -390,16 +393,25 @@ export const usePosStore = create<PosStore>()(
                       }
                     }
                     if (variant) {
+                      const productName = c.description ?? '';
+                      const normalizedProductName = `${productName}`.trim().toLowerCase();
+                      const resolvedLabels = resolveProductVariantLabels(productName, variant);
+                      const variantLabel =
+                        resolvedLabels.variantLabel &&
+                        resolvedLabels.variantLabel.trim().toLowerCase() !== normalizedProductName
+                          ? resolvedLabels.variantLabel
+                          : undefined;
+                      const unitLabel = resolvedLabels.unitLabel ?? undefined;
+                      const variantName = [variantLabel, unitLabel].filter(Boolean).join(' • ') || undefined;
+
                       return {
                         ...c,
                         productVariantId: variant.id,
-                        variantName:
-                          variant.displayName ??
-                          buildProductVariantName(c.description, variant.variantLabel, variant.unitLabel) ??
-                          variant.name,
-                        variantLabel: variant.variantLabel,
-                        unitLabel: variant.unitLabel,
+                        variantName,
+                        variantLabel,
+                        unitLabel,
                         sku: variant.sku ?? baseSku,
+                        unit: unitLabel ?? variant.unit ?? baseUnit,
                         unitPrice: variant.sellingPrice ?? variant.price ?? baseUnitPrice,
                         stock: variant.stock ?? c.stock,
                         availableStock: variant.availableStock ?? c.availableStock,
@@ -408,6 +420,7 @@ export const usePosStore = create<PosStore>()(
                         branchStocks: variant.branchStocks ?? c.branchStocks,
                         baseSku,
                         baseUnitPrice,
+                        baseUnit,
                       };
                     }
                   }

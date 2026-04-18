@@ -31,7 +31,7 @@ function normalizeGroupKey(value?: string | null) {
 
 function getEquivalentGroupKeys(productName: string | undefined, variant: any) {
     const normalizedProductName = normalizeGroupKey(productName)
-    const groupKey = getProductVariantGroupKey(productName, variant)
+    const groupKey = normalizeGroupKey(getProductVariantGroupKey(productName, variant)) || BASE_GROUP_KEY
     const keys = new Set<string>([groupKey])
 
     if (normalizedProductName) {
@@ -125,6 +125,8 @@ export function resolveCartItemStockState(
         } else {
             currentTrueVariant = currentVariantObj
         }
+    } else if (trueVariants.length === 1) {
+        currentTrueVariant = trueVariants[0]
     }
 
     const conversionVariants = currentTrueVariant

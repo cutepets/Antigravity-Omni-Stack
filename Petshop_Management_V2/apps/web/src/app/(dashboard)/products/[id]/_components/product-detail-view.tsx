@@ -66,18 +66,18 @@ function parsePriceBookPrices(raw?: string | null) {
 }
 
 const TARGET_SPECIES_MAP: Record<string, string> = {
-  DOG: 'ChÃ³',
-  CAT: 'MÃ¨o',
-  BOTH: 'ChÃ³ & MÃ¨o',
-  OTHER: 'KhÃ¡c',
+  DOG: 'Chó',
+  CAT: 'Mèo',
+  BOTH: 'Chó & Mèo',
+  OTHER: 'Khác',
 }
 
 const DAY_MAP: Record<string, string> = {
-  MON: 'Thá»© 2', TUE: 'Thá»© 3', WED: 'Thá»© 4', THU: 'Thá»© 5', FRI: 'Thá»© 6', SAT: 'Thá»© 7', SUN: 'Chá»§ nháº­t',
+  MON: 'Thứ 2', TUE: 'Thứ 3', WED: 'Thứ 4', THU: 'Thứ 5', FRI: 'Thứ 6', SAT: 'Thứ 7', SUN: 'Chủ nhật',
 }
 
 function formatShift(shift?: string | null) {
-  if (!shift) return 'â€”';
+  if (!shift) return '—';
   const [day, ca] = shift.split('_');
   return `${DAY_MAP[day] || day} - Ca ${ca}`;
 }
@@ -106,7 +106,7 @@ function normalizeVariantGroupKey(value?: string | null) {
 }
 
 function getEquivalentVariantGroupKeys(productName: string, variant: any) {
-  const groupKey = getProductVariantGroupKey(productName, variant)
+  const groupKey = normalizeVariantGroupKey(getProductVariantGroupKey(productName, variant)) || '__base__'
   const normalizedProductName = normalizeVariantGroupKey(productName)
   const keys = new Set<string>([groupKey])
 
@@ -154,7 +154,7 @@ function mergeBranchRowsWithBranches(rows: BranchStockRow[], branches: BranchOpt
     rowMap.set(key, {
       ...row,
       branchId: row.branchId ?? key,
-      branch: row.branch ?? { id: key, name: `Chi nhÃ¡nh ${key}` },
+      branch: row.branch ?? { id: key, name: `Chi nhánh ${key}` },
       stock: row.stock ?? 0,
       reservedStock: row.reservedStock ?? 0,
       minStock: row.minStock ?? 0,
@@ -316,7 +316,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
       router.push('/products')
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'KhÃ´ng thá»ƒ xoÃ¡ sáº£n pháº©m')
+      toast.error(err?.response?.data?.message || 'Không thể xóa sáº£n pháº©m')
     },
   })
 
@@ -326,11 +326,11 @@ export function ProductDetailView({ productId }: { productId: string }) {
   const visualCount = hasComplexVariants && detailTree ? detailTree.count : 1
 
   if (isAuthLoading) {
-    return <div className="p-6 text-foreground-muted flex items-center justify-center h-40">Dang kiem tra quyen truy cap...</div>
+    return <div className="p-6 text-foreground-muted flex items-center justify-center h-40">Đang kiểm tra quyền truy cập...</div>
   }
 
   if (!canReadProducts) {
-    return <div className="p-6 text-foreground-muted flex items-center justify-center h-40">Dang chuyen huong...</div>
+    return <div className="p-6 text-foreground-muted flex items-center justify-center h-40">Đang chuyển hướng...</div>
   }
 
   if (isLoading) {
@@ -338,11 +338,11 @@ export function ProductDetailView({ productId }: { productId: string }) {
   }
 
   if (!product || !detailTree) {
-    return <div className="p-6 text-error text-center">KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m</div>
+    return <div className="p-6 text-error text-center">Không tìm thấy sáº£n pháº©m</div>
   }
 
   const handleDelete = () => {
-    if (window.confirm(`XoÃ¡ sáº£n pháº©m "${product.name}"?`)) {
+    if (window.confirm(`Xóa sản phẩm "${product.name}"?`)) {
       deleteMutation.mutate()
     }
   }
@@ -356,7 +356,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
   const priceBooks = pbData?.data || []
 
   const activeStockRows = mergeBranchRowsWithBranches(activeItem.branchStocks, branches)
-  const activeUnit = activeItem.displayUnit || product.unit || 'â€”'
+  const activeUnit = activeItem.displayUnit || product.unit || '—'
   const activeWeight =
     activeItem.kind === 'conversion' && activeItem.conversionRate && product.weight
       ? Number(product.weight) * activeItem.conversionRate
@@ -365,17 +365,17 @@ export function ProductDetailView({ productId }: { productId: string }) {
   const activeHistoryRate = activeItem.kind === 'conversion' ? activeItem.conversionRate ?? null : null
   const activeItemLabel =
     activeItem.kind === 'conversion'
-      ? 'Quy Ä‘á»•i'
+      ? 'Quy đổi'
       : activeItem.kind === 'variant'
-        ? 'PhiÃªn báº£n'
-        : 'Sáº£n pháº©m'
+        ? 'Phiên bản'
+        : 'Sản phẩm'
 
   return (
     <div className="flex flex-col gap-6 p-6 pb-20 max-w-7xl mx-auto w-full">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-foreground-muted">
           <Link href="/products" className="hover:text-primary-500 flex items-center gap-1 transition-colors">
-            <ArrowLeft size={16} /> Kho hÃ ng
+            <ArrowLeft size={16} /> Kho hàng
           </Link>
           <span className="text-border">/</span>
           <span className="text-foreground font-semibold">{product.name}</span>
@@ -387,18 +387,18 @@ export function ProductDetailView({ productId }: { productId: string }) {
               {canUpdateProduct ? (
                 <button
                   onClick={() => {
-                    if (window.confirm('KhÃ´i phá»¥c sáº£n pháº©m nÃ y?')) {
+                    if (window.confirm('Khôi phục sản phẩm này?')) {
                       inventoryApi.restoreProduct(product.id).then(() => {
                         toast.success('ÄÃ£ khÃ´i phá»¥c sáº£n pháº©m')
                         queryClient.invalidateQueries({ queryKey: ['products'] })
                         queryClient.invalidateQueries({ queryKey: ['product-detail', product.id] })
-                      }).catch(() => toast.error('Lá»—i khi khÃ´i phá»¥c'))
+                      }).catch(() => toast.error('Lỗi khi khôi phục'))
                     }
                   }}
                   className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border bg-primary-500 text-white hover:bg-primary-600 transition-colors"
-                  title="KhÃ´i phá»¥c"
+                  title="Khôi phục"
                 >
-                  <RefreshCw size={15} /> <span className="text-sm font-medium">KhÃ´i phá»¥c</span>
+                  <RefreshCw size={15} /> <span className="text-sm font-medium">Khôi phục</span>
                 </button>
               ) : null}
             </>
@@ -408,7 +408,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                 <button
                   onClick={() => setIsCopyModalOpen(true)}
                   className="w-9 h-9 flex items-center justify-center rounded-lg border border-border bg-background-secondary hover:bg-background-tertiary text-foreground-muted transition-colors"
-                  title="Táº¡o báº£n sao sáº£n pháº©m nÃ y"
+                  title="Tạo bản sao sản phẩm này"
                 >
                   <Copy size={16} />
                 </button>
@@ -418,7 +418,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                   onClick={() => setIsEditModalOpen(true)}
                   className="h-9 px-4 flex items-center gap-2 rounded-lg border border-border bg-primary-500 text-white hover:bg-primary-600 transition-colors"
                 >
-                  <Pencil size={15} /> <span className="text-sm font-medium">Sá»­a thÃ´ng tin</span>
+                  <Pencil size={15} /> <span className="text-sm font-medium">Sửa thông tin</span>
                 </button>
               ) : null}
               {canDeleteProduct ? (
@@ -426,7 +426,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                   onClick={handleDelete}
                   disabled={deleteMutation.isPending}
                   className="w-9 h-9 flex items-center justify-center rounded-lg border border-error/30 bg-error/10 hover:bg-error/20 text-error transition-colors disabled:opacity-50"
-                  title="XoÃ¡ sáº£n pháº©m"
+                  title="Xóa sản phẩm"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -456,11 +456,11 @@ export function ProductDetailView({ productId }: { productId: string }) {
                   {activeItemLabel}
                 </span>
                 {product.deletedAt ? (
-                  <span className="badge text-[10px] px-2 py-0.5 rounded-full uppercase bg-red-500/10 text-red-500 border border-red-500/20">ÄÃ£ xÃ³a</span>
+                  <span className="badge text-[10px] px-2 py-0.5 rounded-full uppercase bg-red-500/10 text-red-500 border border-red-500/20">Đã xóa</span>
                 ) : product.isActive !== false ? (
-                  <span className="badge badge-success text-[10px] px-2 py-0.5 rounded-full uppercase bg-success/10 text-success border border-success/20">Äang bÃ¡n</span>
+                  <span className="badge badge-success text-[10px] px-2 py-0.5 rounded-full uppercase bg-success/10 text-success border border-success/20">Đang bán</span>
                 ) : (
-                  <span className="badge text-[10px] px-2 py-0.5 rounded-full uppercase bg-gray-500/10 text-gray-400 border border-gray-500/20">NgÆ°ng bÃ¡n</span>
+                  <span className="badge text-[10px] px-2 py-0.5 rounded-full uppercase bg-gray-500/10 text-gray-400 border border-gray-500/20">Ngưng bán</span>
                 )}
               </div>
               <div className="flex flex-col gap-1 mt-2">
@@ -470,14 +470,14 @@ export function ProductDetailView({ productId }: { productId: string }) {
                     return (
                       <div key={pb.id} className="flex items-center justify-between text-sm">
                         <span className="text-foreground-muted truncate pr-2">{pb.name}:</span>
-                        <span className="text-primary-500 font-semibold">{price.toLocaleString('vi-VN')}â‚«</span>
+                        <span className="text-primary-500 font-semibold">{price.toLocaleString('vi-VN')}₫</span>
                       </div>
                     )
                   })
                 ) : (
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-foreground-muted">GiÃ¡:</span>
-                    <span className="text-primary-500 font-semibold">{(activeItem.price ?? 0).toLocaleString('vi-VN')}â‚«</span>
+                    <span className="text-foreground-muted">Giá:</span>
+                    <span className="text-primary-500 font-semibold">{(activeItem.price ?? 0).toLocaleString('vi-VN')}₫</span>
                   </div>
                 )}
               </div>
@@ -486,20 +486,20 @@ export function ProductDetailView({ productId }: { productId: string }) {
           </div>
 
           <div className="flex flex-col gap-3 text-sm border-t border-border pt-6">
-            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">PhÃ¢n loáº¡i</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={product.category || ''}>{product.category || 'â€”'}</span></div>
-            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">DÃ¹ng cho</span><span className="font-medium text-foreground truncate max-w-[65%] text-right">{TARGET_SPECIES_MAP[product.targetSpecies as string] || product.targetSpecies || 'â€”'}</span></div>
-            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">SKU</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeItem.sku || product.sku || ''}>{activeItem.sku || product.sku || 'â€”'}</span></div>
-            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">ÄÆ¡n vá»‹</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeUnit}>{activeUnit}</span></div>
-            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Barcode</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeItem.barcode || product.barcode || ''}>{activeItem.barcode || product.barcode || 'â€”'}</span></div>
-            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Trá»ng lÆ°á»£ng</span><span className="font-medium text-foreground text-right">{activeWeight ? Number(activeWeight).toLocaleString('vi-VN') : 'â€”'}</span></div>
-            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">NhÃ£n hiá»‡u</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={product.brand || ''}>{product.brand || 'â€”'}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Phân loại</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={product.category || ''}>{product.category || '—'}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Dùng cho</span><span className="font-medium text-foreground truncate max-w-[65%] text-right">{TARGET_SPECIES_MAP[product.targetSpecies as string] || product.targetSpecies || '—'}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">SKU</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeItem.sku || product.sku || ''}>{activeItem.sku || product.sku || '—'}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Đơn vị</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeUnit}>{activeUnit}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Barcode</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeItem.barcode || product.barcode || ''}>{activeItem.barcode || product.barcode || '—'}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Trọng lượng</span><span className="font-medium text-foreground text-right">{activeWeight ? Number(activeWeight).toLocaleString('vi-VN') : '—'}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Nhãn hiệu</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={product.brand || ''}>{product.brand || '—'}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">VAT</span><span className="font-medium text-foreground text-right">{product.vat ?? 0}%</span></div>
-            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Ca kiá»ƒm kho</span><span className="font-medium text-foreground text-right">
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Ca kiểm kho</span><span className="font-medium text-foreground text-right">
               {product.lastCountShift ? (
                 <span className="inline-flex rounded-md bg-purple-500/15 border border-purple-500/20 px-2 py-0.5 text-[11px] text-purple-600 dark:text-purple-400">
                   {formatShift(product.lastCountShift)}
                 </span>
-              ) : 'â€”'}
+              ) : '—'}
             </span></div>
           </div>
         </div>
@@ -510,7 +510,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
           <div className="card p-0 overflow-hidden border border-border rounded-2xl flex flex-col">
             <div className="p-4 border-b border-border font-semibold flex items-center justify-between text-[13px] tracking-wide uppercase text-foreground-muted bg-background-secondary/50">
               <div className="flex items-center gap-2">
-                <Layers size={16} className="text-primary-500" /> PhiÃªn báº£n & Quy Ä‘á»•i
+                <Layers size={16} className="text-primary-500" /> Phiên bản & Quy đổi
               </div>
               <span className="w-5 h-5 rounded-full bg-background-tertiary border border-border flex items-center justify-center text-xs text-foreground">
                 {visualCount}
@@ -519,7 +519,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
 
             <div className="p-4 flex flex-col gap-4">
               <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-foreground-muted mb-2 px-3">
-                <span>TÃªn</span>
+                <span>Tên</span>
                 <div className="flex items-center gap-4">
                   {priceBooks.map((pb: any) => (
                     <span key={pb.id} className="w-20 text-right truncate" title={pb.name}>{pb.name}</span>
@@ -573,7 +573,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                             </div>
                             <div className="flex flex-col leading-tight overflow-hidden">
                               <div className={`text-sm font-medium truncate ${activeItem.key === item.key ? 'text-primary-500' : 'text-foreground'}`}>{item.name}</div>
-                              <div className="text-[10px] text-foreground-muted mt-0.5 truncate">{item.sku || product.unit || 'PhiÃªn báº£n'}</div>
+                              <div className="text-[10px] text-foreground-muted mt-0.5 truncate">{item.sku || product.unit || 'Phiên bản'}</div>
                             </div>
                           </div>
                           {priceBooks.length > 0 && (
@@ -603,7 +603,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                                     </div>
                                     <div className="flex flex-col leading-tight overflow-hidden">
                                       <div className={`text-sm font-medium truncate ${activeItem.key === child.key ? 'text-primary-500' : 'text-foreground'}`}>{child.name}</div>
-                                      <div className="text-[10px] text-foreground-muted mt-0.5 truncate">{(child.sku ? child.sku + ' â€¢ ' : '') + (child.formula || 'Quy Ä‘á»•i')}</div>
+                                      <div className="text-[10px] text-foreground-muted mt-0.5 truncate">{(child.sku ? child.sku + ' â€¢ ' : '') + (child.formula || 'Quy đổi')}</div>
                                     </div>
                                   </div>
                                   {priceBooks.length > 0 && (
@@ -636,7 +636,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                             </div>
                             <div className="flex flex-col leading-tight overflow-hidden">
                               <div className={`text-sm font-medium truncate ${activeItem.key === item.key ? 'text-primary-500' : 'text-foreground'}`}>{item.name}</div>
-                              <div className="text-[10px] text-foreground-muted mt-0.5 truncate">{item.formula || item.sku || 'Quy Ä‘á»•i'}</div>
+                              <div className="text-[10px] text-foreground-muted mt-0.5 truncate">{item.formula || item.sku || 'Quy đổi'}</div>
                             </div>
                           </div>
                           {priceBooks.length > 0 && (
@@ -656,7 +656,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
             </div>
           </div>
 
-          {/* PHáº¦N CHI TIáº¾T Tá»’N KHO/Lá»ŠCH Sá»¬ (DÆ¯á»šI CÃ™NG BÃŠN PHáº¢I) */}
+          {/* PHáº¦N CHI TIáº¾T TỒN KHO/Lá»ŠCH Sá»¬ (DÆ¯á»šI CÃ™NG BÃŠN PHáº¢I) */}
           <div className="card overflow-hidden border border-border rounded-2xl flex flex-col flex-1">
             <div className="flex items-center justify-between border-b border-border bg-background-secondary/50 px-2 pt-2">
               <div className="flex">
@@ -664,13 +664,13 @@ export function ProductDetailView({ productId }: { productId: string }) {
                   onClick={() => setActiveTab('inventory')}
                   className={`px-5 py-3 text-[13px] font-semibold border-b-2 flex items-center gap-2 transition-colors ${activeTab === 'inventory' ? 'border-primary-500 text-primary-500' : 'border-transparent text-foreground-muted hover:text-foreground'}`}
                 >
-                  <Package size={15} /> Tá»“n kho
+                  <Package size={15} /> Tồn kho
                 </button>
                 <button
                   onClick={() => setActiveTab('history')}
                   className={`px-5 py-3 text-[13px] font-semibold border-b-2 flex items-center gap-2 transition-colors ${activeTab === 'history' ? 'border-primary-500 text-primary-500' : 'border-transparent text-foreground-muted hover:text-foreground'}`}
                 >
-                  <History size={15} /> Lá»‹ch sá»­
+                  <History size={15} /> Lịch sử
                 </button>
               </div>
 
@@ -689,11 +689,11 @@ export function ProductDetailView({ productId }: { productId: string }) {
                 <table className="data-table">
                   <thead className="sticky top-0 z-10 bg-background">
                     <tr>
-                      <th className="py-3 px-4 text-[11px]">CHI NHÃNH</th>
-                      <th className="py-3 px-4 text-[11px] text-right">Tá»’N KHO</th>
-                      <th className="py-3 px-4 text-[11px] text-right">CÃ“ THá»‚ BÃN</th>
-                      <th className="py-3 px-4 text-[11px] text-right">ÄANG GIAO Dá»ŠCH</th>
-                      <th className="py-3 px-4 text-[11px] text-right">ÄANG Vá»€</th>
+                      <th className="py-3 px-4 text-[11px]">CHI NHÁNH</th>
+                      <th className="py-3 px-4 text-[11px] text-right">TỒN KHO</th>
+                      <th className="py-3 px-4 text-[11px] text-right">CÓ THỂ BÁN</th>
+                      <th className="py-3 px-4 text-[11px] text-right">ĐANG GIAO DỊCH</th>
+                      <th className="py-3 px-4 text-[11px] text-right">ĐANG VỀ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -706,7 +706,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
 
                         return (
                           <tr key={row.id ?? `${activeItem.key}-${index}`}>
-                            <td className="py-3 px-4 font-semibold text-sm">{row.branch?.name || `Chi nhÃ¡nh ${index + 1}`}</td>
+                            <td className="py-3 px-4 font-semibold text-sm">{row.branch?.name || `Chi nhánh ${index + 1}`}</td>
                             <td className="py-3 px-4 text-right font-semibold text-error">{formatInventoryQuantity(stock)}</td>
                             <td className="py-3 px-4 text-right text-sm">{formatInventoryQuantity(sellable)}</td>
                             <td className="py-3 px-4 text-right text-sm">
@@ -714,7 +714,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                                 <Link
                                   href={`/orders?productId=${productId}&status=PROCESSING`}
                                   className="font-semibold text-amber-500 hover:underline"
-                                  title="Xem Ä‘Æ¡n hÃ ng Ä‘ang xá»­ lÃ½ cÃ³ chá»©a sáº£n pháº©m nÃ y"
+                                  title="Xem đơn hàng đang xử lý có chứa sản phẩm này"
                                 >
                                   {formatInventoryQuantity(reservedStock)}
                                 </Link>
@@ -726,8 +726,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                               {incoming > 0 ? (
                                 <Link
                                   href={`/inventory/receipts?productId=${productId}`}
-                                  className="font-semibold text-sky-500 hover:underline"
-                                  title="Xem phiáº¿u nháº­p Ä‘ang chá» hÃ ng vá» cÃ³ chá»©a sáº£n pháº©m nÃ y"
+                                  title="Xem phiếu nhập đang chờ hàng về có chứa sản phẩm này"
                                 >
                                   {formatInventoryQuantity(incoming)}
                                 </Link>
@@ -741,7 +740,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                     ) : (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-sm text-foreground-muted">
-                          ChÆ°a cÃ³ dá»¯ liá»‡u tá»“n kho cho má»¥c Ä‘ang chá»n
+                          Chưa có dữ liệu tá»“n kho cho má»¥c Ä‘ang chá»n
                         </td>
                       </tr>
                     )}
@@ -783,7 +782,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
           initialData={{
             ...product,
             id: undefined,
-            name: `${product.name} (báº£n sao)`,
+            name: `${product.name} (bản sao)`,
             sku: '',
             barcode: '',
           }}
@@ -964,13 +963,12 @@ function ProductHistoryTab({
                       {displayUnit ? <span className="ml-1 text-sm font-medium text-foreground-muted">{displayUnit}</span> : null}
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex items-center text-[10px] font-bold uppercase px-2 py-0.5 rounded-full whitespace-nowrap ${
-                        tx.type === 'IN'
+                      <span className={`inline-flex items-center text-[10px] font-bold uppercase px-2 py-0.5 rounded-full whitespace-nowrap ${tx.type === 'IN'
                           ? 'bg-success/10 text-success'
                           : tx.type === 'OUT'
                             ? 'bg-error/10 text-error'
                             : 'bg-primary/10 text-primary'
-                      }`}>
+                        }`}>
                         {typeLabel(tx.type)}
                       </span>
                     </td>

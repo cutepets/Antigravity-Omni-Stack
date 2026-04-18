@@ -48,6 +48,17 @@ const isConversionVariant = (variant: any) => {
   return Boolean(parseVariantConversionUnit(variant?.conversions))
 }
 
+const hasMeaningfulVariantIdentity = (product: any, variant: any) => {
+  const { variantLabel, unitLabel } = resolveProductVariantLabels(product.name, variant)
+  const normalizedProductName = `${product.name ?? ''}`.trim().toLowerCase()
+  const normalizedVariantLabel = `${variantLabel ?? ''}`.trim().toLowerCase()
+
+  return Boolean(
+    unitLabel ||
+    (variantLabel && normalizedVariantLabel !== normalizedProductName),
+  )
+}
+
 const createProductEntry = (product: any, variant?: any) => {
   const { variantLabel: resolvedVariantLabel, unitLabel, displayName: resolvedDisplayName } = resolveProductVariantLabels(product.name, variant)
   const resolvedPrice = variant?.sellingPrice ?? variant?.price ?? product.sellingPrice ?? product.price ?? 0
@@ -104,6 +115,14 @@ const flattenProductEntries = (products: any[]) =>
     if (!hasVariants) {
       return [createProductEntry(product)]
     }
+
+    if (
+      nonConversionVariants.length === 1 &&
+      !hasMeaningfulVariantIdentity(product, nonConversionVariants[0])
+    ) {
+      return [createProductEntry(product)]
+    }
+
     return nonConversionVariants.map((variant: any) => createProductEntry(product, variant))
   })
 

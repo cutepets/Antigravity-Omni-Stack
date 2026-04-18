@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type { LoginResponse, AuthUser } from '@petshop/shared'
+import { clearAuthSessionCookie, setAuthSessionCookie } from '@/lib/auth-session-cookie'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
 
@@ -80,7 +81,7 @@ api.interceptors.response.use(
         isRefreshing = false
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
-        document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        clearAuthSessionCookie()
         window.location.href = '/login'
         return Promise.reject(error)
       }
@@ -92,7 +93,7 @@ api.interceptors.response.use(
         )
         localStorage.setItem('access_token', data.accessToken)
         localStorage.setItem('refresh_token', data.refreshToken)
-        document.cookie = `access_token=${data.accessToken}; path=/; max-age=86400; SameSite=Lax`
+        setAuthSessionCookie()
         api.defaults.headers.common['Authorization'] = `Bearer ${data.accessToken}`
         processQueue(null, data.accessToken)
         originalRequest.headers['Authorization'] = `Bearer ${data.accessToken}`
@@ -101,7 +102,7 @@ api.interceptors.response.use(
         processQueue(refreshError, null)
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
-        document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        clearAuthSessionCookie()
         window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {

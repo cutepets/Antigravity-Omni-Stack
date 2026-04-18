@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { AuthUser } from '@petshop/shared'
 import { authApi } from '@/lib/api'
 import type { BaseBranch } from '@petshop/shared'
+import { clearAuthSessionCookie, setAuthSessionCookie } from '@/lib/auth-session-cookie'
 
 interface AuthState {
   user: AuthUser | null
@@ -42,7 +43,7 @@ export const useAuthStore = create<AuthState>()(
           if (typeof window !== 'undefined') {
             localStorage.setItem('access_token', data.accessToken)
             localStorage.setItem('refresh_token', data.refreshToken)
-            document.cookie = `access_token=${data.accessToken}; path=/; max-age=86400; SameSite=Lax`
+            setAuthSessionCookie()
           }
           const activeBranchId = get().activeBranchId
           const isAllowed = data.user.authorizedBranches?.find((b: BaseBranch) => b.id === activeBranchId)
@@ -79,7 +80,7 @@ export const useAuthStore = create<AuthState>()(
         if (typeof window !== 'undefined') {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
-          document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+          clearAuthSessionCookie()
         }
 
         set({ user: null, activeBranchId: null, allowedBranches: [], isAuthenticated: false })

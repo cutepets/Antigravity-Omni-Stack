@@ -12,6 +12,7 @@
 
 import { useState, useCallback } from 'react';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
+import { resolveProductVariantLabels } from '@petshop/shared';
 import {
     isHotelService,
     isGroomingService,
@@ -62,29 +63,43 @@ export function usePosCart() {
                 toast.success('Đã thêm dịch vụ vào giỏ');
                 return;
             }
-
             // Product
             const productId = item.productId ?? item.id;
             const productVariantId = item.productVariantId;
             const unitPrice = item.sellingPrice ?? item.price ?? 0;
+            const productName = item.productName ?? item.name;
+            const normalizedProductName = `${productName ?? ''}`.trim().toLowerCase();
+            const resolvedLabels = resolveProductVariantLabels(productName, {
+                variantLabel: item.variantLabel,
+                unitLabel: item.unitLabel,
+            });
+            const variantLabel =
+                resolvedLabels.variantLabel &&
+                resolvedLabels.variantLabel.trim().toLowerCase() !== normalizedProductName
+                    ? resolvedLabels.variantLabel
+                    : undefined;
+            const unitLabel = resolvedLabels.unitLabel ?? undefined;
+            const variantName = [variantLabel, unitLabel].filter(Boolean).join(' • ') || undefined;
+            const baseUnit = item.unit ?? 'cái';
 
             store.addItem({
                 id: buildCartLineId('product', productId, productVariantId ?? 'base'),
                 productId,
                 productVariantId,
-                description: item.productName ?? item.name,
+                description: productName,
                 sku: item.sku,
                 barcode: item.barcode,
                 unitPrice,
                 type: 'product',
                 image: item.image,
-                unit: item.unit ?? 'cái',
+                unit: unitLabel ?? baseUnit,
                 variants: item.variants,
-                variantName: item.variantLabel,
-                variantLabel: item.variantLabel,
-                unitLabel: item.unitLabel,
+                variantName,
+                variantLabel,
+                unitLabel,
                 baseSku: item.sku,
                 baseUnitPrice: unitPrice,
+                baseUnit,
                 stock: item.stock,
                 availableStock: item.availableStock,
                 trading: item.trading,
