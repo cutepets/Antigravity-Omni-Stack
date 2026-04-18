@@ -16,6 +16,9 @@ export interface PosProductSearchProps {
   onSetMultiSelect?: (v: boolean) => void;
   outOfStockHidden?: boolean;
   disabled?: boolean;
+  // Style overrides — cho phép override màu container và dropdown panel từ bên ngoài
+  containerClassName?: string;
+  panelClassName?: string;
 }
 
 function getSellableQuantity(stockSource: any, branchId?: string) {
@@ -54,6 +57,8 @@ export function PosProductSearch({
   onSetMultiSelect,
   outOfStockHidden: outOfStockHiddenProp,
   disabled = false,
+  containerClassName,
+  panelClassName,
 }: PosProductSearchProps) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -188,7 +193,7 @@ export function PosProductSearch({
   const money = (n: number) => new Intl.NumberFormat('vi-VN').format(n) + 'đ';
 
   return (
-    <div className="relative flex-1 max-w-[400px]" ref={containerRef}>
+    <div className={`relative flex-1 max-w-[400px] ${containerClassName ?? ''}`} ref={containerRef}>
       {/* Desktop & default header input */}
       <div className={`flex items-center bg-white rounded-md overflow-hidden h-9 w-full border-b-2 border-transparent transition-colors focus-within:border-amber-400 ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
         <div className="pl-3 pr-2 text-gray-400">
@@ -211,7 +216,7 @@ export function PosProductSearch({
 
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 bg-[#f0f2f5] flex flex-col lg:block lg:absolute lg:top-full lg:left-0 lg:mt-1 lg:w-[500px] lg:bg-white lg:border lg:border-gray-200 lg:rounded-lg lg:shadow-xl lg:h-auto lg:max-h-[550px] lg:right-auto"
+          className={panelClassName ?? "fixed inset-0 z-50 bg-[#f0f2f5] flex flex-col lg:block lg:absolute lg:top-full lg:left-0 lg:mt-1 lg:w-[500px] lg:bg-white lg:border lg:border-gray-200 lg:rounded-lg lg:shadow-xl lg:h-auto lg:max-h-[550px] lg:right-auto"}
         >
 
           {/* Mobile Only Header inside the Full-screen Modal */}

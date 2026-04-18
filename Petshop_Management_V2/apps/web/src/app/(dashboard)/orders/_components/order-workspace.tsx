@@ -24,8 +24,8 @@ import {
   createOrderQrPaymentIntent,
 } from '@/app/(dashboard)/_shared/payment/payment-intent.utils'
 import { usePaymentIntentSession } from '@/app/(dashboard)/_shared/payment/use-payment-intent-session'
-import { PosProductSearch } from '@/app/(dashboard)/pos/components/PosProductSearch'
-import { PosCartItems, type CartItemCallbacks } from '@/app/(dashboard)/pos/components/PosCartItems'
+import { OrderProductSearch } from './order/OrderProductSearch'
+import { OrderCartItems, type CartItemCallbacks } from './order/OrderCartItems'
 import { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches'
 
 export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; orderId?: string }) {
@@ -224,7 +224,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
 
       <div className="relative z-10 m-4 mb-4 mt-2 flex flex-1 flex-col overflow-hidden rounded-[26px] border border-border bg-background-secondary/35 shadow-sm">
         <div className="shrink-0 flex items-center gap-3 border-b border-border/60 bg-background/50 px-5 py-2.5">
-          <PosProductSearch
+          <OrderProductSearch
             onSelect={workspace.isEditing ? workspace.addCatalogItem : () => { }}
             branchId={workspace.draft?.branchId ?? undefined}
             cartItems={workspace.draft?.items ?? []}
@@ -560,7 +560,7 @@ function OrderCartSection({
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar">
-      <PosCartItems
+      <OrderCartItems
         cart={cartItems}
         branchId={draft.branchId ?? undefined}
         branches={branches}
