@@ -148,7 +148,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
   return (
     <div className="w-full relative" ref={containerRef}>
       {hasCustomer ? (
-        <div className={theme === 'pos' ? 'bg-[#f4f6f9] border-b border-gray-200' : 'bg-background-secondary border-b border-border'}>
+        <div className={theme === 'pos' ? 'bg-slate-50 border-b border-gray-200' : 'bg-background-secondary border-b border-border'}>
           <div className="p-4 relative">
             <button
               onClick={handleRemoveCustomer}
@@ -164,7 +164,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
 
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <span className={`text-[17px] font-bold ${theme === 'pos' ? 'text-[#2a3042]' : 'text-foreground'}`}>{customerDisplayName}</span>
+                  <span className={`text-[17px] font-bold ${theme === 'pos' ? 'text-slate-800' : 'text-foreground'}`}>{customerDisplayName}</span>
                   {customerDisplayName?.toLowerCase() !== 'khách lẻ' && (
                     <button onClick={handleEditCustomerClick} className="text-gray-400 hover:text-primary-600" title="Chỉnh sửa">
                       <Pencil size={14} />
@@ -173,8 +173,8 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
                 </div>
                 {customerDetail && (
                   <>
-                    {customerDetail.phone && <div className={`text-[15px] ${theme === 'pos' ? 'text-[#555b6d]' : 'text-foreground-muted'}`}>{customerDetail.phone}</div>}
-                    {customerDetail.address && <div className={`text-[15px] ${theme === 'pos' ? 'text-[#555b6d]' : 'text-foreground-muted'}`}>{customerDetail.address}</div>}
+                    {customerDetail.phone && <div className={`text-[15px] ${theme === 'pos' ? 'text-slate-500' : 'text-foreground-muted'}`}>{customerDetail.phone}</div>}
+                    {customerDetail.address && <div className={`text-[15px] ${theme === 'pos' ? 'text-slate-500' : 'text-foreground-muted'}`}>{customerDetail.address}</div>}
                   </>
                 )}
               </div>
@@ -186,7 +186,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
           </div>
 
           <div className={`p-4 pt-3 shadow-[0_-1px_2px_rgba(0,0,0,0.02)] ${theme === 'pos' ? 'border-t border-white' : 'border-t border-border'}`}>
-            <div className={`text-[12px] font-bold flex items-center gap-1.5 mb-3 uppercase tracking-wider ${theme === 'pos' ? 'text-[#6a7280]' : 'text-foreground-muted'}`}>
+            <div className={`text-[12px] font-bold flex items-center gap-1.5 mb-3 uppercase tracking-wider ${theme === 'pos' ? 'text-slate-500' : 'text-foreground-muted'}`}>
               <PawPrint size={14} /> Thú cưng khách hàng
             </div>
             <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar pr-4">
@@ -197,18 +197,18 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
                   onClick={() => handleOpenPetProfile(pet.id)}
                   className={`flex min-w-[72px] flex-col items-center gap-1.5 rounded-2xl px-1 py-1.5 transition ${theme === 'pos' ? 'hover:bg-white/70' : 'hover:bg-background'}`}
                 >
-                  <div className={`w-14 h-14 rounded-full overflow-hidden shadow-sm ring-1 ${theme === 'pos' ? 'bg-[#eef1f6] border border-white ring-gray-200' : 'bg-background-tertiary border border-border ring-border/50'}`}>
+                  <div className={`w-14 h-14 rounded-full overflow-hidden shadow-sm ring-1 ${theme === 'pos' ? 'bg-slate-100 border border-white ring-gray-200' : 'bg-background-tertiary border border-border ring-border/50'}`}>
                     {pet.avatar ? (
                       <Image src={String(pet.avatar).startsWith('http') ? pet.avatar : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${pet.avatar}`}
                         alt={pet.name}
                         className="w-full h-full object-cover" width={400} height={400} unoptimized />
                     ) : (
-                      <span className={`font-bold text-xl flex items-center justify-center w-full h-full ${theme === 'pos' ? 'text-[#4d5e7a]' : 'text-foreground-muted'}`}>
+                      <span className={`font-bold text-xl flex items-center justify-center w-full h-full ${theme === 'pos' ? 'text-slate-600' : 'text-foreground-muted'}`}>
                         {pet.name?.charAt(0)?.toUpperCase()}
                       </span>
                     )}
                   </div>
-                  <span className={`font-bold text-[13px] whitespace-nowrap ${theme === 'pos' ? 'text-[#2a3042]' : 'text-foreground'}`}>{pet.name}</span>
+                  <span className={`font-bold text-[13px] whitespace-nowrap ${theme === 'pos' ? 'text-slate-800' : 'text-foreground'}`}>{pet.name}</span>
                   {pet.weight && (
                     <span className="bg-orange-100 text-orange-600 font-bold text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">
                       {pet.weight} kg
@@ -221,7 +221,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
                 <div className={`w-14 h-14 rounded-full border-2 border-dashed flex items-center justify-center transition-colors ${theme === 'pos' ? 'border-gray-300 text-gray-400 group-hover:bg-white group-hover:text-primary-500 group-hover:border-primary-400' : 'border-border text-foreground-muted group-hover:bg-background group-hover:text-primary-500 group-hover:border-primary-500/50'}`}>
                   <Plus size={24} />
                 </div>
-                <span className={`text-[13px] font-medium whitespace-nowrap group-hover:text-primary-600 ${theme === 'pos' ? 'text-[#6a7280]' : 'text-foreground-muted'}`}>Thêm Pet</span>
+                <span className={`text-[13px] font-medium whitespace-nowrap group-hover:text-primary-600 ${theme === 'pos' ? 'text-slate-500' : 'text-foreground-muted'}`}>Thêm Pet</span>
               </div>
             </div>
           </div>
