@@ -18,6 +18,7 @@ export interface PosProductSearchProps {
   disabled?: boolean;
   // Style overrides — cho phép override màu container và dropdown panel từ bên ngoài
   containerClassName?: string;
+  inputClassName?: string;    // override wrapper input (mặc định bg-white cho POS)
   panelClassName?: string;
 }
 
@@ -58,6 +59,7 @@ export function PosProductSearch({
   outOfStockHidden: outOfStockHiddenProp,
   disabled = false,
   containerClassName,
+  inputClassName,
   panelClassName,
 }: PosProductSearchProps) {
   const [query, setQuery] = useState('');
@@ -195,7 +197,7 @@ export function PosProductSearch({
   return (
     <div className={`relative flex-1 max-w-[400px] ${containerClassName ?? ''}`} ref={containerRef}>
       {/* Desktop & default header input */}
-      <div className={`flex items-center bg-white rounded-md overflow-hidden h-9 w-full border-b-2 border-transparent transition-colors focus-within:border-amber-400 ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
+      <div className={`flex items-center rounded-md overflow-hidden h-9 w-full border-b-2 border-transparent transition-colors focus-within:border-amber-400 ${inputClassName ?? 'bg-white'} ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
         <div className="pl-3 pr-2 text-gray-400">
           <Search size={16} />
         </div>

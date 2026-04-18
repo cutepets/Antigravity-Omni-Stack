@@ -286,18 +286,8 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             </div>
           ) : null}
 
-          {/* Action buttons moved from Top Bar */}
-          {mode === 'create' ? (
-            <button
-              type="button"
-              onClick={workspace.handleSave}
-              disabled={workspace.pendingAction}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-90 disabled:opacity-60"
-            >
-              {workspace.pendingAction ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              Tạo đơn hàng
-            </button>
-          ) : mode === 'detail' && workspace.actionFlags.canEditCurrentOrder && !workspace.isEditing ? (
+          {/* Nút Cập nhật / Lưu — chỉ hiện ở detail mode vì create mode đã có nút bên phải top bar */}
+          {mode === 'detail' && workspace.actionFlags.canEditCurrentOrder && !workspace.isEditing ? (
             <button
               type="button"
               onClick={workspace.handleStartEdit}
