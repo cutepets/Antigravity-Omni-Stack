@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -8,18 +8,13 @@ import {
   CheckSquare,
   CreditCard,
   Loader2,
-  Medal,
   Package,
   PencilLine,
   Save,
   Scissors,
-  Search,
   TriangleAlert,
-  User,
   XCircle,
 } from 'lucide-react'
-import { CustomerSearchResults } from '@/components/search/customer-search-results'
-import { AddCustomerModal } from '@/app/(dashboard)/_shared/customer/components/AddCustomerModal'
 import { formatDateTime } from '@/lib/utils'
 import { OrderStatusBadge } from './order-badges'
 import type { OrderWorkspaceMode } from './order.types'
@@ -125,38 +120,7 @@ export function OrderTopBar({
   onCancelOrder,
   onOpenPos,
 }: OrderTopBarProps) {
-  const [showCustomerSearch, setShowCustomerSearch] = useState(false)
-  const [showCustomerModal, setShowCustomerModal] = useState(false)
-  const [customerModalData, setCustomerModalData] = useState<any>(null)
-  const customerSearchRef = useRef<HTMLDivElement | null>(null)
-  const customerLabel = selectedCustomerName || draft.customerName || 'Khách lẻ'
-  const customerPhoneLabel = selectedCustomerPhone || 'Chưa có SĐT'
-  const customerAddressLabel = selectedCustomerAddress || 'Chưa có địa chỉ'
   const operatorLabel = operatorCode ? `${operatorName} • ${operatorCode}` : operatorName
-
-  const handleQuickAddClick = () => {
-    const normalizedSearch = customerSearch.trim()
-    const isPhone = /^[0-9\-+\s]+$/.test(normalizedSearch)
-    setCustomerModalData({
-      fullName: isPhone ? '' : normalizedSearch,
-      phone: isPhone ? normalizedSearch.replace(/[^0-9]/g, '') : '',
-      address: '',
-    })
-    setShowCustomerSearch(false)
-    setShowCustomerModal(true)
-  }
-
-  useEffect(() => {
-    if (!showCustomerSearch) return
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (customerSearchRef.current?.contains(event.target as Node)) return
-      setShowCustomerSearch(false)
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showCustomerSearch])
 
   return (
     <div className="relative z-30 shrink-0 border-b border-border bg-background/80 backdrop-blur-sm">
@@ -179,90 +143,6 @@ export function OrderTopBar({
                 {mode === 'detail' ? order?.orderNumber || 'Đơn hàng' : 'Đơn bán hàng'}
               </div>
             </div>
-          </div>
-
-          <div className="mt-1" ref={customerSearchRef}>
-            {draft.customerId ? (
-              <div className="flex items-start justify-between gap-3 rounded-2xl border border-border bg-background-secondary/60 px-3 py-3">
-                <div className="flex min-w-0 gap-3">
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
-                    <User size={14} />
-                  </div>
-                  <div className="min-w-0 space-y-1">
-                    <div className="truncate text-sm font-semibold text-foreground">{customerLabel}</div>
-                    <div className="truncate text-xs text-foreground-muted">{customerPhoneLabel}</div>
-                    <div className="truncate text-xs text-foreground-muted">{customerAddressLabel}</div>
-                    {/* Điểm & Nợ */}
-                    {(customerPoints !== undefined || customerDebt !== undefined) && (
-                      <div className="flex flex-wrap gap-1.5 pt-0.5">
-                        {customerPoints !== undefined && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[11px] font-bold text-orange-500">
-                            <Medal size={11} />
-                            {customerPoints.toLocaleString('vi-VN')} điểm
-                          </span>
-                        )}
-                        {!!customerDebt && customerDebt > 0 && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-error/20 bg-error/10 px-2 py-0.5 text-[11px] font-bold text-error">
-                            <TriangleAlert size={11} />
-                            Nợ {customerDebt.toLocaleString('vi-VN')}đ
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {isEditing ? (
-                  <button
-                    type="button"
-                    onClick={onClearCustomer}
-                    className="shrink-0 rounded-lg p-1 text-foreground-muted transition-colors hover:bg-error/10 hover:text-error"
-                    title="Xóa khách hàng"
-                  >
-                    <XCircle size={14} />
-                  </button>
-                ) : null}
-              </div>
-            ) : isEditing ? (
-              <div className="relative">
-                <Search
-                  size={13}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted"
-                />
-                <input
-                  type="text"
-                  value={customerSearch}
-                  onChange={(event) => onCustomerSearchChange(event.target.value)}
-                  onFocus={() => setShowCustomerSearch(true)}
-                  placeholder="Tìm khách hàng..."
-                  className="h-10 w-full rounded-xl border border-border bg-background pl-8 pr-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500/20"
-                />
-
-                {showCustomerSearch ? (
-                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-80 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
-                    <CustomerSearchResults
-                      customers={customerResults}
-                      query={customerSearch}
-                      variant="order"
-                      maxResults={5}
-                      guestLabel="Khách lẻ"
-                      onSelectGuest={() => {
-                        onClearCustomer()
-                        setShowCustomerSearch(false)
-                      }}
-                      onSelectCustomer={(customer) => {
-                        onSelectCustomer(customer)
-                        setShowCustomerSearch(false)
-                      }}
-                      onQuickAdd={handleQuickAddClick}
-                    />
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-border bg-background-secondary/45 px-3 py-3 text-sm text-foreground-muted">
-                Chưa chọn khách hàng cho đơn này.
-              </div>
-            )}
           </div>
         </div>
 
@@ -416,15 +296,6 @@ export function OrderTopBar({
         </div>
       </div>
 
-      <AddCustomerModal
-        isOpen={showCustomerModal}
-        onClose={() => setShowCustomerModal(false)}
-        initialData={customerModalData}
-        onSaved={(customer) => {
-          onSelectCustomer(customer)
-          setShowCustomerModal(false)
-        }}
-      />
     </div>
   )
 }

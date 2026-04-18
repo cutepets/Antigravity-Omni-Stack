@@ -320,6 +320,20 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
           ) : null}
         </div>
 
+        {/* Customer + Pet section — full-width row above cart/right panel */}
+        <div className="shrink-0 border-b border-border/60">
+          <OrderCustomerSection
+            customerId={workspace.draft.customerId}
+            customerName={workspace.draft.customerName}
+            isEditing={workspace.isEditing}
+            onSelectCustomer={(id, name) =>
+              workspace.handleSelectCustomer({ id, fullName: name })
+            }
+            onRemoveCustomer={workspace.handleClearCustomer}
+            onSelectSuggestedService={workspace.addCatalogItem}
+          />
+        </div>
+
         <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_480px]">
           <div className="flex min-h-0 flex-col overflow-hidden border-r border-border/60">
             <OrderCartSection
@@ -339,20 +353,6 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
           </div>
 
           <div className="flex min-h-0 flex-col overflow-y-auto custom-scrollbar">
-            {/* Customer section — top of right panel */}
-            <div className="shrink-0 border-b border-border/60">
-              <OrderCustomerSection
-                customerId={workspace.draft.customerId}
-                customerName={workspace.draft.customerName}
-                isEditing={workspace.isEditing}
-                onSelectCustomer={(id, name) =>
-                  workspace.handleSelectCustomer({ id, fullName: name })
-                }
-                onRemoveCustomer={workspace.handleClearCustomer}
-                onSelectSuggestedService={workspace.addCatalogItem}
-              />
-            </div>
-
             <OrderRightPanel
               mode={mode}
               subtotal={workspace.subtotal}
