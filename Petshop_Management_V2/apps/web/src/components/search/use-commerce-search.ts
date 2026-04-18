@@ -49,13 +49,19 @@ const isConversionVariant = (variant: any) => {
 }
 
 const createProductEntry = (product: any, variant?: any) => {
-  const { variantLabel, unitLabel, displayName } = resolveProductVariantLabels(product.name, variant)
+  const { variantLabel: resolvedVariantLabel, unitLabel, displayName: resolvedDisplayName } = resolveProductVariantLabels(product.name, variant)
   const resolvedPrice = variant?.sellingPrice ?? variant?.price ?? product.sellingPrice ?? product.price ?? 0
 
   const rawVariants = Array.isArray(product.variants) ? product.variants : []
   const conversionVariants = rawVariants.filter(isConversionVariant)
   const nonConversionVariants = rawVariants.filter((v: any) => !isConversionVariant(v))
   const hasVariants = nonConversionVariants.length > 0
+
+  // Nếu variantLabel giống tên gốc → sản phẩm đơn hoặc dữ liệu legacy lỗi, bỏ qua để không hiển thị trùng
+  const productNameNorm = (product.name ?? '').trim().toLowerCase()
+  const variantLabel = resolvedVariantLabel && resolvedVariantLabel.trim().toLowerCase() !== productNameNorm
+    ? resolvedVariantLabel
+    : null
 
   return {
     ...product,
@@ -66,7 +72,8 @@ const createProductEntry = (product: any, variant?: any) => {
     productVariantId: variant?.id ?? undefined,
     productName: product.name,
     name: product.name,
-    displayName: displayName || product.name,
+    // displayName luôn là tên gốc; variantLabel hiển thị riêng bên cạnh
+    displayName: product.name,
     variantLabel,
     unitLabel,
     sku: variant?.sku ?? product.sku,

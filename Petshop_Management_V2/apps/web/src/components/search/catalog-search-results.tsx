@@ -129,10 +129,10 @@ function CatalogSearchResultRow({
         <button
           type="button"
           className={`group flex w-full items-start gap-4 border-b border-gray-100 bg-white px-4 py-3 text-left transition-all duration-300 last:border-0 ${state?.isError
-              ? 'translate-x-2 bg-red-50'
-              : state?.isSelected
-                ? 'bg-primary-50/20'
-                : 'hover:bg-[#f0f9fa]'
+            ? 'translate-x-2 bg-red-50'
+            : state?.isSelected
+              ? 'bg-primary-50/20'
+              : 'hover:bg-[#f0f9fa]'
             }`}
           onClick={() => onSelect(entry)}
         >
@@ -156,8 +156,10 @@ function CatalogSearchResultRow({
           <div className="flex min-w-0 flex-1 flex-col justify-start overflow-hidden pt-0.5">
             <span className={`${state?.isError ? 'font-bold text-red-600' : 'font-medium text-[#333333]'} pr-2 text-[15px] leading-snug transition-colors duration-300 lg:text-[14px]`}>
               {displayName}
-              {finalVariantLabel ? (
-                <span className="ml-2 text-[12px] font-medium text-[#0089A1]">{finalVariantLabel}</span>
+              {(finalVariantLabel || finalUnitLabel) ? (
+                <span className="ml-2 text-[12px] font-medium text-[#0089A1]">
+                  {[finalVariantLabel, finalUnitLabel].filter(Boolean).join(' • ')}
+                </span>
               ) : null}
             </span>
             {entry.sku ? (
@@ -174,8 +176,8 @@ function CatalogSearchResultRow({
             {state?.availableStock !== undefined && state.availableStock !== null ? (
               <span
                 className={`mt-1 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors duration-300 ${state.isError || state.availableStock <= 0
-                    ? 'bg-red-50 text-red-600'
-                    : 'bg-emerald-50 text-emerald-700'
+                  ? 'bg-red-50 text-red-600'
+                  : 'bg-emerald-50 text-emerald-700'
                   }`}
               >
                 {state.stockLabel ?? state.availableStock}

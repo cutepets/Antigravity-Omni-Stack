@@ -105,5 +105,10 @@ export function getProductVariantOptionLabel(
   variant?: ProductVariantLike | null,
 ) {
   const { variantLabel, unitLabel } = resolveProductVariantLabels(productName, variant)
-  return cleanLabel(unitLabel) ?? cleanLabel(variantLabel) ?? cleanLabel(variant?.name) ?? ''
+  if (cleanLabel(unitLabel)) return cleanLabel(unitLabel)!
+  if (cleanLabel(variantLabel)) return cleanLabel(variantLabel)!
+  // Fallback: strip productName prefix from legacy combined variant.name
+  const legacyParts = splitLegacyVariantParts(productName, variant?.name)
+  const fallback = legacyParts.join(VARIANT_SEPARATOR)
+  return cleanLabel(fallback) ?? cleanLabel(variant?.name) ?? ''
 }

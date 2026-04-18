@@ -95,7 +95,10 @@ export interface ExportReceiptParams {
     sku?: string | null
     name: string
     variantName?: string | null
+    variantLabel?: string | null
     unit?: string | null
+    unitLabel?: string | null
+    baseUnit?: string | null
     quantity: number
     unitCost: number
     discount: number
@@ -150,8 +153,8 @@ export async function exportReceiptToExcel({
     idx + 1,
     item.sku ?? '',
     item.name,
-    item.variantName ?? '',
-    item.unit ?? '',
+    item.variantLabel ?? item.variantName ?? '',
+    item.unitLabel ?? item.baseUnit ?? item.unit ?? '',
     item.quantity,
     item.unitCost,
     item.discount,

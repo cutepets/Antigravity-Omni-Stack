@@ -48,6 +48,8 @@ export interface ProductVariantOption {
   name: string
   variantLabel?: string | null
   unitLabel?: string | null
+  children?: ProductVariantOption[]
+  unit?: string | null
   sku?: string | null
   barcode?: string | null
   price?: number | null

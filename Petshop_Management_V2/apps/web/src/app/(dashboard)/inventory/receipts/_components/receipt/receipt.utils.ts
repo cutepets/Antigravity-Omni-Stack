@@ -173,8 +173,70 @@ export function getTrueVariants(variants?: ProductVariantOption[]) {
   return resolveTrueVariants(variants)
 }
 
-export function getVariantShortLabel(name?: string | null) {
-  return getProductVariantOptionLabel(null, { name })
+export function getVariantShortLabel(name?: string | null, productName?: string | null) {
+  return getProductVariantOptionLabel(productName ?? null, { name })
+}
+
+function getNormalizedVariantLabels(
+  productName?: string | null,
+  variant?: ProductVariantOption | null,
+) {
+  const resolved = resolveVariantLabels(productName, variant)
+  const normalizedProductName = normalizeText(productName)
+  const normalizedVariantLabel = normalizeText(resolved.variantLabel)
+
+  return {
+    variantLabel:
+      normalizedVariantLabel && normalizedVariantLabel !== normalizedProductName
+        ? resolved.variantLabel ?? null
+        : null,
+    unitLabel: resolved.unitLabel ?? null,
+  }
+}
+
+function normalizeProductVariantOption(
+  productName: string | null | undefined,
+  variant: ProductVariantOption,
+): ProductVariantOption {
+  const labels = getNormalizedVariantLabels(productName, variant)
+
+  return {
+    ...variant,
+    variantLabel: labels.variantLabel,
+    unitLabel: labels.unitLabel,
+    children: Array.isArray(variant.children)
+      ? variant.children.map((child) => normalizeProductVariantOption(productName, child))
+      : undefined,
+  }
+}
+
+function normalizeProductVariantOptions(
+  productName: string | null | undefined,
+  variants?: ProductVariantOption[] | null,
+) {
+  return Array.isArray(variants)
+    ? variants.map((variant) => normalizeProductVariantOption(productName, variant))
+    : []
+}
+
+export function getConversionUnitLabel(
+  variant?: ProductVariantOption | null,
+  productName?: string | null,
+  parentTrueVariant?: ProductVariantOption | null,
+) {
+  const resolved = getNormalizedVariantLabels(productName, variant)
+  if (resolved.unitLabel) return resolved.unitLabel
+
+  const fallbackLabel = getVariantShortLabel(variant?.name, productName)
+  const parentLabels = getNormalizedVariantLabels(productName, parentTrueVariant)
+  const parentVariantLabel = parentLabels.variantLabel?.trim()
+
+  if (!parentVariantLabel) return fallbackLabel
+  const prefix = `${parentVariantLabel} - `
+
+  return fallbackLabel.startsWith(prefix)
+    ? fallbackLabel.slice(prefix.length).trim()
+    : fallbackLabel
 }
 
 export function findParentTrueVariant(
@@ -203,7 +265,7 @@ export function getVariantSnapshot(item: SelectedItem) {
   const variants = item.variants ?? []
   const selectedVariant =
     variants.find((variant) => variant.id === item.productVariantId) ?? null
-  const selectedLabels = selectedVariant ? resolveVariantLabels(item.name, selectedVariant) : null
+  const selectedLabels = selectedVariant ? getNormalizedVariantLabels(item.name, selectedVariant) : null
   const branchStocks = getDisplayBranchStocks(
     {
       name: item.name,
@@ -226,7 +288,9 @@ export function getVariantSnapshot(item: SelectedItem) {
     selectedVariant,
     branchStocks,
     totalStock,
-    displayName: selectedLabels ? buildProductVariantName(item.name, selectedLabels.variantLabel, selectedLabels.unitLabel) : item.name,
+    displayName: selectedLabels
+      ? buildProductVariantName(item.name, selectedLabels.variantLabel, null) || item.name
+      : item.name,
     displaySku: selectedVariant?.sku ?? item.sku ?? item.baseSku ?? null,
     displayBarcode: selectedVariant?.barcode ?? item.barcode ?? item.baseBarcode ?? null,
   }
@@ -263,7 +327,7 @@ export function applyVariantSelection(item: SelectedItem, variantId: string): Se
 
   if (!selectedVariant) return item
 
-  const selectedLabels = resolveVariantLabels(item.name, selectedVariant)
+  const selectedLabels = getNormalizedVariantLabels(item.name, selectedVariant)
   const branchStocks = Array.isArray(selectedVariant.branchStocks)
     ? selectedVariant.branchStocks
     : []
@@ -271,7 +335,7 @@ export function applyVariantSelection(item: SelectedItem, variantId: string): Se
   return {
     ...item,
     productVariantId: selectedVariant.id,
-    variantName: buildProductVariantName(item.name, selectedLabels.variantLabel, selectedLabels.unitLabel),
+    variantName: selectedLabels.variantLabel,
     variantLabel: selectedLabels.variantLabel,
     unitLabel: selectedLabels.unitLabel,
     sku: selectedVariant.sku ?? item.baseSku ?? item.sku,
@@ -288,12 +352,12 @@ export function applyVariantSelection(item: SelectedItem, variantId: string): Se
 // ─── Normalizers ──────────────────────────────────────────────────────────────
 
 export function normalizeProduct(product: any): SelectedItem {
-  const variants: ProductVariantOption[] = Array.isArray(product.variants) ? product.variants : []
+  const variants = normalizeProductVariantOptions(product.name, product.variants)
   const defaultVariant = getTrueVariants(variants)[0] ?? variants[0] ?? null
   const defaultBranchStocks = getDisplayBranchStocks(product, defaultVariant?.id ?? null) as BranchStock[]
   const baseDisplayBranchStocks = getDisplayBranchStocks(product) as BranchStock[]
 
-  const defaultLabels = defaultVariant ? resolveVariantLabels(product.name, defaultVariant) : null
+  const defaultLabels = defaultVariant ? getNormalizedVariantLabels(product.name, defaultVariant) : null
   return {
     lineId: createLineId(),
     productId: product.id,
@@ -322,7 +386,7 @@ export function normalizeProduct(product: any): SelectedItem {
             : 0,
     branchStocks: defaultBranchStocks,
     variants,
-    variantName: defaultLabels ? buildProductVariantName(product.name, defaultLabels.variantLabel, defaultLabels.unitLabel) : null,
+    variantName: defaultLabels?.variantLabel ?? null,
     variantLabel: defaultLabels?.variantLabel ?? null,
     unitLabel: defaultLabels?.unitLabel ?? null,
     baseSku: product.sku ?? null,
@@ -374,8 +438,18 @@ export function normalizeSupplierQuickDraftItem(item: SupplierQuickDraftItem): S
 
 export function normalizeReceiptItem(item: any): SelectedItem {
   const product = item?.product ?? {}
-  const selectedVariant = item?.productVariant ?? null
-  const selectedLabels = selectedVariant ? resolveVariantLabels(product?.name, selectedVariant) : null
+  const normalizedVariants = normalizeProductVariantOptions(
+    product?.name,
+    Array.isArray(product?.variants)
+      ? product.variants
+      : item?.productVariant
+        ? [item.productVariant]
+        : [],
+  )
+  const selectedVariant =
+    normalizedVariants.find((variant) => variant.id === (item?.productVariantId ?? item?.productVariant?.id)) ??
+    (item?.productVariant ? normalizeProductVariantOption(product?.name, item.productVariant) : null)
+  const selectedLabels = selectedVariant ? getNormalizedVariantLabels(product?.name, selectedVariant) : null
 
   return {
     lineId: item?.id ?? createLineId(),
@@ -401,28 +475,8 @@ export function normalizeReceiptItem(item: any): SelectedItem {
     monthlySellThrough: null,
     totalStock: null,
     branchStocks: [],
-    variants: selectedVariant
-      ? [
-        {
-          id: selectedVariant.id,
-          name: selectedVariant.name,
-          variantLabel: selectedLabels?.variantLabel ?? null,
-          unitLabel: selectedLabels?.unitLabel ?? null,
-          sku: selectedVariant.sku ?? null,
-          barcode: selectedVariant.barcode ?? null,
-          price: selectedVariant.price ?? null,
-          sellingPrice: selectedVariant.sellingPrice ?? null,
-          costPrice: selectedVariant.costPrice ?? item?.unitPrice ?? null,
-          image: selectedVariant.image ?? null,
-          conversions: selectedVariant.conversions ?? null,
-          branchStocks: [],
-          stock: null,
-          availableStock: null,
-          trading: null,
-        },
-      ]
-      : [],
-    variantName: selectedLabels ? buildProductVariantName(product?.name, selectedLabels.variantLabel, selectedLabels.unitLabel) : null,
+    variants: normalizedVariants,
+    variantName: selectedLabels?.variantLabel ?? null,
     variantLabel: selectedLabels?.variantLabel ?? null,
     unitLabel: selectedLabels?.unitLabel ?? null,
     baseSku: product?.sku ?? null,

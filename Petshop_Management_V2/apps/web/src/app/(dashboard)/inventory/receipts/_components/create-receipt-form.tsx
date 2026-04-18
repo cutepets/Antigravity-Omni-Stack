@@ -45,6 +45,7 @@ import {
   isConversionVariant,
   getTrueVariants,
   getVariantShortLabel,
+  getConversionUnitLabel,
   findParentTrueVariant,
   getConversionVariants,
   getVariantSnapshot,
@@ -232,8 +233,8 @@ export function CreateReceiptForm({
         (item, idx) => `
         <tr>
           <td style="padding:4px 6px;border-bottom:1px solid #eee;">${idx + 1}</td>
-          <td style="padding:4px 6px;border-bottom:1px solid #eee;">${item.name}${item.variantName ? ` (${item.variantName})` : ''}${item.sku ? `<br><small style="color:#999">${item.sku}</small>` : ''}</td>
-          <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.unit ?? '—'}</td>
+          <td style="padding:4px 6px;border-bottom:1px solid #eee;">${item.name}${(item.variantLabel ?? item.variantName) ? ` (${item.variantLabel ?? item.variantName})` : ''}${item.sku ? `<br><small style="color:#999">${item.sku}</small>` : ''}</td>
+          <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.unitLabel ?? item.baseUnit ?? item.unit ?? '—'}</td>
           <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.quantity}</td>
           <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.unitCost.toLocaleString('vi-VN')}</td>
           ${item.discount > 0 ? `<td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.discount.toLocaleString('vi-VN')}</td>` : `<td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">—</td>`}
@@ -832,7 +833,7 @@ export function CreateReceiptForm({
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => addProductToReceipt(product, { productVariantId: variant.id })}
                               >
-                                <span>{variant.unitLabel || variant.variantLabel || getVariantShortLabel(variant.name) || variant.name}</span>{/*
+                                <span>{variant.unitLabel || variant.variantLabel || getVariantShortLabel(variant.name, product.name) || variant.name}</span>{/*
                                 {variant.sku || variant.barcode || '�'}
                             */}</button>
                             ))}
@@ -1045,7 +1046,7 @@ export function CreateReceiptForm({
                       null
                     const unitLabel =
                       currentVariant && isConversionVariant(currentVariant)
-                        ? currentVariant.unitLabel || getVariantShortLabel(currentVariant.name) || item.baseUnit || item.unit || '—'
+                        ? getConversionUnitLabel(currentVariant, item.name, currentTrueVariant) || item.baseUnit || item.unit || '—'
                         : item.baseUnit || item.unit || '—'
 
                     const itemIdentity = getItemIdentity(item.productId, item.productVariantId)
@@ -1143,7 +1144,7 @@ export function CreateReceiptForm({
                                   >
                                     {trueVariants.map((variant) => (
                                       <option key={variant.id} value={variant.id}>
-                                        {variant.variantLabel || getVariantShortLabel(variant.name) || variant.name}
+                                        {variant.variantLabel || getVariantShortLabel(variant.name, item.name) || variant.name}
                                       </option>
                                     ))}
                                   </select>
@@ -1256,7 +1257,7 @@ export function CreateReceiptForm({
                                   <option value="base">{item.baseUnit || item.unit || '—'}</option>
                                   {conversionVariants.map((variant) => (
                                     <option key={variant.id} value={variant.id}>
-                                      {variant.unitLabel || getVariantShortLabel(variant.name) || variant.name}
+                                      {getConversionUnitLabel(variant, item.name, currentTrueVariant) || variant.name}
                                     </option>
                                   ))}
                                 </select>

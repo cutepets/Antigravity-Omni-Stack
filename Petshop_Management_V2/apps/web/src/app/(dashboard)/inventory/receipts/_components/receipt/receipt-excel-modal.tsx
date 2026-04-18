@@ -6,6 +6,7 @@ import { downloadReceiptTemplate, parseReceiptExcel, ParsedExcelRow } from './re
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { inventoryApi } from '@/lib/api/inventory.api'
 import type { SelectedItem } from './receipt.types'
+import { applyVariantSelection, normalizeProduct } from './receipt.utils'
 
 interface ReceiptExcelModalProps {
   isOpen: boolean
@@ -86,25 +87,19 @@ export function ReceiptExcelModal({ isOpen, onClose, onImported }: ReceiptExcelM
           continue
         }
 
-        // Base unit/name logic
-        const unit = matchedProduct.unit ?? ''
+        let nextItem = normalizeProduct(matchedProduct)
 
-        // Construct the item
+        if (matchedVariant?.id) {
+          nextItem = applyVariantSelection(nextItem, matchedVariant.id)
+        }
+
         newItems.push({
+          ...nextItem,
           lineId: Math.random().toString(36).substring(7),
-          productId: matchedProduct.id,
-          productVariantId: matchedVariant?.id,
-          sku: matchedVariant?.sku || matchedProduct.sku || '',
-          barcode: matchedVariant?.barcode || matchedProduct.barcode || '',
-          name: matchedProduct.name,
-          variantName: matchedVariant?.name,
-          unit,
           quantity: row.quantity,
-          unitCost: row.unitCost || matchedProduct.costPrice || 0,
+          unitCost: row.unitCost || nextItem.unitCost || 0,
           discount: row.discount || 0,
-          sellingPrice: matchedVariant?.sellingPrice || matchedProduct.sellingPrice || 0,
           note: '',
-          variants: matchedProduct.variants,
         })
       }
 
