@@ -34,10 +34,10 @@ export function OrderCustomerSection({
     }
 
     return (
-        // Override POS light-only colors với CSS variables hệ thống
-        <div className="order-customer-section [&_.bg-\[#f4f6f9\]]:bg-background-secondary! [&_.border-gray-200]:border-border! [&_.text-\[#2a3042\]]:text-foreground! [&_.text-\[#555b6d\]]:text-foreground-muted! [&_.bg-white]:bg-background! [&_.border-b.border-gray-200]:border-border! pointer-events-auto">
+        <div className="order-customer-section pointer-events-auto">
             <PosCustomerV1
                 callbacks={callbacks}
+                theme="system"
                 onSelectSuggestedService={isEditing ? onSelectSuggestedService : undefined}
             />
         </div>

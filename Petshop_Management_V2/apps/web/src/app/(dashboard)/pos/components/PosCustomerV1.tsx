@@ -25,9 +25,11 @@ export interface PosCustomerV1Props {
   onSelectSuggestedService?: (service: any, petId: string, petName?: string) => void;
   // Optional — khi có callbacks, bypass usePosStore (dùng cho OrderWorkspace)
   callbacks?: CustomerCallbacks;
+  // Theme override ('pos' = light-mode hex colors, 'system' = CSS vars)
+  theme?: 'pos' | 'system';
 }
 
-export function PosCustomerV1({ onSelectSuggestedService, callbacks }: PosCustomerV1Props) {
+export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'pos' }: PosCustomerV1Props) {
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [customerQuery, setCustomerQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -146,11 +148,11 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks }: PosCustom
   return (
     <div className="w-full relative" ref={containerRef}>
       {hasCustomer ? (
-        <div className="bg-[#f4f6f9] border-b border-gray-200">
+        <div className={theme === 'pos' ? 'bg-[#f4f6f9] border-b border-gray-200' : 'bg-background-secondary border-b border-border'}>
           <div className="p-4 relative">
             <button
               onClick={handleRemoveCustomer}
-              className="absolute top-4 right-4 p-1 text-gray-400 hover:text-red-500 rounded-full transition-colors bg-white hover:bg-red-50 shadow-sm"
+              className={`absolute top-4 right-4 p-1 text-gray-400 hover:text-red-500 rounded-full transition-colors shadow-sm ${theme === 'pos' ? 'bg-white hover:bg-red-50' : 'bg-background hover:bg-red-500/10'}`}
               title="Xoá khách hàng"
             >
               <X size={16} />
@@ -162,7 +164,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks }: PosCustom
 
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-[17px] font-bold text-[#2a3042]">{customerDisplayName}</span>
+                  <span className={`text-[17px] font-bold ${theme === 'pos' ? 'text-[#2a3042]' : 'text-foreground'}`}>{customerDisplayName}</span>
                   {customerDisplayName?.toLowerCase() !== 'khách lẻ' && (
                     <button onClick={handleEditCustomerClick} className="text-gray-400 hover:text-primary-600" title="Chỉnh sửa">
                       <Pencil size={14} />
@@ -171,8 +173,8 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks }: PosCustom
                 </div>
                 {customerDetail && (
                   <>
-                    {customerDetail.phone && <div className="text-[15px] text-[#555b6d]">{customerDetail.phone}</div>}
-                    {customerDetail.address && <div className="text-[15px] text-[#555b6d]">{customerDetail.address}</div>}
+                    {customerDetail.phone && <div className={`text-[15px] ${theme === 'pos' ? 'text-[#555b6d]' : 'text-foreground-muted'}`}>{customerDetail.phone}</div>}
+                    {customerDetail.address && <div className={`text-[15px] ${theme === 'pos' ? 'text-[#555b6d]' : 'text-foreground-muted'}`}>{customerDetail.address}</div>}
                   </>
                 )}
               </div>
@@ -183,8 +185,8 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks }: PosCustom
             </div>
           </div>
 
-          <div className="p-4 pt-3 border-t border-white shadow-[0_-1px_2px_rgba(0,0,0,0.02)]">
-            <div className="text-[12px] font-bold text-[#6a7280] flex items-center gap-1.5 mb-3 uppercase tracking-wider">
+          <div className={`p-4 pt-3 shadow-[0_-1px_2px_rgba(0,0,0,0.02)] ${theme === 'pos' ? 'border-t border-white' : 'border-t border-border'}`}>
+            <div className={`text-[12px] font-bold flex items-center gap-1.5 mb-3 uppercase tracking-wider ${theme === 'pos' ? 'text-[#6a7280]' : 'text-foreground-muted'}`}>
               <PawPrint size={14} /> Thú cưng khách hàng
             </div>
             <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar pr-4">
@@ -193,20 +195,20 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks }: PosCustom
                   key={pet.id}
                   type="button"
                   onClick={() => handleOpenPetProfile(pet.id)}
-                  className="flex min-w-[72px] flex-col items-center gap-1.5 rounded-2xl px-1 py-1.5 transition hover:bg-white/70"
+                  className={`flex min-w-[72px] flex-col items-center gap-1.5 rounded-2xl px-1 py-1.5 transition ${theme === 'pos' ? 'hover:bg-white/70' : 'hover:bg-background'}`}
                 >
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-[#eef1f6] border border-white shadow-sm ring-1 ring-gray-200">
+                  <div className={`w-14 h-14 rounded-full overflow-hidden shadow-sm ring-1 ${theme === 'pos' ? 'bg-[#eef1f6] border border-white ring-gray-200' : 'bg-background-tertiary border border-border ring-border/50'}`}>
                     {pet.avatar ? (
                       <Image src={String(pet.avatar).startsWith('http') ? pet.avatar : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${pet.avatar}`}
                         alt={pet.name}
                         className="w-full h-full object-cover" width={400} height={400} unoptimized />
                     ) : (
-                      <span className="text-[#4d5e7a] font-bold text-xl flex items-center justify-center w-full h-full">
+                      <span className={`font-bold text-xl flex items-center justify-center w-full h-full ${theme === 'pos' ? 'text-[#4d5e7a]' : 'text-foreground-muted'}`}>
                         {pet.name?.charAt(0)?.toUpperCase()}
                       </span>
                     )}
                   </div>
-                  <span className="font-bold text-[#2a3042] text-[13px] whitespace-nowrap">{pet.name}</span>
+                  <span className={`font-bold text-[13px] whitespace-nowrap ${theme === 'pos' ? 'text-[#2a3042]' : 'text-foreground'}`}>{pet.name}</span>
                   {pet.weight && (
                     <span className="bg-orange-100 text-orange-600 font-bold text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">
                       {pet.weight} kg
@@ -216,20 +218,20 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks }: PosCustom
               ))}
 
               <div className="flex flex-col items-center gap-1.5 min-w-[60px] cursor-pointer group" onClick={() => setShowPetModal(true)}>
-                <div className="w-14 h-14 rounded-full border-2 border-dashed border-gray-300 text-gray-400 flex items-center justify-center group-hover:bg-white group-hover:text-primary-500 group-hover:border-primary-400 transition-colors">
+                <div className={`w-14 h-14 rounded-full border-2 border-dashed flex items-center justify-center transition-colors ${theme === 'pos' ? 'border-gray-300 text-gray-400 group-hover:bg-white group-hover:text-primary-500 group-hover:border-primary-400' : 'border-border text-foreground-muted group-hover:bg-background group-hover:text-primary-500 group-hover:border-primary-500/50'}`}>
                   <Plus size={24} />
                 </div>
-                <span className="text-[#6a7280] text-[13px] group-hover:text-primary-600 font-medium whitespace-nowrap">Thêm Pet</span>
+                <span className={`text-[13px] font-medium whitespace-nowrap group-hover:text-primary-600 ${theme === 'pos' ? 'text-[#6a7280]' : 'text-foreground-muted'}`}>Thêm Pet</span>
               </div>
             </div>
           </div>
         </div>
       ) : (
-        <div className="flex items-center border-b border-gray-200">
+        <div className={`flex items-center border-b ${theme === 'pos' ? 'border-gray-200' : 'border-border'}`}>
           <div className="flex-1 flex items-center px-3 py-2.5 relative">
-            <Search size={16} className="text-gray-400" />
+            <Search size={16} className={theme === 'pos' ? 'text-gray-400' : 'text-foreground-muted'} />
             <input
-              className="w-full pl-2 bg-transparent border-none outline-none text-sm text-gray-800 placeholder:text-gray-400"
+              className={`w-full pl-2 bg-transparent border-none outline-none text-sm placeholder:text-gray-400 ${theme === 'pos' ? 'text-gray-800' : 'text-foreground'}`}
               placeholder="Tìm khách hàng (F4)"
               value={customerQuery}
               onChange={(e) => {
