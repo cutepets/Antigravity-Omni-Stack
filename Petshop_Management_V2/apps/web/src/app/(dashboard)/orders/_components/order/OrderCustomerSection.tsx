@@ -135,11 +135,11 @@ export function OrderCustomerSection({
 
     return (
         <div className="px-3 py-3">
-            {/* 2-column grid: [customer card ~42%] [pet card ~58%] */}
-            <div className="grid grid-cols-[5fr_7fr] gap-2.5">
+            {/* auto = customer card (fixed content), 1fr = pet card (fills rest) */}
+            <div className="flex gap-2.5">
 
                 {/* ── Card 1: Thông tin khách ─────────────────────────── */}
-                <div className="relative flex flex-col gap-2 rounded-xl border border-border bg-background-secondary p-3">
+                <div className="relative shrink-0 flex flex-col gap-1.5 rounded-xl border border-border bg-background-secondary p-3 min-w-[160px] max-w-[260px]">
                     {/* Remove button */}
                     <button
                         onClick={onRemoveCustomer}
@@ -149,12 +149,13 @@ export function OrderCustomerSection({
                         <X size={13} />
                     </button>
 
-                    {/* Avatar + name */}
-                    <div className="flex items-center gap-2.5">
-                        <div className="h-10 w-10 shrink-0 rounded-full bg-cyan-500 text-white flex items-center justify-center text-lg font-bold uppercase shadow-sm">
+                    {/* Row 1: Avatar + name + points */}
+                    <div className="flex items-center gap-2.5 pr-4">
+                        <div className="h-9 w-9 shrink-0 rounded-full bg-cyan-500 text-white flex items-center justify-center text-base font-bold uppercase shadow-sm">
                             {customerName?.charAt(0) || 'U'}
                         </div>
                         <div className="min-w-0 flex-1">
+                            {/* Name row */}
                             <div className="flex items-center gap-1">
                                 <span className="truncate text-[13px] font-bold text-foreground leading-tight">
                                     {customerName}
@@ -169,29 +170,26 @@ export function OrderCustomerSection({
                                     </button>
                                 )}
                             </div>
-                            {customerDetail?.phone && (
-                                <div className="text-[11px] text-foreground-muted leading-tight mt-0.5 truncate">
-                                    {customerDetail.phone}
-                                </div>
-                            )}
+                            {/* Points right below name */}
+                            <div className="flex items-center gap-1 mt-0.5">
+                                <Medal size={10} className="text-orange-500" />
+                                <span className="text-[11px] font-bold text-orange-500">{customerDetail?.points ?? 0} điểm</span>
+                                {!!customerDetail?.debtAmount && customerDetail.debtAmount > 0 && (
+                                    <span className="text-[11px] font-semibold text-red-500 ml-1">· Nợ {customerDetail.debtAmount.toLocaleString('vi-VN')}đ</span>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Điểm */}
-                    <div className="inline-flex items-center gap-1 self-start rounded-full border border-orange-200/60 bg-orange-50/80 dark:bg-orange-500/10 dark:border-orange-500/20 px-2 py-0.5 text-[11px] font-bold text-orange-500">
-                        <Medal size={11} />
-                        {customerDetail?.points ?? 0} điểm
-                    </div>
-
-                    {/* Địa chỉ */}
-                    {customerDetail?.address && (
+                    {/* Phone */}
+                    {customerDetail?.phone && (
                         <div className="text-[11px] text-foreground-muted leading-tight truncate">
-                            {customerDetail.address}
+                            {customerDetail.phone}
                         </div>
                     )}
                 </div>
 
-                {/* ── Card 2: Thú cưng ────────────────────────────────── */}
+                {/* ── Card 2: Thú cưng — flex shrink to content ─────── */}
                 <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-background-secondary p-3">
                     <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-foreground-muted">
                         <PawPrint size={11} />

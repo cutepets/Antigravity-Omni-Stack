@@ -130,32 +130,25 @@ export function OrderTopBar({
   onCancelOrder,
   onOpenPos,
 }: OrderTopBarProps) {
-  const operatorLabel = operatorCode ? `${operatorName} • ${operatorCode}` : operatorName
+  const operatorLabel = operatorName
 
   return (
     <div className="relative z-30 shrink-0 border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="grid items-stretch divide-y divide-border/70 xl:grid-cols-[minmax(180px,0.7fr)_minmax(320px,1.6fr)_minmax(200px,0.85fr)_minmax(300px,1.4fr)_minmax(200px,auto)] xl:divide-x xl:divide-y-0">
 
-        {/* Col 1: Back + Order title */}
-        <div className="flex flex-col justify-center gap-2 px-5 py-4">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-background-secondary text-foreground-muted transition-colors hover:border-primary-500/40 hover:text-primary-500"
-              title="Quay lại danh sách"
-            >
-              <ArrowLeft size={13} />
-            </button>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                {mode === 'create' ? 'Tạo đơn hàng mới' : 'Chi tiết đơn hàng'}
-              </div>
-              <div className="truncate text-sm font-bold text-foreground">
-                {mode === 'detail' ? order?.orderNumber || 'Đơn hàng' : 'Đơn bán hàng'}
-              </div>
-            </div>
+        {/* Col 1: Back + Order title (1 line, above customer block) */}
+        <div className="flex flex-col justify-center gap-1 px-4 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground-muted">
+            {mode === 'create' ? 'Tạo đơn hàng mới' : 'Chi tiết đơn hàng'}
           </div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-background-secondary text-foreground-muted transition-colors hover:border-primary-500/40 hover:text-primary-500"
+            title="Quay lại danh sách"
+          >
+            <ArrowLeft size={13} />
+          </button>
         </div>
 
         {/* Col 2: Customer + Pet — 2-card section */}

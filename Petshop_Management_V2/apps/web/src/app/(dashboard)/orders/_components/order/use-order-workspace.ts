@@ -369,10 +369,9 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       { key: 'DRAFT', label: 'Tạo đơn', idx: 0 },
       { key: 'PAID', label: 'Thanh toán', idx: 1 },
       { key: 'EXPORTED', label: 'Xuất kho', idx: 2 },
-      { key: 'COMPLETED', label: 'Hoàn thành', idx: 3 },
     ]
-    // QUICK order: chỉ hiện 3 bước đầu
-    const steps = isQuickOrder ? allSteps.slice(0, 3) : allSteps
+    // Luôn hiển thị 3 bước (bỏ bước 4 Hoàn thành)
+    const steps = allSteps
 
     const stepMetas: Record<string, string | undefined> = {
       DRAFT: order?.createdAt,
