@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Search, X, Plus, Pencil, Medal, PawPrint } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -168,8 +169,8 @@ export function OrderCustomerSection({
 
                     {/* Info block */}
                     <div className="min-w-0 flex-1">
-                        {/* Row 1: tên + edit + điểm + nợ — tất cả cùng 1 hàng */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Row 1: tên + edit | điểm + nợ căn phải */}
+                        <div className="flex items-center gap-1.5">
                             <span className="text-sm font-bold text-foreground leading-tight">
                                 {customerName}
                             </span>
@@ -182,13 +183,13 @@ export function OrderCustomerSection({
                                     <Pencil size={11} />
                                 </button>
                             )}
-                            {/* Điểm — badge compact */}
-                            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-1.5 py-0.5 text-[11px] font-bold text-orange-500">
+                            {/* Điểm — căn phải */}
+                            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-1.5 py-0.5 text-[11px] font-bold text-orange-500">
                                 <Medal size={10} />{customerDetail?.points ?? 0} điểm
                             </span>
                             {/* Nợ — chỉ hiện nếu > 0 */}
                             {!!customerDetail?.debtAmount && customerDetail.debtAmount > 0 && (
-                                <span className="text-[11px] font-semibold text-red-400">
+                                <span className="text-[11px] font-semibold text-red-400 whitespace-nowrap">
                                     · Nợ {customerDetail.debtAmount.toLocaleString('vi-VN')}đ
                                 </span>
                             )}
@@ -290,7 +291,7 @@ export function OrderCustomerSection({
                 />
             )}
 
-            {hasCustomer && customerDetail && selectedPetId && (
+            {hasCustomer && customerDetail && selectedPetId && createPortal(
                 <UnifiedPetProfile
                     isOpen
                     petId={selectedPetId}
@@ -298,7 +299,8 @@ export function OrderCustomerSection({
                     onClose={() => setSelectedPetId(null)}
                     onSelectService={handleSelectService}
                     mode="pos"
-                />
+                />,
+                document.body
             )}
         </>
     )

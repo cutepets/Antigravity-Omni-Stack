@@ -162,24 +162,24 @@ export function OrderTopBar({
           }
         />
 
-        {/* Col 3: Chi nhánh + Nhân viên (stacked, compact) */}
-        <div className="flex flex-col justify-center gap-3 px-5 py-4 shrink-0">
+        {/* Col 3: Chi nhánh + Nhân viên — label trên, value dưới, nowrap */}
+        <div className="flex flex-col justify-center gap-2.5 px-5 py-4 shrink-0">
           {showBranch !== false && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                Chi nhánh
-              </div>
-              <div className="mt-0.5 text-sm font-semibold text-foreground">{branchName || '—'}</div>
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
+                Chi nhánh:
+              </span>
+              <span className="text-sm font-semibold text-foreground">{branchName || '—'}</span>
             </div>
           )}
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-              Nhân viên
-            </div>
-            <div className="mt-0.5 text-sm font-semibold text-foreground">{operatorName || '—'}</div>
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
+              Nhân viên:
+            </span>
+            <span className="text-sm font-semibold text-foreground">{operatorName || '—'}</span>
           </div>
           {mode === 'detail' && (
-            <div className="flex items-center gap-2">
+            <div>
               <OrderStatusBadge status={order?.status} />
             </div>
           )}
