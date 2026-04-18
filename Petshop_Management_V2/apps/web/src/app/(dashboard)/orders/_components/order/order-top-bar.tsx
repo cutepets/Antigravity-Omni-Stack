@@ -19,7 +19,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { CustomerSearchResults } from '@/components/search/customer-search-results'
-import { PosAddCustomerModal } from '@/app/(dashboard)/pos/components/PosAddCustomerModal'
+import { AddCustomerModal } from '@/app/(dashboard)/_shared/customer/components/AddCustomerModal'
 import { formatDateTime } from '@/lib/utils'
 import { OrderStatusBadge } from './order-badges'
 import type { OrderWorkspaceMode } from './order.types'
@@ -416,7 +416,7 @@ export function OrderTopBar({
         </div>
       </div>
 
-      <PosAddCustomerModal
+      <AddCustomerModal
         isOpen={showCustomerModal}
         onClose={() => setShowCustomerModal(false)}
         initialData={customerModalData}

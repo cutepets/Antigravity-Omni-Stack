@@ -21,16 +21,13 @@ export function LoginForm() {
     e.preventDefault()
     clearError()
 
-    startTransition(async () => {
-      try {
-        await login(username, password)
-        toast.success(`Chào mừng trở lại! 👋`)
-        router.push(redirect)
-        router.refresh()
-      } catch {
-        // error is set in store
-      }
-    })
+    try {
+      await login(username, password)
+      toast.success(`Chào mừng trở lại! 👋`)
+      window.location.href = redirect
+    } catch {
+      // error is set in store
+    }
   }
 
   const loading = isPending || isLoading
@@ -265,11 +262,11 @@ export function LoginForm() {
             gap: 8,
           }}
         >
-           <span className="text-xl">🛠</span>
-           <div>
-             <strong>Dev accounts:</strong> <br/>
-             admin / Admin@123 · staff01 / Staff@123
-           </div>
+          <span className="text-xl">🛠</span>
+          <div>
+            <strong>Dev accounts:</strong> <br />
+            admin / Admin@123 · staff01 / Staff@123
+          </div>
         </div>
       )}
     </motion.div>

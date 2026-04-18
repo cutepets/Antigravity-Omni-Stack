@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common'
 import { DatabaseService } from '../../database/database.service.js'
 import {
+  getInventorySourceKey,
+  resolveInventoryLedgerMovement,
+} from '../../common/utils/inventory-ledger.util.js'
+import {
   CreateStockCountSessionDto,
   AssignShiftsDto,
   SubmitCountItemDto,
@@ -144,6 +148,7 @@ type BranchCountRow = {
     variantLabel?: string | null
     unitLabel?: string | null
     sku: string | null
+    conversions?: string | null
   } | null
 }
 
@@ -607,6 +612,34 @@ export class StockCountService {
 
     return this.prisma.$transaction(async (tx) => {
       let adjustedItems = 0
+      const countedSourceKeys = new Map<string, string>()
+
+      for (const shift of session.shifts) {
+        for (const item of shift.items) {
+          const productId = item.productId ?? item.variant?.productId
+          if (!productId) {
+            throw new BadRequestException('Item kiem kho dang thieu productId de dieu chinh ton')
+          }
+
+          const movement = await resolveInventoryLedgerMovement(tx, {
+            productId,
+            productVariantId: item.productVariantId ?? null,
+            quantity: 1,
+            quantityLabel: 'SKU kiem kho',
+          })
+          const sourceKey = getInventorySourceKey(productId, movement.sourceVariantId)
+          const existingLabel = countedSourceKeys.get(sourceKey)
+          const currentLabel = this.getItemDisplayName(item)
+
+          if (existingLabel) {
+            throw new BadRequestException(
+              `Nguon ton ${currentLabel} dang duoc kiem trung voi ${existingLabel} trong cung phieu kiem`,
+            )
+          }
+
+          countedSourceKeys.set(sourceKey, currentLabel)
+        }
+      }
 
       for (const shift of session.shifts) {
         for (const item of shift.items) {
@@ -620,21 +653,25 @@ export class StockCountService {
             throw new BadRequestException('Item kiểm kho đang thiếu productId để điều chỉnh tồn')
           }
 
+          const movement = await resolveInventoryLedgerMovement(tx, {
+            productId,
+            productVariantId: item.productVariantId ?? null,
+            quantity: variance,
+            quantityLabel: 'Chenh lech kiem kho',
+          })
+          const effectiveVariantId = movement.sourceVariantId
+          const effectiveVariance = movement.sourceQuantity
+
           const branchStock = await tx.branchStock.findFirst({
-            where: item.productVariantId
-              ? {
-                  branchId: session.branchId,
-                  productVariantId: item.productVariantId,
-                }
-              : {
-                  branchId: session.branchId,
-                  productId,
-                  productVariantId: null,
-                },
+            where: {
+              branchId: session.branchId,
+              productId,
+              productVariantId: effectiveVariantId,
+            },
           })
 
           if (!branchStock) {
-            if (variance < 0) {
+            if (effectiveVariance < 0) {
               throw new BadRequestException(
                 `Không thể trừ tồn cho ${this.getItemDisplayName(item)} vì chi nhánh không còn bản ghi tồn kho`,
               )
@@ -644,18 +681,18 @@ export class StockCountService {
               data: {
                 branchId: session.branchId,
                 productId,
-                productVariantId: item.productVariantId ?? null,
-                stock: variance,
+                productVariantId: effectiveVariantId,
+                stock: effectiveVariance,
                 reservedStock: 0,
                 minStock: 5,
               } as any,
             })
           } else {
-            const nextStock = branchStock.stock + variance
+            const nextStock = branchStock.stock + effectiveVariance
             if (nextStock < 0) {
               throw new BadRequestException(
                 `Không thể duyệt vì ${this.getItemDisplayName(item)} hiện chỉ còn ${branchStock.stock}, không đủ để trừ ${Math.abs(
-                  variance,
+                  effectiveVariance,
                 )}`,
               )
             }
@@ -664,7 +701,7 @@ export class StockCountService {
               where: { id: branchStock.id },
               data: {
                 stock: {
-                  increment: variance,
+                  increment: effectiveVariance,
                 },
               },
             })
@@ -673,9 +710,14 @@ export class StockCountService {
           await tx.stockTransaction.create({
             data: {
               productId,
-              productVariantId: item.productVariantId ?? null,
+              productVariantId: movement.actionVariantId,
+              sourceProductVariantId: movement.sourceVariantId,
+              branchId: session.branchId,
               type: 'ADJUST',
-              quantity: Math.abs(variance),
+              quantity: Math.abs(movement.sourceQuantity),
+              actionQuantity: movement.actionQuantity,
+              sourceQuantity: movement.sourceQuantity,
+              conversionRate: movement.conversionRate,
               reason: `Dieu chinh tu kiem kho tuan ${session.weekNumber}/${session.year} - ${this.getShiftLabel(
                 shift.shift as ShiftKey,
               )}`,
@@ -934,8 +976,6 @@ export class StockCountService {
           select: {
             id: true,
             name: true,
-            variantLabel: true,
-            unitLabel: true,
             sku: true,
             category: true,
             lastCountShift: true,
@@ -946,14 +986,17 @@ export class StockCountService {
           select: {
             id: true,
             name: true,
+            variantLabel: true,
+            unitLabel: true,
             sku: true,
+            conversions: true,
           },
         },
       },
       orderBy: [{ product: { category: 'asc' } }, { product: { name: 'asc' } }],
     })
 
-    return rows as BranchCountRow[]
+    return rows.filter((row: any) => !row.variant?.conversions) as BranchCountRow[]
   }
 
   private async ensureProductShiftAssignments(tx: any, rows: BranchCountRow[]) {

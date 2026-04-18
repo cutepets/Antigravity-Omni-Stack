@@ -26,9 +26,13 @@ function getVariant(product: any, productVariantId?: string | null) {
 export function StockTransactionHistory({
   productId,
   productVariantId,
+  branchId,
+  variantScope,
 }: {
   productId: string
   productVariantId?: string | null
+  branchId?: string | null
+  variantScope?: 'base'
 }) {
   const router = useRouter()
 
@@ -38,8 +42,12 @@ export function StockTransactionHistory({
   })
 
   const { data: transactionResponse, isLoading: isLoadingTransactions } = useQuery({
-    queryKey: ['transactions', productId, productVariantId ?? 'base'],
-    queryFn: () => stockApi.getTransactions(productId, productVariantId ? { variantId: productVariantId } : undefined),
+    queryKey: ['transactions', productId, productVariantId ?? variantScope ?? 'all', branchId ?? 'all'],
+    queryFn: () => stockApi.getTransactions(productId, {
+      variantId: productVariantId || undefined,
+      variantScope,
+      branchId: branchId || undefined,
+    }),
   })
 
   const product = (productResponse as any)?.data
@@ -84,6 +92,20 @@ export function StockTransactionHistory({
       default:
         return <span>{type}</span>
     }
+  }
+  const getDisplayQuantity = (transaction: any, signed = false) => {
+    const actionQuantity = Number(transaction.actionQuantity ?? transaction.quantity ?? 0)
+    const sourceQuantity = Number(transaction.sourceQuantity ?? transaction.quantity ?? 0)
+    const formattedAction = Number.isFinite(actionQuantity) ? actionQuantity : 0
+    const formattedSource = Number.isFinite(sourceQuantity) ? sourceQuantity : 0
+    const displayAction = signed ? formattedAction : Math.abs(formattedAction)
+    const displaySource = signed ? formattedSource : Math.abs(formattedSource)
+
+    if (transaction.conversionRate && displayAction !== displaySource) {
+      return `${displayAction} = ${displaySource}`
+    }
+
+    return `${displayAction}`
   }
 
   return (
@@ -132,9 +154,9 @@ export function StockTransactionHistory({
                       </div>
                     </td>
                     <td>
-                      {transaction.type === 'IN' && <span className="text-success">+{transaction.quantity}</span>}
-                      {transaction.type === 'OUT' && <span className="text-error">-{transaction.quantity}</span>}
-                      {transaction.type === 'ADJUST' && <span className="text-warning">{Math.abs(transaction.quantity)}</span>}
+                      {transaction.type === 'IN' && <span className="text-success">+{getDisplayQuantity(transaction)}</span>}
+                      {transaction.type === 'OUT' && <span className="text-error">-{getDisplayQuantity(transaction)}</span>}
+                      {transaction.type === 'ADJUST' && <span className="text-warning">{getDisplayQuantity(transaction, true)}</span>}
                     </td>
                     <td className="font-mono text-sm">
                       {transaction.referenceId ? (

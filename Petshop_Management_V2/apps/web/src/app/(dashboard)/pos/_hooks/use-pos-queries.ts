@@ -2,18 +2,19 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { orderApi } from '@/lib/api/order.api';
-import { api } from '@/lib/api';
 import {
   pricingApi,
   type HotelPriceRule,
   type SpaPriceRule,
 } from '@/lib/api/pricing.api';
+export { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches';
 export {
   useCustomerDetail,
   useCustomerSearch,
   usePosProducts,
   usePosServices,
 } from '@/components/search/use-commerce-search';
+export { useCustomerPets } from '@/app/(dashboard)/_shared/customer/use-customer-pets';
 
 const normalizeSpecies = (value?: string | null) => value?.trim() || undefined;
 
@@ -215,24 +216,7 @@ function buildPricingSuggestions({
 
 // ─── Customer Search ──────────────────────────────────────────────────────────
 // ─── Pets ────────────────────────────────────────────────────────────────────
-export function useCustomerPets(customerId: string | undefined) {
-  return useQuery({
-    queryKey: ['pets', 'customer', customerId],
-    queryFn: () =>
-      api.get('/pets', { params: { customerId } }).then((r) => r.data.data ?? r.data),
-    enabled: !!customerId,
-  });
-}
-
 // ─── Branches ────────────────────────────────────────────────────────────────
-export function useBranches() {
-  return useQuery({
-    queryKey: ['branches'],
-    queryFn: () => api.get('/settings/branches').then((r) => r.data.data ?? r.data),
-    staleTime: 60_000,
-  });
-}
-
 // ─── Pending Orders ──────────────────────────────────────────────────────────
 export function usePendingOrders(customerId?: string) {
   return useQuery({

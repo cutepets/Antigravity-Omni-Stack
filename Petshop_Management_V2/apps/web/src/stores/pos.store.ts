@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { buildProductVariantName, type CartItem, type OrderTab, type PaymentEntry, type PaymentMethod } from '@petshop/shared';
+import { getCartQuantityStep, roundCartQuantity } from '@/app/(dashboard)/_shared/cart/cart.utils';
 
 type PosRoundingUnit = 100 | 1000;
 
@@ -313,7 +314,15 @@ export const usePosStore = create<PosStore>()(
           set((state) =>
             updateActiveTab(state, (tab) => ({
               cart: tab.cart.map((i) =>
-                i.id === itemId ? { ...i, quantity: Math.max(i.type === 'hotel' ? 0.5 : 1, qty) } : i,
+                i.id === itemId
+                  ? {
+                    ...i,
+                    quantity: roundCartQuantity(
+                      Math.max(getCartQuantityStep(i), qty),
+                      getCartQuantityStep(i),
+                    ),
+                  }
+                  : i,
               ),
             })),
           ),

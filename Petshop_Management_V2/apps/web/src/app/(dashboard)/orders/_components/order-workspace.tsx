@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, ChevronDown, Loader2, Printer, QrCode, RefreshCw, Save, PencilLine, XCircle } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { ServiceBookingModal } from '@/app/(dashboard)/pos/components/ServiceBookingModal'
+import { ServiceBookingModal } from '@/app/(dashboard)/_shared/service/components/ServiceBookingModal'
 import { ApproveOrderModal } from './approve-order-modal'
 import { ExportStockModal } from './export-stock-modal'
-import { OrderPaymentModal } from './order-payment-modal'
+import { PaymentModal as OrderPaymentModal } from '@/app/(dashboard)/_shared/payment/components/PaymentModal'
 import { OrderPetPickerModal } from './order-pet-picker-modal'
 import { OrderSettlementModal } from './order-settlement-modal'
 import { OrderRefundModal } from './order-refund-modal'
@@ -19,10 +19,13 @@ import { OrderRightPanel } from './order/order-right-panel'
 import { printOrderA4, printOrderK80, printOrderPdf } from './order/order-print'
 import type { OrderWorkspaceMode } from './order/order.types'
 import { useOrderWorkspace } from './order/use-order-workspace'
-import { PosQrPaymentModal } from '@/app/(dashboard)/pos/components/PosQrPaymentModal'
+import { QrPaymentModal } from '@/app/(dashboard)/_shared/payment/components/QrPaymentModal'
 import { SwapTempItemModal } from './swap-temp-item-modal'
-
-const QR_STORAGE_KEY = (orderNumber: string) => `order-qr-intent-${orderNumber}`
+import {
+  buildOrderQrIntentStorageKey,
+  createOrderQrPaymentIntent,
+} from '@/app/(dashboard)/_shared/payment/payment-intent.utils'
+import { usePaymentIntentSession } from '@/app/(dashboard)/_shared/payment/use-payment-intent-session'
 
 export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; orderId?: string }) {
   const workspace = useOrderWorkspace({ mode, orderId })
@@ -30,55 +33,35 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
   const printMenuRef = useRef<HTMLDivElement | null>(null)
   const showPrintActions = mode === 'detail' && Boolean(workspace.printPayload)
 
-  // -- QR payment state --
-  const [qrIntent, setQrIntent] = useState<any>(null)
-  const [showQrModal, setShowQrModal] = useState(false)
-  const [resumeQrBanner, setResumeQrBanner] = useState(false)
   const [swapItemTarget, setSwapItemTarget] = useState<{ id: string; description: string; unitPrice: number } | null>(null)
 
   const orderNumber = workspace.order?.orderNumber as string | undefined
-
-  // Check localStorage for pending QR intent on mount
-  useEffect(() => {
-    if (!orderNumber) return
-    const stored = localStorage.getItem(QR_STORAGE_KEY(orderNumber))
-    if (!stored) return
-    try {
-      const intent = JSON.parse(stored)
-      if (intent && intent.status !== 'PAID') {
-        setQrIntent(intent)
-        setResumeQrBanner(true)
-      } else {
-        localStorage.removeItem(QR_STORAGE_KEY(orderNumber))
-      }
-    } catch {
-      localStorage.removeItem(QR_STORAGE_KEY(orderNumber))
-    }
-  }, [orderNumber])
-
-  // Save intent to localStorage whenever it changes
-  useEffect(() => {
-    if (!orderNumber || !qrIntent) return
-    if (qrIntent.status === 'PAID') {
-      localStorage.removeItem(QR_STORAGE_KEY(orderNumber))
-      setResumeQrBanner(false)
-    } else {
-      localStorage.setItem(QR_STORAGE_KEY(orderNumber), JSON.stringify(qrIntent))
-    }
-  }, [orderNumber, qrIntent])
+  const {
+    activeIntent: qrIntent,
+    displayedIntent: displayedQrIntent,
+    isModalOpen: showQrModal,
+    setIsModalOpen: setShowQrModal,
+    openIntent: openQrIntent,
+    clearIntent: clearQrIntent,
+    hasResumeIntent: resumeQrBanner,
+  } = usePaymentIntentSession({
+    storageKey: orderNumber ? buildOrderQrIntentStorageKey(orderNumber) : null,
+  })
 
   // Handler: cước BANK/Ví → tạo hoặc fetch payment intent rồi mở QR modal
   const handleRequestQr = async (paymentAccountId: string, amount: number) => {
     try {
-      const res = await api.post('/payment-intents', {
-        orderId: workspace.order?.id,
-        paymentAccountId,
+      const orderId = workspace.order?.id
+      if (!orderId) {
+        throw new Error('Missing order id for QR payment intent')
+      }
+
+      const intent = await createOrderQrPaymentIntent({
+        orderId,
+        paymentMethodId: paymentAccountId,
         amount,
       })
-      const intent = res.data?.data ?? res.data
-      setQrIntent(intent)
-      setShowQrModal(true)
-      setResumeQrBanner(false)
+      openQrIntent(intent)
       workspace.setShowPayModal(false)
     } catch {
       // fallback: confirm cash payment via normal flow
@@ -210,9 +193,8 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
           <button
             type="button"
             onClick={() => {
-              localStorage.removeItem(QR_STORAGE_KEY(orderNumber ?? ''))
-              setQrIntent(null)
-              setResumeQrBanner(false)
+              clearQrIntent()
+              setShowQrModal(false)
               workspace.setShowPayModal(true)
             }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-background-secondary"
@@ -432,11 +414,11 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
       ) : null}
 
       {/* QR Payment Modal */}
-      {qrIntent && showQrModal ? (
-        <PosQrPaymentModal
+      {displayedQrIntent && showQrModal ? (
+        <QrPaymentModal
           isOpen={showQrModal}
           onClose={() => setShowQrModal(false)}
-          intent={qrIntent}
+          intent={displayedQrIntent}
         />
       ) : null}
 

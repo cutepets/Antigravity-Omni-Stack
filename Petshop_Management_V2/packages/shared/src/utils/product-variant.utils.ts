@@ -43,6 +43,25 @@ export function parseVariantConversionUnit(raw?: string | null) {
   }
 }
 
+/** Parse numeric conversion rate from variant.conversions JSON. Returns null if not a conversion variant. */
+export function parseConversionRate(raw?: string | null): number | null {
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw)
+    const value = Number(parsed?.rate ?? parsed?.conversionRate ?? parsed?.mainQty)
+    return Number.isFinite(value) && value > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+/** Returns true if the variant is a conversion variant (e.g. hộp = 12 chai). */
+export function isConversionVariant(variant?: { conversions?: string | null } | null): boolean {
+  return parseConversionRate(variant?.conversions) !== null
+}
+
+
 export function buildProductVariantName(
   productName?: string | null,
   variantLabel?: string | null,
@@ -82,7 +101,10 @@ export function resolveProductVariantLabels(
   }
 
   if (!variantLabel && !unitLabel && legacyParts.length > 0) {
-    variantLabel = cleanLabel(legacyParts.join(VARIANT_SEPARATOR))
+    const joined = legacyParts.join(VARIANT_SEPARATOR)
+    if (!equalsIgnoreCase(joined, productName)) {
+      variantLabel = cleanLabel(joined)
+    }
   }
 
   return {

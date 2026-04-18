@@ -18,6 +18,7 @@ import {
 import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js';
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
 import { buildVietQrDataUrl, buildVietQrPayload } from '../../common/utils/vietqr.util.js';
+import { resolveInventoryLedgerMovement } from '../../common/utils/inventory-ledger.util.js';
 
 type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>;
 
@@ -905,44 +906,63 @@ export class OrdersService {
       quantity: number;
       orderId: string;
       reason: string;
+      staffId?: string | null;
     },
   ) {
+    const movement = await resolveInventoryLedgerMovement(tx, {
+      productId: params.productId,
+      productVariantId: params.productVariantId,
+      quantity: params.quantity,
+      quantityLabel: 'So luong hoan ton',
+    });
+    const effectiveVariantId = movement.sourceVariantId;
+    const effectiveQuantity = movement.sourceQuantity;
+
     const branch = await resolveBranchIdentity(tx as any, params.branchId ?? null);
-    const branchStock =
-      (params.productVariantId
-        ? await tx.branchStock.findFirst({
-          where: {
-            branchId: branch.id,
-            productVariantId: params.productVariantId,
-          },
-        })
-        : null) ??
-      await tx.branchStock.findFirst({
-        where: {
-          branchId: branch.id,
-          productId: params.productId,
-          productVariantId: null,
-        },
-      });
+    const branchStock = await tx.branchStock.findFirst({
+      where: {
+        branchId: branch.id,
+        productId: params.productId,
+        productVariantId: effectiveVariantId,
+      },
+    });
 
     if (branchStock) {
       await tx.branchStock.update({
         where: { id: branchStock.id },
         data: {
-          stock: { increment: params.quantity },
+          stock: { increment: effectiveQuantity },
         },
+      });
+    } else {
+      await tx.branchStock.create({
+        data: {
+          branchId: branch.id,
+          productId: params.productId,
+          productVariantId: effectiveVariantId,
+          stock: Math.max(0, effectiveQuantity),
+          reservedStock: 0,
+          minStock: 5,
+        } as any,
       });
     }
 
     await tx.stockTransaction.create({
       data: {
         productId: params.productId,
-        productVariantId: params.productVariantId ?? null,
+        productVariantId: movement.actionVariantId,
+        sourceProductVariantId: movement.sourceVariantId,
+        branchId: branch.id ?? null,
+        staffId: params.staffId ?? null,
         type: 'IN',
-        quantity: params.quantity,
+        quantity: Math.abs(movement.sourceQuantity),
+        actionQuantity: movement.actionQuantity,
+        sourceQuantity: movement.sourceQuantity,
+        conversionRate: movement.conversionRate,
         reason: params.reason,
         referenceId: params.orderId,
-      },
+        referenceType: 'ORDER',
+      } as any,
     });
   }
 
@@ -956,13 +976,23 @@ export class OrdersService {
       quantity: number;
       orderId: string;
       reason: string;
+      staffId?: string | null;
     },
   ) {
+    const movement = await resolveInventoryLedgerMovement(tx, {
+      productId: params.productId,
+      productVariantId: params.productVariantId,
+      quantity: params.quantity,
+      quantityLabel: 'So luong xuat ton',
+    });
+    const effectiveVariantId = movement.sourceVariantId;
+    const effectiveQuantity = movement.sourceQuantity;
+
     const branch = await resolveBranchIdentity(tx as any, params.branchId ?? null);
-    const productDisplayLabel = params.productVariantId
+    const productDisplayLabel = effectiveVariantId
       ? await tx.productVariant
         .findUnique({
-          where: { id: params.productVariantId },
+          where: { id: effectiveVariantId },
           select: {
             name: true,
             sku: true,
@@ -989,61 +1019,47 @@ export class OrdersService {
           const productName = product?.name || params.productId;
           return product?.sku ? `${productName} (${product.sku})` : productName;
         });
-    const branchStock =
-      (params.productVariantId
-        ? await tx.branchStock.findFirst({
-          where: {
-            branchId: branch.id,
-            productVariantId: params.productVariantId,
-          },
-        })
-        : null) ??
-      await tx.branchStock.findFirst({
-        where: {
-          branchId: branch.id,
-          productId: params.productId,
-          productVariantId: null,
-        },
-      });
+    const branchStock = await tx.branchStock.findFirst({
+      where: {
+        branchId: branch.id,
+        productId: params.productId,
+        productVariantId: effectiveVariantId,
+      },
+    });
 
     if (!branchStock) {
       throw new BadRequestException(`San pham ${productDisplayLabel} chua co ton kho tai chi nhanh ${branch.name}`);
     }
 
-    if (branchStock.stock < params.quantity) {
+    if (branchStock.stock < effectiveQuantity) {
       throw new BadRequestException(
-        `Ton kho khong du cho san pham ${productDisplayLabel} tai chi nhanh ${branch.name}. Con ${branchStock.stock}, can ${params.quantity}.`,
+        `Ton kho khong du cho san pham ${productDisplayLabel} tai chi nhanh ${branch.name}. Con ${branchStock.stock}, can ${effectiveQuantity} (${params.quantity} x ${movement.conversionRate ?? 1}).`,
       );
     }
-
-    /*
-    if (!branchStock) {
-      throw new BadRequestException(`Sản phẩm ${params.productId} chưa có tồn kho tại chi nhánh ${branch.name}`);
-    }
-
-    if (branchStock.stock < params.quantity) {
-      throw new BadRequestException(
-        `Tồn kho không đủ cho sản phẩm ${params.productId} tại chi nhánh ${branch.name}. Còn ${branchStock.stock}, cần ${params.quantity}.`,
-      );
-    }
-    */
 
     await tx.branchStock.update({
       where: { id: branchStock.id },
       data: {
-        stock: { decrement: params.quantity },
+        stock: { decrement: effectiveQuantity },
       },
     });
 
     await tx.stockTransaction.create({
       data: {
         productId: params.productId,
-        productVariantId: params.productVariantId ?? null,
+        productVariantId: movement.actionVariantId,
+        sourceProductVariantId: movement.sourceVariantId,
+        branchId: branch.id ?? null,
+        staffId: params.staffId ?? null,
         type: 'OUT',
-        quantity: params.quantity,
+        quantity: Math.abs(movement.sourceQuantity),
+        actionQuantity: movement.actionQuantity,
+        sourceQuantity: movement.sourceQuantity,
+        conversionRate: movement.conversionRate,
         reason: params.reason,
         referenceId: params.orderId,
-      },
+        referenceType: 'ORDER',
+      } as any,
     });
   }
 
@@ -1566,6 +1582,7 @@ export class OrdersService {
               productVariantId: item.productVariantId ?? null,
               quantity: item.quantity,
               orderId: order.id,
+              staffId,
               reason: `Bán hàng đơn ${order.orderNumber}`,
             });
             if (orderStatus === 'COMPLETED' && orderItem) {
@@ -2612,6 +2629,7 @@ export class OrdersService {
           productVariantId: item.productVariantId ?? null,
           quantity: item.quantity,
           orderId: order.id,
+          staffId,
           reason: `Hoàn thành đơn ${order.orderNumber}`,
         });
         // Mark item-level export timestamp
@@ -2820,6 +2838,7 @@ export class OrdersService {
             productVariantId: item.productVariantId ?? null,
             quantity: item.quantity,
             orderId: order.id,
+            staffId,
             reason: `Hoàn trả do huỷ đơn ${order.orderNumber}`,
           });
         }

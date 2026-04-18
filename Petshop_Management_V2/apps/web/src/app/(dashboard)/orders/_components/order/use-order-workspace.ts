@@ -1,19 +1,12 @@
 'use client'
 
-import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { resolveProductVariantLabels } from '@petshop/shared'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { formatDateTime } from '@/lib/utils'
-import {
-  orderApi,
-  type CompleteOrderPayload,
-  type CreateOrderPayload,
-  type UpdateOrderPayload,
-  type RefundOrderPayload,
-  type CreateReturnRequestPayload,
-} from '@/lib/api/order.api'
+import { orderApi } from '@/lib/api/order.api'
 import { buildFinanceVoucherHref } from '@/lib/finance-routes'
 import { settingsApi } from '@/lib/api/settings.api'
 import { filterVisiblePaymentMethods } from '@/lib/payment-methods'
@@ -22,7 +15,6 @@ import {
   buildDirectServiceCartItem,
   buildDraftFromOrder,
   buildGroomingCartItem,
-  buildOrderPayload,
   buildProductCartItem,
   buildCartLineId,
   canExportCurrentOrder,
@@ -38,7 +30,8 @@ import {
   parseDecimalInput,
 } from './order.utils'
 import type { OrderDraft, OrderPrintPayload, OrderWorkspaceMode } from './order.types'
-import { useBranches } from '@/app/(dashboard)/pos/_hooks/use-pos-queries'
+import { useOrderWorkspaceMutations } from './use-order-workspace-mutations'
+import { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches'
 import {
   useCustomerDetail,
   useCustomerSearch,
@@ -520,105 +513,29 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     isOrderReadonly: isOrderReadonly(order?.status),
   }
 
-  const invalidateOrderQueries = () => {
-    void queryClient.invalidateQueries({ queryKey: ['orders'] })
-    if (orderId) {
-      void queryClient.invalidateQueries({ queryKey: ['order', orderId] })
-      void queryClient.invalidateQueries({ queryKey: ['order-timeline', orderId] })
-      void queryClient.invalidateQueries({ queryKey: ['order-payment-intents', orderId] })
-    }
-  }
-
-  const createOrderMutation = useMutation({
-    mutationFn: () => orderApi.create(buildOrderPayload(draft) as CreateOrderPayload),
-    onSuccess: (createdOrder) => {
-      toast.success('Đã tạo đơn hàng thành công')
-      invalidateOrderQueries()
-      startTransition(() => router.replace(`/orders/${createdOrder.id}`))
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể tạo đơn hàng'),
-  })
-
-  const updateOrderMutation = useMutation({
-    mutationFn: () => orderApi.update(orderId!, buildOrderPayload(draft) as UpdateOrderPayload),
-    onSuccess: (updatedOrder) => {
-      toast.success('Đã cập nhật đơn hàng')
-      invalidateOrderQueries()
-      setDraft(buildDraftFromOrder(updatedOrder))
-      setIsEditing(false)
-      initializedOrderVersionRef.current = `${updatedOrder.id}:${updatedOrder.updatedAt ?? updatedOrder.createdAt ?? ''}`
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể cập nhật đơn hàng'),
-  })
-
-  const payOrderMutation = useMutation({
-    mutationFn: (payload: { payments: Array<{ method: string; amount: number; paymentAccountId?: string; paymentAccountLabel?: string }> }) =>
-      orderApi.pay(orderId!, payload),
-    onSuccess: () => {
-      toast.success('Đã ghi nhận thanh toán')
-      setShowPayModal(false)
-      invalidateOrderQueries()
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể thanh toán đơn'),
-  })
-
-  const exportStockMutation = useMutation({
-    mutationFn: (payload: { note?: string }) => orderApi.exportStock(orderId!, payload),
-    onSuccess: () => {
-      toast.success('Đã xuất kho đơn hàng')
-      setShowExportStockModal(false)
-      invalidateOrderQueries()
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể xuất kho'),
-  })
-
-  const settleOrderMutation = useMutation({
-    mutationFn: (payload: CompleteOrderPayload) => orderApi.complete(orderId!, payload),
-    onSuccess: () => {
-      toast.success('Đã quyết toán đơn hàng')
-      setShowSettleModal(false)
-      invalidateOrderQueries()
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể quyết toán'),
-  })
-
-  const cancelOrderMutation = useMutation({
-    mutationFn: () => orderApi.cancel(orderId!, { reason: 'Hủy từ Order Workspace' }),
-    onSuccess: () => {
-      toast.success('Đã hủy đơn hàng')
-      invalidateOrderQueries()
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể hủy đơn'),
-  })
-
-  const refundOrderMutation = useMutation({
-    mutationFn: (payload: RefundOrderPayload) => orderApi.refund(orderId!, payload),
-    onSuccess: () => {
-      toast.success('Đã cập nhật trạng thái hoàn tiền')
-      setShowRefundModal(false)
-      invalidateOrderQueries()
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể hoàn tiền đơn'),
-  })
-
-  const createReturnRequestMutation = useMutation({
-    mutationFn: (payload: CreateReturnRequestPayload) => orderApi.createReturnRequest(orderId!, payload),
-    onSuccess: (data: any) => {
-      setShowReturnModal(false)
-      invalidateOrderQueries()
-      if (data?.exchangeOrderId) {
-        toast.success(`Đã tạo đổi trả. Đơn đổi #${data.exchangeOrderNumber} đã sẵn sàng (credit: ${(data.totalCredit ?? 0).toLocaleString('vi-VN')}đ)`)
-        router.push(`/orders/${data.exchangeOrderId}`)
-      } else {
-        const refundAmount = data?.refundAmount ?? 0
-        toast.success(
-          refundAmount > 0
-            ? `Đã ghi nhận trả hàng. Cần hoàn ${refundAmount.toLocaleString('vi-VN')}đ cho khách.`
-            : 'Đã ghi nhận đổi/trả hàng.',
-        )
-      }
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể tạo yêu cầu đổi trả'),
+  const {
+    pendingAction,
+    createOrderMutation,
+    updateOrderMutation,
+    payOrderMutation,
+    exportStockMutation,
+    settleOrderMutation,
+    cancelOrderMutation,
+    refundOrderMutation,
+    createReturnRequestMutation,
+  } = useOrderWorkspaceMutations({
+    orderId,
+    draft,
+    router,
+    queryClient,
+    initializedOrderVersionRef,
+    setDraft,
+    setIsEditing,
+    setShowPayModal,
+    setShowExportStockModal,
+    setShowSettleModal,
+    setShowRefundModal,
+    setShowReturnModal,
   })
 
   const mergeItemIntoDraft = (item: any) => {
@@ -790,14 +707,6 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     setIsEditing(false)
   }
 
-  const pendingAction =
-    createOrderMutation.isPending ||
-    updateOrderMutation.isPending ||
-    payOrderMutation.isPending ||
-    exportStockMutation.isPending ||
-    settleOrderMutation.isPending ||
-    cancelOrderMutation.isPending ||
-    refundOrderMutation.isPending
 
   const showLoading = isAuthLoading || (mode === 'detail' && isOrderLoading)
   const showForbidden = !showLoading && !canAccessOrders

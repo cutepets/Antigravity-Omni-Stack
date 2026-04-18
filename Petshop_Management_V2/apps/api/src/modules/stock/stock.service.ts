@@ -10,6 +10,7 @@ import {
 import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js'
 import { DatabaseService } from '../../database/database.service.js'
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js'
+import { resolveInventoryLedgerMovement } from '../../common/utils/inventory-ledger.util.js'
 
 export interface FindReceiptsDto {
   page?: number
@@ -339,6 +340,27 @@ function getTrueVariants<T extends { conversions?: string | null }>(variants: T[
   return variants.filter((variant) => !isConversionVariant(variant))
 }
 
+function getEquivalentVariantGroupKeys(
+  productName?: string | null,
+  variant?: { name?: string | null; variantLabel?: string | null; unitLabel?: string | null; conversions?: string | null } | null,
+) {
+  const groupKey = getProductVariantGroupKey(productName, variant)
+  const normalizedProductKey = `${productName ?? ''}`.trim().toLowerCase()
+  const keys = new Set<string>([groupKey])
+
+  if (!normalizedProductKey) {
+    return keys
+  }
+
+  if (groupKey === '__base__') {
+    keys.add(normalizedProductKey)
+  } else if (groupKey === normalizedProductKey) {
+    keys.add('__base__')
+  }
+
+  return keys
+}
+
 function findParentTrueVariant<T extends { name?: string | null; conversions?: string | null }>(
   variants: T[],
   selectedVariant?: T | null,
@@ -348,8 +370,8 @@ function findParentTrueVariant<T extends { name?: string | null; conversions?: s
   if (!isConversionVariant(selectedVariant)) return selectedVariant
 
   const trueVariants = getTrueVariants(variants)
-  const selectedGroupKey = getProductVariantGroupKey(productName, selectedVariant)
-  return trueVariants.find((variant) => getProductVariantGroupKey(productName, variant) === selectedGroupKey) ?? null
+  const selectedGroupKeys = getEquivalentVariantGroupKeys(productName, selectedVariant)
+  return trueVariants.find((variant) => selectedGroupKeys.has(getProductVariantGroupKey(productName, variant))) ?? null
 }
 
 function getConversionVariants<T extends { name?: string | null; conversions?: string | null }>(
@@ -358,11 +380,11 @@ function getConversionVariants<T extends { name?: string | null; conversions?: s
   productName?: string | null,
 ) {
   const allConversions = variants.filter((variant) => isConversionVariant(variant))
-  const targetGroupKey = currentTrueVariant
-    ? getProductVariantGroupKey(productName, currentTrueVariant)
-    : '__base__'
+  const targetGroupKeys = currentTrueVariant
+    ? getEquivalentVariantGroupKeys(productName, currentTrueVariant)
+    : new Set<string>(['__base__', `${productName ?? ''}`.trim().toLowerCase()].filter(Boolean))
 
-  return allConversions.filter((variant) => getProductVariantGroupKey(productName, variant) === targetGroupKey)
+  return allConversions.filter((variant) => targetGroupKeys.has(getProductVariantGroupKey(productName, variant)))
 }
 
 function aggregateBranchStocks(rows: any[]) {
@@ -391,12 +413,14 @@ function aggregateBranchStocks(rows: any[]) {
   return Array.from(grouped.values())
 }
 
-function scaleBranchStocks(rows: any[], factor: number) {
+function scaleBranchStocks(rows: any[], factor: number, options: { resetMinStock?: boolean } = {}) {
+  const { resetMinStock = true } = options
+
   return rows.map((row) => ({
     ...row,
     stock: toNumber(row.stock) * factor,
     reservedStock: toNumber(row.reservedStock) * factor,
-    minStock: 0,
+    minStock: resetMinStock ? 0 : toNumber(row.minStock) * factor,
   }))
 }
 
@@ -699,16 +723,25 @@ export class StockService {
   ) {
     if (!params.quantityDelta) return null
 
+    const movement = await resolveInventoryLedgerMovement(tx, {
+      productId: params.productId,
+      productVariantId: params.productVariantId,
+      quantity: params.quantityDelta,
+      quantityLabel: 'So luong xuat nhap ton',
+    })
+    const effectiveVariantId = movement.sourceVariantId
+    const effectiveQuantityDelta = movement.sourceQuantity
+
     const branch = await resolveBranchIdentity(tx as any, params.branchId ?? null)
     const current = await tx.branchStock.findFirst({
       where: {
         branchId: branch.id,
         productId: params.productId,
-        productVariantId: params.productVariantId ?? null,
+        productVariantId: effectiveVariantId,
       },
     })
 
-    if (params.quantityDelta < 0 && (!current || current.stock < Math.abs(params.quantityDelta))) {
+    if (effectiveQuantityDelta < 0 && (!current || current.stock < Math.abs(effectiveQuantityDelta))) {
       throw new BadRequestException('Tồn kho không đủ để thực hiện thao tác trả hàng')
     }
 
@@ -716,7 +749,7 @@ export class StockService {
       await tx.branchStock.update({
         where: { id: current.id },
         data: {
-          stock: { increment: params.quantityDelta },
+          stock: { increment: effectiveQuantityDelta },
         } as any,
       })
     } else {
@@ -724,8 +757,8 @@ export class StockService {
         data: {
           branchId: branch.id,
           productId: params.productId,
-          productVariantId: params.productVariantId ?? null,
-          stock: Math.max(0, params.quantityDelta),
+          productVariantId: effectiveVariantId,
+          stock: Math.max(0, effectiveQuantityDelta),
           reservedStock: 0,
           minStock: 5,
         } as any,
@@ -735,11 +768,15 @@ export class StockService {
     await tx.stockTransaction.create({
       data: {
         productId: params.productId,
-        productVariantId: params.productVariantId ?? null,
+        productVariantId: movement.actionVariantId,
+        sourceProductVariantId: movement.sourceVariantId,
         branchId: branch.id ?? null,
         staffId: params.staffId ?? null,
         type: params.quantityDelta > 0 ? 'IN' : 'OUT',
-        quantity: Math.abs(params.quantityDelta),
+        quantity: Math.abs(movement.sourceQuantity),
+        actionQuantity: movement.actionQuantity,
+        sourceQuantity: movement.sourceQuantity,
+        conversionRate: movement.conversionRate,
         reason: params.reason,
         referenceId: params.referenceId ?? null,
         referenceType: params.referenceType ?? null,
@@ -1965,22 +2002,19 @@ export class StockService {
     if (variant) {
       const directRows = this.getInventorySourceRows(variant, branchId)
       if (isConversionVariant(variant)) {
-        return directRows
+        const rate = parseConversionRate(variant.conversions) ?? 1
+        const parentVariant = findParentTrueVariant(variants, variant, product.name)
+        const parentRows = parentVariant
+          ? this.getInventorySourceRows(parentVariant, branchId)
+          : productRows
+        const parentRowsInConversionUnit = scaleBranchStocks(parentRows, 1 / rate, {
+          resetMinStock: false,
+        })
+
+        return aggregateBranchStocks(parentRowsInConversionUnit)
       }
 
-      const convertedRows = getConversionVariants(
-        variants,
-        findParentTrueVariant(variants, variant, product.name) ?? variant,
-        product.name,
-      )
-        .flatMap((conversionVariant: any) =>
-          scaleBranchStocks(
-            this.getInventorySourceRows(conversionVariant, branchId),
-            parseConversionRate(conversionVariant?.conversions) ?? 1,
-          ),
-        )
-
-      return aggregateBranchStocks([...directRows, ...convertedRows])
+      return aggregateBranchStocks(directRows)
     }
 
     const trueVariants = getTrueVariants(variants)
@@ -1992,14 +2026,7 @@ export class StockService {
       )
     }
 
-    const convertedRows = getConversionVariants(variants, null, product.name).flatMap((conversionVariant: any) =>
-      scaleBranchStocks(
-        this.getInventorySourceRows(conversionVariant, branchId),
-        parseConversionRate(conversionVariant?.conversions) ?? 1,
-      ),
-    )
-
-    return aggregateBranchStocks([...productRows, ...convertedRows])
+    return aggregateBranchStocks(productRows)
   }
 
   private buildInventoryStatus(currentStock: number, minStock: number) {
@@ -2405,16 +2432,24 @@ export class StockService {
     }
   }
 
-  async getTransactionsByProduct(productId: string, productVariantId?: string | null, branchId?: string | null) {
+  async getTransactionsByProduct(
+    productId: string,
+    productVariantId?: string | null,
+    branchId?: string | null,
+    variantScope?: 'base' | null,
+  ) {
     const product = await this.db.product.findUnique({ where: { id: productId } })
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
 
     const where: any = { productId }
     if (productVariantId?.trim()) {
       where.productVariantId = productVariantId.trim()
+    } else if (variantScope === 'base') {
+      where.productVariantId = null
     }
-    if (branchId?.trim()) {
-      where.branchId = branchId.trim()
+    const requestedBranchId = branchId?.trim() || ''
+    if (requestedBranchId) {
+      where.OR = [{ branchId: requestedBranchId }, { branchId: null }]
     }
 
     const transactions = await this.db.stockTransaction.findMany({
@@ -2422,12 +2457,94 @@ export class StockService {
       include: {
         branch: { select: { id: true, name: true } },
         staff: { select: { id: true, fullName: true } },
+        sourceProductVariant: { select: { id: true, name: true, sku: true, unitLabel: true, variantLabel: true } },
       } as any,
       orderBy: { createdAt: 'desc' },
       take: 300,
     })
 
-    return { success: true, data: transactions }
+    const orderReferenceIds = [
+      ...new Set(
+        transactions
+          .filter(
+            (tx: any) =>
+              tx.referenceId &&
+              (!tx.referenceType || tx.referenceType === 'ORDER' || !tx.branch || !tx.staff),
+          )
+          .map((tx: any) => tx.referenceId as string),
+      ),
+    ]
+    const supplierReturnReferenceIds = [
+      ...new Set(
+        transactions
+          .filter((tx: any) => tx.referenceId && tx.referenceType === 'SUPPLIER_RETURN')
+          .map((tx: any) => tx.referenceId as string),
+      ),
+    ]
+
+    const referencedOrders = orderReferenceIds.length > 0
+      ? await this.db.order.findMany({
+        where: { id: { in: orderReferenceIds } },
+        select: {
+          id: true,
+          orderNumber: true,
+          branchId: true,
+          staffId: true,
+          branch: { select: { id: true, name: true } },
+          staff: { select: { id: true, fullName: true } },
+        },
+      })
+      : []
+    const ordersById = new Map(referencedOrders.map((order: any) => [order.id, order]))
+    const referencedSupplierReturns = supplierReturnReferenceIds.length > 0
+      ? await this.db.supplierReturn.findMany({
+        where: { id: { in: supplierReturnReferenceIds } },
+        select: {
+          id: true,
+          returnNumber: true,
+        },
+      })
+      : []
+    const supplierReturnsById = new Map(
+      referencedSupplierReturns.map((supplierReturn: any) => [supplierReturn.id, supplierReturn]),
+    )
+
+    const hydratedTransactions = transactions.map((tx: any) => {
+      const order = tx.referenceId ? ordersById.get(tx.referenceId) : null
+      const supplierReturn = tx.referenceId ? supplierReturnsById.get(tx.referenceId) : null
+      if (!order && !supplierReturn) {
+        return {
+          ...tx,
+          referenceCode: tx.referenceId ?? null,
+          referenceLookupId: tx.referenceId ?? null,
+        }
+      }
+
+      if (supplierReturn) {
+        return {
+          ...tx,
+          referenceCode: supplierReturn.returnNumber ?? tx.referenceId ?? null,
+          referenceLookupId: supplierReturn.returnNumber ?? tx.referenceId ?? null,
+        }
+      }
+
+      return {
+        ...tx,
+        branchId: tx.branchId ?? order.branchId ?? null,
+        staffId: tx.staffId ?? order.staffId ?? null,
+        branch: tx.branch ?? order.branch ?? null,
+        staff: tx.staff ?? order.staff ?? null,
+        referenceType: tx.referenceType ?? 'ORDER',
+        referenceCode: order.orderNumber ?? tx.referenceId ?? null,
+        referenceLookupId: order.orderNumber ?? tx.referenceId ?? null,
+      }
+    })
+
+    const filteredTransactions = requestedBranchId
+      ? hydratedTransactions.filter((tx: any) => tx.branchId === requestedBranchId)
+      : hydratedTransactions
+
+    return { success: true, data: filteredTransactions }
   }
 
   async getLowStockSuggestions() {

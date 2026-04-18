@@ -18,7 +18,7 @@ export const stockApi = {
   returnReceipt: (id: string, data: any) => api.post(`/stock/receipts/${id}/returns`, data),
   refundSupplierReturn: (id: string, data: any) => api.post(`/stock/returns/${id}/refunds`, data),
 
-  getTransactions: (productId: string, params?: { variantId?: string }) =>
+  getTransactions: (productId: string, params?: { variantId?: string; variantScope?: 'base'; branchId?: string }) =>
     api.get(`/stock/transactions/${productId}`, { params }).then(res => res.data),
   getSuggestions: () => api.get('/stock/suggestions'),
 

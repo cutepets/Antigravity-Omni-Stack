@@ -112,6 +112,16 @@ const createVariantIdentityKey = (variantLabel?: string | null, unitLabel?: stri
 const buildDisplayVariantName = (productName: string, variantLabel?: string | null, unitLabel?: string | null) =>
   buildProductVariantName(productName || 'SP', variantLabel, unitLabel) || productName || 'SP'
 
+const roundMoney = (value: number) => Math.round(Number.isFinite(value) ? value : 0)
+
+const scalePriceBookPrices = (prices: PriceBookValueMap, multiplier: number) =>
+  Object.fromEntries(
+    Object.entries(prices).map(([priceBookId, value]) => [
+      priceBookId,
+      roundMoney(Number(value || 0) * multiplier),
+    ]),
+  ) as PriceBookValueMap
+
 const fileToDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -369,35 +379,71 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     return variantDefinitions.map((variantDefinition) => {
       const initialVariant = initialVariantMap[variantDefinition.key]
       const override = variantOverrides[variantDefinition.key]
-      const mergedPriceBookPrices = {
+      const multiplier = variantDefinition.isConversion ? Number(variantDefinition.conversionRate || 1) : 1
+      const parentInitialVariant = variantDefinition.parentKey ? initialVariantMap[variantDefinition.parentKey] : null
+      const parentOverride = variantDefinition.parentKey ? variantOverrides[variantDefinition.parentKey] : null
+      const parentPriceBookPrices = {
         ...formData.priceBookPrices,
-        ...(initialVariant?.priceBookPrices ?? {}),
+        ...(parentInitialVariant?.priceBookPrices ?? {}),
+        ...(parentOverride?.priceBookPrices ?? {}),
+      }
+      const defaultPriceBookPrices = variantDefinition.isConversion
+        ? scalePriceBookPrices(parentPriceBookPrices, multiplier)
+        : formData.priceBookPrices
+      const parentCostPrice = Number(parentOverride?.costPrice ?? parentInitialVariant?.costPrice ?? formData.costPrice ?? 0)
+      const defaultCostPrice = variantDefinition.isConversion
+        ? roundMoney(parentCostPrice * multiplier)
+        : Number(formData.costPrice ?? 0)
+      const initialPriceBookPrices = initialVariant?.priceBookPrices ?? {}
+      const effectiveInitialPriceBookPrices = variantDefinition.isConversion
+        ? Object.fromEntries(
+          Object.entries(initialPriceBookPrices).filter(([priceBookId, value]) => {
+            const parentValue = Number(parentPriceBookPrices[priceBookId] ?? 0)
+            const initialValue = Number(value ?? 0)
+            return !(multiplier !== 1 && parentValue > 0 && initialValue === parentValue)
+          }),
+        )
+        : initialPriceBookPrices
+      const initialCostPrice = initialVariant?.costPrice === undefined || initialVariant?.costPrice === null
+        ? undefined
+        : Number(initialVariant.costPrice)
+      const shouldUseInitialCostPrice =
+        initialCostPrice !== undefined &&
+        !(
+          variantDefinition.isConversion &&
+          multiplier !== 1 &&
+          ((parentCostPrice > 0 && initialCostPrice === parentCostPrice) ||
+            (initialCostPrice <= 0 && defaultCostPrice > 0))
+        )
+      const mergedPriceBookPrices = {
+        ...defaultPriceBookPrices,
+        ...effectiveInitialPriceBookPrices,
         ...(override?.priceBookPrices ?? {}),
       }
       const explicitImage = variantImages[variantDefinition.imageKey]
 
       return {
         ...variantDefinition,
-        variantLabel: initialVariant?.variantLabel ?? variantDefinition.variantLabel,
-        unitLabel: initialVariant?.unitLabel ?? variantDefinition.unitLabel,
+        variantLabel: variantDefinition.variantLabel ?? initialVariant?.variantLabel ?? null,
+        unitLabel: variantDefinition.unitLabel ?? initialVariant?.unitLabel ?? null,
         displayName: buildDisplayVariantName(
           formData.name || 'SP',
-          initialVariant?.variantLabel ?? variantDefinition.variantLabel,
-          initialVariant?.unitLabel ?? variantDefinition.unitLabel,
+          variantDefinition.variantLabel ?? initialVariant?.variantLabel,
+          variantDefinition.unitLabel ?? initialVariant?.unitLabel,
         ),
         name: buildDisplayVariantName(
           formData.name || 'SP',
-          initialVariant?.variantLabel ?? variantDefinition.variantLabel,
-          initialVariant?.unitLabel ?? variantDefinition.unitLabel,
+          variantDefinition.variantLabel ?? initialVariant?.variantLabel,
+          variantDefinition.unitLabel ?? initialVariant?.unitLabel,
         ),
         sku: override?.sku ?? initialVariant?.sku ?? variantDefinition.sku,
         barcode: override?.barcode ?? initialVariant?.barcode ?? '',
         image: explicitImage !== undefined ? explicitImage : (initialVariant?.image ?? null),
         priceBookPrices: mergedPriceBookPrices,
-        costPrice: override?.costPrice ?? initialVariant?.costPrice ?? formData.costPrice ?? 0,
+        costPrice: override?.costPrice ?? (shouldUseInitialCostPrice ? initialCostPrice : undefined) ?? defaultCostPrice,
       }
     })
-  }, [formData.costPrice, formData.priceBookPrices, initialVariantMap, variantDefinitions, variantImages, variantOverrides])
+  }, [formData.name, formData.costPrice, formData.priceBookPrices, initialVariantMap, variantDefinitions, variantImages, variantOverrides])
 
   const buildVariantPayload = (variant: any) => ({
     name: variant.name,
@@ -405,7 +451,9 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     unitLabel: variant.unitLabel || undefined,
     sku: variant.sku || undefined,
     barcode: variant.barcode || undefined,
-    price: retailPriceBook ? Number(variant.priceBookPrices?.[retailPriceBook.id] || 0) : basePrice,
+    price: retailPriceBook
+      ? Number(variant.priceBookPrices?.[retailPriceBook.id] || 0)
+      : roundMoney(basePrice * (variant.isConversion ? Number(variant.conversionRate || 1) : 1)),
     image: variant.image || undefined,
     conversions: variant.isConversion ? JSON.stringify({ rate: variant.conversionRate, unit: variant.conversionUnit }) : undefined,
     priceBookPrices: Object.keys(variant.priceBookPrices || {}).length > 0 ? JSON.stringify(variant.priceBookPrices) : undefined,

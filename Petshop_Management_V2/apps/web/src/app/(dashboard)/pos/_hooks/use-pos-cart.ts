@@ -12,7 +12,6 @@
 
 import { useState, useCallback } from 'react';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
-import { buildProductVariantName } from '@petshop/shared';
 import {
     isHotelService,
     isGroomingService,
@@ -81,7 +80,7 @@ export function usePosCart() {
                 image: item.image,
                 unit: item.unit ?? 'cái',
                 variants: item.variants,
-                variantName: buildProductVariantName(item.productName ?? item.name, item.variantLabel, item.unitLabel) || undefined,
+                variantName: item.variantLabel,
                 variantLabel: item.variantLabel,
                 unitLabel: item.unitLabel,
                 baseSku: item.sku,

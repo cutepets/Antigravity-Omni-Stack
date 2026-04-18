@@ -381,7 +381,8 @@ model ProductVariant {
   salesDaily          ProductSalesDaily[]
   supplierReturnItems SupplierReturnItem[]
   stockCountItems     StockCountItem[]
-  stockTransactions   StockTransaction[]
+  stockTransactions   StockTransaction[] @relation("StockTransactionActionVariant")
+  sourceStockTransactions StockTransaction[] @relation("StockTransactionSourceVariant")
   product             Product                   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
@@ -1170,21 +1171,27 @@ model StockTransaction {
   id               String          @id @default(cuid())
   productId        String
   productVariantId String?
+  sourceProductVariantId String?
   branchId         String?
   staffId          String?
   type             String
   quantity         Int
+  actionQuantity   Float?
+  sourceQuantity   Int?
+  conversionRate   Float?
   reason           String?
   referenceId      String?
   referenceType    String?
   createdAt        DateTime        @default(now())
   product          Product         @relation(fields: [productId], references: [id])
-  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+  productVariant   ProductVariant? @relation("StockTransactionActionVariant", fields: [productVariantId], references: [id], onDelete: SetNull)
+  sourceProductVariant ProductVariant? @relation("StockTransactionSourceVariant", fields: [sourceProductVariantId], references: [id], onDelete: SetNull)
   branch           Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
   staff            User?           @relation(fields: [staffId], references: [id], onDelete: SetNull)
 
   @@index([productId])
   @@index([productVariantId])
+  @@index([sourceProductVariantId])
   @@index([branchId])
   @@map("stock_transactions")
 }

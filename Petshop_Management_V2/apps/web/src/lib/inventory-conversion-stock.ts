@@ -67,14 +67,17 @@ function getBranchKey(row: BranchStockLike, index: number) {
 function cloneScaledBranchStocks(
   rows: BranchStockLike[],
   factor: number,
+  options: { resetMinStock?: boolean } = {},
 ) {
+  const { resetMinStock = true } = options
+
   return rows.map((row) => {
     const next = { ...row }
 
     for (const field of NUMERIC_FIELDS) {
       if (next[field] === undefined || next[field] === null) continue
       const scaledValue = toNumber(next[field]) * factor
-      next[field] = field === 'minStock' ? 0 : scaledValue
+      next[field] = field === 'minStock' && resetMinStock ? 0 : scaledValue
     }
 
     return next
@@ -101,6 +104,27 @@ export function getTrueVariants<TVariant extends VariantLike>(variants?: TVarian
   return (variants ?? []).filter((variant) => !isConversionVariant(variant))
 }
 
+function getEquivalentVariantGroupKeys(
+  productName?: string | null,
+  variant?: VariantLike | null,
+) {
+  const groupKey = getProductVariantGroupKey(productName, variant)
+  const normalizedProductKey = `${productName ?? ''}`.trim().toLowerCase()
+  const keys = new Set<string>([groupKey])
+
+  if (!normalizedProductKey) {
+    return keys
+  }
+
+  if (groupKey === '__base__') {
+    keys.add(normalizedProductKey)
+  } else if (groupKey === normalizedProductKey) {
+    keys.add('__base__')
+  }
+
+  return keys
+}
+
 export function findParentTrueVariant<TVariant extends VariantLike>(
   variants: TVariant[],
   selectedVariant?: TVariant | null,
@@ -110,8 +134,8 @@ export function findParentTrueVariant<TVariant extends VariantLike>(
   if (!isConversionVariant(selectedVariant)) return selectedVariant
 
   const trueVariants = getTrueVariants(variants)
-  const selectedGroupKey = getProductVariantGroupKey(productName, selectedVariant)
-  return trueVariants.find((variant) => getProductVariantGroupKey(productName, variant) === selectedGroupKey) ?? null
+  const selectedGroupKeys = getEquivalentVariantGroupKeys(productName, selectedVariant)
+  return trueVariants.find((variant) => selectedGroupKeys.has(getProductVariantGroupKey(productName, variant))) ?? null
 }
 
 export function getConversionVariants<TVariant extends VariantLike>(
@@ -120,11 +144,11 @@ export function getConversionVariants<TVariant extends VariantLike>(
   productName?: string | null,
 ): TVariant[] {
   const allConversions = (variants ?? []).filter((variant) => isConversionVariant(variant))
-  const targetGroupKey = currentTrueVariant
-    ? getProductVariantGroupKey(productName, currentTrueVariant)
-    : '__base__'
+  const targetGroupKeys = currentTrueVariant
+    ? getEquivalentVariantGroupKeys(productName, currentTrueVariant)
+    : new Set<string>(['__base__', `${productName ?? ''}`.trim().toLowerCase()].filter(Boolean))
 
-  return allConversions.filter((variant) => getProductVariantGroupKey(productName, variant) === targetGroupKey)
+  return allConversions.filter((variant) => targetGroupKeys.has(getProductVariantGroupKey(productName, variant)))
 }
 
 export function normalizeBranchStocks(rows?: BranchStockLike[] | null) {
@@ -176,18 +200,19 @@ export function getDisplayBranchStocks(
     if (!variant) return []
 
     if (isConversionVariant(variant)) {
-      return normalizeBranchStocks(variant.branchStocks)
+      const rate = parseConversionRate(variant.conversions) ?? 1
+      const parentVariant = findParentTrueVariant(variants, variant, product.name)
+      const parentRows = parentVariant
+        ? normalizeBranchStocks(parentVariant.branchStocks)
+        : productRows
+      const parentRowsInConversionUnit = cloneScaledBranchStocks(parentRows, 1 / rate, {
+        resetMinStock: false,
+      })
+
+      return aggregateBranchStocks(parentRowsInConversionUnit)
     }
 
-    const directRows = normalizeBranchStocks(variant.branchStocks)
-    const convertedRows = getConversionVariants(variants, variant, product.name).flatMap((conversionVariant) =>
-      cloneScaledBranchStocks(
-        normalizeBranchStocks(conversionVariant.branchStocks),
-        parseConversionRate(conversionVariant.conversions) ?? 1,
-      ),
-    )
-
-    return aggregateBranchStocks([...directRows, ...convertedRows])
+    return aggregateBranchStocks(normalizeBranchStocks(variant.branchStocks))
   }
 
   const trueVariants = getTrueVariants(variants)
@@ -197,14 +222,7 @@ export function getDisplayBranchStocks(
     )
   }
 
-  const looseConversionRows = getConversionVariants(variants, null, product.name).flatMap((conversionVariant) =>
-    cloneScaledBranchStocks(
-      normalizeBranchStocks(conversionVariant.branchStocks),
-      parseConversionRate(conversionVariant.conversions) ?? 1,
-    ),
-  )
-
-  return aggregateBranchStocks([...productRows, ...looseConversionRows])
+  return aggregateBranchStocks(productRows)
 }
 
 export function getResolvedVariantLabels(productName?: string | null, variant?: VariantLike | null) {

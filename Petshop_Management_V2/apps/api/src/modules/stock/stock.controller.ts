@@ -145,9 +145,10 @@ export class StockController {
   getTransactions(
     @Param('productId') productId: string,
     @Query('variantId') variantId?: string,
+    @Query('variantScope') variantScope?: 'base',
     @Query('branchId') branchId?: string,
   ) {
-    return this.stockService.getTransactionsByProduct(productId, variantId, branchId)
+    return this.stockService.getTransactionsByProduct(productId, variantId, branchId, variantScope)
   }
 
   @Get('suggestions')

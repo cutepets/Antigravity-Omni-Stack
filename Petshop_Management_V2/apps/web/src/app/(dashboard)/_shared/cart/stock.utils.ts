@@ -6,6 +6,58 @@
 import { getProductVariantGroupKey } from '@petshop/shared'
 import type { CartItem } from '@petshop/shared'
 
+const BASE_GROUP_KEY = '__base__'
+
+function parseConversionRate(raw?: string | null) {
+    if (!raw) return null
+    try {
+        const parsed = JSON.parse(raw)
+        const rate = Number(parsed?.rate ?? parsed?.conversionRate ?? parsed?.mainQty)
+        return Number.isFinite(rate) && rate > 0 ? rate : null
+    } catch {
+        return null
+    }
+}
+
+function normalizeGroupKey(value?: string | null) {
+    return (
+        value
+            ?.normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
+            .toLowerCase() ?? ''
+    )
+}
+
+function getEquivalentGroupKeys(productName: string | undefined, variant: any) {
+    const normalizedProductName = normalizeGroupKey(productName)
+    const groupKey = getProductVariantGroupKey(productName, variant)
+    const keys = new Set<string>([groupKey])
+
+    if (normalizedProductName) {
+        if (groupKey === BASE_GROUP_KEY) {
+            keys.add(normalizedProductName)
+        }
+
+        if (groupKey === normalizedProductName) {
+            keys.add(BASE_GROUP_KEY)
+        }
+    }
+
+    return keys
+}
+
+function matchesVariantGroup(productName: string | undefined, leftVariant: any, rightVariant: any) {
+    const leftKeys = getEquivalentGroupKeys(productName, leftVariant)
+    const rightKeys = getEquivalentGroupKeys(productName, rightVariant)
+
+    for (const key of leftKeys) {
+        if (rightKeys.has(key)) return true
+    }
+
+    return false
+}
+
 // ─── Sellable Quantity ────────────────────────────────────────────────────────
 
 export function getSellableQuantity(stockSource: any, branchId?: string): number | null {
@@ -57,15 +109,7 @@ export function resolveCartItemStockState(
 ): CartItemStockState {
     const itemVariants: any[] = (item as any).variants ?? []
 
-    const isConversion = (variant: any) => {
-        if (!variant?.conversions) return false
-        try {
-            const parsed = JSON.parse(variant.conversions)
-            return !!(parsed?.rate || parsed?.conversionRate || parsed?.mainQty)
-        } catch {
-            return false
-        }
-    }
+    const isConversion = (variant: any) => parseConversionRate(variant?.conversions) !== null
 
     const trueVariants = itemVariants.filter((variant: any) => !isConversion(variant))
     const allConversionVariants = itemVariants.filter(isConversion)
@@ -75,9 +119,8 @@ export function resolveCartItemStockState(
     let currentTrueVariant: any = null
     if (currentVariantObj) {
         if (isCurrentConversion) {
-            const currentGroupKey = getProductVariantGroupKey(item.description, currentVariantObj)
             currentTrueVariant = trueVariants.find(
-                (variant: any) => getProductVariantGroupKey(item.description, variant) === currentGroupKey,
+                (variant: any) => matchesVariantGroup(item.description, variant, currentVariantObj),
             )
         } else {
             currentTrueVariant = currentVariantObj
@@ -86,16 +129,19 @@ export function resolveCartItemStockState(
 
     const conversionVariants = currentTrueVariant
         ? allConversionVariants.filter(
-            (variant: any) =>
-                getProductVariantGroupKey(item.description, variant) ===
-                getProductVariantGroupKey(item.description, currentTrueVariant),
+            (variant: any) => matchesVariantGroup(item.description, variant, currentTrueVariant),
         )
         : allConversionVariants.filter(
-            (variant: any) => getProductVariantGroupKey(item.description, variant) === '__base__',
+            (variant: any) => getEquivalentGroupKeys(item.description, variant).has(BASE_GROUP_KEY),
         )
 
     const stockSource = currentTrueVariant ?? currentVariantObj ?? item
-    const sellableQty = getSellableQuantity(stockSource, branchId)
+    const sourceSellableQty = getSellableQuantity(stockSource, branchId)
+    const currentConversionRate = parseConversionRate(currentVariantObj?.conversions)
+    const sellableQty =
+        isCurrentConversion && currentConversionRate && sourceSellableQty !== null
+            ? sourceSellableQty / currentConversionRate
+            : sourceSellableQty
 
     return {
         itemVariants,
@@ -107,6 +153,6 @@ export function resolveCartItemStockState(
         conversionVariants,
         stockSource,
         sellableQty,
-        isOverSellableQty: sellableQty !== null && (item.quantity ?? 1) > sellableQty,
+        isOverSellableQty: sellableQty !== null && (item.quantity ?? 1) > sellableQty + 1e-9,
     }
 }

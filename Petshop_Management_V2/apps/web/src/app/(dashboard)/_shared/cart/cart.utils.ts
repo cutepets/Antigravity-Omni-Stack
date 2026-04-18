@@ -79,12 +79,75 @@ export function inferSpaPackageCodeFromService(service: any) {
 
 // ─── Cart Quantity ────────────────────────────────────────────────────────────
 
-export function getCartQuantityStep(item: { type?: string }) {
-    return item.type === 'hotel' ? 0.5 : 1
-}
-
 export function parseCartQuantityInput(value: string) {
     const normalized = value.replace(/[^\d.,]/g, '').replace(',', '.')
     const parsed = Number(normalized)
     return Number.isFinite(parsed) ? parsed : Number.NaN
+}
+
+function parseConversionRate(raw?: string | null) {
+    if (!raw) return null
+    try {
+        const parsed = JSON.parse(raw)
+        const rate = Number(parsed?.rate ?? parsed?.conversionRate ?? parsed?.mainQty)
+        return Number.isFinite(rate) && rate > 0 ? rate : null
+    } catch {
+        return null
+    }
+}
+
+function getCurrentCartVariant(item: { productVariantId?: string; variants?: any[]; conversions?: string | null }) {
+    if (item.productVariantId && Array.isArray(item.variants)) {
+        const directVariant = item.variants.find((variant: any) => variant?.id === item.productVariantId)
+        if (directVariant) return directVariant
+
+        for (const variant of item.variants) {
+            const childVariant = variant?.children?.find?.((entry: any) => entry?.id === item.productVariantId)
+            if (childVariant) return childVariant
+        }
+    }
+
+    return item
+}
+
+export function isConversionCartItem(item: {
+    productVariantId?: string
+    variants?: any[]
+    conversions?: string | null
+}) {
+    return parseConversionRate(getCurrentCartVariant(item)?.conversions) !== null
+}
+
+function getStepPrecision(step: number) {
+    if (!Number.isFinite(step) || step >= 1) return 0
+    const [, decimals = ''] = step.toString().split('.')
+    return decimals.length
+}
+
+export function roundCartQuantity(value: number, step: number) {
+    const safeStep = Number.isFinite(step) && step > 0 ? step : 1
+    const precision = Math.max(3, getStepPrecision(safeStep))
+    return Number((Math.round(value / safeStep) * safeStep).toFixed(precision))
+}
+
+export function formatCartQuantityInput(value: number, step: number) {
+    if (!Number.isFinite(value)) return ''
+
+    const precision = Math.max(getStepPrecision(step), Number.isInteger(value) ? 0 : 1)
+    return value.toLocaleString('vi-VN', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: Math.max(3, precision),
+        useGrouping: false,
+    })
+}
+
+export function getCartQuantityStep(item: {
+    type?: string
+    productVariantId?: string
+    variants?: any[]
+    conversions?: string | null
+}) {
+    if (item.type === 'hotel') return 0.5
+    if (isConversionCartItem(item)) return 0.1
+    return 1
 }

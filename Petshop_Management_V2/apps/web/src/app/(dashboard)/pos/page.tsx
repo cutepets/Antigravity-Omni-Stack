@@ -1,109 +1,87 @@
-'use client';
-import Image from 'next/image';
+﻿'use client';
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { usePosStore, useActiveTab, useCartSubtotal, useCartTotal, useCartItemCount } from '@/stores/pos.store';
+import { useEffect } from 'react';
+import { usePosStore, useActiveTab, useCartTotal, useCartItemCount } from '@/stores/pos.store';
 import { useAuthStore } from '@/stores/auth.store';
-import { useCreateOrder } from './_hooks/use-pos-mutations';
-import { useBranches } from './_hooks/use-pos-queries';
 import { usePosCart } from './_hooks/use-pos-cart';
 import { usePosPayment } from './_hooks/use-pos-payment';
-import type { CreateOrderPayload, OrderPaymentIntent } from '@/lib/api/order.api';
-import {
-  buildProductVariantName,
-  getProductVariantGroupKey,
-  getProductVariantOptionLabel,
-  type CartItem,
-  type PaymentEntry,
-} from '@petshop/shared';
-import { settingsApi } from '@/lib/api/settings.api';
-import { filterVisiblePaymentMethods, getPaymentMethodColorClasses } from '@/lib/payment-methods';
+import { usePosShiftGuard } from './_hooks/use-pos-shift-guard';
+import { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches';
 import { HotelCheckoutModal } from './components/HotelCheckoutModal';
 import { PosCustomerV1 } from './components/PosCustomerV1';
 import { PosSettingsPanel } from './components/PosSettingsPanel';
-import { PosPaymentModal } from './components/PosPaymentModal';
-import { PosQrPaymentModal } from './components/PosQrPaymentModal';
+import { PaymentModal } from '@/app/(dashboard)/_shared/payment/components/PaymentModal';
+import { QrPaymentModal } from '@/app/(dashboard)/_shared/payment/components/QrPaymentModal';
 import { PosShiftClosingModal } from './components/PosShiftClosingModal';
 import { PosOrderBookingModal } from './components/PosOrderBookingModal';
-import { ReceiptModal } from './components/ReceiptModal';
+import { PosCartItems } from './components/PosCartItems';
+import { PosCheckoutPanel } from './components/PosCheckoutPanel';
+
 import { PosProductSearch } from './components/PosProductSearch';
 import { PosNotifications } from './components/PosNotifications';
 import { PosBranchSelect } from './components/PosBranchSelect';
-import { Menu, X, Plus, Minus, Trash2, Home, NotebookText, Info, FileText, Settings, UserCircle2, Bell, LogOut, Scissors, Package, ShoppingCart, Maximize, Store, QrCode, Zap, EyeOff, Eye, ListChecks, ChevronDown, Check, Pencil } from 'lucide-react';
+import { Menu, X, Plus, Home, NotebookText, Settings, UserCircle2, Bell, LogOut, Maximize, Store, QrCode, Zap, EyeOff, Eye, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { orderApi } from '@/lib/api/order.api';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
-import { usePaymentIntentStream } from '@/hooks/use-payment-intent-stream';
-import { shiftApi } from '@/lib/api/shift.api';
-
-// ─── Shared utils (from _shared layer) ───────────────────────────────────────
-import {
-  money,
-  moneyRaw,
-  parseMoneyInputValue,
-  buildQuickCashSuggestions,
-} from '@/app/(dashboard)/_shared/payment/payment.utils';
-import {
-  isHotelService,
-  isGroomingService,
-  isCatalogService,
-  parseCartQuantityInput,
-  getCartQuantityStep,
-} from '@/app/(dashboard)/_shared/cart/cart.utils';
-import {
-  buildCartLineId,
-  buildDirectServiceCartItem,
-  buildGroomingCartItem,
-} from '@/app/(dashboard)/_shared/cart/cart.builders';
-import { resolveCartItemStockState } from '@/app/(dashboard)/_shared/cart/stock.utils';
-import { getPosVariantLabel, getCartItemWeightBandLabel } from './utils/pos.utils';
-
-// â”€â”€â”€ Format helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-
-
-
-
-
-
-
-
-
+import { moneyRaw } from '@/app/(dashboard)/_shared/payment/payment.utils';
 
 function PosPageContent() {
-  const queryClient = useQueryClient();
-
-  // ── Cart hook (state & handlers) ───────────────────────────────────────────────────
+  const store = usePosStore();
+  const activeTab = useActiveTab();
+  const cartTotal = useCartTotal();
+  const cartCount = useCartItemCount();
+  const activeBranchId = useAuthStore((state) => state.activeBranchId);
   const {
-    showHotelCheckout, setShowHotelCheckout,
-    selectedHotelPetId, setSelectedHotelPetId,
-    noteEditingId, setNoteEditingId,
-    discountEditingId, setDiscountEditingId,
-    selectedRowIndex, setSelectedRowIndex,
-    navigateRowUp, navigateRowDown,
-    decrementSelectedRow, incrementSelectedRow,
+    showHotelCheckout,
+    setShowHotelCheckout,
+    selectedHotelPetId,
+    setSelectedHotelPetId,
+    noteEditingId,
+    setNoteEditingId,
+    discountEditingId,
+    setDiscountEditingId,
+    selectedRowIndex,
     handleAddItem,
     handleSelectSuggestedService,
+    navigateRowUp,
+    navigateRowDown,
+    decrementSelectedRow,
+    incrementSelectedRow,
   } = usePosCart();
-
-  // ── Payment hook (state, derived, handlers) ───────────────────────────────────
   const {
-    showPaymentModal, setShowPaymentModal,
-    showQrPaymentModal, setShowQrPaymentModal,
-    showBookingModal, setShowBookingModal,
-    showReceiptModal, setShowReceiptModal,
-    customerMoneyInput, setCustomerMoneyInput,
-    isPaymentMenuOpen, setIsPaymentMenuOpen,
+    currentShift,
+    showShiftClosingModal,
+    openShiftClosingModal,
+    closeShiftClosingModal,
+    handleShiftSaved,
+  } = usePosShiftGuard();
+  const {
+    showPaymentModal,
+    setShowPaymentModal,
+    showBookingModal,
+    setShowBookingModal,
+    showQrPaymentModal,
+    setShowQrPaymentModal,
+    customerMoneyInput,
+    setCustomerMoneyInput,
+    isPaymentMenuOpen,
+    setIsPaymentMenuOpen,
     paymentMenuRef,
-    activeQrIntent, isQrIntentPending,
-    paymentMethods, visiblePaymentMethods,
+    displayedQrIntent,
+    clearQrIntent,
+    isQrIntentPending,
+    paymentMethods,
+    visiblePaymentMethods,
     allowMultiPayment,
-    tabPayments, isMultiPaymentSummary,
-    currentSinglePaymentMethod, currentSinglePaymentType, currentSinglePaymentAmount,
+    tabPayments,
+    isMultiPaymentSummary,
+    currentSinglePaymentMethod,
+    currentSinglePaymentType,
     isQrBankPayment,
-    guestMoney, returnMoney, multiPaymentTotal,
+    guestMoney,
+    returnMoney,
+    multiPaymentTotal,
     hasServiceItems,
     quickCashSuggestions,
     preferredPaymentMethod,
@@ -114,1992 +92,401 @@ function PosPageContent() {
     handleCreateServiceFlow,
   } = usePosPayment();
 
+  const { data: branches = [] } = useBranches();
+  const manualDiscountTotal = activeTab?.manualDiscountTotal ?? activeTab?.discountTotal ?? 0;
 
-  // â”€â”€ Store â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const store = usePosStore();
-  const activeTab = useActiveTab();
-  const cartSubtotal = useCartSubtotal();
-  const cartTotal = useCartTotal();
-  const cartCount = useCartItemCount();
-  const activeBranchId = useAuthStore((state) => state.activeBranchId);
+  // â”€â”€ Keyboard shortcuts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  useEffect(() => {
+    if (!activeTab || !activeBranchId) return;
+    if (activeTab.linkedOrderId) return;
+    if (activeTab.branchId === activeBranchId) return;
+    store.setBranch(activeBranchId);
+  }, [activeBranchId, activeTab, store]);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
 
+      // Cho phép F-keys ngay cả khi đang focus
+      if (e.key === 'F2') {
+        e.preventDefault();
+        store.addTab();
+        return;
+      }
+      if (e.key === 'F8') {
+        e.preventDefault();
+        document.getElementById('customer_money_input')?.focus();
+        return;
+      }
+      if (e.key === 'F9') {
+        e.preventDefault();
+        if (hasServiceItems) {
+          handleCreateServiceFlow();
+        } else {
+          const method = activeTab?.payments?.[0]?.method ?? preferredPaymentMethod?.type ?? 'CASH';
+          handleCheckout(method as string);
+        }
+        return;
+      }
 
+      const isQuantityInput = activeElement?.id?.startsWith('quantity-input-') || activeElement?.id === 'quantity-input';
+      if (isInputFocused && !isQuantityInput) return;
+      if (!activeTab || activeTab.cart.length === 0) return;
 
-  queryFn: () => shiftApi.current(),
-    enabled: Boolean(activeBranchId),
-      staleTime: 15_000,
-  });
+      if (e.key === 'ArrowUp') {
+        if (!isInputFocused) {
+          e.preventDefault();
+          navigateRowUp();
+        }
+      } else if (e.key === 'ArrowDown') {
+        if (!isInputFocused) {
+          e.preventDefault();
+          navigateRowDown();
+        }
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        decrementSelectedRow();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        incrementSelectedRow();
+      }
+    };
 
-// Auto-open shift modal khi ca chưa mở hoặc đã đóng
-useEffect(() => {
-  if (!shiftCurrentQuery.isFetched) return
-  const shift = shiftCurrentQuery.data
-  // Chưa có ca nào hoặc ca hiện tại đã chốt (CLOSED) → mở modal
-  if (!shift) {
-    setShowShiftClosingModal(true)
-  }
-}, [shiftCurrentQuery.isFetched, shiftCurrentQuery.data])
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [activeTab, decrementSelectedRow, handleCheckout, handleCreateServiceFlow, hasServiceItems, incrementSelectedRow, navigateRowDown, navigateRowUp, preferredPaymentMethod?.type, store]);
 
-// â”€â”€ Mutations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const createOrder = useCreateOrder();
-
-// â”€â”€ URL Search Params â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// POS no longer resumes existing orders from URL. Editing/viewing saved orders now belongs to Orders workspace.
-const qrIntentStream = usePaymentIntentStream(activeQrIntent?.code, showQrPaymentModal && Boolean(activeQrIntent?.code));
-
-useEffect(() => {
-  if (!qrIntentStream.latestIntent || !activeQrIntent) return;
-  if (qrIntentStream.latestIntent.code !== activeQrIntent.code) return;
-
-  setActiveQrIntent(qrIntentStream.latestIntent);
-
-  if (qrIntentStream.lastEvent !== 'paid') return;
-  if (handledQrPaidCodeRef.current === qrIntentStream.latestIntent.code) return;
-
-  handledQrPaidCodeRef.current = qrIntentStream.latestIntent.code;
-  toast.success('Đã nhận thông báo chuyển khoản thành công');
-
-  if (qrIntentStream.latestIntent.orderId) {
-    void queryClient.invalidateQueries({ queryKey: ['order', qrIntentStream.latestIntent.orderId] });
-    void queryClient.invalidateQueries({ queryKey: ['order-payment-intents', qrIntentStream.latestIntent.orderId] });
-  }
-
-  void queryClient.invalidateQueries({ queryKey: ['orders'] });
-
-  if (qrIntentStream.latestIntent.order) {
-    store.attachLinkedOrder({
-      orderId: qrIntentStream.latestIntent.order.id,
-      orderNumber: qrIntentStream.latestIntent.order.orderNumber,
-      paymentStatus: 'PAID',
-      amountPaid: qrIntentStream.latestIntent.order.paidAmount ?? qrIntentStream.latestIntent.amount,
-      branchId: activeTab?.branchId,
-    });
-  }
-}, [activeQrIntent, activeTab?.branchId, qrIntentStream, queryClient, store]);
-
-const { data: branches = [] } = useBranches();
-
-// â”€â”€ Keyboard shortcuts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-useEffect(() => {
-  if (!activeTab || !activeBranchId) return;
-  if (activeTab.linkedOrderId) return;
-  if (activeTab.branchId === activeBranchId) return;
-  store.setBranch(activeBranchId);
-}, [activeBranchId, activeTab, store]);
-
-const visiblePaymentMethods = useMemo(
-  () =>
-    filterVisiblePaymentMethods(paymentMethods, {
-      branchId: activeTab?.branchId ?? activeBranchId,
-      amount: cartTotal,
-    }),
-  [activeBranchId, activeTab?.branchId, cartTotal, paymentMethods],
-);
-
-const preferredPaymentMethod = useMemo(() => {
-  const selectedPaymentAccountId = activeTab?.payments?.[0]?.paymentAccountId;
-  if (selectedPaymentAccountId) {
-    return (
-      visiblePaymentMethods.find((method) => method.id === selectedPaymentAccountId) ??
-      paymentMethods.find((method) => method.id === selectedPaymentAccountId) ??
-      null
-    );
-  }
+  if (!activeTab) return null;
 
   return (
-    visiblePaymentMethods.find((method) => method.id === store.defaultPayment) ??
-    visiblePaymentMethods.find((method) => method.isDefault) ??
-    visiblePaymentMethods[0] ??
-    null
-  );
-}, [activeTab?.payments, paymentMethods, store.defaultPayment, visiblePaymentMethods]);
-const allowMultiPayment = Boolean(paymentOptions?.allowMultiPayment);
-const tabPayments = useMemo(() => activeTab?.payments ?? [], [activeTab?.payments]);
-const isMultiPaymentSummary = tabPayments.length > 1;
-const selectedSinglePayment = tabPayments.length === 1 ? tabPayments[0] : null;
-const currentSinglePaymentMethod =
-  selectedSinglePayment?.paymentAccountId
-    ? visiblePaymentMethods.find((method) => method.id === selectedSinglePayment.paymentAccountId) ??
-    paymentMethods.find((method) => method.id === selectedSinglePayment.paymentAccountId) ??
-    preferredPaymentMethod
-    : preferredPaymentMethod;
-const currentSinglePaymentType = currentSinglePaymentMethod?.type ?? selectedSinglePayment?.method ?? 'CASH';
-const currentSinglePaymentAmount = currentSinglePaymentType === 'CASH'
-  ? parseMoneyInputValue(customerMoneyInput || money(cartTotal))
-  : cartTotal;
-const isQrBankPayment =
-  !isMultiPaymentSummary &&
-  currentSinglePaymentMethod?.type === 'BANK' &&
-  Boolean(currentSinglePaymentMethod.qrEnabled);
-const baseOrderTotal = cartSubtotal + (activeTab?.shippingFee ?? 0);
-const manualDiscountTotal = activeTab?.manualDiscountTotal ?? activeTab?.discountTotal ?? 0;
-const roundingDiscountTotal = activeTab?.roundingDiscountTotal ?? 0;
-const guestMoney = currentSinglePaymentType === 'CASH' ? currentSinglePaymentAmount : cartTotal;
-const returnMoney = currentSinglePaymentType === 'CASH' && guestMoney > cartTotal ? guestMoney - cartTotal : 0;
-const multiPaymentTotal = tabPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-const hasServiceItems = activeTab?.cart.some((item) =>
-  item.type === 'service' || item.type === 'hotel' || item.type === 'grooming' || item.groomingDetails || item.hotelDetails,
-) || false;
-const quickCashSuggestions = useMemo(
-  () => buildQuickCashSuggestions(cartTotal),
-  [cartTotal],
-);
+    <div className="flex flex-col h-screen bg-[#f0f2f5] font-sans text-gray-800 overflow-hidden">
+      {/* â• â• â•  HEADER (V1 KiotViet Style) â• â• â•  */}
+      <header className="relative z-50 flex items-center justify-between px-2 lg:px-3 h-[50px] bg-[#0089A1] text-white shrink-0 gap-2">
 
-useEffect(() => {
-  if (!activeTab || isMultiPaymentSummary || currentSinglePaymentType !== 'CASH') return;
+        {/* Left: Search Bar & Tabs */}
+        <div className="flex-1 lg:flex-none lg:w-2/3 flex items-end h-full">
+          {/* Search + Barcode + OutOfStock toggle */}
+          <div className="flex items-center gap-2 w-full lg:w-auto h-full py-1.5 pb-2">
 
-  const parsedCurrent = parseMoneyInputValue(customerMoneyInput);
-  const previousSeed = autoCashSeedRef.current;
-  const shouldSeed = !customerMoneyInput || (previousSeed !== null && parsedCurrent === previousSeed);
-
-  if (shouldSeed) {
-    setCustomerMoneyInput(cartTotal > 0 ? money(cartTotal) : '');
-  }
-
-  autoCashSeedRef.current = cartTotal;
-}, [activeTab, cartTotal, currentSinglePaymentType, customerMoneyInput, isMultiPaymentSummary]);
-
-useEffect(() => {
-  if (!isPaymentMenuOpen) return;
-
-  const handleOutsideMenu = (event: MouseEvent) => {
-    if (paymentMenuRef.current && !paymentMenuRef.current.contains(event.target as Node)) {
-      setIsPaymentMenuOpen(false);
-    }
-  };
-
-  document.addEventListener('mousedown', handleOutsideMenu);
-  return () => document.removeEventListener('mousedown', handleOutsideMenu);
-}, [isPaymentMenuOpen]);
-
-// â”€â”€ Add to cart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const handleAddItem = useCallback(
-  (item: any) => {
-    const isHotel = isHotelService(item);
-    const isGrooming = isGroomingService(item);
-
-    if (isHotel) {
-      store.addItem(buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id ?? activeTab.activePetIds?.[0]));
-      toast.success('Đã thêm dịch vụ vào giỏ');
-      return;
-    }
-
-    if (isGrooming) {
-      store.addItem(buildGroomingCartItem(item, item.petId ?? item.petSnapshot?.id ?? activeTab.activePetIds?.[0]));
-      toast.success('Đã thêm dịch vụ vào giỏ');
-      return;
-    }
-
-    if (isCatalogService(item)) {
-      store.addItem(buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id ?? activeTab.activePetIds?.[0]));
-      toast.success('Đã thêm dịch vụ vào giỏ');
-      return;
-    }
-
-    const productId = item.productId ?? item.id;
-    const productVariantId = item.productVariantId;
-    const unitPrice = item.sellingPrice ?? item.price ?? 0;
-
-    store.addItem({
-      id: buildCartLineId('product', productId, productVariantId ?? 'base'),
-      productId,
-      productVariantId,
-      description: item.productName ?? item.name,
-      sku: item.sku,
-      barcode: item.barcode,
-      unitPrice,
-      type: 'product',
-      image: item.image,
-      unit: item.unit ?? 'cái',
-      variants: item.variants,
-      variantName: buildProductVariantName(item.productName ?? item.name, item.variantLabel, item.unitLabel) || undefined,
-      variantLabel: item.variantLabel,
-      unitLabel: item.unitLabel,
-      baseSku: item.sku,
-      baseUnitPrice: unitPrice,
-      stock: item.stock,
-      availableStock: item.availableStock,
-      trading: item.trading,
-      reserved: item.reserved,
-      branchStocks: item.branchStocks,
-    });
-  },
-  [store, activeTab?.activePetIds],
-);
-
-// â”€â”€ Checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const handleSelectSuggestedService = useCallback(
-  (service: any, petId: string, petName?: string) => {
-    const cart = store.tabs.find((t) => t.id === store.activeTabId)?.cart ?? [];
-    const isDuplicate = cart.some(
-      (item) => item.petId === petId && (
-        item.serviceId === service.id ||
-        (item.sku && service.sku && item.sku === service.sku) ||
-        item.description === service.name ||
-        (item.type === 'hotel' && service.suggestionKind === 'HOTEL') ||
-        (item.type === 'grooming' && service.suggestionKind === 'SPA')
-      )
-    );
-    if (isDuplicate) {
-      toast.warning(`Dịch vụ "${service.name}" đã có trong giỏ hàng.`);
-      return;
-    }
-
-    if (isHotelService(service)) {
-      const item = buildDirectServiceCartItem(service, petId);
-      if (petName) item.itemNotes = `Thú cưng: ${petName}`;
-      store.addItem(item);
-      toast.success('Đã thêm dịch vụ lưu chuồng vào giỏ');
-      return;
-    }
-
-    const item = buildGroomingCartItem(service, petId);
-    if (petName) item.itemNotes = `Thú cưng: ${petName}`;
-    store.addItem(item);
-    toast.success('Đã thêm dịch vụ vào giỏ');
-  },
-  [store],
-);
-
-const handleSelectSinglePaymentMethod = useCallback(
-  (method: (typeof paymentMethods)[number]) => {
-    store.setSinglePayment(method.type as any, cartTotal, {
-      paymentAccountId: method.id,
-      paymentAccountLabel: method.name,
-    });
-    if (method.type === 'CASH') {
-      setCustomerMoneyInput(money(cartTotal));
-      autoCashSeedRef.current = cartTotal;
-    }
-    setIsPaymentMenuOpen(false);
-  },
-  [cartTotal, store],
-);
-
-const handleMultiPaymentConfirm = useCallback(
-  (payload: { payments: Array<{ method: string; amount: number; paymentAccountId?: string; paymentAccountLabel?: string }> }) => {
-    store.clearPayments();
-    payload.payments.forEach((payment) => {
-      store.addPayment(payment.method as any, payment.amount, {
-        paymentAccountId: payment.paymentAccountId,
-        paymentAccountLabel: payment.paymentAccountLabel,
-      });
-    });
-    setIsPaymentMenuOpen(false);
-    setShowPaymentModal(false);
-  },
-  [store],
-);
-
-const buildCheckoutPayload = useCallback(
-  (
-    checkoutPayments?: Array<{
-      method: string;
-      amount: number;
-      note?: string;
-      paymentAccountId?: string;
-      paymentAccountLabel?: string;
-    }>,
-    overrideNote?: string,
-  ): CreateOrderPayload | null => {
-    if (!activeTab) return null;
-
-    return {
-      customerName: activeTab.customerName,
-      customerId: activeTab.customerId === 'GUEST' ? undefined : activeTab.customerId,
-      branchId: activeTab.branchId,
-      items: activeTab.cart.map((ci) => ({
-        id: ci.orderItemId,
-        productId: ci.productId,
-        productVariantId: ci.productVariantId,
-        sku: ci.sku,
-        serviceId: ci.serviceId && ci.serviceId !== 'EXTERNAL' ? ci.serviceId : undefined,
-        serviceVariantId: ci.serviceVariantId,
-        petId: ci.petId,
-        description: ci.description,
-        quantity: ci.quantity,
-        unitPrice: ci.unitPrice,
-        discountItem: ci.discountItem,
-        vatRate: ci.vatRate,
-        type: ci.type,
-        groomingDetails: ci.groomingDetails ? {
-          petId: ci.groomingDetails.petId,
-          performerId: ci.groomingDetails.performerId,
-          startTime: ci.groomingDetails.startTime,
-          notes: ci.groomingDetails.notes,
-          packageCode: ci.groomingDetails.packageCode,
-          weightAtBooking: ci.groomingDetails.weightAtBooking,
-          weightBandId: ci.groomingDetails.weightBandId,
-          weightBandLabel: ci.groomingDetails.weightBandLabel,
-          pricingPrice: ci.groomingDetails.pricingPrice,
-          pricingSnapshot: ci.groomingDetails.pricingSnapshot,
-        } : undefined,
-        hotelDetails: ci.hotelDetails ? {
-          petId: ci.hotelDetails.petId,
-          checkInDate: ci.hotelDetails.checkIn,
-          checkOutDate: ci.hotelDetails.checkOut,
-          branchId: activeTab.branchId,
-          lineType: ci.hotelDetails.lineType,
-          bookingGroupKey: ci.hotelDetails.bookingGroupKey,
-          chargeLineIndex: ci.hotelDetails.chargeLineIndex,
-          chargeLineLabel: ci.hotelDetails.chargeLineLabel,
-          chargeDayType: ci.hotelDetails.chargeDayType,
-          chargeQuantityDays: ci.hotelDetails.chargeQuantityDays,
-          chargeUnitPrice: ci.hotelDetails.chargeUnitPrice,
-          chargeSubtotal: ci.hotelDetails.chargeSubtotal,
-          chargeWeightBandId: ci.hotelDetails.chargeWeightBandId ?? undefined,
-          chargeWeightBandLabel: ci.hotelDetails.chargeWeightBandLabel ?? undefined,
-        } : undefined,
-        isTemp: (ci as any).isTemp || undefined,
-        tempLabel: (ci as any).tempLabel || undefined,
-      })),
-      payments: !activeTab.linkedOrderId && checkoutPayments ? checkoutPayments : undefined,
-      discount: activeTab.discountTotal,
-      shippingFee: activeTab.shippingFee,
-      notes: overrideNote || activeTab.notes,
-    };
-  },
-  [activeTab],
-);
-
-const handleGenerateQrPayment = useCallback(
-  async (overrideNote?: string) => {
-    if (!currentSinglePaymentMethod?.qrEnabled && !tabPayments.some((p) => {
-      const m = visiblePaymentMethods.find((vm) => vm.id === p.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === p.paymentAccountId);
-      return m?.type === 'BANK' && m?.qrEnabled;
-    })) {
-      toast.error('Tài khoản BANK này chưa bật VietQR.');
-      return;
-    }
-    if (!Number.isInteger(cartTotal)) {
-      toast.error('Tổng tiền QR phải là số nguyên VND. Hãy bật làm tròn POS trước khi tạo QR.');
-      return;
-    }
-
-    const payload = buildCheckoutPayload(undefined, overrideNote);
-    if (!payload) return;
-
-    setIsQrIntentPending(true);
-    try {
-      const orderResult = activeTab.linkedOrderId
-        ? await orderApi.update(activeTab.linkedOrderId, payload)
-        : await createOrder.mutateAsync(payload);
-      const orderId = activeTab.linkedOrderId ?? orderResult?.id;
-
-      if (!orderId) {
-        throw new Error('Không tạo được đơn hàng để sinh QR');
-      }
-
-      store.attachLinkedOrder({
-        orderId,
-        orderNumber: orderResult?.orderNumber || activeTab.linkedOrderNumber || orderId,
-        paymentStatus: orderResult?.paymentStatus || activeTab.linkedPaymentStatus || 'UNPAID',
-        amountPaid: orderResult?.paidAmount ?? orderResult?.amountPaid ?? activeTab.linkedAmountPaid ?? 0,
-        branchId: orderResult?.branchId || activeTab.branchId,
-      });
-
-      // Determine which QR-enabled BANK method to use
-      const qrMethodId = currentSinglePaymentMethod?.qrEnabled
-        ? currentSinglePaymentMethod.id
-        : (() => {
-          const bankPayment = tabPayments.find((p) => {
-            const m = visiblePaymentMethods.find((vm) => vm.id === p.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === p.paymentAccountId);
-            return m?.type === 'BANK' && (m as any)?.qrEnabled;
-          });
-          return bankPayment?.paymentAccountId;
-        })();
-      if (!qrMethodId) throw new Error('Không tìm thấy tài khoản BANK QR');
-
-      // Lấy đúng số tiền BANK (khi multi-payment chỉ lấy phần BANK, không lấy tổng)
-      const bankPaymentAmount = (() => {
-        if (currentSinglePaymentMethod?.qrEnabled) {
-          // Single payment mode: dùng cartTotal
-          return cartTotal;
-        }
-        // Multi-payment mode: lấy amount từ payment entry BANK
-        const bankEntry = tabPayments.find((p) => {
-          const m = visiblePaymentMethods.find((vm) => vm.id === p.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === p.paymentAccountId);
-          return m?.type === 'BANK' && (m as any)?.qrEnabled;
-        });
-        return Number(bankEntry?.amount) || cartTotal;
-      })();
-
-      const intent = await orderApi.createPaymentIntent(orderId, {
-        paymentMethodId: qrMethodId,
-        amount: bankPaymentAmount,
-      });
-
-      handledQrPaidCodeRef.current = null;
-      setActiveQrIntent(intent);
-      setShowQrPaymentModal(true);
-      setCustomerMoneyInput('');
-      toast.success(activeTab.linkedOrderId ? 'Đã làm mới QR chuyển khoản' : 'Đã tạo QR chuyển khoản');
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || error?.message || 'Không thể tạo QR chuyển khoản');
-    } finally {
-      setIsQrIntentPending(false);
-    }
-  },
-  [
-    activeTab,
-    buildCheckoutPayload,
-    cartTotal,
-    createOrder,
-    currentSinglePaymentMethod,
-    paymentMethods,
-    tabPayments,
-    visiblePaymentMethods,
-    store,
-  ],
-);
-
-const handleCreateServiceFlow = useCallback(async () => {
-  if (!activeTab || activeTab.cart.length === 0) return;
-  const newTab = window.open('about:blank', '_blank');
-  if (!newTab) {
-    toast.error('Trình duyệt đã chặn cửa sổ mới. Vui lòng cho phép popup.');
-    return;
-  }
-
-  const payload = buildCheckoutPayload(undefined, undefined);
-  if (!payload) {
-    newTab.close();
-    return;
-  }
-
-  try {
-    let orderResult: any;
-    if (activeTab.linkedOrderId) {
-      orderResult = await orderApi.update(activeTab.linkedOrderId, payload);
-    } else {
-      orderResult = await createOrder.mutateAsync(payload);
-    }
-    if (orderResult?.id) {
-      store.setReceiptData({
-        ...payload,
-        id: orderResult.id,
-        code: orderResult.orderNumber || `ORD-${Math.floor(Math.random() * 10000)}`,
-        total: orderResult.total ?? cartTotal,
-        paidAmount: orderResult.paidAmount ?? orderResult.amountPaid ?? 0,
-      });
-      store.closeTab(activeTab.id);
-      newTab.location.href = `/orders/${orderResult.id}`;
-    } else {
-      newTab.close();
-      toast.error('Có lỗi khi tạo đơn');
-    }
-  } catch (e: any) {
-    newTab.close();
-    toast.error(e?.response?.data?.message || e?.message || 'Có lỗi khi tạo đơn');
-  }
-}, [activeTab, buildCheckoutPayload, createOrder, store, cartTotal]);
-
-
-const handleCheckout = useCallback(
-  async (paymentMethod: string, overrideNote?: string) => {
-    if (!activeTab || activeTab.cart.length === 0) return;
-    const effectivePayments =
-      paymentMethod === 'UNPAID'
-        ? []
-        : activeTab.payments.length > 0
-          ? activeTab.payments.map((payment, index) => ({
-            ...payment,
-            amount: activeTab.payments.length === 1 && index === 0 ? cartTotal : payment.amount,
-          }))
-          : preferredPaymentMethod
-            ? ([
-              {
-                method: preferredPaymentMethod.type,
-                amount: cartTotal,
-                paymentAccountId: preferredPaymentMethod.id,
-                paymentAccountLabel: preferredPaymentMethod.name,
-              },
-            ] as PaymentEntry[])
-            : [];
-
-    if (paymentMethod !== 'UNPAID' && effectivePayments.length === 0) {
-      toast.error('Chưa có phương thức thanh toán được chọn.');
-      return;
-    }
-
-    if (paymentMethod !== 'UNPAID' && effectivePayments.some((payment) => !payment.paymentAccountId)) {
-      toast.error('Chọn tài khoản nhận tiền trước khi thanh toán.');
-      return;
-    }
-
-    const oversoldItems = activeTab.cart
-      .filter((item) => !(item as any).isTemp)
-      .map((item) => ({
-        item,
-        ...resolveCartItemStockState(item, activeTab.branchId),
-      }))
-      .filter((entry) => entry.isOverSellableQty);
-
-    if (oversoldItems.length > 0) {
-      const firstOversold = oversoldItems[0];
-      const sellableQty = firstOversold.sellableQty ?? 0;
-      toast.error(
-        `Sản phẩm ${firstOversold.item.description} đang vượt tồn khả dụng. Bán được ${sellableQty}, đang chọn ${firstOversold.item.quantity}.`,
-      );
-      return;
-    }
-
-    // Nếu single BANK payment bật QR → sinh QR trước
-    if (isQrBankPayment) {
-      await handleGenerateQrPayment(overrideNote);
-      return;
-    }
-
-    // Nếu multi-payment có BANK qrEnabled → sinh QR trước cho phần BANK
-    const multiQrBankPayment = paymentMethod !== 'UNPAID' && effectivePayments.length > 1
-      ? effectivePayments.find((p) => {
-        const m = visiblePaymentMethods.find((vm) => vm.id === p.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === p.paymentAccountId);
-        return m?.type === 'BANK' && (m as any)?.qrEnabled;
-      })
-      : null;
-    if (multiQrBankPayment) {
-      await handleGenerateQrPayment(overrideNote);
-      return;
-    }
-
-    const checkoutPayments =
-      paymentMethod === 'UNPAID'
-        ? undefined
-        : effectivePayments.map((payment) => ({
-          method: payment.method,
-          amount: Number(payment.amount) || 0,
-          note: payment.note,
-          paymentAccountId: payment.paymentAccountId,
-          paymentAccountLabel: payment.paymentAccountLabel,
-        }));
-    const checkoutPaymentTotal = checkoutPayments?.reduce((sum, payment) => sum + payment.amount, 0) ?? 0;
-    const payload = buildCheckoutPayload(checkoutPayments, overrideNote);
-    if (!payload) return;
-
-
-
-    let orderResult: any;
-
-    if (activeTab.linkedOrderId) {
-      // Đơn đã tồn tại -> Chỉ cho phép thanh toán thêm
-      orderResult = await orderApi.update(activeTab.linkedOrderId, payload);
-      const outstanding = Math.max(0, (orderResult?.total ?? cartTotal) - (orderResult?.paidAmount ?? orderResult?.amountPaid ?? 0));
-
-      if (paymentMethod !== 'UNPAID') {
-        if (hasServiceItems) {
-          if (checkoutPaymentTotal > 0) {
-            orderResult = await orderApi.pay(activeTab.linkedOrderId, {
-              payments: checkoutPayments ?? [],
-            });
-          }
-        } else {
-          if (checkoutPaymentTotal < outstanding) {
-            orderResult = await orderApi.pay(activeTab.linkedOrderId, {
-              payments: checkoutPayments ?? [],
-            });
-          } else if (checkoutPaymentTotal > outstanding) {
-            const overpaid = checkoutPaymentTotal - outstanding;
-            const shouldRefund = window.confirm(
-              `Đơn đang dư ${money(overpaid)} đ. Nhấn OK để hoàn tiền ngay, hoặc Cancel để giữ lại công nợ âm cho khách.`,
-            );
-            orderResult = await orderApi.complete(
-              activeTab.linkedOrderId,
-              shouldRefund
-                ? {
-                  payments: checkoutPayments ?? [],
-                  overpaymentAction: 'REFUND',
-                  refundMethod: checkoutPayments?.[0]?.method ?? paymentMethod,
-                  refundPaymentAccountId: checkoutPayments?.[0]?.paymentAccountId,
-                  refundPaymentAccountLabel: checkoutPayments?.[0]?.paymentAccountLabel,
+            {/* Mobile LogOut */}
+            <button
+              className="lg:hidden p-1.5 hover:bg-white/20 rounded text-red-100 transition-colors shrink-0"
+              title="Thoát"
+              onClick={() => {
+                if (window.confirm('Bạn có chắc chắn muốn thoát POS?')) {
+                  window.location.href = '/';
                 }
-                : { payments: checkoutPayments ?? [], overpaymentAction: 'KEEP_CREDIT' },
-            );
-          } else {
-            orderResult = await orderApi.complete(activeTab.linkedOrderId, outstanding > 0 ? {
-              payments: checkoutPayments ?? [],
-            } : {});
-          }
-        }
-      }
-    } else {
-      // Đơn tạo mới
-      orderResult = await createOrder.mutateAsync(payload);
-    }
+              }}
+            >
+              <LogOut size={20} />
+            </button>
 
-    store.setReceiptData({
-      ...payload,
-      id: orderResult?.id,
-      code: orderResult?.orderNumber || `ORD-${Math.floor(Math.random() * 10000)}`,
-      total: orderResult?.total ?? cartTotal,
-      paidAmount: orderResult?.paidAmount ?? orderResult?.amountPaid ?? payload.payments?.reduce((sum: number, payment: any) => sum + payment.amount, 0) ?? 0,
-    });
-    setCustomerMoneyInput('');
-    store.resetActiveTab();
-    setShowReceiptModal(true);
-  },
-  [
-    activeTab,
-    buildCheckoutPayload,
-    cartTotal,
-    createOrder,
-    handleGenerateQrPayment,
-    isQrBankPayment,
-    paymentMethods,
-    preferredPaymentMethod,
-    store,
-    hasServiceItems,
-    visiblePaymentMethods,
-  ],
-);
+            {/* Desktop Menu */}
+            <Menu size={20} className="cursor-pointer hover:opacity-80 transition-opacity hidden lg:block shrink-0" />
 
-useEffect(() => {
-  const handler = (e: KeyboardEvent) => {
-    const activeElement = document.activeElement;
-    const isInputFocused = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
+            <div className="flex-1 lg:w-[300px] lg:flex-none">
+              <PosProductSearch onSelect={handleAddItem} />
+            </div>
 
-    // Cho phép F-keys ngay cả khi đang focus
-    if (e.key === 'F2') {
-      e.preventDefault();
-      store.addTab();
-      return;
-    }
-    if (e.key === 'F8') {
-      e.preventDefault();
-      document.getElementById('customer_money_input')?.focus();
-      return;
-    }
-    if (e.key === 'F9') {
-      e.preventDefault();
-      if (hasServiceItems) {
-        handleCreateServiceFlow();
-      } else {
-        const method = activeTab?.payments?.[0]?.method ?? preferredPaymentMethod?.type ?? 'CASH';
-        handleCheckout(method as string);
-      }
-      return;
-    }
+            <button
+              className={`hidden lg:block p-1.5 hover:bg-white/20 rounded border transition-colors shrink-0 ${store.isMultiSelect ? 'border-amber-400 text-amber-400 bg-white/10' : 'border-white/20 text-white'}`}
+              title={store.isMultiSelect ? "Tắt chọn nhiều" : "Bật chọn nhiều (Thêm nhanh nhiều sản phẩm liên tục)"}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                store.setIsMultiSelect(!store.isMultiSelect);
+              }}
+            >
+              <ListChecks size={18} />
+            </button>
 
-    const isQuantityInput = activeElement?.id?.startsWith('quantity-input-') || activeElement?.id === 'quantity-input';
-    if (isInputFocused && !isQuantityInput) return;
-    if (!activeTab || activeTab.cart.length === 0) return;
+            <button
+              className="p-1.5 hover:bg-white/20 rounded border border-white/20 transition-colors shrink-0"
+              title={store.outOfStockHidden ? "Đang ẩn sản phẩm hết hàng" : "Đang hiện sản phẩm hết hàng"}
+              onClick={() => store.setOutOfStockHidden(!store.outOfStockHidden)}
+            >
+              {store.outOfStockHidden ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
 
-    if (e.key === 'ArrowUp') {
-      if (!isInputFocused) {
-        e.preventDefault();
-        setSelectedRowIndex((prev) => {
-          const next = prev > 0 ? prev - 1 : 0;
-          const rowId = `cart-row-${activeTab.cart[next].id}`;
-          document.getElementById(rowId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          return next;
-        });
-      }
-    } else if (e.key === 'ArrowDown') {
-      if (!isInputFocused) {
-        e.preventDefault();
-        setSelectedRowIndex((prev) => {
-          const next = prev < activeTab.cart.length - 1 ? prev + 1 : activeTab.cart.length - 1;
-          const rowId = `cart-row-${activeTab.cart[next].id}`;
-          document.getElementById(rowId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          return next;
-        });
-      }
-    } else if (e.key === 'ArrowLeft') {
-      if (selectedRowIndex >= 0 && selectedRowIndex < activeTab.cart.length) {
-        e.preventDefault();
-        const item = activeTab.cart[selectedRowIndex];
-        const step = getCartQuantityStep(item);
-        store.updateQuantity(item.id, Math.max(0, (item.quantity ?? 1) - step));
-      }
-    } else if (e.key === 'ArrowRight') {
-      if (selectedRowIndex >= 0 && selectedRowIndex < activeTab.cart.length) {
-        e.preventDefault();
-        const item = activeTab.cart[selectedRowIndex];
-        const step = getCartQuantityStep(item);
-        store.updateQuantity(item.id, (item.quantity ?? 1) + step);
-      }
-    }
-  };
+          {/* Nav Tabs next to search bar */}
+          <div className="hidden lg:flex flex-1 flex-row items-end overflow-hidden ml-3 h-full">
+            <div className="flex gap-0.5 h-full items-end no-scrollbar overflow-x-auto">
+              {store.tabs.map((tab) => {
+                const isActive = tab.id === store.activeTabId;
+                return (
+                  <div
+                    key={tab.id}
+                    onClick={() => store.setActiveTab(tab.id)}
+                    className={`
+                      group flex items-center h-[36px] gap-2 px-3 rounded-t-lg cursor-pointer 
+                      transition-colors min-w-[100px] max-w-[180px] border-t border-l border-r border-[#006e82]/50
+                      ${isActive
+                        ? 'bg-white text-gray-800 font-semibold'
+                        : 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm'}
+                    `}
+                  >
+                    <span className="truncate flex-1 text-[13px] font-medium">{tab.title}</span>
+                    <Zap size={12} className={isActive ? "text-amber-500" : "text-white/50"} />
+                    {store.tabs.length > 1 && (
+                      <button
+                        className={`p-0.5 ml-1 rounded-sm flex items-center justify-center
+                          ${isActive ? "text-gray-400 hover:text-red-500 hover:bg-red-50" : "text-white/60 hover:text-white hover:bg-white/20"}
+                        `}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          store.closeTab(tab.id);
+                        }}
+                      >
+                        <X size={12} strokeWidth={3} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
 
-  window.addEventListener('keydown', handler);
-  return () => window.removeEventListener('keydown', handler);
-}, [activeTab, handleCheckout, preferredPaymentMethod?.type, store, hasServiceItems, handleCreateServiceFlow, selectedRowIndex]);
+              <button
+                onClick={() => store.addTab()}
+                className="bg-[#00A1BC] hover:bg-[#00B4D1] text-white rounded-t-lg px-2.5 h-[36px] ml-1 flex items-center justify-center transition-colors border-t border-l border-r border-[#00A1BC]"
+                title="Tạo đơn mới (F2)"
+              >
+                <Plus size={18} strokeWidth={2.5} />
+              </button>
+            </div>
+          </div>
+        </div>
 
-if (!activeTab) return null;
+        {/* Right: Actions */}
+        <div className="hidden lg:flex items-center gap-3 shrink-0 py-1.5">
+          <div className="flex items-center gap-2 px-2 border-r border-white/20">
+            <span className="text-sm font-medium">Quản trị viên</span>
+            <PosBranchSelect />
+          </div>
 
-return (
-  <div className="flex flex-col h-screen bg-[#f0f2f5] font-sans text-gray-800 overflow-hidden">
-    {/* â• â• â•  HEADER (V1 KiotViet Style) â• â• â•  */}
-    <header className="relative z-50 flex items-center justify-between px-2 lg:px-3 h-[50px] bg-[#0089A1] text-white shrink-0 gap-2">
+          <div className="flex items-center gap-1.5">
+            <button className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Toàn màn hình" onClick={() => {
+              if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+              else document.exitFullscreen();
+            }}>
+              <Maximize size={18} />
+            </button>
+            <Link href="/" target="_blank" className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Về trang quản lý">
+              <Home size={18} />
+            </Link>
+            <div className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Cài đặt">
+              <PosSettingsPanel />
+            </div>
+            <PosNotifications />
+          </div>
 
-      {/* Left: Search Bar & Tabs */}
-      <div className="flex-1 lg:flex-none lg:w-2/3 flex items-end h-full">
-        {/* Search + Barcode + OutOfStock toggle */}
-        <div className="flex items-center gap-2 w-full lg:w-auto h-full py-1.5 pb-2">
-
-          {/* Mobile LogOut */}
           <button
-            className="lg:hidden p-1.5 hover:bg-white/20 rounded text-red-100 transition-colors shrink-0"
-            title="Thoát"
+            className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors"
+            title="Chốt sổ tiền mặt"
+            onClick={openShiftClosingModal}
+          >
+            <NotebookText size={16} />
+            <span>Chốt sổ</span>
+          </button>
+
+          <button
+            className="flex items-center gap-2 bg-[#006E82] hover:bg-[#005767] text-white px-3 py-1.5 rounded text-sm font-bold transition-colors ml-1"
+            title="Lưu nháp / Thoát"
             onClick={() => {
               if (window.confirm('Bạn có chắc chắn muốn thoát POS?')) {
                 window.location.href = '/';
               }
             }}
           >
-            <LogOut size={20} />
-          </button>
-
-          {/* Desktop Menu */}
-          <Menu size={20} className="cursor-pointer hover:opacity-80 transition-opacity hidden lg:block shrink-0" />
-
-          <div className="flex-1 lg:w-[300px] lg:flex-none">
-            <PosProductSearch onSelect={handleAddItem} />
-          </div>
-
-          <button
-            className={`hidden lg:block p-1.5 hover:bg-white/20 rounded border transition-colors shrink-0 ${store.isMultiSelect ? 'border-amber-400 text-amber-400 bg-white/10' : 'border-white/20 text-white'}`}
-            title={store.isMultiSelect ? "Tắt chọn nhiều" : "Bật chọn nhiều (Thêm nhanh nhiều sản phẩm liên tục)"}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.preventDefault();
-              store.setIsMultiSelect(!store.isMultiSelect);
-            }}
-          >
-            <ListChecks size={18} />
-          </button>
-
-          <button
-            className="p-1.5 hover:bg-white/20 rounded border border-white/20 transition-colors shrink-0"
-            title={store.outOfStockHidden ? "Đang ẩn sản phẩm hết hàng" : "Đang hiện sản phẩm hết hàng"}
-            onClick={() => store.setOutOfStockHidden(!store.outOfStockHidden)}
-          >
-            {store.outOfStockHidden ? <EyeOff size={18} /> : <Eye size={18} />}
+            <LogOut size={16} />
           </button>
         </div>
+      </header>
 
-        {/* Nav Tabs next to search bar */}
-        <div className="hidden lg:flex flex-1 flex-row items-end overflow-hidden ml-3 h-full">
-          <div className="flex gap-0.5 h-full items-end no-scrollbar overflow-x-auto">
-            {store.tabs.map((tab) => {
-              const isActive = tab.id === store.activeTabId;
-              return (
-                <div
-                  key={tab.id}
-                  onClick={() => store.setActiveTab(tab.id)}
-                  className={`
-                      group flex items-center h-[36px] gap-2 px-3 rounded-t-lg cursor-pointer 
-                      transition-colors min-w-[100px] max-w-[180px] border-t border-l border-r border-[#006e82]/50
-                      ${isActive
-                      ? 'bg-white text-gray-800 font-semibold'
-                      : 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm'}
-                    `}
-                >
-                  <span className="truncate flex-1 text-[13px] font-medium">{tab.title}</span>
+      {/* â• â• â•  MAIN POS AREA â• â• â•  */}
+      <main className="flex-1 flex flex-col lg:grid lg:grid-cols-[1fr_390px] xl:grid-cols-[1fr_420px] lg:grid-rows-[auto_1fr_auto] overflow-y-auto lg:overflow-hidden bg-[#f0f2f5] relative">
 
-                  {store.tabs.length > 1 && (
-                    <button
-                      className={`p-0.5 ml-1 rounded-sm flex items-center justify-center
-                          ${isActive ? "text-gray-400 hover:text-red-500 hover:bg-red-50" : "text-white/60 hover:text-white hover:bg-white/20"}
-                        `}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        store.closeTab(tab.id);
-                      }}
-                    >
-                      <X size={12} strokeWidth={3} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+        {/* 3. CART VIEW (Mobile: 3rd, Desktop: Left Col, Row 1-3) */}
+        <div className="order-3 lg:col-start-1 lg:row-start-1 lg:row-span-3 flex flex-col bg-white shadow-sm z-10 lg:overflow-hidden min-h-[400px]">
 
-            <button
-              onClick={() => store.addTab()}
-              className="bg-[#00A1BC] hover:bg-[#00B4D1] text-white rounded-t-lg px-2.5 h-[36px] ml-1 flex items-center justify-center transition-colors border-t border-l border-r border-[#00A1BC]"
-              title="Tạo đơn mới (F2)"
-            >
-              <Plus size={18} strokeWidth={2.5} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Right: Actions */}
-      <div className="hidden lg:flex items-center gap-3 shrink-0 py-1.5">
-        <div className="flex items-center gap-2 px-2 border-r border-white/20">
-          <span className="text-sm font-medium">Quản trị viên</span>
-          <PosBranchSelect />
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <button className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Toàn màn hình" onClick={() => {
-            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-            else document.exitFullscreen();
-          }}>
-            <Maximize size={18} />
-          </button>
-          <Link href="/" target="_blank" className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Về trang quản lý">
-            <Home size={18} />
-          </Link>
-          <div className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Cài đặt">
-            <PosSettingsPanel />
-          </div>
-          <PosNotifications />
-        </div>
-
-        <button
-          className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors"
-          title="Chốt sổ tiền mặt"
-          onClick={() => setShowShiftClosingModal(true)}
-        >
-          <NotebookText size={16} />
-          <span>Chốt sổ</span>
-        </button>
-
-        <button
-          className="flex items-center gap-2 bg-[#006E82] hover:bg-[#005767] text-white px-3 py-1.5 rounded text-sm font-bold transition-colors ml-1"
-          title="Lưu nháp / Thoát"
-          onClick={() => {
-            if (window.confirm('Bạn có chắc chắn muốn thoát POS?')) {
-              window.location.href = '/';
-            }
-          }}
-        >
-          <LogOut size={16} />
-        </button>
-      </div>
-    </header>
-
-    {/* â• â• â•  MAIN POS AREA â• â• â•  */}
-    <main className="flex-1 flex flex-col lg:grid lg:grid-cols-[1fr_390px] xl:grid-cols-[1fr_420px] lg:grid-rows-[auto_1fr_auto] overflow-y-auto lg:overflow-hidden bg-[#f0f2f5] relative">
-
-      {/* 3. CART VIEW (Mobile: 3rd, Desktop: Left Col, Row 1-3) */}
-      <div className="order-3 lg:col-start-1 lg:row-start-1 lg:row-span-3 flex flex-col bg-white shadow-sm z-10 lg:overflow-hidden min-h-[400px]">
-
-        {/* Table Header */}
-        <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-2 bg-gray-50 border-b border-gray-200 text-[13px] font-semibold text-gray-600 uppercase">
-          <div className="text-center">#</div>
-          <div></div>
-          <div className="text-center">Ảnh</div>
-          <div>Sản phẩm / SKU</div>
-          <div className="text-center">Đơn vị</div>
-          <div className="text-center">Số lượng</div>
-          <div className="text-right">Đơn giá</div>
-          <div className="text-right">Thành tiền</div>
-        </div>
-
-        {/* Table Body (Scrollable) */}
-        <div className="flex-1 overflow-y-auto w-full no-scrollbar">
-          {activeTab.cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-4">
-              <ShoppingCart size={64} className="opacity-20" />
-              <p className="text-lg">Đơn hàng trống</p>
-              <p className="text-sm">Hãy tìm kiếm sản phẩm hoặc quét mã vạch (F1)</p>
-            </div>
-          ) : (
-            activeTab.cart.map((item, idx) => {
-              const {
-                itemVariants,
-                trueVariants,
-                allConversionVariants,
-                currentVariantObj,
-                isCurrentConversion,
-                currentTrueVariant,
-                conversionVariants,
-                sellableQty,
-                isOverSellableQty,
-              } = resolveCartItemStockState(item, activeTab.branchId);
-              const weightBandLabel = getCartItemWeightBandLabel(item);
-
-              const currentQuantity = item.quantity || 1;
-              const itemDiscountAmount = item.discountItem || 0;
-              const discountedUnitPrice = Math.max(0, (item.unitPrice || 0) - itemDiscountAmount);
-              const itemDiscountPercent = item.unitPrice && item.unitPrice > 0 ? Math.round((itemDiscountAmount / item.unitPrice) * 100) : 0;
-
-              return (
-                <div key={item.id} id={`cart-row-${item.id}`} className={`flex flex-col border-b border-gray-100 hover:bg-primary-50/30 transition-colors group ${idx === selectedRowIndex ? 'bg-primary-50/30' : ''}`}>
-
-                  {/* â”€â”€â”€ DESKTOP ROW â”€â”€â”€ */}
-                  <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-3">
-                    <div className="text-center text-gray-500 text-[15px] font-medium">{idx + 1}</div>
-
-                    <div className="flex justify-center">
-                      <button
-                        onClick={() => store.removeItem(item.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
-                        title="Xoá"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-center overflow-visible">
-                      <div className="w-10 h-10 rounded border border-gray-200 flex items-center justify-center bg-white text-gray-400 relative group/img cursor-pointer overflow-visible">
-                        {item.image ? (
-                          <>
-                            <Image src={item.image} alt={item.description} width={40} height={40} unoptimized className="h-full w-full rounded object-cover" />
-                            {/* Hover 5x image */}
-                            <div className="absolute top-1/2 left-full ml-2 w-[200px] h-[200px] -translate-y-1/2 shadow-2xl rounded-lg border-4 border-white overflow-hidden opacity-0 invisible group-hover/img:opacity-100 group-hover/img:visible pointer-events-none transition-all z-200 origin-left">
-                              <Image src={item.image} alt={item.description} width={200} height={200} unoptimized className="h-full w-full object-cover" />
-                            </div>
-                          </>
-                        ) : (
-                          item.type === 'service' || item.type === 'grooming' ? <Scissors size={18} /> : <Package size={18} />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col pr-2 min-w-0">
-                      <div className="font-semibold text-[15px] text-gray-800 flex items-center gap-2 min-w-0" title={item.description}>
-                        <span className="truncate shrink">{item.description}</span>
-                        {(item as any).isTemp && (
-                          <button
-                            className="shrink-0 text-gray-400 hover:text-amber-500 transition-colors"
-                            title="Sửa sản phẩm tạm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setTempRow({
-                                label: (item as any).tempLabel ?? item.description,
-                                unit: item.unit || 'Cái',
-                                qty: item.quantity ?? 1,
-                                price: String(item.unitPrice ?? 0),
-                              });
-                              store.removeItem(item.id);
-                            }}
-                          >
-                            <Pencil size={13} />
-                          </button>
-                        )}
-                        {trueVariants.some((v: any) => Boolean(getPosVariantLabel(item.description, v))) ? (
-                          <div className="relative inline-flex items-center shrink-0 group cursor-pointer -ml-1">
-                            <select
-                              className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-normal"
-                              value={currentTrueVariant?.id || (!isCurrentConversion && item.productVariantId) || ''}
-                              onChange={(e) => {
-                                const newTrueVariantId = e.target.value;
-                                let targetVariantId = newTrueVariantId;
-                                if (isCurrentConversion && currentTrueVariant && currentVariantObj) {
-                                  const selectedUnitLabel = currentVariantObj.unitLabel ?? getProductVariantOptionLabel(item.description, currentVariantObj);
-                                  const newTrueVariant = trueVariants.find((v: any) => v.id === newTrueVariantId);
-                                  if (newTrueVariant && allConversionVariants) {
-                                    const matchingConv = allConversionVariants.find((variant: any) =>
-                                      getProductVariantGroupKey(item.description, variant) === getProductVariantGroupKey(item.description, newTrueVariant)
-                                      && (variant.unitLabel ?? getProductVariantOptionLabel(item.description, variant)) === selectedUnitLabel,
-                                    );
-                                    if (matchingConv) {
-                                      targetVariantId = matchingConv.id;
-                                    }
-                                  }
-                                }
-                                store.updateItemVariant(item.id, targetVariantId);
-                              }}
-                            >
-                              <option value="base" className="hidden">Phiên bản</option>
-                              {trueVariants.map((variant: any) => (
-                                <option key={variant.id} value={variant.id}>{getPosVariantLabel(item.description, variant) || variant.variantLabel || variant.name}</option>
-                              ))}
-                            </select>
-                            <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 group-hover:text-primary-600 pointer-events-none transition-colors" size={14} />
-                          </div>
-                        ) : null}
-
-                        {/* Stock Popover */}
-                        <div className={`group/stock relative shrink-0 z-60 flex${(item as any).isTemp ? ' hidden' : ''}`}>
-                          <Info size={16} className="text-gray-300 opacity-0 group-hover:opacity-100 group-hover/stock:text-[#0089A1] cursor-help transition-all" />
-                          <div className="absolute top-full left-1/2 -translate-x-[40%] mt-2 w-[340px] opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible group-hover/stock:pointer-events-auto transition-all duration-200 p-0 pointer-events-none before:absolute before:-top-4 before:left-0 before:w-full before:h-4 z-100">
-                            <div className="bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden w-full h-full">
-                              <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
-                                <Link
-                                  href={item.productId ? `/products/${item.productId}` : '#'}
-                                  target="_blank"
-                                  className="font-bold text-[13px] text-gray-800 hover:text-[#0089A1] hover:underline leading-tight block cursor-pointer transition-colors"
-                                >
-                                  {currentTrueVariant ? currentTrueVariant.name : item.description}
-                                </Link>
-                                <div className="text-[10px] text-gray-500 mt-0.5 font-medium tracking-wide uppercase">{currentTrueVariant ? (currentTrueVariant.sku || item.sku || 'N/A') : (item.sku || 'N/A')}</div>
-                              </div>
-
-                              <div className="px-4 py-3">
-                                <table className="w-full text-xs text-right whitespace-nowrap">
-                                  <thead>
-                                    <tr className="border-b border-gray-100 text-gray-500">
-                                      <th className="text-left font-semibold pb-2"></th>
-                                      <th className="font-semibold pb-2 px-2">TỒN</th>
-                                      <th className="font-semibold pb-2 px-2 text-[#0089A1]">KHẢ DỤNG</th>
-                                      <th className="font-semibold pb-2 pl-2">ĐỂ BÁN</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {(() => {
-                                      const targetStockInfo = currentTrueVariant ? currentTrueVariant : item;
-                                      const targetBranchStocks = Array.isArray((targetStockInfo as any).branchStocks) ? (targetStockInfo as any).branchStocks : [];
-                                      const isService = item.type !== 'product';
-                                      const defaultFallback = isService ? '∞' : '—';
-
-                                      return (
-                                        <>
-                                          <tr className="border-b border-gray-50">
-                                            <td className="text-left py-2.5 font-semibold text-gray-800">Tổng tồn kho</td>
-                                            <td className="px-2 py-2.5">{isService ? defaultFallback : ((targetStockInfo as any).stock ?? defaultFallback)}</td>
-                                            <td className="px-2 py-2.5 text-[#0089A1] font-bold">
-                                              {isService ? defaultFallback : ((targetStockInfo as any).availableStock !== undefined
-                                                ? (targetStockInfo as any).availableStock
-                                                : (((targetStockInfo as any).stock !== undefined && (targetStockInfo as any).stock !== null)
-                                                  ? (targetStockInfo as any).stock - ((targetStockInfo as any).trading || (targetStockInfo as any).reserved || 0)
-                                                  : defaultFallback))}
-                                            </td>
-                                            <td className="pl-2 py-2.5">{isService ? defaultFallback : ((targetStockInfo as any).trading ?? defaultFallback)}</td>
-                                          </tr>
-                                          {branches.filter((b: any) => b.isActive).map((b: any) => {
-                                            const bs = targetBranchStocks.find((s: any) => s.branchId === b.id || s.branch?.id === b.id);
-                                            const stock = bs ? bs.stock ?? 0 : 0;
-                                            const reserved = bs ? bs.reservedStock ?? 0 : 0;
-                                            const availableStock = bs !== undefined && bs !== null && bs.availableStock !== undefined && bs.availableStock !== null
-                                              ? bs.availableStock
-                                              : (stock - reserved);
-
-                                            return (
-                                              <tr key={b.id} className="border-b border-gray-50 last:border-0 border-dashed">
-                                                <td className="text-left py-2 font-medium text-gray-600 truncate max-w-[120px]">{b.name}</td>
-                                                <td className="px-2 py-2">{isService ? defaultFallback : stock}</td>
-                                                <td className="px-2 py-2 text-[#0089A1]/80">{isService ? defaultFallback : availableStock}</td>
-                                                <td className="pl-2 py-2">{defaultFallback}</td>
-                                              </tr>
-                                            );
-                                          })}
-                                        </>
-                                      );
-                                    })()}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-xs flex items-center mt-0.5 mb-1 w-full gap-2 group/note min-h-[20px]">
-                        <span className="text-gray-500 shrink-0 font-medium text-[13px]">{item.sku || 'N/A'}</span>
-                        {weightBandLabel ? (
-                          <span className="shrink-0 rounded bg-primary-50 px-1.5 py-0.5 text-[11px] font-semibold text-primary-700">
-                            {weightBandLabel}
-                          </span>
-                        ) : null}
-                        {noteEditingId === item.id ? (
-                          <input
-                            type="text"
-                            placeholder="Ghi chú sản phẩm..."
-                            defaultValue={item.itemNotes || ''}
-                            autoFocus
-                            onBlur={(e) => {
-                              if (e.target.value !== item.itemNotes) {
-                                store.updateItemNotes(item.id, e.target.value);
-                              }
-                              setNoteEditingId(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                store.updateItemNotes(item.id, e.currentTarget.value);
-                                setNoteEditingId(null);
-                              } else if (e.key === 'Escape') {
-                                setNoteEditingId(null);
-                              }
-                            }}
-                            className="flex-1 min-w-[80px] h-6 px-1.5 text-[11px] bg-white/50 border border-amber-300 focus:border-amber-500 focus:bg-white focus:outline-none rounded transition-all text-amber-700 placeholder:text-gray-400"
-                          />
-                        ) : (
-                          <div
-                            className="flex items-center gap-1 cursor-pointer hover:opacity-75 transition-opacity"
-                            onClick={() => setNoteEditingId(item.id)}
-                            title={item.itemNotes ? "Sửa ghi chú" : "Thêm ghi chú"}
-                          >
-                            {item.itemNotes ? (
-                              <span className="text-[11px] text-amber-600 font-medium italic truncate max-w-[200px] flex items-center gap-1">
-                                <FileText size={12} className="shrink-0 text-amber-500" />
-                                {item.itemNotes}
-                              </span>
-                            ) : (
-                              <button className="text-gray-300 hover:text-[#0089A1] transition-colors p-0.5" type="button">
-                                <FileText size={12} strokeWidth={2.5} />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      {item.hotelDetails && (
-                        <div className="text-[10px] text-primary-600 mt-0.5 bg-primary-50 w-fit px-1 rounded">
-                          In: {new Date(item.hotelDetails.checkIn).toLocaleDateString()}
-                          {' - '}
-                          Out: {new Date(item.hotelDetails.checkOut).toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="text-center text-[15px] font-medium text-gray-700 flex justify-center">
-                      {conversionVariants.length > 0 ? (
-                        <div className="relative inline-flex items-center group cursor-pointer text-gray-700 hover:text-primary-600 transition-colors">
-                          <select
-                            className="appearance-none bg-transparent text-[15px] font-medium outline-none cursor-pointer pr-4 w-full text-center"
-                            value={isCurrentConversion ? item.productVariantId : 'base'}
-                            onChange={(e) => {
-                              if (e.target.value === 'base') {
-                                store.updateItemVariant(item.id, currentTrueVariant ? currentTrueVariant.id : 'base');
-                              } else {
-                                store.updateItemVariant(item.id, e.target.value);
-                              }
-                            }}
-                          >
-                            <option value="base">{item.unit || 'cái'}</option>
-                            {conversionVariants.map((variant: any) => (
-                              <option key={variant.id} value={variant.id}>{variant.unitLabel ?? getProductVariantOptionLabel(item.description, variant)}</option>
-                            ))}
-                          </select>
-                          <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 group-hover:opacity-100" size={14} />
-                        </div>
-                      ) : (
-                        <span className="text-gray-700">
-                          {item.unit || 'cái'}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-center">
-                      <div
-                        className={`flex items-center rounded h-8 transition-colors ${item.type === 'hotel'
-                          ? 'border border-gray-200 bg-gray-50'
-                          : isOverSellableQty
-                            ? 'border border-red-500 bg-red-50'
-                            : 'border border-gray-300 bg-white focus-within:border-primary-500'
-                          }`}
-                      >
-                        <button
-                          className={`px-2 h-full transition-colors ${item.type === 'hotel' ? 'text-gray-400 cursor-not-allowed opacity-50' : isOverSellableQty ? 'text-red-600 hover:bg-red-100' : 'text-gray-500 hover:bg-gray-100'
-                            }`}
-                          disabled={item.type === 'hotel'}
-                          onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) - getCartQuantityStep(item))}
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <input
-                          id={`quantity-input-${item.id}`}
-                          type="text"
-                          inputMode="numeric"
-                          disabled={item.type === 'hotel'}
-                          value={item.quantity ?? 1}
-                          onChange={(e) => {
-                            const v = parseCartQuantityInput(e.target.value);
-                            if (!Number.isNaN(v)) {
-                              store.updateQuantity(item.id, v);
-                            }
-                          }}
-                          onBlur={(e) => {
-                            const v = parseCartQuantityInput(e.target.value);
-                            if (Number.isNaN(v) || v <= 0) {
-                              store.updateQuantity(item.id, getCartQuantityStep(item));
-                            }
-                          }}
-                          className={`w-10 text-center font-bold text-[15px] outline-none border-none h-full ${item.type === 'hotel' ? 'bg-gray-50 text-gray-500 cursor-default' : isOverSellableQty ? 'bg-red-50 text-red-600 cursor-text' : 'bg-transparent text-gray-900 cursor-text'
-                            }`}
-                        />
-                        <button
-                          className={`px-2 h-full transition-colors ${item.type === 'hotel' ? 'text-gray-400 cursor-not-allowed opacity-50' : isOverSellableQty ? 'text-red-600 hover:bg-red-100' : 'text-gray-500 hover:bg-gray-100'
-                            }`}
-                          disabled={item.type === 'hotel'}
-                          onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) + getCartQuantityStep(item))}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="relative text-right flex items-center justify-end">
-                      {discountEditingId === item.id && (
-                        <>
-                          <div className="fixed inset-0 z-40 cursor-default" onClick={() => setDiscountEditingId(null)} />
-                          <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 w-72 z-50 p-4 animate-in fade-in zoom-in-95 duration-200 cursor-default text-left shadow-primary-500/10">
-                            <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-3">
-                              <h4 className="font-bold text-gray-800 text-[15px]">Cài đặt giá & Chiết khấu</h4>
-                              <button className="text-gray-400 hover:text-gray-600 transition-colors" onClick={() => setDiscountEditingId(null)}><X size={18} /></button>
-                            </div>
-                            <div className="space-y-3">
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <label className="block text-[13px] font-medium text-gray-600 mb-1">CK (VNĐ)</label>
-                                  <div className="relative">
-                                    <input
-                                      type="text"
-                                      className="w-full text-right text-[14px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 outline-none focus:border-amber-500 pr-6 transition-colors placeholder:text-amber-300"
-                                      placeholder="0"
-                                      value={item.discountItem ? money(item.discountItem) : ''}
-                                      onChange={(e) => {
-                                        const val = parseInt(e.target.value.replace(/\D/g, ''));
-                                        store.updateDiscountItem(item.id, isNaN(val) ? 0 : val);
-                                      }}
-                                    />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-amber-500 select-none">đ</span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="block text-[13px] font-medium text-gray-600 mb-1">CK (%)</label>
-                                  <div className="relative">
-                                    <input
-                                      type="text"
-                                      className="w-full text-right text-[14px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 outline-none focus:border-amber-500 pr-6 transition-colors placeholder:text-amber-300"
-                                      placeholder="0"
-                                      value={itemDiscountAmount > 0 && item.unitPrice ? itemDiscountPercent : ''}
-                                      onChange={(e) => {
-                                        const val = parseFloat(e.target.value.replace(/[^\d.]/g, ''));
-                                        const pct = isNaN(val) ? 0 : Math.min(100, Math.max(0, val));
-                                        store.updateDiscountItem(item.id, Math.round((item.unitPrice || 0) * (pct / 100)));
-                                      }}
-                                    />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-amber-500 select-none">%</span>
-                                  </div>
-                                </div>
-                              </div>
-                              {(item.discountItem ?? 0) > 0 && (
-                                <div className="pt-2 border-t border-gray-100 flex justify-between items-center text-[13px]">
-                                  <span className="text-gray-500">Giảm giá:</span>
-                                  <span className="font-bold text-amber-600">-{money(itemDiscountAmount)} ({itemDiscountPercent}%)</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      <div
-                        className="group/price relative cursor-pointer flex flex-col items-end"
-                        onClick={() => setDiscountEditingId(item.id)}
-                      >
-                        <div className="text-[15px] font-medium text-gray-800 border-b border-dashed border-gray-300 hover:border-primary-500 group-hover/price:border-primary-500 transition-colors pb-0.5">
-                          {money(discountedUnitPrice)}
-                        </div>
-                        {itemDiscountAmount > 0 && (
-                          <div className="flex items-center gap-1 mt-0.5 text-[11px] font-semibold text-amber-500 bg-amber-50 px-1 py-0.5 rounded max-w-full">
-                            <span>-{itemDiscountPercent}%</span>
-                            <span className="opacity-70">(-{money(itemDiscountAmount)})</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="text-right text-[15px] font-bold text-gray-800">
-                      {moneyRaw(discountedUnitPrice * currentQuantity)}
-                    </div>
-                  </div>
-
-                  {/* â”€â”€â”€ MOBILE ROW â”€â”€â”€ */}
-                  <div className="flex lg:hidden p-3 gap-3 relative">
-                    <div className="w-[60px] h-[60px] shrink-0 rounded border border-gray-200 flex items-center justify-center bg-white text-gray-400 relative group/img cursor-pointer hover:z-50">
-                      {item.image ? (
-                        <>
-                          <Image src={item.image} alt={item.description} width={60} height={60} unoptimized className="h-full w-full rounded object-cover" />
-                          {/* Hover 5x image */}
-                          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] shadow-2xl rounded-xl border-4 border-white overflow-hidden opacity-0 invisible group-hover/img:opacity-100 group-hover/img:visible pointer-events-none transition-all z-999">
-                            <Image src={item.image} alt={item.description} width={300} height={300} unoptimized className="h-full w-full object-cover" />
-                          </div>
-                        </>
-                      ) : (
-                        item.type === 'service' || item.type === 'grooming' ? <Scissors size={24} /> : <Package size={24} />
-                      )}
-                    </div>
-
-                    <div className="flex-1 flex flex-col pr-8">
-                      <div className="font-semibold text-[15px] text-gray-800 leading-tight mb-1 flex items-center gap-2 flex-wrap" title={item.description}>
-                        <span>{item.description}</span>
-                        {trueVariants.some((v: any) => Boolean(getPosVariantLabel(item.description, v))) ? (
-                          <div className="relative inline-flex items-center shrink-0 group cursor-pointer -ml-1">
-                            <select
-                              className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-normal"
-                              value={currentTrueVariant?.id || (!isCurrentConversion && item.productVariantId) || ''}
-                              onChange={(e) => {
-                                const newTrueVariantId = e.target.value;
-                                let targetVariantId = newTrueVariantId;
-                                if (isCurrentConversion && currentTrueVariant && currentVariantObj) {
-                                  const selectedUnitLabel = currentVariantObj.unitLabel ?? getProductVariantOptionLabel(item.description, currentVariantObj);
-                                  const newTrueVariant = trueVariants.find((v: any) => v.id === newTrueVariantId);
-                                  if (newTrueVariant && allConversionVariants) {
-                                    const matchingConv = allConversionVariants.find((variant: any) =>
-                                      getProductVariantGroupKey(item.description, variant) === getProductVariantGroupKey(item.description, newTrueVariant)
-                                      && (variant.unitLabel ?? getProductVariantOptionLabel(item.description, variant)) === selectedUnitLabel,
-                                    );
-                                    if (matchingConv) {
-                                      targetVariantId = matchingConv.id;
-                                    }
-                                  }
-                                }
-                                store.updateItemVariant(item.id, targetVariantId);
-                              }}
-                            >
-                              <option value="base" className="hidden">Phiên bản</option>
-                              {trueVariants.map((variant: any) => (
-                                <option key={variant.id} value={variant.id}>{getPosVariantLabel(item.description, variant) || variant.variantLabel || variant.name}</option>
-                              ))}
-                            </select>
-                            <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 group-hover:text-primary-600 pointer-events-none transition-colors" size={14} />
-                          </div>
-                        ) : null}
-
-                        {/* Mobile Stock Popover */}
-                        <Info size={16} className="text-[#0089A1] ml-1 cursor-pointer" onClick={() => window.alert(`Tổng tồn: ${(item as any).stock ?? 'N/A'}\nKhả dụng: ${(item as any).availableStock ?? 'N/A'}`)} />
-
-                        {conversionVariants.length > 0 && (
-                          <div className="relative inline-flex items-center shrink-0 mt-0.5 ml-2 cursor-pointer text-gray-700 hover:text-primary-600 transition-colors">
-                            <select
-                              className="appearance-none bg-transparent text-[14px] font-medium outline-none cursor-pointer pr-4 w-full"
-                              value={isCurrentConversion ? item.productVariantId : 'base'}
-                              onChange={(e) => {
-                                if (e.target.value === 'base') {
-                                  store.updateItemVariant(item.id, currentTrueVariant ? currentTrueVariant.id : 'base');
-                                } else {
-                                  store.updateItemVariant(item.id, e.target.value);
-                                }
-                              }}
-                            >
-                              <option value="base">{item.unit || 'cái'}</option>
-                              {conversionVariants.map((variant: any) => (
-                                <option key={variant.id} value={variant.id}>{variant.unitLabel ?? getProductVariantOptionLabel(item.description, variant)}</option>
-                              ))}
-                            </select>
-                            <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" size={14} />
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-[13px] text-gray-500 mb-0.5 uppercase tracking-wide">
-                        SKU: {item.sku || 'N/A'}
-                        {weightBandLabel ? ` · Hạng cân: ${weightBandLabel}` : ''}
-                      </div>
-                      {discountEditingId === item.id && (
-                        <>
-                          <div className="fixed inset-0 z-40 cursor-default" onClick={() => setDiscountEditingId(null)} />
-                          <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 w-72 z-50 p-4 animate-in fade-in zoom-in-95 duration-200 cursor-default text-left shadow-primary-500/10">
-                            <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-3">
-                              <h4 className="font-bold text-gray-800 text-[15px]">Cài đặt giá & Chiết khấu</h4>
-                              <button className="text-gray-400 hover:text-gray-600 transition-colors" onClick={() => setDiscountEditingId(null)}><X size={18} /></button>
-                            </div>
-                            <div className="space-y-3">
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <label className="block text-[13px] font-medium text-gray-600 mb-1">CK (VNĐ)</label>
-                                  <div className="relative">
-                                    <input
-                                      type="text"
-                                      className="w-full text-right text-[14px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 outline-none focus:border-amber-500 pr-6 transition-colors placeholder:text-amber-300"
-                                      placeholder="0"
-                                      value={item.discountItem ? money(item.discountItem) : ''}
-                                      onChange={(e) => {
-                                        const val = parseInt(e.target.value.replace(/\D/g, ''));
-                                        store.updateDiscountItem(item.id, isNaN(val) ? 0 : val);
-                                      }}
-                                    />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-amber-500 select-none">đ</span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="block text-[13px] font-medium text-gray-600 mb-1">CK (%)</label>
-                                  <div className="relative">
-                                    <input
-                                      type="text"
-                                      className="w-full text-right text-[14px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 outline-none focus:border-amber-500 pr-6 transition-colors placeholder:text-amber-300"
-                                      placeholder="0"
-                                      value={itemDiscountAmount > 0 && item.unitPrice ? itemDiscountPercent : ''}
-                                      onChange={(e) => {
-                                        const val = parseFloat(e.target.value.replace(/[^\d.]/g, ''));
-                                        const pct = isNaN(val) ? 0 : Math.min(100, Math.max(0, val));
-                                        store.updateDiscountItem(item.id, Math.round((item.unitPrice || 0) * (pct / 100)));
-                                      }}
-                                    />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-amber-500 select-none">%</span>
-                                  </div>
-                                </div>
-                              </div>
-                              {(item.discountItem ?? 0) > 0 && (
-                                <div className="pt-2 border-t border-gray-100 flex justify-between items-center text-[13px]">
-                                  <span className="text-gray-500">Giảm giá:</span>
-                                  <span className="font-bold text-amber-600">-{money(itemDiscountAmount)} ({itemDiscountPercent}%)</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      <div className="text-[15px] font-medium text-gray-800 cursor-pointer border-b border-dashed border-gray-300 hover:border-primary-500 group-hover:border-primary-500 transition-colors w-fit pb-0.5" onClick={() => setDiscountEditingId(item.id)}>
-                        {moneyRaw(discountedUnitPrice)}
-                      </div>
-                      {itemDiscountAmount > 0 && (
-                        <div className="text-[11px] flex items-center gap-1 font-semibold text-amber-500 bg-amber-50 px-1 py-0.5 rounded w-fit mt-0.5">
-                          <span>-{itemDiscountPercent}%</span>
-                          <span className="opacity-70">(-{money(itemDiscountAmount)})</span>
-                        </div>
-                      )}
-                      {item.hotelDetails && (
-                        <div className="text-[10px] text-primary-600 mt-1 bg-primary-50 w-fit px-1.5 py-0.5 rounded">
-                          In: {new Date(item.hotelDetails.checkIn).toLocaleDateString()}
-                          {' - '}
-                          Out: {new Date(item.hotelDetails.checkOut).toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Delete item button */}
-                    <button
-                      onClick={() => store.removeItem(item.id)}
-                      className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-500"
-                    >
-                      <X size={20} />
-                    </button>
-
-                    {/* Quantity control */}
-                    <div className="absolute bottom-2 right-2">
-                      <div
-                        className={`flex items-center rounded overflow-hidden h-[32px] transition-colors ${item.type === 'hotel'
-                          ? 'border-gray-200 bg-gray-50'
-                          : isOverSellableQty
-                            ? 'border border-red-500 bg-red-50 text-red-600'
-                            : 'border border-gray-300 bg-white text-gray-700'
-                          }`}
-                      >
-                        <button
-                          className={`px-2.5 h-full flex items-center justify-center transition-colors ${item.type === 'hotel' ? 'text-gray-400 cursor-not-allowed opacity-50' : isOverSellableQty ? 'hover:bg-red-100' : 'hover:bg-gray-100'
-                            }`}
-                          disabled={item.type === 'hotel'}
-                          onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) - getCartQuantityStep(item))}
-                        >
-                          <Minus size={16} />
-                        </button>
-                        <input
-                          id={`quantity-input-mobile-${item.id}`}
-                          type="text"
-                          readOnly
-                          disabled={item.type === 'hotel'}
-                          value={item.quantity ?? 1}
-                          onChange={(e) => {
-                            const v = parseCartQuantityInput(e.target.value);
-                            store.updateQuantity(item.id, Number.isNaN(v) ? getCartQuantityStep(item) : v);
-                          }}
-                          className={`w-10 text-center font-bold text-[14px] outline-none border-none h-full cursor-default ${item.type === 'hotel' ? 'bg-gray-50 text-gray-500' : isOverSellableQty ? 'bg-red-50 text-red-600' : 'bg-transparent text-gray-700'
-                            }`}
-                        />
-                        <button
-                          className={`px-2.5 h-full flex items-center justify-center transition-colors ${item.type === 'hotel' ? 'text-gray-400 cursor-not-allowed opacity-50' : isOverSellableQty ? 'hover:bg-red-100' : 'hover:bg-gray-100'
-                            }`}
-                          disabled={item.type === 'hotel'}
-                          onClick={() => store.updateQuantity(item.id, (item.quantity ?? 1) + getCartQuantityStep(item))}
-                        >
-                          <Plus size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-
-          {/* Inline temp product row — spreadsheet style */}
-          {tempRow !== null && (() => {
-            const commitTemp = () => {
-              if (!tempRow.label.trim()) { setTempRow(null); return; }
-              const unitPrice = Number(tempRow.price) || 0;
-              store.addItem({
-                id: `temp-${Date.now()}`,
-                name: tempRow.label.trim(),
-                description: tempRow.label.trim(),
-                variantName: '',
-                variantLabel: '',
-                unitLabel: '',
-                sku: '',
-                unit: tempRow.unit || 'Cái',
-                price: unitPrice,
-                unitPrice,
-                quantity: tempRow.qty,
-                discountItem: 0,
-                vatRate: 0,
-                type: 'product',
-                image: '',
-                isTemp: true,
-                tempLabel: tempRow.label.trim(),
-              } as any);
-              setTempRow(null);
-            };
-            return (
-              <div
-                className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-2 border-b border-dashed border-gray-200 bg-gray-50/80"
-                onBlur={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget as Node)) commitTemp();
-                }}
-              >
-                <div />
-                <div />
-                <div />
-                {/* Tên sản phẩm */}
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder="Tên sản phẩm.."
-                  value={tempRow.label}
-                  onChange={(e) => setTempRow({ ...tempRow, label: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') { e.preventDefault(); setTempRow(null); }
-                    if (e.key === 'Enter') commitTemp();
-                  }}
-                  className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-sm outline-none focus:border-primary-400 placeholder:text-gray-300"
-                />
-                {/* \u0110\u01a1n v\u1ecb */}
-                <input
-                  data-field="unit"
-                  type="text"
-                  placeholder="Cái"
-                  value={tempRow.unit ?? ''}
-                  onChange={(e) => setTempRow({ ...tempRow, unit: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') { e.preventDefault(); setTempRow(null); }
-                    if (e.key === 'Enter') commitTemp();
-                  }}
-                  className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-center text-sm outline-none focus:border-primary-400 placeholder:text-gray-300"
-                />
-                {/* S\u1ed1 l\u01b0\u1ee3ng */}
-                <input
-                  data-field="qty"
-                  type="number"
-                  min={1}
-                  value={tempRow.qty}
-                  onChange={(e) => setTempRow({ ...tempRow, qty: Math.max(1, Number(e.target.value)) })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') { e.preventDefault(); setTempRow(null); }
-                    if (e.key === 'Enter') commitTemp();
-                  }}
-                  className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-center text-sm outline-none focus:border-primary-400"
-                />
-                {/* Đơn giá */}
-                <div className="relative">
-                  <input
-                    data-field="price"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={tempRow.price}
-                    onChange={(e) => setTempRow({ ...tempRow, price: e.target.value.replace(/\D/g, '') })}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') { e.preventDefault(); setTempRow(null); }
-                      if (e.key === 'Enter') commitTemp();
-                    }}
-                    className="w-full rounded border border-gray-200 bg-white px-2 py-1 pr-4 text-right text-sm outline-none focus:border-primary-400 placeholder:text-gray-300"
-                  />
-                </div>
-                <div />
-              </div>
-            );
-          })()}
-        </div>
-
-        {/* Bottom Toolbar & Notes */}
-        <div className="mt-auto flex flex-col bg-gray-50 border-t border-gray-200">
-          <div className="flex items-center gap-2 p-2 px-4 shadow-[0_-2px_10px_rgba(0,0,0,0.02)] z-10 overflow-x-auto no-scrollbar whitespace-nowrap">
-            <button
-              className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors"
-              onClick={() => {
-                const check = window.confirm('Xác nhận làm mới Đơn hàng?');
-                if (check) store.clearCart();
-              }}
-            >Xoá tất cả</button>
-            <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">Khuyến mại</button>
-            <button
-              className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors"
-              onClick={() => {
-                const staffId = useAuthStore.getState().user?.id;
-                const url = staffId ? `/orders?staff=${staffId}` : '/orders';
-                window.open(url, '_blank');
-              }}
-            >Xem đơn hàng</button>
-
-            <div className="flex-1"></div>
-
-            <button
-              className="px-4 py-1.5 text-sm bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100 transition-colors font-medium"
-              onClick={() => {
-                if (!tempRow) setTempRow({ label: '', unit: 'Cái', qty: 1, price: '' });
-              }}
-            >
-              + Sản phẩm tạm
-            </button>
+          {/* Table Header */}
+          <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-2 bg-gray-50 border-b border-gray-200 text-[13px] font-semibold text-gray-600 uppercase">
+            <div className="text-center">#</div>
+            <div></div>
+            <div className="text-center">Ảnh</div>
+            <div>Sản phẩm / SKU</div>
+            <div className="text-center">Đơn vị</div>
+            <div className="text-center">Số lượng</div>
+            <div className="text-right">Đơn giá</div>
+            <div className="text-right">Thành tiền</div>
           </div>
 
-          <div className="p-2 px-4 bg-white border-t border-gray-200">
-            <input
-              type="text"
-              placeholder="Gõ để ghi chú đơn hàng..."
-              className="w-full text-sm outline-none border-none py-1 placeholder:text-gray-400 italic"
-              value={activeTab.notes || ''}
-              onChange={(e) => store.setNotes(e.target.value)}
+          {/* Table Body (Scrollable) */}
+          <div className="flex-1 overflow-y-auto w-full no-scrollbar">
+            <PosCartItems
+              cart={activeTab.cart}
+              branchId={activeTab.branchId}
+              branches={branches}
+              selectedRowIndex={selectedRowIndex}
+              noteEditingId={noteEditingId}
+              setNoteEditingId={setNoteEditingId}
+              discountEditingId={discountEditingId}
+              setDiscountEditingId={setDiscountEditingId}
             />
           </div>
-        </div>
-      </div>
 
-      {/* 1. CUSTOMER & PETS (Mobile: 1st, Desktop: Right Col, Row 1) */}
-      <div className="order-1 lg:col-start-2 lg:row-start-1 bg-white border-b lg:border-l lg:border-b-0 border-gray-200 z-30 relative">
-        <PosCustomerV1
-          onSelectSuggestedService={handleSelectSuggestedService}
-        />
-      </div>
-
-      {/* 4. CALCULATION AREA (Mobile: 4th, Desktop: Right Col, Row 2) */}
-      <div className="order-4 lg:col-start-2 lg:row-start-2 bg-white lg:border-l border-gray-200 z-20 flex-1 flex flex-col p-4 overflow-y-auto">
-
-        <div className="mt-auto flex flex-col gap-4">
-          <div className="flex justify-between items-center py-1">
-            <span className="text-[15px] font-medium text-gray-600">Tổng tiền ({cartCount} SP)</span>
-            <span className="text-[15px] font-bold">{moneyRaw(activeTab.cart.reduce((sum, item) => sum + (item.unitPrice || 0) * (item.quantity || 1), 0))}</span>
-          </div>
-
-          {(() => {
-            const totalItemDiscount = activeTab.cart.reduce((sum, item) => sum + ((item.discountItem || 0) * (item.quantity || 1)), 0);
-            if (totalItemDiscount > 0) {
-              return (
-                <div className="flex justify-between items-center py-1 text-[15px] text-amber-600">
-                  <span>Chiết khấu SP</span>
-                  <span className="font-semibold">-{moneyRaw(totalItemDiscount)}</span>
-                </div>
-              );
-            }
-            return null;
-          })()}
-
-          <div className="flex justify-between items-center py-1 border-b border-dashed border-gray-300 pb-3">
-            <span className="text-[15px] text-primary-600 cursor-pointer hover:underline decoration-dashed decoration-primary-400 underline-offset-4">Chiết khấu đơn (F6)</span>
-            <div className="flex items-center">
-              <input
-                className="w-24 text-right text-[15px] border-b border-gray-300 outline-none focus:border-primary-500 pb-0.5"
-                value={manualDiscountTotal > 0 ? money(manualDiscountTotal) : '0'}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value.replace(/\D/g, ''));
-                  store.setDiscount(isNaN(v) ? 0 : v);
+          {/* Bottom Toolbar & Notes */}
+          <div className="mt-auto flex flex-col bg-gray-50 border-t border-gray-200">
+            <div className="flex items-center gap-2 p-2 px-4 shadow-[0_-2px_10px_rgba(0,0,0,0.02)] z-10 overflow-x-auto no-scrollbar whitespace-nowrap">
+              <button
+                className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors"
+                onClick={() => {
+                  const check = window.confirm('Xác nhận làm mới Đơn hàng?');
+                  if (check) store.clearCart();
                 }}
+              >Xoá tất cả</button>
+              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">Khuyến mại</button>
+              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">Đổi trả hàng</button>
+              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">Xem đơn hàng</button>
+              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">In phiếu</button>
+
+              <div className="flex-1"></div>
+
+              <button
+                onClick={() => setShowHotelCheckout(true)}
+                className="px-4 py-1.5 text-sm bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100 transition-colors font-medium"
+              >
+                + Trả chuồng (Hotel)
+              </button>
+
+              <button className="px-4 py-1.5 text-sm bg-primary-50 border border-primary-200 text-primary-700 rounded hover:bg-primary-100 transition-colors font-medium">
+                + Sản phẩm tạm
+              </button>
+            </div>
+
+            <div className="p-2 px-4 bg-white border-t border-gray-200">
+              <input
+                type="text"
+                placeholder="Gõ để ghi chú đơn hàng..."
+                className="w-full text-sm outline-none border-none py-1 placeholder:text-gray-400 italic"
+                value={activeTab.notes || ''}
+                onChange={(e) => store.setNotes(e.target.value)}
               />
             </div>
           </div>
-
-
-          <div className="flex justify-between items-center py-1">
-            <span className="text-[15px] font-medium text-gray-600">VAT (0%)</span>
-            <span className="text-[15px] font-semibold text-gray-800">0</span>
-          </div>
-
-          <div className="flex justify-between items-center py-1">
-            <span className="text-[14px] sm:text-[15px] font-bold text-gray-800">KHÁCH PHẢI TRẢ</span>
-            <span className="text-[18px] sm:text-[20px] font-bold text-red-600">{moneyRaw(cartTotal)}</span>
-          </div>
-
-          <div className="mt-1 sm:mt-2 rounded-2xl border border-gray-200 bg-gray-50/80 p-3 sm:p-4">
-            {isMultiPaymentSummary ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[14px] sm:text-[15px] font-medium text-gray-600">Khách đưa</span>
-                  {allowMultiPayment ? (
-                    <button type="button" onClick={() => setShowPaymentModal(true)} className="text-xs font-semibold text-primary-600 hover:underline">
-                      Nhiều hình thức
-                    </button>
-                  ) : null}
-                </div>
-                <div className="space-y-2">
-                  {tabPayments.map((payment, index) => {
-                    const method =
-                      (payment.paymentAccountId
-                        ? visiblePaymentMethods.find((item) => item.id === payment.paymentAccountId) ??
-                        paymentMethods.find((item) => item.id === payment.paymentAccountId)
-                        : null) ?? null;
-                    const colorClasses = getPaymentMethodColorClasses(method?.type ?? 'CASH', method?.colorKey);
-
-                    return (
-                      <div key={`${payment.paymentAccountId ?? payment.method}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${colorClasses.chip}`}>
-                            {method?.name ?? payment.paymentAccountLabel ?? payment.method}
-                          </span>
-                          <span className="truncate text-xs text-gray-400">{payment.method}</span>
-                        </div>
-                        <span className="text-sm font-bold text-gray-800">{moneyRaw(Number(payment.amount) || 0)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="space-y-1 border-t border-dashed border-gray-300 pt-2 sm:pt-3">
-                  <div className="flex items-center justify-between text-[13px] sm:text-sm">
-                    <span className="font-medium text-gray-500">Tổng khách đưa</span>
-                    <span className={`font-bold ${multiPaymentTotal >= cartTotal ? 'text-emerald-600' : 'text-amber-600'}`}>
-                      {moneyRaw(multiPaymentTotal)}
-                    </span>
-                  </div>
-                  <div className={`text-[11px] sm:text-xs font-semibold ${multiPaymentTotal >= cartTotal ? 'text-emerald-600' : 'text-rose-500'}`}>
-                    {multiPaymentTotal >= cartTotal ? 'Đã đủ thanh toán' : `Còn thiếu ${moneyRaw(cartTotal - multiPaymentTotal)}`}
-                  </div>
-                  {(() => {
-                    const bankQrPayment = tabPayments.find((p) => {
-                      const m = visiblePaymentMethods.find((vm) => vm.id === p.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === p.paymentAccountId);
-                      return m?.type === 'BANK' && (m as any)?.qrEnabled;
-                    });
-                    const bankQrMethod = bankQrPayment ? (visiblePaymentMethods.find((vm) => vm.id === bankQrPayment.paymentAccountId) ?? paymentMethods.find((vm) => vm.id === bankQrPayment.paymentAccountId)) : null;
-                    if (!bankQrMethod) return null;
-                    return (
-                      <button
-                        type="button"
-                        disabled={isQrIntentPending}
-                        onClick={() => {
-                          if (activeQrIntent) {
-                            setShowQrPaymentModal(true);
-                          } else {
-                            void handleGenerateQrPayment();
-                          }
-                        }}
-                        className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-semibold text-sky-600 transition-colors hover:bg-sky-100 disabled:opacity-60"
-                      >
-                        <QrCode size={15} />
-                        {isQrIntentPending ? 'Đang tạo QR...' : activeQrIntent ? 'Xem lại mã QR' : `Tạo QR - ${bankQrMethod.name}`}
-                      </button>
-                    );
-                  })()}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-1.5 sm:gap-3">
-                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 justify-start">
-                    <span className="shrink-0 text-[14px] sm:text-[15px] font-medium text-gray-600 cursor-pointer" onClick={() => document.getElementById('customer_money_input')?.focus()}>
-                      Khách đưa (F8)
-                    </span>
-                    <div ref={paymentMenuRef} className="relative shrink-0 min-w-0">
-                      <button
-                        type="button"
-                        onClick={() => setIsPaymentMenuOpen((current) => !current)}
-                        className={`inline-flex items-center max-w-[130px] sm:max-w-[160px] lg:max-w-[140px] gap-1 sm:gap-2 rounded-full border px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold shadow-sm overflow-hidden ${getPaymentMethodColorClasses(currentSinglePaymentMethod?.type ?? 'CASH', currentSinglePaymentMethod?.colorKey).chip
-                          }`}
-                      >
-                        <span className="truncate">{currentSinglePaymentMethod?.name ?? 'Chọn...'}</span>
-                        <ChevronDown size={14} className="shrink-0" />
-                      </button>
-
-                      {isPaymentMenuOpen ? (
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full z-40 mb-2 w-[260px] sm:w-72 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
-                          <div className="max-h-72 overflow-y-auto p-1.5 space-y-0.5">
-                            {visiblePaymentMethods.map((method) => {
-                              const colorClasses = getPaymentMethodColorClasses(method.type, method.colorKey);
-                              return (
-                                <button
-                                  key={method.id}
-                                  type="button"
-                                  onClick={() => handleSelectSinglePaymentMethod(method)}
-                                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors hover:bg-gray-50"
-                                >
-                                  <div className="flex items-center gap-2 overflow-hidden min-w-0">
-                                    <span className={`inline-flex shrink-0 h-2.5 w-2.5 rounded-full ${colorClasses.accent}`} />
-                                    <span className="truncate text-[13.5px] font-semibold text-gray-800">{method.name}</span>
-                                    <span className="shrink-0 ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">{method.type}</span>
-                                  </div>
-                                  {currentSinglePaymentMethod?.id === method.id ? <span className="text-primary-600 shrink-0 ml-2 block"><Check size={16} /></span> : null}
-                                </button>
-                              );
-                            })}
-                            {allowMultiPayment ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setIsPaymentMenuOpen(false);
-                                  setShowPaymentModal(true);
-                                }}
-                                className="mt-1 flex w-full items-center justify-between rounded-xl border border-dashed border-primary-300 bg-primary-50 px-3 py-2.5 text-left text-[13.5px] font-semibold text-primary-700 transition-colors hover:bg-primary-100"
-                              >
-                                <span>Nhiều hình thức</span>
-                                <ChevronDown size={14} className="-rotate-90" />
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 text-right pl-1 pointer-events-auto">
-                    {currentSinglePaymentType === 'CASH' ? (
-                      <input
-                        id="customer_money_input"
-                        className="w-20 sm:w-32 border-b border-gray-300 bg-transparent pb-0.5 text-right text-[15px] sm:text-base font-semibold outline-none focus:border-primary-500"
-                        value={customerMoneyInput}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, '');
-                          setCustomerMoneyInput(val ? money(parseInt(val, 10)) : '');
-                        }}
-                        placeholder={money(cartTotal)}
-                      />
-                    ) : (
-                      <span className="text-base font-semibold text-gray-800">{moneyRaw(cartTotal)}</span>
-                    )}
-                  </div>
-                </div>
-
-                {currentSinglePaymentType === 'CASH' ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {quickCashSuggestions.map((amount) => (
-                      <button
-                        key={amount}
-                        type="button"
-                        onClick={() => setCustomerMoneyInput(money(amount))}
-                        className="rounded-full bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-sm ring-1 ring-gray-200 transition-colors hover:bg-gray-50 hover:text-gray-800"
-                      >
-                        {money(amount)}
-                      </button>
-                    ))}
-                  </div>
-                ) : currentSinglePaymentMethod?.type === 'BANK' && currentSinglePaymentMethod?.accountNumber ? (
-                  <div className="space-y-2">
-                    <div className="truncate rounded-xl bg-gray-50 px-3 py-2 text-[13.5px] text-gray-600 font-medium tracking-tight">
-                      {currentSinglePaymentMethod.bankName} • {currentSinglePaymentMethod.accountNumber}
-                      {currentSinglePaymentMethod.accountHolder && ` • ${currentSinglePaymentMethod.accountHolder}`}
-                    </div>
-                    {currentSinglePaymentMethod?.qrEnabled && (
-                      <button
-                        type="button"
-                        disabled={isQrIntentPending}
-                        onClick={() => {
-                          if (activeQrIntent) {
-                            setShowQrPaymentModal(true);
-                          } else {
-                            void handleGenerateQrPayment();
-                          }
-                        }}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-semibold text-sky-600 transition-colors hover:bg-sky-100 disabled:opacity-60"
-                      >
-                        <QrCode size={15} />
-                        {isQrIntentPending ? 'Đang tạo QR...' : activeQrIntent ? 'Xem lại mã QR' : 'Tạo mã QR chuyển khoản'}
-                      </button>
-                    )}
-                  </div>
-                ) : null}
-
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-between items-center py-1">
-            <span className="text-[15px] text-gray-500">
-              {isMultiPaymentSummary ? 'Trạng thái thanh toán' : 'Tiền thừa'}
-            </span>
-            <span className={`text-[15px] font-bold ${isMultiPaymentSummary
-              ? multiPaymentTotal >= cartTotal
-                ? 'text-emerald-600'
-                : 'text-rose-500'
-              : returnMoney > 0
-                ? 'text-gray-800'
-                : 'text-gray-400'
-              }`}>
-              {isMultiPaymentSummary
-                ? multiPaymentTotal >= cartTotal
-                  ? 'Đã đủ'
-                  : `Còn thiếu ${moneyRaw(cartTotal - multiPaymentTotal)}`
-                : guestMoney === 0
-                  ? '0'
-                  : moneyRaw(returnMoney)}
-            </span>
-          </div>
         </div>
 
-      </div>
-
-      {/* 5. BUTTONS AREA (Mobile: 5th, Desktop: Right Col, Row 3) */}
-      <div className="order-5 lg:col-start-2 lg:row-start-3 bg-gray-50 border-t border-b lg:border-b-0 lg:border-l border-gray-200 z-20 p-4 flex flex-col gap-3 shadow-[0_-4px_15px_rgba(0,0,0,0.03)]">
-        <div className="grid grid-cols-1 gap-3">
-          <button
-            className="py-2.5 bg-white border border-gray-300 hover:border-primary-500 text-gray-700 rounded-lg text-[13px] font-bold uppercase transition-colors flex items-center justify-center shadow-sm"
-            onClick={() => setShowBookingModal(true)}
-            disabled={cartCount === 0}
-          >
-            ĐẶT HÀNG
-          </button>
+        {/* 1. CUSTOMER & PETS (Mobile: 1st, Desktop: Right Col, Row 1) */}
+        <div className="order-1 lg:col-start-2 lg:row-start-1 bg-white border-b lg:border-l lg:border-b-0 border-gray-200 z-30 relative">
+          <PosCustomerV1
+            onSelectSuggestedService={handleSelectSuggestedService}
+          />
         </div>
-        <button
-          className={`w-full py-4 text-white text-lg font-bold rounded-lg uppercase shadow-lg transition-transform active:scale-[0.98] ${cartCount > 0 ? 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/30' : 'bg-gray-400 cursor-not-allowed shadow-none'}`}
-          onClick={() => {
+
+        {/* 4. CALCULATION AREA + 5. BUTTONS AREA */}
+        <PosCheckoutPanel
+          activeTab={activeTab}
+          cartCount={cartCount}
+          cartTotal={cartTotal}
+          manualDiscountTotal={manualDiscountTotal}
+          paymentMethods={paymentMethods}
+          visiblePaymentMethods={visiblePaymentMethods}
+          allowMultiPayment={allowMultiPayment}
+          tabPayments={tabPayments}
+          isMultiPaymentSummary={isMultiPaymentSummary}
+          currentSinglePaymentMethod={currentSinglePaymentMethod}
+          currentSinglePaymentType={currentSinglePaymentType}
+          customerMoneyInput={customerMoneyInput}
+          setCustomerMoneyInput={setCustomerMoneyInput}
+          isPaymentMenuOpen={isPaymentMenuOpen}
+          setIsPaymentMenuOpen={setIsPaymentMenuOpen}
+          paymentMenuRef={paymentMenuRef}
+          guestMoney={guestMoney}
+          returnMoney={returnMoney}
+          multiPaymentTotal={multiPaymentTotal}
+          quickCashSuggestions={quickCashSuggestions}
+          isQrIntentPending={isQrIntentPending}
+          onDiscountChange={(discount) => store.setDiscount(discount)}
+          onSelectSinglePaymentMethod={handleSelectSinglePaymentMethod}
+          onOpenMultiPayment={() => {
+            setIsPaymentMenuOpen(false);
+            setShowPaymentModal(true);
+          }}
+          onOpenBooking={() => setShowBookingModal(true)}
+          onPrimaryAction={() => {
             if (hasServiceItems) {
               handleCreateServiceFlow();
-            } else {
-              const method = activeTab.payments && activeTab.payments.length > 0 ? activeTab.payments[0].method : preferredPaymentMethod?.type ?? 'CASH';
-              handleCheckout(method as string);
+              return;
             }
+
+            const method = activeTab.payments?.[0]?.method ?? preferredPaymentMethod?.type ?? 'CASH';
+            handleCheckout(method as string);
           }}
-          disabled={cartCount === 0 || isQrIntentPending}
-        >
-          {hasServiceItems ? 'Tạo Dịch Vụ (F9)' : 'Thanh Toán (F9)'}
-        </button>
-      </div>
+          primaryActionLabel={hasServiceItems ? 'Tạo Dịch Vụ (F9)' : 'Thanh Toán (F9)'}
+        />
 
-    </main >
+      </main >
 
-    {/* â• â• â•  MODALS â• â• â•  */}
-    <HotelCheckoutModal
-      isOpen={showHotelCheckout}
-      onClose={() => {
-        setShowHotelCheckout(false);
-        setSelectedHotelPetId(undefined);
-      }}
-      customerId={activeTab?.customerId}
-      initialSelectedPet={selectedHotelPetId}
-      onConfirm={(details) => {
-        store.addItem(details);
-        setShowHotelCheckout(false);
-        setSelectedHotelPetId(undefined);
-        toast.success('Đã chọn checkout lưu chuồng');
-      }}
-    />
+      {/* â• â• â•  MODALS â• â• â•  */}
+      <HotelCheckoutModal
+        isOpen={showHotelCheckout}
+        onClose={() => {
+          setShowHotelCheckout(false);
+          setSelectedHotelPetId(undefined);
+        }}
+        customerId={activeTab?.customerId}
+        initialSelectedPet={selectedHotelPetId}
+        onConfirm={(details) => {
+          store.addItem(details);
+          setShowHotelCheckout(false);
+          setSelectedHotelPetId(undefined);
+          toast.success('Đã chọn checkout lưu chuồng');
+        }}
+      />
 
-    <ReceiptModal
-      isOpen={showReceiptModal}
-      onClose={() => setShowReceiptModal(false)}
-      orderData={store.receiptData}
-    />
+      {/* ReceiptModal removed: checkout now redirects to /orders/:id */}
 
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        cartTotal={cartTotal}
+        paymentMethods={visiblePaymentMethods}
+        initialPayments={activeTab?.payments ?? []}
+        minimumMethods={2}
+        onConfirm={handleMultiPaymentConfirm}
+      />
 
-    <PosPaymentModal
-      isOpen={showPaymentModal}
-      onClose={() => setShowPaymentModal(false)}
-      cartTotal={cartTotal}
-      paymentMethods={visiblePaymentMethods}
-      initialPayments={activeTab?.payments ?? []}
-      minimumMethods={2}
-      onConfirm={handleMultiPaymentConfirm}
-    />
+      <PosShiftClosingModal
+        isOpen={showShiftClosingModal}
+        currentShift={currentShift}
+        onClose={closeShiftClosingModal}
+        onSaved={handleShiftSaved}
+      />
 
-    <PosShiftClosingModal
-      isOpen={showShiftClosingModal}
-      currentShift={shiftCurrentQuery.data ?? null}
-      onClose={() => setShowShiftClosingModal(false)}
-      onSaved={() => void shiftCurrentQuery.refetch()}
-    />
+      <QrPaymentModal
+        isOpen={showQrPaymentModal}
+        intent={displayedQrIntent}
+        onClose={() => {
+          setShowQrPaymentModal(false)
+          clearQrIntent()
+        }}
+        onRefresh={isQrBankPayment ? () => void handleGenerateQrPayment() : undefined}
+        isRefreshing={isQrIntentPending}
+      />
 
-    <PosQrPaymentModal
-      isOpen={showQrPaymentModal}
-      intent={qrIntentStream.latestIntent?.code === activeQrIntent?.code ? qrIntentStream.latestIntent : activeQrIntent}
-      onClose={() => {
-        setShowQrPaymentModal(false)
-        setActiveQrIntent(null)
-      }}
-      onRefresh={isQrBankPayment ? () => void handleGenerateQrPayment() : undefined}
-      isRefreshing={isQrIntentPending}
-    />
-
-    <PosOrderBookingModal
-      isOpen={showBookingModal}
-      onClose={() => setShowBookingModal(false)}
-      cartTotal={cartTotal}
-      cartCount={cartCount}
-      onConfirm={(date, note) => {
-        const finalNote = `[HẸN ĐẾN: ${date.replace('T', ' ')}] ${note}`.trim();
-        handleCheckout('UNPAID', finalNote);
-        setShowBookingModal(false);
-      }}
-    />
-  </div >
-);
+      <PosOrderBookingModal
+        isOpen={showBookingModal}
+        onClose={() => setShowBookingModal(false)}
+        cartTotal={cartTotal}
+        cartCount={cartCount}
+        onConfirm={(date, note) => {
+          const finalNote = `[HẸN ĐẾN: ${date.replace('T', ' ')}] ${note}`.trim();
+          handleCheckout('UNPAID', finalNote);
+          setShowBookingModal(false);
+        }}
+      />
+    </div >
+  );
 }
 
 export default function PosPage() {

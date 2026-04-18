@@ -1,7 +1,7 @@
 'use client'
 import Image from 'next/image';
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Activity,
@@ -77,7 +77,7 @@ export default function StaffDetailPage() {
 
 
 
-  const loadStaff = async () => {
+  const loadStaff = useCallback(async () => {
     if (!username) return
 
     try {
@@ -112,7 +112,7 @@ export default function StaffDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [username, router])
 
   useEffect(() => {
     if (isAuthLoading) return
@@ -123,7 +123,7 @@ export default function StaffDetailPage() {
     }
 
     void loadStaff()
-  }, [canViewStaff, isAuthLoading, router, username])
+  }, [canViewStaff, isAuthLoading, router, loadStaff])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -185,7 +185,7 @@ export default function StaffDetailPage() {
                     width={400} height={400} unoptimized
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-background-tertiary to-background text-3xl font-bold text-foreground-muted sm:text-4xl">
+                  <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-background-tertiary to-background text-3xl font-bold text-foreground-muted sm:text-4xl">
                     {staff.fullName.charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -399,19 +399,19 @@ export default function StaffDetailPage() {
 
                 <div className="space-y-4 text-sm">
                   <div className={`flex items-center gap-2 rounded-lg border p-3 ${staff.status === 'WORKING' ? 'border-primary-500/10 bg-primary-500/5' :
-                      staff.status === 'PROBATION' ? 'border-blue-500/10 bg-blue-500/5' :
-                        staff.status === 'LEAVE' ? 'border-amber-500/10 bg-amber-500/5' :
-                          'border-red-500/10 bg-red-500/5'
+                    staff.status === 'PROBATION' ? 'border-blue-500/10 bg-blue-500/5' :
+                      staff.status === 'LEAVE' ? 'border-amber-500/10 bg-amber-500/5' :
+                        'border-red-500/10 bg-red-500/5'
                     }`}>
                     <span className={`h-2 w-2 rounded-full ${staff.status === 'WORKING' ? 'bg-primary-500' :
-                        staff.status === 'PROBATION' ? 'bg-blue-500' :
-                          staff.status === 'LEAVE' ? 'bg-amber-500' :
-                            'bg-red-500'
+                      staff.status === 'PROBATION' ? 'bg-blue-500' :
+                        staff.status === 'LEAVE' ? 'bg-amber-500' :
+                          'bg-red-500'
                       }`} />
                     <span className={`font-bold ${staff.status === 'WORKING' ? 'text-primary-500' :
-                        staff.status === 'PROBATION' ? 'text-blue-500' :
-                          staff.status === 'LEAVE' ? 'text-amber-500' :
-                            'text-red-500'
+                      staff.status === 'PROBATION' ? 'text-blue-500' :
+                        staff.status === 'LEAVE' ? 'text-amber-500' :
+                          'text-red-500'
                       }`}>
                       {staff.status === 'WORKING' ? 'Đang làm' :
                         staff.status === 'PROBATION' ? 'Thử việc' :
@@ -534,7 +534,7 @@ export default function StaffDetailPage() {
 
       {previewImage && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
           onClick={() => setPreviewImage(null)}
         >
           <Image src={previewImage}
