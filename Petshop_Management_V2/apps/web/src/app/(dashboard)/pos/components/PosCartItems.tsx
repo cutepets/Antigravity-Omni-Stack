@@ -17,6 +17,15 @@ import { resolveCartItemStockState } from '@/app/(dashboard)/_shared/cart/stock.
 import { usePosStore } from '@/stores/pos.store';
 import { getCartItemWeightBandLabel } from '../utils/pos.utils';
 
+// ── Callback interface (dùng khi override store) ──────────────────────────────
+export type CartItemCallbacks = {
+  onRemoveItem: (id: string) => void;
+  onUpdateQuantity: (id: string, qty: number) => void;
+  onUpdateDiscountItem: (id: string, discount: number) => void;
+  onUpdateItemVariant: (id: string, variantId: string) => void;
+  onUpdateItemNotes: (id: string, notes: string) => void;
+};
+
 type PosCartItemsProps = {
   cart: CartItem[];
   branchId?: string;
@@ -26,6 +35,8 @@ type PosCartItemsProps = {
   setNoteEditingId: (id: string | null) => void;
   discountEditingId: string | null;
   setDiscountEditingId: (id: string | null) => void;
+  // Optional — when provided, bypasses usePosStore (used by OrderWorkspace)
+  callbacks?: CartItemCallbacks;
 };
 
 type PosCartRowProps = {
@@ -38,7 +49,8 @@ type PosCartRowProps = {
   setNoteEditingId: (id: string | null) => void;
   discountEditingId: string | null;
   setDiscountEditingId: (id: string | null) => void;
-  store: any;
+  store: any; // may be null when callbacks provided
+  callbacks?: CartItemCallbacks;
 };
 
 type PosCartDiscountEditorProps = {
@@ -50,6 +62,7 @@ type PosCartDiscountEditorProps = {
   onClose: () => void;
   onOpen: () => void;
   store: any;
+  callbacks?: CartItemCallbacks;
   mobile?: boolean;
 };
 
@@ -57,6 +70,7 @@ type PosCartQuantityControlProps = {
   item: CartItem;
   isOverSellableQty: boolean;
   store: any;
+  callbacks?: CartItemCallbacks;
   mobile?: boolean;
 };
 
@@ -76,7 +90,10 @@ export function PosCartItems({
   setNoteEditingId,
   discountEditingId,
   setDiscountEditingId,
+  callbacks,
 }: PosCartItemsProps) {
+  // Always call hook unconditionally (Rules of Hooks)
+  // When callbacks is provided (e.g. OrderWorkspace), store methods won't be used
   const store = usePosStore();
   const activeBranches = useMemo(() => branches.filter((branch: any) => branch.isActive), [branches]);
 
@@ -105,6 +122,7 @@ export function PosCartItems({
           discountEditingId={discountEditingId}
           setDiscountEditingId={setDiscountEditingId}
           store={store}
+          callbacks={callbacks}
         />
       ))}
     </>
@@ -122,6 +140,7 @@ function PosCartRow({
   discountEditingId,
   setDiscountEditingId,
   store,
+  callbacks,
 }: PosCartRowProps) {
   const {
     trueVariants,
@@ -145,6 +164,12 @@ function PosCartRow({
     return optionLabel.length > 0 && optionLabel !== normalizedDescription;
   });
 
+  // Helpers that dispatch to callbacks OR store
+  const removeItem = () =>
+    callbacks ? callbacks.onRemoveItem(item.id) : store?.removeItem(item.id);
+  const updateVariant = (variantId: string) =>
+    callbacks ? callbacks.onUpdateItemVariant(item.id, variantId) : store?.updateItemVariant(item.id, variantId);
+
   return (
     <div
       id={`cart-row-${item.id}`}
@@ -157,7 +182,7 @@ function PosCartRow({
 
         <div className="flex justify-center">
           <button
-            onClick={() => store.removeItem(item.id)}
+            onClick={removeItem}
             className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
             title="Xóa"
           >
@@ -205,7 +230,7 @@ function PosCartRow({
                         if (matchingConversion) targetVariantId = matchingConversion.id;
                       }
                     }
-                    store.updateItemVariant(item.id, targetVariantId);
+                    updateVariant(targetVariantId);
                   }}
                 >
                   <option value="base" className="hidden">Phiên bản</option>
@@ -232,12 +257,15 @@ function PosCartRow({
                 defaultValue={item.itemNotes || ''}
                 autoFocus
                 onBlur={(event) => {
-                  if (event.target.value !== item.itemNotes) store.updateItemNotes(item.id, event.target.value);
+                  const newNotes = event.target.value;
+                  if (newNotes !== item.itemNotes) {
+                    callbacks ? callbacks.onUpdateItemNotes(item.id, newNotes) : store?.updateItemNotes(item.id, newNotes);
+                  }
                   setNoteEditingId(null);
                 }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
-                    store.updateItemNotes(item.id, event.currentTarget.value);
+                    callbacks ? callbacks.onUpdateItemNotes(item.id, event.currentTarget.value) : store?.updateItemNotes(item.id, event.currentTarget.value);
                     setNoteEditingId(null);
                   } else if (event.key === 'Escape') {
                     setNoteEditingId(null);
@@ -274,8 +302,8 @@ function PosCartRow({
                 className="appearance-none bg-transparent text-[15px] font-medium outline-none cursor-pointer pr-4 w-full text-center"
                 value={isCurrentConversion ? item.productVariantId : 'base'}
                 onChange={(event) => {
-                  if (event.target.value === 'base') store.updateItemVariant(item.id, currentTrueVariant ? currentTrueVariant.id : 'base');
-                  else store.updateItemVariant(item.id, event.target.value);
+                  if (event.target.value === 'base') updateVariant(currentTrueVariant ? currentTrueVariant.id : 'base');
+                  else updateVariant(event.target.value);
                 }}
               >
                 <option value="base">{baseUnit}</option>
@@ -291,7 +319,7 @@ function PosCartRow({
         </div>
 
         <div className="flex items-center justify-center">
-          <PosCartQuantityControl item={item} isOverSellableQty={isOverSellableQty} store={store} />
+          <PosCartQuantityControl item={item} isOverSellableQty={isOverSellableQty} store={store} callbacks={callbacks} />
         </div>
 
         <div className="relative text-right flex items-center justify-end">
@@ -304,6 +332,7 @@ function PosCartRow({
             onClose={() => setDiscountEditingId(null)}
             onOpen={() => setDiscountEditingId(item.id)}
             store={store}
+            callbacks={callbacks}
           />
         </div>
 
@@ -349,7 +378,7 @@ function PosCartRow({
                         if (matchingConversion) targetVariantId = matchingConversion.id;
                       }
                     }
-                    store.updateItemVariant(item.id, targetVariantId);
+                    updateVariant(targetVariantId);
                   }}
                 >
                   <option value="base" className="hidden">Phiên bản</option>
@@ -361,7 +390,7 @@ function PosCartRow({
               </div>
             ) : null}
 
-              <Info
+            <Info
               size={16}
               className="text-[#0089A1] ml-1 cursor-pointer"
               onClick={() => window.alert(`Tổng tồn: ${(item as any).stock ?? 'N/A'}\nKhả dụng: ${(item as any).availableStock ?? 'N/A'}`)}
@@ -373,8 +402,8 @@ function PosCartRow({
                   className="appearance-none bg-transparent text-[14px] font-medium outline-none cursor-pointer pr-4 w-full"
                   value={isCurrentConversion ? item.productVariantId : 'base'}
                   onChange={(event) => {
-                    if (event.target.value === 'base') store.updateItemVariant(item.id, currentTrueVariant ? currentTrueVariant.id : 'base');
-                    else store.updateItemVariant(item.id, event.target.value);
+                    if (event.target.value === 'base') updateVariant(currentTrueVariant ? currentTrueVariant.id : 'base');
+                    else updateVariant(event.target.value);
                   }}
                 >
                   <option value="base">{baseUnit}</option>
@@ -400,6 +429,7 @@ function PosCartRow({
             onClose={() => setDiscountEditingId(null)}
             onOpen={() => setDiscountEditingId(item.id)}
             store={store}
+            callbacks={callbacks}
             mobile
           />
 
@@ -410,12 +440,12 @@ function PosCartRow({
           ) : null}
         </div>
 
-        <button onClick={() => store.removeItem(item.id)} className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-500">
+        <button onClick={removeItem} className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-500">
           <X size={20} />
         </button>
 
         <div className="absolute bottom-2 right-2">
-          <PosCartQuantityControl item={item} isOverSellableQty={isOverSellableQty} store={store} mobile />
+          <PosCartQuantityControl item={item} isOverSellableQty={isOverSellableQty} store={store} callbacks={callbacks} mobile />
         </div>
       </div>
     </div>
@@ -519,6 +549,7 @@ function PosCartQuantityControl({
   item,
   isOverSellableQty,
   store,
+  callbacks,
   mobile = false,
 }: PosCartQuantityControlProps) {
   const quantityStep = getCartQuantityStep(item);
@@ -536,7 +567,7 @@ function PosCartQuantityControl({
       ? quantityStep
       : roundCartQuantity(Math.max(quantityStep, parsed), quantityStep);
 
-    store.updateQuantity(item.id, nextQuantity);
+    callbacks ? callbacks.onUpdateQuantity(item.id, nextQuantity) : store?.updateQuantity(item.id, nextQuantity);
     setDraftQuantity(formatCartQuantityInput(nextQuantity, quantityStep));
   };
 
@@ -552,14 +583,14 @@ function PosCartQuantityControl({
     >
       <button
         className={`h-full transition-colors ${mobile ? 'px-2.5 flex items-center justify-center' : 'px-2'} ${item.type === 'hotel'
-            ? 'text-gray-400 cursor-not-allowed opacity-50'
-            : isOverSellableQty
-              ? mobile
-                ? 'hover:bg-red-100'
-                : 'text-red-600 hover:bg-red-100'
-              : mobile
-                ? 'hover:bg-gray-100'
-                : 'text-gray-500 hover:bg-gray-100'
+          ? 'text-gray-400 cursor-not-allowed opacity-50'
+          : isOverSellableQty
+            ? mobile
+              ? 'hover:bg-red-100'
+              : 'text-red-600 hover:bg-red-100'
+            : mobile
+              ? 'hover:bg-gray-100'
+              : 'text-gray-500 hover:bg-gray-100'
           }`}
         disabled={item.type === 'hotel'}
         onClick={() => {
@@ -567,7 +598,7 @@ function PosCartQuantityControl({
             Math.max(quantityStep, (item.quantity ?? quantityStep) - quantityStep),
             quantityStep,
           );
-          store.updateQuantity(item.id, nextQuantity);
+          callbacks ? callbacks.onUpdateQuantity(item.id, nextQuantity) : store?.updateQuantity(item.id, nextQuantity);
           setDraftQuantity(formatCartQuantityInput(nextQuantity, quantityStep));
         }}
       >
@@ -604,19 +635,19 @@ function PosCartQuantityControl({
       />
       <button
         className={`h-full transition-colors ${mobile ? 'px-2.5 flex items-center justify-center' : 'px-2'} ${item.type === 'hotel'
-            ? 'text-gray-400 cursor-not-allowed opacity-50'
-            : isOverSellableQty
-              ? mobile
-                ? 'hover:bg-red-100'
-                : 'text-red-600 hover:bg-red-100'
-              : mobile
-                ? 'hover:bg-gray-100'
-                : 'text-gray-500 hover:bg-gray-100'
+          ? 'text-gray-400 cursor-not-allowed opacity-50'
+          : isOverSellableQty
+            ? mobile
+              ? 'hover:bg-red-100'
+              : 'text-red-600 hover:bg-red-100'
+            : mobile
+              ? 'hover:bg-gray-100'
+              : 'text-gray-500 hover:bg-gray-100'
           }`}
         disabled={item.type === 'hotel'}
         onClick={() => {
           const nextQuantity = roundCartQuantity((item.quantity ?? quantityStep) + quantityStep, quantityStep);
-          store.updateQuantity(item.id, nextQuantity);
+          callbacks ? callbacks.onUpdateQuantity(item.id, nextQuantity) : store?.updateQuantity(item.id, nextQuantity);
           setDraftQuantity(formatCartQuantityInput(nextQuantity, quantityStep));
         }}
       >
@@ -635,8 +666,12 @@ function PosCartDiscountEditor({
   onClose,
   onOpen,
   store,
+  callbacks,
   mobile = false,
 }: PosCartDiscountEditorProps) {
+  const updateDiscount = (value: number) =>
+    callbacks ? callbacks.onUpdateDiscountItem(item.id, value) : store?.updateDiscountItem(item.id, value);
+
   return (
     <>
       {isOpen ? (
@@ -661,7 +696,7 @@ function PosCartDiscountEditor({
                       value={item.discountItem ? money(item.discountItem) : ''}
                       onChange={(event) => {
                         const value = parseInt(event.target.value.replace(/\D/g, ''), 10);
-                        store.updateDiscountItem(item.id, Number.isNaN(value) ? 0 : value);
+                        updateDiscount(Number.isNaN(value) ? 0 : value);
                       }}
                     />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-amber-500 select-none">đ</span>
@@ -678,7 +713,7 @@ function PosCartDiscountEditor({
                       onChange={(event) => {
                         const value = parseFloat(event.target.value.replace(/[^\d.]/g, ''));
                         const percent = Number.isNaN(value) ? 0 : Math.min(100, Math.max(0, value));
-                        store.updateDiscountItem(item.id, Math.round((item.unitPrice || 0) * (percent / 100)));
+                        updateDiscount(Math.round((item.unitPrice || 0) * (percent / 100)));
                       }}
                     />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-amber-500 select-none">%</span>

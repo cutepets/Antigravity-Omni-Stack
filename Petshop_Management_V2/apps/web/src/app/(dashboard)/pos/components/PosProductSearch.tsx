@@ -8,6 +8,14 @@ import { useActiveTab, usePosStore } from '@/stores/pos.store';
 
 export interface PosProductSearchProps {
   onSelect: (item: any) => void;
+  // Optional overrides — khi dùng ngoài POS (e.g. OrderWorkspace)
+  branchId?: string;
+  cartItems?: { productId?: string; productVariantId?: string; serviceId?: string; quantity: number }[];
+  isMultiSelectControlled?: boolean;        // nếu true → dùng isMultiSelectValue/onSetMultiSelect
+  isMultiSelectValue?: boolean;
+  onSetMultiSelect?: (v: boolean) => void;
+  outOfStockHidden?: boolean;
+  disabled?: boolean;
 }
 
 function getSellableQuantity(stockSource: any, branchId?: string) {
@@ -37,19 +45,40 @@ function getSellableQuantity(stockSource: any, branchId?: string) {
   return null;
 }
 
-export function PosProductSearch({ onSelect }: PosProductSearchProps) {
+export function PosProductSearch({
+  onSelect,
+  branchId: branchIdProp,
+  cartItems: cartItemsProp,
+  isMultiSelectControlled = false,
+  isMultiSelectValue = false,
+  onSetMultiSelect,
+  outOfStockHidden: outOfStockHiddenProp,
+  disabled = false,
+}: PosProductSearchProps) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const isMultiSelect = usePosStore(s => s.isMultiSelect);
-  const setIsMultiSelect = usePosStore(s => s.setIsMultiSelect);
-  const outOfStockHidden = usePosStore(s => s.outOfStockHidden);
+
+  // POS store — only used when not in controlled mode
+  const posIsMultiSelect = usePosStore(s => s.isMultiSelect);
+  const setPosIsMultiSelect = usePosStore(s => s.setIsMultiSelect);
+  const posOutOfStockHidden = usePosStore(s => s.outOfStockHidden);
+  const activeTab = useActiveTab();
+
+  // Resolved values: prefer props, fall back to POS store
+  const effectiveBranchId = branchIdProp ?? activeTab?.branchId;
+  const effectiveCartItems = cartItemsProp ?? activeTab?.cart ?? [];
+  const isMultiSelect = isMultiSelectControlled ? isMultiSelectValue : posIsMultiSelect;
+  const setIsMultiSelect = isMultiSelectControlled
+    ? (v: boolean) => onSetMultiSelect?.(v)
+    : setPosIsMultiSelect;
+  const outOfStockHidden = outOfStockHiddenProp ?? posOutOfStockHidden;
+
   const [sessionAdded, setSessionAdded] = useState<Record<string, number>>({});
   const [errorId, setErrorId] = useState<string | null>(null);
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
   const isProgrammaticFocus = useRef(false);
-  const activeTab = useActiveTab();
 
   const { data: products = [], isLoading: loadingProducts } = usePosProducts(query);
   const { data: services = [], isLoading: loadingServices } = usePosServices(query);
@@ -57,14 +86,14 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
   const results = [...products, ...services]
     .filter((item: any) => {
       if (!outOfStockHidden) return true;
-      const sellableQty = getSellableQuantity(item, activeTab.branchId);
+      const sellableQty = getSellableQuantity(item, effectiveBranchId);
       return sellableQty === null || sellableQty > 0;
     })
     .slice(0, 15);
   const loading = loadingProducts || loadingServices;
 
   const getCartQty = (catalogItem: any) => {
-    return activeTab.cart.reduce((total, cartItem) => {
+    return effectiveCartItems.reduce((total: number, cartItem: any) => {
       const sameProduct =
         catalogItem.duration === undefined &&
         cartItem.productId === (catalogItem.productId ?? catalogItem.id) &&
@@ -72,12 +101,13 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
           ? cartItem.productVariantId === catalogItem.productVariantId
           : !cartItem.productVariantId);
       const sameService = catalogItem.duration !== undefined && cartItem.serviceId === catalogItem.id;
-      return sameProduct || sameService ? total + cartItem.quantity : total;
+      return sameProduct || sameService ? total + (cartItem.quantity ?? 0) : total;
     }, 0);
   };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (disabled) return;
       if (e.key === 'F1') {
         e.preventDefault();
         const input = containerRef.current?.querySelector('input');
@@ -86,11 +116,10 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [disabled]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      // Don't close on click outside if we are in mobile view full screen, it's safer
       if (window.innerWidth < 1024) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
@@ -100,7 +129,6 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // When opened on mobile, focus the new mobile input
   useEffect(() => {
     if (isOpen && window.innerWidth < 1024) {
       setTimeout(() => mobileInputRef.current?.focus(), 50);
@@ -108,11 +136,11 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
   }, [isOpen]);
 
   const handleSelect = (item: any) => {
+    if (disabled) return;
     const entryId = item.entryId ?? item.id;
     const qty = getCartQty(item);
-    const availableStock = getSellableQuantity(item, activeTab.branchId);
+    const availableStock = getSellableQuantity(item, effectiveBranchId);
 
-    // Only block if this item actually tracks stock
     if (availableStock !== null && qty >= availableStock) {
       setErrorId(entryId);
       setTimeout(() => setErrorId(null), 500);
@@ -120,18 +148,16 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
     }
 
     onSelect(item);
-    
-    // We don't actually need sessionAdded for rollback anymore, 
-    // but just in case we need it later we can leave it or remove it. Let's keep it simple.
+
     if (isMultiSelect) {
       setSessionAdded(prev => ({ ...prev, [entryId]: (prev[entryId] || 0) + 1 }));
     }
-    
+
     if (!isMultiSelect) {
       setQuery('');
       setSessionAdded({});
       setIsOpen(false);
-      
+
       const input = containerRef.current?.querySelector('input');
       if (window.innerWidth >= 1024 && input) {
         isProgrammaticFocus.current = true;
@@ -150,7 +176,7 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
 
   const handleClose = () => {
     setQuery('');
-    setSessionAdded({}); // commit items
+    setSessionAdded({});
     setIsOpen(false);
   };
 
@@ -164,7 +190,7 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
   return (
     <div className="relative flex-1 max-w-[400px]" ref={containerRef}>
       {/* Desktop & default header input */}
-      <div className="flex items-center bg-white rounded-md overflow-hidden h-9 w-full border-b-2 border-transparent transition-colors focus-within:border-amber-400">
+      <div className={`flex items-center bg-white rounded-md overflow-hidden h-9 w-full border-b-2 border-transparent transition-colors focus-within:border-amber-400 ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
         <div className="pl-3 pr-2 text-gray-400">
           <Search size={16} />
         </div>
@@ -172,6 +198,7 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
           className="flex-1 bg-transparent border-none outline-none text-sm text-gray-800 placeholder:text-gray-400 h-full"
           placeholder="Thêm sản phẩm vào đơn (F1)"
           value={query}
+          disabled={disabled}
           onChange={(e) => {
             setQuery(e.target.value);
             setIsOpen(true);
@@ -183,10 +210,10 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
       </div>
 
       {isOpen && (
-        <div 
-          className="fixed inset-0 z-50 bg-[#f0f2f5] flex flex-col lg:block lg:absolute lg:top-full lg:left-0 lg:mt-1 lg:w-[500px] lg:bg-white lg:border lg:border-gray-200 lg:rounded-lg lg:shadow-xl lg:h-auto lg:max-h-[550px] lg:-left-2 lg:right-auto"
+        <div
+          className="fixed inset-0 z-50 bg-[#f0f2f5] flex flex-col lg:block lg:absolute lg:top-full lg:left-0 lg:mt-1 lg:w-[500px] lg:bg-white lg:border lg:border-gray-200 lg:rounded-lg lg:shadow-xl lg:h-auto lg:max-h-[550px] lg:right-auto"
         >
-          
+
           {/* Mobile Only Header inside the Full-screen Modal */}
           <div className="flex lg:hidden items-center bg-white px-3 py-2 space-x-3 border-b border-gray-200">
             <button onClick={handleClose} className="p-1 text-gray-500 hover:bg-gray-100 rounded-full transition-colors">
@@ -204,16 +231,16 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
             </div>
           </div>
 
-          {/* Multi-select Toolbar (Mobile only, Desktop relies on header) */}
+          {/* Multi-select Toolbar (Mobile only) */}
           <div className="lg:hidden flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-white">
             <span className="text-[14px] text-gray-700 font-medium cursor-pointer">Tất cả loại sản phẩm ▾</span>
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <span className="text-[14px] text-gray-700">Chọn nhiều</span>
-              <input 
-                type="checkbox" 
-                className="hidden" 
-                checked={isMultiSelect} 
-                onChange={(e) => setIsMultiSelect(e.target.checked)} 
+              <input
+                type="checkbox"
+                className="hidden"
+                checked={isMultiSelect}
+                onChange={(e) => setIsMultiSelect(e.target.checked)}
               />
               <div className={`w-11 h-6 rounded-full flex items-center p-1 transition-colors ${isMultiSelect ? 'bg-[#006E82]' : 'bg-gray-300'}`}>
                 <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${isMultiSelect ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -236,7 +263,7 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
               getEntryState={(item) => {
                 const entryId = item.entryId ?? item.id;
                 const qty = getCartQty(item);
-                const availableStock = getSellableQuantity(item, activeTab.branchId);
+                const availableStock = getSellableQuantity(item, effectiveBranchId);
 
                 return {
                   isSelected: qty > 0 && isMultiSelect,
@@ -249,16 +276,16 @@ export function PosProductSearch({ onSelect }: PosProductSearchProps) {
             />
           </div>
 
-          {/* Sticky Bottom Actions inside the modal/dropdown (shows heavily on Mobile or when Multi-select is active on Desktop) */}
+          {/* Sticky Bottom Actions */}
           {isMultiSelect && (
             <div className="flex items-center gap-2 p-3 bg-white border-t border-gray-200 mt-auto shadow-[0_-4px_10px_rgba(0,0,0,0.03)] lg:shadow-none">
-              <button 
+              <button
                 onClick={handleResetSearch}
                 className="flex-1 py-2.5 text-[15px] font-semibold text-gray-700 bg-white border border-gray-300 rounded-[8px] hover:bg-gray-50 transition-colors"
               >
                 Chọn lại
               </button>
-              <button 
+              <button
                 onClick={handleClose}
                 className="flex-1 py-2.5 text-[15px] font-semibold text-white bg-[#006E82] border border-[#006E82] rounded-[8px] hover:bg-[#005767] transition-colors shadow-sm"
               >
