@@ -18,6 +18,7 @@ import {
 import { formatDateTime } from '@/lib/utils'
 import { OrderStatusBadge } from './order-badges'
 import type { OrderWorkspaceMode } from './order.types'
+import { OrderCustomerSection } from './OrderCustomerSection'
 
 type StepState = 'pending' | 'active' | 'done' | 'alert'
 
@@ -55,6 +56,11 @@ interface OrderTopBarProps {
   onCustomerSearchChange: (value: string) => void
   onSelectCustomer: (customer: any) => void
   onClearCustomer: () => void
+  // Customer section props (passed down to OrderCustomerSection in TopBar)
+  customerId?: string
+  customerName?: string
+  onRemoveCustomer: () => void
+  onSelectSuggestedService?: (service: any, petId: string, petName?: string) => void
   onOpenPay: () => void
 
   onOpenExportStock: () => void
@@ -112,6 +118,10 @@ export function OrderTopBar({
   onSelectCustomer,
   onClearCustomer,
   onOpenPay,
+  customerId,
+  customerName,
+  onRemoveCustomer,
+  onSelectSuggestedService,
 
   onOpenExportStock,
   onOpenSettle,
@@ -124,7 +134,9 @@ export function OrderTopBar({
 
   return (
     <div className="relative z-30 shrink-0 border-b border-border bg-background/80 backdrop-blur-sm">
-      <div className="grid items-stretch divide-y divide-border/70 xl:grid-cols-[minmax(260px,1.15fr)_minmax(230px,0.9fr)_minmax(320px,1.45fr)_minmax(220px,auto)] xl:divide-x xl:divide-y-0">
+      <div className="grid items-stretch divide-y divide-border/70 xl:grid-cols-[minmax(180px,0.7fr)_minmax(320px,1.6fr)_minmax(200px,0.85fr)_minmax(300px,1.4fr)_minmax(200px,auto)] xl:divide-x xl:divide-y-0">
+
+        {/* Col 1: Back + Order title */}
         <div className="flex flex-col justify-center gap-2 px-5 py-4">
           <div className="flex items-center gap-2">
             <button
@@ -146,6 +158,19 @@ export function OrderTopBar({
           </div>
         </div>
 
+        {/* Col 2: Customer + Pet — 2-card section */}
+        <div className="flex min-h-0 flex-col justify-center">
+          <OrderCustomerSection
+            customerId={customerId}
+            customerName={customerName}
+            isEditing={isEditing}
+            onSelectCustomer={(id, name) => onSelectCustomer({ id, fullName: name })}
+            onRemoveCustomer={onRemoveCustomer}
+            onSelectSuggestedService={isEditing ? onSelectSuggestedService : undefined}
+          />
+        </div>
+
+        {/* Col 3: Nhân viên thao tác */}
         <div className="flex flex-col justify-center px-5 py-4">
           <div className="space-y-2.5">
             {showBranch !== false && <InfoRow label="Chi nhánh" value={branchName || '—'} />}
@@ -296,6 +321,6 @@ export function OrderTopBar({
         </div>
       </div>
 
-    </div>
+    </div >
   )
 }

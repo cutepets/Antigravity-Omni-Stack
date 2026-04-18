@@ -179,6 +179,10 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
           workspace.cancelOrderMutation.mutate()
         }}
         onOpenPos={workspace.handleGoPos}
+        customerId={workspace.draft.customerId}
+        customerName={workspace.draft.customerName}
+        onRemoveCustomer={workspace.handleClearCustomer}
+        onSelectSuggestedService={workspace.addCatalogItem}
       />
 
       {/* QR Resume Banner */}
@@ -318,20 +322,6 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
               </button>
             </>
           ) : null}
-        </div>
-
-        {/* Customer + Pet section — full-width row above cart/right panel */}
-        <div className="shrink-0 border-b border-border/60">
-          <OrderCustomerSection
-            customerId={workspace.draft.customerId}
-            customerName={workspace.draft.customerName}
-            isEditing={workspace.isEditing}
-            onSelectCustomer={(id, name) =>
-              workspace.handleSelectCustomer({ id, fullName: name })
-            }
-            onRemoveCustomer={workspace.handleClearCustomer}
-            onSelectSuggestedService={workspace.addCatalogItem}
-          />
         </div>
 
         <div className="grid flex-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_480px]">
