@@ -146,61 +146,64 @@ export function OrderCustomerSection({
 
     return (
         <>
-            {/* ── Col 1: Tiêu đề đơn + Thông tin khách ─────────────────────────── */}
-            <div className="flex flex-col justify-center gap-3 px-5 py-4 min-w-[240px]">
+            {/* ── Col 1: Tiêu đề + Thông tin khách ───────────────────── */}
+            <div className="relative flex flex-col justify-center gap-2 px-5 py-4">
+                {/* X = remove customer — gọn góc phải của col-1 */}
+                <button
+                    onClick={onRemoveCustomer}
+                    className="absolute top-3 right-3 rounded-full p-1 text-foreground-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                    title="Xoá khách hàng"
+                >
+                    <X size={13} />
+                </button>
+
                 {col1HeaderNode}
 
-                <div className="relative flex flex-col gap-1.5 mt-1">
-                    {/* Remove button */}
-                    <button
-                        onClick={onRemoveCustomer}
-                        className="absolute -top-1 -right-1 rounded-full p-1 text-foreground-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                        title="Xoá khách hàng"
-                    >
-                        <X size={14} />
-                    </button>
-
-                    {/* Row 1: Avatar + name + points */}
-                    <div className="flex items-center gap-3 pr-6">
-                        <div className="h-10 w-10 shrink-0 rounded-full bg-cyan-500 text-white flex items-center justify-center text-base font-bold uppercase shadow-sm">
-                            {customerName?.charAt(0) || 'U'}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            {/* Name row */}
-                            <div className="flex items-center gap-1.5">
-                                <span className="truncate text-sm font-bold text-foreground leading-tight">
-                                    {customerName}
-                                </span>
-                                {customerName?.toLowerCase() !== 'khách lẻ' && (
-                                    <button
-                                        onClick={() => { setAddModalData(customerDetail); setShowAddModal(true) }}
-                                        className="shrink-0 text-foreground-muted hover:text-primary-500 transition-colors"
-                                        title="Chỉnh sửa"
-                                    >
-                                        <Pencil size={12} />
-                                    </button>
-                                )}
-                            </div>
-                            {/* Points right below name */}
-                            <div className="flex items-center gap-1.5 mt-1">
-                                <Medal size={12} className="text-orange-500" />
-                                <span className="text-xs font-bold text-orange-500">{customerDetail?.points ?? 0} điểm</span>
-                                {!!customerDetail?.debtAmount && customerDetail.debtAmount > 0 && (
-                                    <span className="text-xs font-semibold text-red-500 ml-1">· Nợ {customerDetail.debtAmount.toLocaleString('vi-VN')}đ</span>
-                                )}
-                            </div>
-                        </div>
+                {/* Avatar + info block */}
+                <div className="flex items-start gap-3 pr-5">
+                    {/* Avatar */}
+                    <div className="h-10 w-10 shrink-0 rounded-full bg-cyan-500 text-white flex items-center justify-center text-base font-bold uppercase shadow-sm">
+                        {customerName?.charAt(0) || 'U'}
                     </div>
 
-                    {/* Phone & Address */}
-                    <div className="mt-1 flex flex-col gap-0.5 pl-[52px]">
+                    {/* Info block */}
+                    <div className="min-w-0 flex-1">
+                        {/* Row 1: tên + edit + điểm + nợ — tất cả cùng 1 hàng */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-sm font-bold text-foreground leading-tight">
+                                {customerName}
+                            </span>
+                            {customerName?.toLowerCase() !== 'khách lẻ' && (
+                                <button
+                                    onClick={() => { setAddModalData(customerDetail); setShowAddModal(true) }}
+                                    className="shrink-0 text-foreground-muted hover:text-primary-500 transition-colors"
+                                    title="Chỉnh sửa"
+                                >
+                                    <Pencil size={11} />
+                                </button>
+                            )}
+                            {/* Điểm — badge compact */}
+                            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-1.5 py-0.5 text-[11px] font-bold text-orange-500">
+                                <Medal size={10} />{customerDetail?.points ?? 0} điểm
+                            </span>
+                            {/* Nợ — chỉ hiện nếu > 0 */}
+                            {!!customerDetail?.debtAmount && customerDetail.debtAmount > 0 && (
+                                <span className="text-[11px] font-semibold text-red-400">
+                                    · Nợ {customerDetail.debtAmount.toLocaleString('vi-VN')}đ
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Row 2: phone */}
                         {customerDetail?.phone && (
-                            <div className="text-xs text-foreground-muted leading-tight truncate font-medium">
+                            <div className="mt-0.5 text-xs text-foreground-muted leading-tight">
                                 {customerDetail.phone}
                             </div>
                         )}
+
+                        {/* Row 3: address */}
                         {customerDetail?.address && (
-                            <div className="text-xs text-foreground-muted leading-tight truncate">
+                            <div className="mt-0.5 text-xs text-foreground-muted leading-tight truncate">
                                 {customerDetail.address}
                             </div>
                         )}
@@ -208,57 +211,60 @@ export function OrderCustomerSection({
                 </div>
             </div>
 
-            {/* ── Col 2: Thú cưng ─────── */}
-            <div className="flex flex-col justify-center gap-3 px-5 py-4 min-w-[240px]">
+            {/* ── Col 2: Thú cưng ─────────────────────────── */}
+            <div className="flex flex-col justify-center gap-2 px-4 py-4">
+                {/* Header label — aligned with col1HeaderNode */}
                 <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground-muted">
                     Thú cưng
                 </div>
 
-                <div className="flex flex-wrap gap-2 mt-1">
+                {/* Pet list — inline, shrink to fit */}
+                <div className="flex items-end gap-1.5 flex-nowrap">
                     {pets.map((pet: any) => (
                         <button
                             key={pet.id}
                             type="button"
                             onClick={() => setSelectedPetId(pet.id)}
-                            className="flex flex-col items-center gap-1.5 rounded-xl border border-transparent px-1.5 py-1 hover:border-border hover:bg-background-secondary transition-all"
+                            className="flex flex-col items-center gap-1 rounded-xl px-1.5 py-1 active:scale-[0.97] transition-all hover:bg-background-secondary"
+                            title={pet.name}
                         >
-                            <div className="h-10 w-10 rounded-full overflow-hidden border border-border bg-background-tertiary shadow-sm">
+                            <div className="h-9 w-9 rounded-full overflow-hidden border border-border bg-background-tertiary shadow-sm">
                                 {pet.avatar ? (
                                     <Image
                                         src={String(pet.avatar).startsWith('http') ? pet.avatar : `${IMG_BASE}${pet.avatar}`}
                                         alt={pet.name}
                                         className="h-full w-full object-cover"
-                                        width={80}
-                                        height={80}
+                                        width={72}
+                                        height={72}
                                         unoptimized
                                     />
                                 ) : (
-                                    <span className="flex h-full w-full items-center justify-center text-lg font-bold text-foreground-muted">
+                                    <span className="flex h-full w-full items-center justify-center text-[15px] font-bold text-foreground-muted">
                                         {pet.name?.charAt(0)?.toUpperCase()}
                                     </span>
                                 )}
                             </div>
-                            <span className="max-w-[56px] truncate text-xs font-semibold text-foreground leading-tight text-center">
+                            <span className="max-w-[44px] truncate text-[11px] font-semibold text-foreground leading-tight text-center">
                                 {pet.name}
                             </span>
                             {pet.weight && (
-                                <span className="rounded-full bg-orange-100 dark:bg-orange-500/15 px-1.5 py-0 text-[10px] font-bold text-orange-500">
+                                <span className="rounded-full bg-orange-500/10 px-1 py-0 text-[10px] font-bold text-orange-500">
                                     {pet.weight}kg
                                 </span>
                             )}
                         </button>
                     ))}
 
-                    {/* Add pet */}
+                    {/* + Thêm */}
                     <button
                         type="button"
                         onClick={() => setShowPetModal(true)}
-                        className="flex flex-col items-center gap-1.5 rounded-xl border border-transparent px-1.5 py-1 hover:border-border hover:bg-background-secondary transition-all group"
+                        className="flex flex-col items-center gap-1 rounded-xl px-1.5 py-1 active:scale-[0.97] transition-all group hover:bg-background-secondary"
                     >
-                        <div className="h-10 w-10 rounded-full border-2 border-dashed border-border text-foreground-muted group-hover:text-primary-500 group-hover:border-primary-500/60 flex items-center justify-center transition-colors">
-                            <Plus size={18} />
+                        <div className="h-9 w-9 rounded-full border-2 border-dashed border-border text-foreground-muted group-hover:text-primary-500 group-hover:border-primary-500/60 flex items-center justify-center transition-colors">
+                            <Plus size={16} />
                         </div>
-                        <span className="text-xs font-medium text-foreground-muted group-hover:text-primary-500 transition-colors">
+                        <span className="text-[11px] font-medium text-foreground-muted group-hover:text-primary-500 transition-colors">
                             Thêm
                         </span>
                     </button>

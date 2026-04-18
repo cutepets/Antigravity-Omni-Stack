@@ -134,59 +134,58 @@ export function OrderTopBar({
 
   return (
     <div className="relative z-30 shrink-0 border-b border-border bg-background/80 backdrop-blur-sm">
-      <div className="grid items-stretch divide-y divide-border/70 xl:grid-cols-[minmax(180px,0.7fr)_minmax(320px,1.6fr)_minmax(200px,0.85fr)_minmax(300px,1.4fr)_minmax(200px,auto)] xl:divide-x xl:divide-y-0">
+      {/* Flex container — cột tự co dãn theo nội dung */}
+      <div className="flex items-stretch divide-x divide-border/70">
 
-        {/* Col 1: Back + Order title (1 line, above customer block) */}
-        <div className="flex flex-col justify-center gap-1 px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground-muted">
-            {mode === 'create' ? 'Tạo đơn hàng mới' : 'Chi tiết đơn hàng'}
+        {/* Col 1+2: Customer + Pet (Fragment tự render 2 col) */}
+        <OrderCustomerSection
+          customerId={customerId}
+          customerName={customerName}
+          isEditing={isEditing}
+          onSelectCustomer={(id, name) => onSelectCustomer({ id, fullName: name })}
+          onRemoveCustomer={onRemoveCustomer}
+          onSelectSuggestedService={isEditing ? onSelectSuggestedService : undefined}
+          col1HeaderNode={
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border bg-background-secondary text-foreground-muted transition-colors hover:border-primary-500/40 hover:text-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500"
+                title="Quay lại danh sách"
+              >
+                <ArrowLeft size={12} />
+              </button>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground-muted">
+                {mode === 'create' ? 'Tạo đơn hàng mới' : order?.orderNumber || 'Chi tiết đơn'}
+              </span>
+            </div>
+          }
+        />
+
+        {/* Col 3: Chi nhánh + Nhân viên (stacked, compact) */}
+        <div className="flex flex-col justify-center gap-3 px-5 py-4 shrink-0">
+          {showBranch !== false && (
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
+                Chi nhánh
+              </div>
+              <div className="mt-0.5 text-sm font-semibold text-foreground">{branchName || '—'}</div>
+            </div>
+          )}
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
+              Nhân viên
+            </div>
+            <div className="mt-0.5 text-sm font-semibold text-foreground">{operatorName || '—'}</div>
           </div>
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-background-secondary text-foreground-muted transition-colors hover:border-primary-500/40 hover:text-primary-500"
-            title="Quay lại danh sách"
-          >
-            <ArrowLeft size={13} />
-          </button>
+          {mode === 'detail' && (
+            <div className="flex items-center gap-2">
+              <OrderStatusBadge status={order?.status} />
+            </div>
+          )}
         </div>
 
-        {/* Col 2: Customer + Pet — 2-card section */}
-        <div className="flex min-h-0 flex-col justify-center">
-          <OrderCustomerSection
-            customerId={customerId}
-            customerName={customerName}
-            isEditing={isEditing}
-            onSelectCustomer={(id, name) => onSelectCustomer({ id, fullName: name })}
-            onRemoveCustomer={onRemoveCustomer}
-            onSelectSuggestedService={isEditing ? onSelectSuggestedService : undefined}
-          />
-        </div>
-
-        {/* Col 3: Nhân viên thao tác */}
-        <div className="flex flex-col justify-center px-5 py-4">
-          <div className="space-y-2.5">
-            {showBranch !== false && <InfoRow label="Chi nhánh" value={branchName || '—'} />}
-            <InfoRow label="Nhân viên thao tác" value={operatorLabel || '—'} />
-            {mode === 'detail' ? (
-              <>
-                <InfoRow
-                  label="Ngày tạo"
-                  value={formatDateTime(order?.createdAt)}
-                  valueClassName="text-xs text-foreground-muted"
-                />
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
-                    Trạng thái
-                  </span>
-                  <OrderStatusBadge status={order?.status} />
-                </div>
-              </>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex items-center px-6 py-4">
+        <div className="flex flex-1 items-center px-6 py-4 min-w-[240px]">
           <div className="flex w-full items-start justify-between gap-2">
             {visibleProgressSteps.map((step, index) => (
               <div
