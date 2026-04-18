@@ -729,49 +729,155 @@ export function ProductDetailView({ productId }: { productId: string }) {
   )
 }
 
+function resolveTransactionLink(tx: { referenceId?: string | null; referenceType?: string | null }) {
+  if (!tx.referenceId) return null
+  switch (tx.referenceType) {
+    case 'STOCK_RECEIPT':
+      return `/inventory/receipts/${tx.referenceId}`
+    case 'SUPPLIER_RETURN':
+      return `/inventory/receipts` // supplier return không có route riêng, dẫn về danh sách
+    case 'ORDER':
+      return `/orders/${tx.referenceId}`
+    default:
+      return null
+  }
+}
+
 function ProductHistoryTab({ productId }: { productId: string }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['product-history', productId],
-    queryFn: () => inventoryApi.getProductTransactions(productId),
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('')
+
+  const { data: branchesRes } = useQuery({
+    queryKey: ['branches-list'],
+    queryFn: () => settingsApi.getBranches(),
+    staleTime: 5 * 60 * 1000,
   })
 
-  if (isLoading) return <div className="p-8 text-center text-sm text-foreground-muted">Đang tải lịch sử...</div>
+  const branches = branchesRes ?? []
 
-  const txs = data?.data || []
+  const { data, isLoading } = useQuery({
+    queryKey: ['product-history', productId, selectedBranchId],
+    queryFn: () => inventoryApi.getProductTransactions(productId, {
+      branchId: selectedBranchId || undefined,
+    }),
+  })
+
+  const txs: any[] = data?.data ?? []
+
+  const typeLabel = (type: string) => type === 'IN' ? 'Nhập kho' : 'Xuất kho'
 
   return (
-    <table className="data-table">
-      <thead>
-        <tr>
-          <th className="py-3 px-4 text-[11px]">THỜI GIAN</th>
-          <th className="py-3 px-4 text-[11px]">HÀNH ĐỘNG</th>
-          <th className="py-3 px-4 text-[11px] text-right">SỐ LƯỢNG</th>
-          <th className="py-3 px-4 text-[11px]">LOẠI</th>
-        </tr>
-      </thead>
-      <tbody>
-        {txs.length === 0 ? (
-          <tr>
-            <td colSpan={4} className="py-8 text-center text-sm text-foreground-muted">Chưa có lịch sử giao dịch</td>
-          </tr>
+    <div className="flex flex-col h-full">
+      {/* Header bar with branch selector */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-background">
+        <div className="flex items-center gap-2 text-sm text-foreground-muted">
+          <History className="h-4 w-4" />
+          <span className="font-medium text-foreground">
+            {txs.length > 0 ? `${txs.length} giao dịch` : 'Lịch sử xuất nhập'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-foreground-muted whitespace-nowrap">Chi nhánh:</label>
+          <select
+            id="history-branch-select"
+            className="h-8 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 min-w-[150px]"
+            value={selectedBranchId}
+            onChange={e => setSelectedBranchId(e.target.value)}
+          >
+            <option value="">Tất cả chi nhánh</option>
+            {branches.map((b: any) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-auto flex-1">
+        {isLoading ? (
+          <div className="p-10 text-center text-sm text-foreground-muted">Đang tải lịch sử...</div>
+        ) : txs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-foreground-muted">
+            <History className="h-10 w-10 opacity-30" />
+            <p className="text-sm">
+              {selectedBranchId
+                ? `Chưa có giao dịch nào tại ${branches.find((b: any) => b.id === selectedBranchId)?.name ?? 'chi nhánh này'}`
+                : 'Chưa có lịch sử giao dịch'}
+            </p>
+            {selectedBranchId && (
+              <button
+                onClick={() => setSelectedBranchId('')}
+                className="text-xs text-primary hover:underline"
+              >
+                Xem tất cả chi nhánh
+              </button>
+            )}
+          </div>
         ) : (
-          txs.map((tx: any) => (
-            <tr key={tx.id}>
-              <td className="py-3 px-4 text-sm text-foreground-muted">{dayjs(tx.createdAt).format('DD/MM/YYYY HH:mm')}</td>
-              <td className="py-3 px-4 text-sm max-w-[200px] truncate">{tx.reason || '—'}</td>
-              <td className={`py-3 px-4 text-right font-semibold ${tx.type === 'IN' ? 'text-success' : 'text-error'}`}>
-                {tx.type === 'IN' ? '+' : '-'}
-                {tx.quantity}
-              </td>
-              <td className="py-3 px-4">
-                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${tx.type === 'IN' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
-                  {tx.type === 'IN' ? 'Nhập kho' : 'Xuất kho'}
-                </span>
-              </td>
-            </tr>
-          ))
+          <table className="data-table w-full">
+            <thead>
+              <tr>
+                <th className="py-3 px-4 text-[11px] whitespace-nowrap">THỜI GIAN</th>
+                <th className="py-3 px-4 text-[11px] whitespace-nowrap">NHÂN VIÊN</th>
+                <th className="py-3 px-4 text-[11px] whitespace-nowrap">CHI NHÁNH</th>
+                <th className="py-3 px-4 text-[11px] whitespace-nowrap">HÀNH ĐỘNG</th>
+                <th className="py-3 px-4 text-[11px] text-right whitespace-nowrap">SL THAY ĐỔI</th>
+                <th className="py-3 px-4 text-[11px] whitespace-nowrap">LOẠI</th>
+                <th className="py-3 px-4 text-[11px] whitespace-nowrap">MÃ CHỨNG TỪ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {txs.map((tx: any) => {
+                const txLink = resolveTransactionLink(tx)
+                return (
+                  <tr key={tx.id} className="hover:bg-surface/50 transition-colors">
+                    <td className="py-3 px-4 text-sm text-foreground-muted whitespace-nowrap">
+                      {dayjs(tx.createdAt).format('DD/MM/YYYY HH:mm')}
+                    </td>
+                    <td className="py-3 px-4 text-sm whitespace-nowrap">
+                      {tx.staff?.fullName ?? <span className="text-foreground-muted">—</span>}
+                    </td>
+                    <td className="py-3 px-4 text-sm whitespace-nowrap">
+                      {tx.branch?.name ?? <span className="text-foreground-muted">—</span>}
+                    </td>
+                    <td className="py-3 px-4 text-sm max-w-[180px] truncate">
+                      {tx.reason ?? <span className="text-foreground-muted">—</span>}
+                    </td>
+                    <td className={`py-3 px-4 text-right font-bold text-base tabular-nums ${tx.type === 'IN' ? 'text-success' : 'text-error'}`}>
+                      {tx.type === 'IN' ? '+' : '−'}{tx.quantity}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`inline-flex items-center text-[10px] font-bold uppercase px-2 py-0.5 rounded-full whitespace-nowrap
+                        ${tx.type === 'IN'
+                          ? 'bg-success/10 text-success'
+                          : 'bg-error/10 text-error'}`}>
+                        {typeLabel(tx.type)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      {tx.referenceId ? (
+                        txLink ? (
+                          <Link
+                            href={txLink}
+                            target="_blank"
+                            className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline hover:text-primary/80 transition-colors"
+                          >
+                            {tx.referenceId}
+                          </Link>
+                        ) : (
+                          <span className="font-mono text-xs text-foreground-muted">{tx.referenceId}</span>
+                        )
+                      ) : (
+                        <span className="text-foreground-muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         )}
-      </tbody>
-    </table>
+      </div>
+    </div>
   )
 }
+

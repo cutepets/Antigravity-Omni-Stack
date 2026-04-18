@@ -693,6 +693,8 @@ export class StockService {
       quantityDelta: number
       reason: string
       referenceId?: string | null
+      referenceType?: string | null
+      staffId?: string | null
     },
   ) {
     if (!params.quantityDelta) return null
@@ -734,10 +736,13 @@ export class StockService {
       data: {
         productId: params.productId,
         productVariantId: params.productVariantId ?? null,
+        branchId: branch.id ?? null,
+        staffId: params.staffId ?? null,
         type: params.quantityDelta > 0 ? 'IN' : 'OUT',
         quantity: Math.abs(params.quantityDelta),
         reason: params.reason,
         referenceId: params.referenceId ?? null,
+        referenceType: params.referenceType ?? null,
       } as any,
     })
 
@@ -1669,6 +1674,8 @@ export class StockService {
           quantityDelta: quantity,
           reason: `Nhập hàng ${receipt.receiptNumber}`,
           referenceId: receipt.receiptNumber,
+          referenceType: 'STOCK_RECEIPT',
+          staffId: staffId ?? null,
         })
       }
 
@@ -1825,6 +1832,8 @@ export class StockService {
           quantityDelta: -item.quantity,
           reason: `Trả NCC ${receipt.receiptNumber}`,
           referenceId: supplierReturn.id,
+          referenceType: 'SUPPLIER_RETURN',
+          staffId: staffId ?? null,
         })
       }
 
@@ -2396,16 +2405,26 @@ export class StockService {
     }
   }
 
-  async getTransactionsByProduct(productId: string, productVariantId?: string | null) {
+  async getTransactionsByProduct(productId: string, productVariantId?: string | null, branchId?: string | null) {
     const product = await this.db.product.findUnique({ where: { id: productId } })
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
 
+    const where: any = { productId }
+    if (productVariantId?.trim()) {
+      where.productVariantId = productVariantId.trim()
+    }
+    if (branchId?.trim()) {
+      where.branchId = branchId.trim()
+    }
+
     const transactions = await this.db.stockTransaction.findMany({
-      where: {
-        productId,
-        productVariantId: productVariantId?.trim() || null,
-      },
+      where,
+      include: {
+        branch: { select: { id: true, name: true } },
+        staff: { select: { id: true, fullName: true } },
+      } as any,
       orderBy: { createdAt: 'desc' },
+      take: 300,
     })
 
     return { success: true, data: transactions }

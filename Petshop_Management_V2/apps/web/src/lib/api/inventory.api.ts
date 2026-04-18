@@ -7,7 +7,8 @@ export const inventoryApi = {
   updateProduct: (id: string, data: any) => api.put(`/inventory/products/${id}`, data).then(res => res.data),
   deleteProduct: (id: string) => api.delete(`/inventory/products/${id}`).then(res => res.data),
   restoreProduct: (id: string) => api.post(`/inventory/products/${id}/restore`).then(res => res.data),
-  getProductTransactions: (id: string) => api.get(`/stock/transactions/${id}`).then(res => res.data),
+  getProductTransactions: (id: string, params?: { variantId?: string; branchId?: string }) =>
+    api.get(`/stock/transactions/${id}`, { params }).then(res => res.data),
 
   // Variants
   updateVariant: (variantId: string, data: any) => api.put(`/inventory/products/variants/${variantId}`, data).then(res => res.data),

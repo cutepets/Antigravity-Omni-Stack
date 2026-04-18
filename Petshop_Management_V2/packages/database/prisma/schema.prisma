@@ -59,6 +59,7 @@ model Branch {
   attendanceRecords     AttendanceRecord[]
   leaveRequests         LeaveRequest[]
   payrollPeriods        PayrollPeriod[]
+  stockTransactions     StockTransaction[]
 
   @@map("branches")
 }
@@ -123,6 +124,7 @@ model User {
   payrollSlips            PayrollSlip[]
   approvedPayrolls        PayrollPeriod[]        @relation("PayrollApprover")
   faceEmbeddings          FaceEmbedding[]
+  stockTransactions       StockTransaction[]
   
   assignedGroomingSessions GroomingSession[]    @relation("GroomingAssignedStaff")
 
@@ -1168,16 +1170,22 @@ model StockTransaction {
   id               String          @id @default(cuid())
   productId        String
   productVariantId String?
+  branchId         String?
+  staffId          String?
   type             String
   quantity         Int
   reason           String?
   referenceId      String?
+  referenceType    String?
   createdAt        DateTime        @default(now())
   product          Product         @relation(fields: [productId], references: [id])
   productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+  branch           Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  staff            User?           @relation(fields: [staffId], references: [id], onDelete: SetNull)
 
   @@index([productId])
   @@index([productVariantId])
+  @@index([branchId])
   @@map("stock_transactions")
 }
 

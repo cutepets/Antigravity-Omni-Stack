@@ -40,7 +40,7 @@ interface AuthenticatedRequest extends Request {
 @UseGuards(JwtGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class StockController {
-  constructor(private readonly stockService: StockService) {}
+  constructor(private readonly stockService: StockService) { }
 
   private getStaffId(req: AuthenticatedRequest): string {
     const staffId = req.user?.userId
@@ -142,8 +142,12 @@ export class StockController {
   @Get('transactions/:productId')
   @Permissions('stock_receipt.read')
   @ApiOperation({ summary: 'Lịch sử giao dịch kho của sản phẩm' })
-  getTransactions(@Param('productId') productId: string, @Query('variantId') variantId?: string) {
-    return this.stockService.getTransactionsByProduct(productId, variantId)
+  getTransactions(
+    @Param('productId') productId: string,
+    @Query('variantId') variantId?: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    return this.stockService.getTransactionsByProduct(productId, variantId, branchId)
   }
 
   @Get('suggestions')
