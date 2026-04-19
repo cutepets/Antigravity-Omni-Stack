@@ -81,7 +81,7 @@ type BulkEditableField = 'image' | 'category' | 'unit' | 'brand' | 'price' | 'co
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
   { id: 'image', label: 'Ảnh', width: 'w-20' },
   { id: 'product', label: 'Sản phẩm', sortable: true, minWidth: 'min-w-[300px]' },
-  { id: 'sku', label: 'SKU', sortable: true, minWidth: 'min-w-[140px]' },
+  { id: 'sku', label: 'Mã nhóm / SKU', sortable: true, minWidth: 'min-w-[140px]' },
   { id: 'barcode', label: 'Mã vạch', sortable: true, minWidth: 'min-w-[140px]' },
   { id: 'category', label: 'Danh mục', sortable: true, minWidth: 'min-w-[140px]' },
   { id: 'stock', label: 'Tồn kho', sortable: true, minWidth: 'min-w-[140px]' },
@@ -338,7 +338,7 @@ export function ProductList() {
           comparison = compareText(left.name, right.name)
           break
         case 'sku':
-          comparison = compareText(left.sku, right.sku)
+          comparison = compareText(left.groupCode || left.sku, right.groupCode || right.sku)
           break
         case 'barcode':
           comparison = compareText(left.barcode, right.barcode)
@@ -1279,7 +1279,7 @@ function ProductRowBlock({
                 </td>
               )
             case 'sku':
-              return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.sku || '—'}</td>
+              return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.groupCode || product.sku || '—'}</td>
             case 'barcode':
               return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.barcode || '—'}</td>
             case 'category':

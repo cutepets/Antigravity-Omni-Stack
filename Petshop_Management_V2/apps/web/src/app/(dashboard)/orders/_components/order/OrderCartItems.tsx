@@ -25,7 +25,7 @@ import {
     roundCartQuantity,
 } from '@/app/(dashboard)/_shared/cart/cart.utils'
 import { resolveCartItemStockState } from '@/app/(dashboard)/_shared/cart/stock.utils'
-import type { CartItemCallbacks } from '@/app/(dashboard)/pos/components/PosCartItems'
+import type { CartItemCallbacks } from '@/app/(dashboard)/_shared/cart/cart.types'
 import { getCartItemWeightBandLabel } from '@/app/(dashboard)/pos/utils/pos.utils'
 
 // Re-export so consumers only need to import from here

@@ -27,7 +27,7 @@ const MODE_OPTIONS: Array<{ value: ProductImportMode; label: string; description
   {
     value: 'create',
     label: 'Them moi',
-    description: 'Tao moi theo SKU goc/SKU dong. SKU da ton tai se bi bao loi va bo qua.',
+    description: 'Tao moi theo Ma nhom SP va SKU dong. SKU da ton tai se bi bao loi va bo qua.',
   },
 ]
 
@@ -222,9 +222,10 @@ export function ProductExcelModal({ isOpen, onClose, onSuccess }: ProductExcelMo
               <div className="flex items-start gap-3">
                 <AlertCircle size={18} className="mt-0.5 shrink-0 text-primary-500" />
                 <div className="space-y-1 text-xs leading-5 text-foreground-muted">
-                  <p>PRODUCT cap nhat anh chinh san pham. VARIANT/CONVERSION cap nhat anh rieng cua SKU dong do.</p>
+                  <p>Moi dong la 1 SKU van hanh: VARIANT hoac CONVERSION.</p>
+                  <p>CONVERSION phai co SKU nguon quy doi tro ve 1 VARIANT cung Ma nhom SP.</p>
                   <p>Cot gia dong duoc nhan dien theo ten bang gia hien co trong cai dat.</p>
-                  <p>Trong mode update, co the xoa bot cot khong can cap nhat nhung phai giu SKU goc, Loai dong va SKU.</p>
+                  <p>Trong mode update, co the xoa bot cot khong can cap nhat nhung phai giu Ma nhom SP, Loai dong va SKU.</p>
                 </div>
               </div>
             </div>
@@ -268,7 +269,7 @@ export function ProductExcelModal({ isOpen, onClose, onSuccess }: ProductExcelMo
                       <thead className="bg-background">
                         <tr className="text-left text-xs uppercase tracking-[0.16em] text-foreground-muted">
                           <th className="px-4 py-3">Dong</th>
-                          <th className="px-4 py-3">SKU goc</th>
+                          <th className="px-4 py-3">Ma nhom SP</th>
                           <th className="px-4 py-3">SKU</th>
                           <th className="px-4 py-3">Loai</th>
                           <th className="px-4 py-3">Ket qua</th>
@@ -279,7 +280,7 @@ export function ProductExcelModal({ isOpen, onClose, onSuccess }: ProductExcelMo
                         {previewItems.map((item) => (
                           <tr key={`${item.rowNumber}-${item.sku}`} className="align-top">
                             <td className="px-4 py-3 text-foreground-muted">{item.rowNumber}</td>
-                            <td className="px-4 py-3 font-medium text-foreground">{item.baseSku}</td>
+                            <td className="px-4 py-3 font-medium text-foreground">{item.groupCode}</td>
                             <td className="px-4 py-3 font-mono text-xs text-foreground">{item.sku}</td>
                             <td className="px-4 py-3 text-foreground">{item.rowType}</td>
                             <td className="px-4 py-3">

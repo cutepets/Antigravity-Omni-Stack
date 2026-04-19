@@ -19,9 +19,10 @@ export type ParsedProductExcelFile = {
 }
 
 const BASE_PRODUCT_EXCEL_COLUMNS: ProductExcelColumn[] = [
-  { key: 'baseSku', header: 'SKU goc*', width: 18 },
+  { key: 'groupCode', header: 'Ma nhom SP*', width: 18 },
   { key: 'rowType', header: 'Loai dong*', width: 16 },
   { key: 'sku', header: 'SKU*', width: 20 },
+  { key: 'sourceSku', header: 'SKU nguon quy doi', width: 20 },
   { key: 'productName', header: 'Ten san pham', width: 28 },
   { key: 'attributeName1', header: 'Ten phan loai 1', width: 18 },
   { key: 'attributeValue1', header: 'Gia tri phan loai 1', width: 18 },
@@ -29,7 +30,6 @@ const BASE_PRODUCT_EXCEL_COLUMNS: ProductExcelColumn[] = [
   { key: 'attributeValue2', header: 'Gia tri phan loai 2', width: 18 },
   { key: 'attributeName3', header: 'Ten phan loai 3', width: 18 },
   { key: 'attributeValue3', header: 'Gia tri phan loai 3', width: 18 },
-  { key: 'baseUnit', header: 'Don vi goc', width: 14 },
   { key: 'rowUnit', header: 'Don vi dong', width: 14 },
   { key: 'conversionRate', header: 'Ty le quy doi', width: 14 },
   { key: 'barcode', header: 'Ma vach', width: 18 },
@@ -41,7 +41,7 @@ const BASE_PRODUCT_EXCEL_COLUMNS: ProductExcelColumn[] = [
   { key: 'costPrice', header: 'Gia von', width: 14 },
 ]
 
-const REQUIRED_COLUMN_KEYS = new Set<BaseProductExcelColumnKey>(['baseSku', 'rowType', 'sku'])
+const REQUIRED_COLUMN_KEYS = new Set<BaseProductExcelColumnKey>(['groupCode', 'rowType', 'sku'])
 
 function normalizeHeader(value: unknown) {
   return `${value ?? ''}`
@@ -79,9 +79,10 @@ function parseText(value: unknown) {
 function normalizeRow(row: ProductExcelRow): ProductExcelRow {
   return {
     ...row,
-    baseSku: parseText(row.baseSku),
+    groupCode: parseText(row.groupCode),
     rowType: (parseText(row.rowType)?.toUpperCase() as ProductExcelRow['rowType']) ?? undefined,
     sku: parseText(row.sku),
+    sourceSku: parseText(row.sourceSku),
     productName: parseText(row.productName),
     attributeName1: parseText(row.attributeName1),
     attributeValue1: parseText(row.attributeValue1),
@@ -89,7 +90,6 @@ function normalizeRow(row: ProductExcelRow): ProductExcelRow {
     attributeValue2: parseText(row.attributeValue2),
     attributeName3: parseText(row.attributeName3),
     attributeValue3: parseText(row.attributeValue3),
-    baseUnit: parseText(row.baseUnit),
     rowUnit: parseText(row.rowUnit),
     conversionRate: parseNumber(row.conversionRate),
     barcode: parseText(row.barcode),
@@ -226,7 +226,7 @@ export async function parseProductExcel(file: File): Promise<ParsedProductExcelF
     })
 
     const hasDynamicValues = Object.values(normalized.priceBookValues ?? {}).some((value) => value !== undefined)
-    if (!normalized.baseSku && !normalized.sku && !normalized.productName && !normalized.imageUrl && !hasDynamicValues) continue
+    if (!normalized.groupCode && !normalized.sku && !normalized.productName && !normalized.imageUrl && !hasDynamicValues) continue
     rows.push(normalized)
   }
 

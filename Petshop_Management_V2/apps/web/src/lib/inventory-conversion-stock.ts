@@ -27,6 +27,7 @@ export type BranchStockLike = {
 export type VariantLike = {
   id: string
   name?: string | null
+  sku?: string | null
   variantLabel?: string | null
   unitLabel?: string | null
   conversions?: string | null
@@ -101,6 +102,18 @@ export function parseConversionRate(raw?: string | null) {
   }
 }
 
+function parseConversionSourceSku(raw?: string | null) {
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw)
+    const sourceSku = `${parsed?.sourceSku ?? ''}`.trim()
+    return sourceSku.length > 0 ? sourceSku : null
+  } catch {
+    return null
+  }
+}
+
 export function isConversionVariant(variant?: VariantLike | null) {
   return !!parseConversionRate(variant?.conversions)
 }
@@ -139,6 +152,12 @@ export function findParentTrueVariant<TVariant extends VariantLike>(
   if (!isConversionVariant(selectedVariant)) return selectedVariant
 
   const trueVariants = getTrueVariants(variants)
+  const sourceSku = parseConversionSourceSku(selectedVariant.conversions)
+  if (sourceSku) {
+    const sourceMatch = trueVariants.find((variant) => `${variant.sku ?? ''}`.trim() === sourceSku)
+    if (sourceMatch) return sourceMatch
+  }
+
   const selectedGroupKeys = getEquivalentVariantGroupKeys(productName, selectedVariant)
   return trueVariants.find((variant) => selectedGroupKeys.has(getProductVariantGroupKey(productName, variant))) ?? null
 }
@@ -149,11 +168,20 @@ export function getConversionVariants<TVariant extends VariantLike>(
   productName?: string | null,
 ): TVariant[] {
   const allConversions = (variants ?? []).filter((variant) => isConversionVariant(variant))
+  const directSourceMatches = currentTrueVariant?.sku
+    ? allConversions.filter((variant) => parseConversionSourceSku(variant.conversions) === currentTrueVariant.sku)
+    : []
   const targetGroupKeys = currentTrueVariant
     ? getEquivalentVariantGroupKeys(productName, currentTrueVariant)
     : new Set<string>(['__base__', `${productName ?? ''}`.trim().toLowerCase()].filter(Boolean))
 
-  return allConversions.filter((variant) => targetGroupKeys.has(getProductVariantGroupKey(productName, variant)))
+  const legacyMatches = allConversions.filter((variant) => {
+    const sourceSku = parseConversionSourceSku(variant.conversions)
+    if (sourceSku && currentTrueVariant?.sku && sourceSku !== currentTrueVariant.sku) return false
+    return targetGroupKeys.has(getProductVariantGroupKey(productName, variant))
+  })
+
+  return Array.from(new Map([...directSourceMatches, ...legacyMatches].map((variant) => [variant.id, variant])).values())
 }
 
 export function groupVariantsWithConversions<TVariant extends VariantLike>(

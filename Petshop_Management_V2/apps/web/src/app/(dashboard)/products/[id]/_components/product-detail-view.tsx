@@ -188,7 +188,7 @@ function buildDetailTree(product: any) {
     id: product.id,
     kind: 'product',
     name: product.name,
-    sku: product.sku,
+    sku: product.groupCode || product.sku,
     barcode: product.barcode,
     image: product.image,
     price: product.price,
@@ -425,7 +425,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
           <div className="flex flex-col gap-3 text-sm border-t border-border pt-6">
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Phân loại</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={product.category || ''}>{product.category || '—'}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Dùng cho</span><span className="font-medium text-foreground truncate max-w-[65%] text-right">{TARGET_SPECIES_MAP[product.targetSpecies as string] || product.targetSpecies || '—'}</span></div>
-            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">SKU</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeItem.sku || product.sku || ''}>{activeItem.sku || product.sku || '—'}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">{activeItem.kind === 'product' ? 'Mã nhóm SP' : 'SKU'}</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeItem.sku || product.groupCode || product.sku || ''}>{activeItem.sku || product.groupCode || product.sku || '—'}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Đơn vị</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeUnit}>{activeUnit}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Barcode</span><span className="font-medium text-foreground truncate max-w-[65%] text-right" title={activeItem.barcode || product.barcode || ''}>{activeItem.barcode || product.barcode || '—'}</span></div>
             <div className="flex items-center justify-between"><span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted shrink-0">Trọng lượng</span><span className="font-medium text-foreground text-right">{activeWeight ? Number(activeWeight).toLocaleString('vi-VN') : '—'}</span></div>

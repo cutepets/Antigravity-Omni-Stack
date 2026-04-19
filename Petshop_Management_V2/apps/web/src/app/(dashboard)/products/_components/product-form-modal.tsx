@@ -50,6 +50,7 @@ interface VariantDefinition {
 interface ParsedConversion {
   rate?: number
   unit?: string
+  sourceSku?: string
 }
 
 interface ConversionDraft {
@@ -197,7 +198,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
       setFormData({
         name: initialData.name || '',
-        sku: initialData.sku || '',
+        sku: initialData.groupCode || initialData.sku || '',
         barcode: initialData.barcode || '',
         category: initialData.category || '',
         targetSpecies: initialData.targetSpecies || '',
@@ -445,6 +446,14 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     })
   }, [formData.name, formData.costPrice, formData.priceBookPrices, initialVariantMap, variantDefinitions, variantImages, variantOverrides])
 
+  const variantSkuByKey = useMemo(
+    () =>
+      Object.fromEntries(
+        generatedVariants.map((variant) => [variant.key, variant.sku]),
+      ) as Record<string, string>,
+    [generatedVariants],
+  )
+
   const buildVariantPayload = (variant: any) => ({
     name: variant.name,
     variantLabel: variant.variantLabel || undefined,
@@ -455,7 +464,13 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
       ? Number(variant.priceBookPrices?.[retailPriceBook.id] || 0)
       : roundMoney(basePrice * (variant.isConversion ? Number(variant.conversionRate || 1) : 1)),
     image: variant.image || undefined,
-    conversions: variant.isConversion ? JSON.stringify({ rate: variant.conversionRate, unit: variant.conversionUnit }) : undefined,
+    conversions: variant.isConversion
+      ? JSON.stringify({
+          rate: variant.conversionRate,
+          unit: variant.conversionUnit,
+          sourceSku: variant.parentKey ? variantSkuByKey[variant.parentKey] : undefined,
+        })
+      : undefined,
     priceBookPrices: Object.keys(variant.priceBookPrices || {}).length > 0 ? JSON.stringify(variant.priceBookPrices) : undefined,
     costPrice: Number(variant.costPrice) || undefined,
   })
@@ -465,7 +480,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
       // Tách variants ra khỏi payload — Prisma nested write cần xử lý riêng
       const basePayload = {
         name: formData.name,
-        sku: formData.sku || undefined,
+        groupCode: formData.sku || undefined,
         barcode: formData.barcode || undefined,
         category: formData.category || undefined,
         targetSpecies: formData.targetSpecies || undefined,
@@ -566,7 +581,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     e.preventDefault()
 
     if (!formData.name) return toast.error('Vui lòng nhập Tên sản phẩm')
-    if (!formData.sku) return toast.error('Vui lòng nhập mã SKU')
+    if (!formData.sku) return toast.error('Vui lòng nhập Mã nhóm SP')
     if (!formData.unit) return toast.error('Vui lòng nhập Đơn vị bán')
 
     // Check required Giá lẻ
@@ -788,8 +803,8 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
                   <div className="grid grid-cols-7 gap-3 pt-2">
                     <div className="col-span-1">
-                      <label className="block text-xs font-medium mb-1.5 text-foreground-muted">SKU</label>
-                      <input name="sku" value={formData.sku} onChange={handleChange} className="form-input w-full text-xs" />
+                      <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Mã nhóm SP</label>
+                      <input name="sku" value={formData.sku} onChange={handleChange} className="form-input w-full text-xs uppercase" />
                     </div>
                     <div className="col-span-2">
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Mã vạch</label>

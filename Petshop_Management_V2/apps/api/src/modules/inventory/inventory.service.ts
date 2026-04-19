@@ -419,7 +419,7 @@ export class InventoryService {
 
         items.push({
           rowNumber: row.rowNumber,
-          baseSku: group.baseSku,
+          groupCode: group.groupCode,
           sku: row.sku,
           rowType: row.rowType,
           action,
@@ -449,7 +449,7 @@ export class InventoryService {
         const groupMessages = [...group.groupMessages, ...group.rows.flatMap((row) => group.rowMessages.get(row.rowNumber) ?? [])]
         const valid = groupMessages.length === 0
         return {
-          baseSku: group.baseSku,
+          groupCode: group.groupCode,
           rowCount: group.rows.length,
           valid,
           action: valid ? (mode === 'create' ? 'create' : 'update') : 'skip',
@@ -458,7 +458,6 @@ export class InventoryService {
       }),
     }
   }
-
   private async analyzeProductImport(body: ProductImportRequest) {
     const priceBooks = await this.getProductExcelPriceBooks()
     const { groups } = analyzeProductExcelRows(body.rows ?? [], {
@@ -468,19 +467,26 @@ export class InventoryService {
     })
     const matchedPriceBooks = matchPriceBookHeaders(body.priceBookHeaders, priceBooks)
     const allSkus = Array.from(new Set(groups.flatMap((group) => group.rows.map((row) => row.sku)).filter(Boolean)))
-    const allBaseSkus = Array.from(new Set(groups.map((group) => group.baseSku).filter(Boolean)))
+    const allSourceSkus = Array.from(new Set(groups.flatMap((group) => group.rows.map((row) => row.sourceSku)).filter(Boolean)))
+    const allGroupCodes = Array.from(new Set(groups.map((group) => group.groupCode).filter(Boolean)))
 
     const [existingProducts, existingVariants] = await Promise.all([
       this.db.product.findMany({
-        where: { sku: { in: allBaseSkus } },
+        where: {
+          OR: [
+            { groupCode: { in: allGroupCodes } },
+            { sku: { in: allGroupCodes } },
+          ],
+        },
         include: this.getProductInclude() as any,
       }),
       this.db.productVariant.findMany({
-        where: { sku: { in: allSkus } },
+        where: { sku: { in: Array.from(new Set([...allSkus, ...allSourceSkus].filter((value): value is string => Boolean(value)))) } },
         include: { product: true },
       }),
     ])
 
+    const productsByGroupCode = new Map(existingProducts.map((product: any) => [product.groupCode || product.sku, product]))
     const productsBySku = new Map(existingProducts.map((product: any) => [product.sku, product]))
     const variantsBySku = new Map(existingVariants.map((variant: any) => [variant.sku, variant]))
     const skuOccurrences = new Map<string, number[]>()
@@ -498,7 +504,7 @@ export class InventoryService {
         group.groupMessages.push(`Khong tim thay bang gia cho cac cot: ${matchedPriceBooks.unknown.join(', ')}.`)
       }
 
-      const productRow = group.rows.find((row) => row.rowType === 'PRODUCT')
+      const primaryVariantRow = group.rows.find((row) => row.rowType === 'VARIANT')
       const attrs = buildAttributesFromRows(group)
 
       for (const row of group.rows) {
@@ -509,41 +515,56 @@ export class InventoryService {
         }
       }
 
-      if (!productRow) {
-        group.groupMessages.push('Thieu dong PRODUCT cho nhom SKU goc nay.')
+      if (!primaryVariantRow) {
+        group.groupMessages.push('Moi nhom phai co it nhat 1 dong VARIANT.')
         continue
       }
 
       if (body.mode === 'create') {
-        if (!group.commonValues.productName) group.groupMessages.push('Thieu ten san pham o dong PRODUCT.')
-        if (!group.commonValues.baseUnit) group.groupMessages.push('Thieu don vi goc o dong PRODUCT.')
-        if (productsBySku.has(group.baseSku) || variantsBySku.has(group.baseSku)) {
-          group.groupMessages.push(`SKU goc ${group.baseSku} da ton tai trong he thong.`)
+        if (!group.commonValues.productName) group.groupMessages.push('Thieu ten san pham trong nhom.')
+        if (!primaryVariantRow.rowUnit) group.groupMessages.push('Thieu Don vi dong cho dong VARIANT chinh.')
+        if (productsByGroupCode.has(group.groupCode)) {
+          group.groupMessages.push(`Ma nhom SP ${group.groupCode} da ton tai trong he thong.`)
         }
+
+        const localVariantSkus = new Set(group.rows.filter((row) => row.rowType === 'VARIANT').map((row) => row.sku))
 
         for (const row of group.rows) {
           const rowMessages = group.rowMessages.get(row.rowNumber)!
-          if (row.rowType !== 'PRODUCT' && (productsBySku.has(row.sku) || variantsBySku.has(row.sku))) {
+          if (productsBySku.has(row.sku) || variantsBySku.has(row.sku)) {
             rowMessages.push(`SKU ${row.sku} da ton tai trong he thong.`)
+          }
+          if (row.rowType === 'CONVERSION' && row.sourceSku && !localVariantSkus.has(row.sourceSku)) {
+            rowMessages.push(`SKU nguon quy doi ${row.sourceSku} khong ton tai trong cung nhom.`)
           }
         }
       } else {
-        const existingProduct = productsBySku.get(group.baseSku)
+        const existingProduct = productsByGroupCode.get(group.groupCode)
         if (!existingProduct) {
-          group.groupMessages.push(`Khong tim thay san pham goc theo SKU ${group.baseSku}.`)
+          group.groupMessages.push(`Khong tim thay san pham theo Ma nhom SP ${group.groupCode}.`)
         }
 
-        for (const row of group.rows) {
-          if (row.rowType === 'PRODUCT') continue
+        const existingGroupVariantSkus = new Set(
+          Array.isArray(existingProduct?.variants)
+            ? existingProduct.variants.map((variant: any) => variant.sku).filter(Boolean)
+            : [],
+        )
+        if (existingProduct?.sku) existingGroupVariantSkus.add(existingProduct.sku)
 
+        for (const row of group.rows) {
           const rowMessages = group.rowMessages.get(row.rowNumber)!
           const existingVariant = variantsBySku.get(row.sku)
-          if (!existingVariant) {
+          const isLegacyBaseVariant = !existingVariant && row.rowType === 'VARIANT' && existingProduct && row.sku === existingProduct.sku
+
+          if (!existingVariant && !isLegacyBaseVariant) {
             rowMessages.push(`Khong tim thay SKU ${row.sku} de cap nhat.`)
             continue
           }
-          if (existingProduct && existingVariant.productId !== existingProduct.id) {
-            rowMessages.push(`SKU ${row.sku} khong thuoc SKU goc ${group.baseSku}.`)
+          if (existingVariant && existingProduct && existingVariant.productId !== existingProduct.id) {
+            rowMessages.push(`SKU ${row.sku} khong thuoc Ma nhom SP ${group.groupCode}.`)
+          }
+          if (row.rowType === 'CONVERSION' && row.sourceSku && !existingGroupVariantSkus.has(row.sourceSku)) {
+            rowMessages.push(`SKU nguon quy doi ${row.sourceSku} khong thuoc Ma nhom SP ${group.groupCode}.`)
           }
         }
       }
@@ -557,6 +578,7 @@ export class InventoryService {
       groups,
       preview: this.buildImportPreviewResult(body.mode, groups),
       priceBooks,
+      productsByGroupCode,
       productsBySku,
       variantsBySku,
     }
@@ -580,21 +602,20 @@ export class InventoryService {
     group: ProductImportAnalysisGroup,
     priceBooks: ProductExcelPriceBook[],
   ) {
-    const productRow = group.rows.find((row) => row.rowType === 'PRODUCT')!
+    const primaryVariantRow = group.rows.find((row) => row.rowType === 'VARIANT')!
     const productName = group.commonValues.productName!
-    const baseUnit = group.commonValues.baseUnit!
+    const baseUnit = primaryVariantRow.rowUnit!
     const attributes = buildAttributesFromRows(group)
-    const nonProductRows = group.rows.filter((row) => row.rowType !== 'PRODUCT')
-    const shouldCreateRootVariant = nonProductRows.length === 0 || Boolean(buildVariantLabelFromRow(productRow))
-    const productPrice = resolvePrimaryPriceFromValues(productRow.priceBookValues, priceBooks, productRow.price) ?? 0
+    const productPrice = resolvePrimaryPriceFromValues(primaryVariantRow.priceBookValues, priceBooks, primaryVariantRow.price) ?? 0
     const productPayload = this.compactPatch({
       name: productName,
-      sku: group.baseSku,
-      barcode: productRow.barcode,
+      groupCode: group.groupCode,
+      sku: group.groupCode,
+      barcode: primaryVariantRow.barcode,
       category: group.commonValues.category,
       brand: group.commonValues.brand,
       unit: baseUnit,
-      costPrice: productRow.costPrice,
+      costPrice: primaryVariantRow.costPrice,
       price: productPrice,
       minStock: group.commonValues.minStock ?? 5,
       weight: group.commonValues.weight,
@@ -604,40 +625,34 @@ export class InventoryService {
       targetSpecies: group.commonValues.targetSpecies,
       isActive: group.commonValues.isActive ?? true,
       lastCountShift: group.commonValues.lastCountShift,
-      image: productRow.imageUrl,
+      image: primaryVariantRow.imageUrl,
       attributes: attributes.length > 0 ? JSON.stringify(attributes) : undefined,
     })
 
     const product = await tx.product.create({ data: productPayload as any })
-    const variantRows = [
-      ...(shouldCreateRootVariant ? [productRow] : []),
-      ...nonProductRows,
-    ]
-    const variantPayloads = variantRows.map((row) => buildVariantPayloadFromRow(productName, baseUnit, row, priceBooks))
+    const variantPayloads = group.rows.map((row) => buildVariantPayloadFromRow(productName, baseUnit, row, priceBooks))
 
-    if (variantPayloads.length > 0) {
-      for (const variant of variantPayloads) {
-        await tx.productVariant.create({
-          data: {
-            ...variant,
-            productId: product.id,
-          } as any,
-        })
-      }
+    for (const variant of variantPayloads) {
+      await tx.productVariant.create({
+        data: {
+          ...variant,
+          productId: product.id,
+        } as any,
+      })
     }
   }
   private async commitUpdateProductImportGroup(
     tx: Prisma.TransactionClient,
     group: ProductImportAnalysisGroup,
-    productsBySku: Map<string, any>,
+    productsByGroupCode: Map<string, any>,
     variantsBySku: Map<string, any>,
     priceBooks: ProductExcelPriceBook[],
     includedColumns: Set<string>,
   ) {
-    const product = productsBySku.get(group.baseSku)
+    const product = productsByGroupCode.get(group.groupCode)
     if (!product) return
 
-    const productRow = group.rows.find((row) => row.rowType === 'PRODUCT')!
+    const primaryVariantRow = group.rows.find((row) => row.rowType === 'VARIANT')!
     const shouldUpdateAttributes = [
       'attributeName1',
       'attributeName2',
@@ -648,8 +663,7 @@ export class InventoryService {
     ].some((column) => includedColumns.has(column))
     const attributes = shouldUpdateAttributes ? buildAttributesFromRows(group) : []
     const nextProductName = group.commonValues.productName ?? product.name
-    const nextBaseUnit = group.commonValues.baseUnit ?? product.unit
-    const rootVariant = variantsBySku.get(group.baseSku)
+    const nextBaseUnit = primaryVariantRow.rowUnit ?? product.unit
 
     const parseSerializedJson = (value?: string | null) => {
       if (!value) return {}
@@ -701,15 +715,14 @@ export class InventoryService {
       }
     }
 
-    const productPriceUpdate = buildMergedPriceBookUpdate(rootVariant?.priceBookPrices, productRow.priceBookValues, product.price)
     const productPayload = this.compactPatch({
       name: group.commonValues.productName,
-      barcode: productRow.barcode,
+      barcode: primaryVariantRow.barcode,
       category: group.commonValues.category,
       brand: group.commonValues.brand,
-      unit: group.commonValues.baseUnit,
-      costPrice: productRow.costPrice,
-      price: productPriceUpdate?.primaryPrice ?? productRow.price,
+      unit: nextBaseUnit,
+      costPrice: primaryVariantRow.costPrice,
+      price: resolvePrimaryPriceFromValues(primaryVariantRow.priceBookValues, priceBooks, primaryVariantRow.price),
       minStock: group.commonValues.minStock,
       weight: group.commonValues.weight,
       vat: group.commonValues.vat,
@@ -718,70 +731,34 @@ export class InventoryService {
       targetSpecies: group.commonValues.targetSpecies,
       isActive: group.commonValues.isActive,
       lastCountShift: group.commonValues.lastCountShift,
-      image: productRow.imageUrl,
+      image: primaryVariantRow.imageUrl,
       attributes: shouldUpdateAttributes ? JSON.stringify(attributes) : undefined,
     })
 
     if (Object.keys(productPayload).length > 0) {
-      await tx.product.update({
-        where: { id: product.id },
-        data: productPayload as any,
-      })
-    }
-
-    if (rootVariant && rootVariant.productId === product.id) {
-      const shouldUpdateIdentity = includedColumns.has('productName')
-        || includedColumns.has('attributeValue1')
-        || includedColumns.has('attributeValue2')
-        || includedColumns.has('attributeValue3')
-      const nextVariantLabel = shouldUpdateIdentity ? buildVariantLabelFromRow(productRow) : rootVariant.variantLabel
-      const nextVariantName = shouldUpdateIdentity || includedColumns.has('productName')
-        ? buildProductVariantName(nextProductName, nextVariantLabel, rootVariant.unitLabel) || nextProductName
-        : undefined
-      const rootVariantPriceUpdate = buildMergedPriceBookUpdate(
-        rootVariant.priceBookPrices,
-        productRow.priceBookValues,
-        rootVariant.price,
-      )
-      const rootVariantPayload = this.compactPatch({
-        name: nextVariantName,
-        variantLabel: shouldUpdateIdentity ? nextVariantLabel : undefined,
-        barcode: productRow.barcode,
-        costPrice: productRow.costPrice,
-        price: rootVariantPriceUpdate?.primaryPrice ?? productRow.price,
-        priceBookPrices: rootVariantPriceUpdate?.serialized,
-      })
-      if (Object.keys(rootVariantPayload).length > 0) {
-        await tx.productVariant.update({
-          where: { id: rootVariant.id },
-          data: rootVariantPayload as any,
-        })
-      }
+      await tx.product.update({ where: { id: product.id }, data: productPayload as any })
     }
 
     for (const row of group.rows) {
-      if (row.rowType === 'PRODUCT') continue
       const variant = variantsBySku.get(row.sku)
-      if (!variant || variant.productId !== product.id) continue
-
-      const shouldUpdateVariantLabel = includedColumns.has('attributeValue1')
-        || includedColumns.has('attributeValue2')
-        || includedColumns.has('attributeValue3')
+      const isLegacyBaseVariant = !variant && row.rowType === 'VARIANT' && row.sku === product.sku
+      const currentConversions = parseSerializedJson(variant?.conversions) as { rate?: number; unit?: string; sourceSku?: string }
+      const shouldUpdateVariantLabel = includedColumns.has('attributeValue1') || includedColumns.has('attributeValue2') || includedColumns.has('attributeValue3')
       const shouldUpdateUnitLabel = row.rowType === 'CONVERSION' && includedColumns.has('rowUnit')
       const shouldUpdateVariantName = includedColumns.has('productName') || shouldUpdateVariantLabel || shouldUpdateUnitLabel
-      const currentConversions = parseSerializedJson(variant.conversions) as { rate?: number; unit?: string }
-      const nextVariantLabel = shouldUpdateVariantLabel ? buildVariantLabelFromRow(row) : variant.variantLabel
+      const nextVariantLabel = shouldUpdateVariantLabel ? buildVariantLabelFromRow(row) : variant?.variantLabel
       const nextUnitLabel = row.rowType === 'CONVERSION'
-        ? (shouldUpdateUnitLabel ? row.rowUnit : variant.unitLabel ?? currentConversions.unit)
-        : variant.unitLabel
+        ? (shouldUpdateUnitLabel ? row.rowUnit : variant?.unitLabel ?? currentConversions.unit)
+        : variant?.unitLabel
       const nextVariantName = shouldUpdateVariantName
         ? buildProductVariantName(nextProductName, nextVariantLabel, nextUnitLabel) || row.productName || nextProductName
         : undefined
-      const priceUpdate = buildMergedPriceBookUpdate(variant.priceBookPrices, row.priceBookValues, variant.price)
-      const nextConversions = row.rowType === 'CONVERSION' && (includedColumns.has('rowUnit') || includedColumns.has('conversionRate'))
+      const priceUpdate = buildMergedPriceBookUpdate(variant?.priceBookPrices, row.priceBookValues, variant?.price)
+      const nextConversions = row.rowType === 'CONVERSION' && (includedColumns.has('rowUnit') || includedColumns.has('conversionRate') || includedColumns.has('sourceSku'))
         ? JSON.stringify({
             rate: includedColumns.has('conversionRate') ? row.conversionRate : currentConversions.rate,
             unit: includedColumns.has('rowUnit') ? row.rowUnit ?? nextBaseUnit : currentConversions.unit ?? nextBaseUnit,
+            sourceSku: includedColumns.has('sourceSku') ? row.sourceSku : currentConversions.sourceSku,
           })
         : undefined
 
@@ -796,12 +773,15 @@ export class InventoryService {
         priceBookPrices: priceUpdate?.serialized,
         conversions: nextConversions,
       })
-      if (Object.keys(variantPayload).length === 0) continue
 
-      await tx.productVariant.update({
-        where: { id: variant.id },
-        data: variantPayload as any,
-      })
+      if (isLegacyBaseVariant) {
+        const createPayload = buildVariantPayloadFromRow(nextProductName, nextBaseUnit, row, priceBooks)
+        await tx.productVariant.create({ data: { ...createPayload, productId: product.id } as any })
+        continue
+      }
+
+      if (!variant || Object.keys(variantPayload).length === 0) continue
+      await tx.productVariant.update({ where: { id: variant.id }, data: variantPayload as any })
     }
   }
   async commitProductImport(body: ProductImportRequest) {
@@ -821,7 +801,7 @@ export class InventoryService {
             await this.commitUpdateProductImportGroup(
               tx,
               group,
-              analysis.productsBySku,
+              analysis.productsByGroupCode,
               analysis.variantsBySku,
               analysis.priceBooks,
               includedColumns,
@@ -853,11 +833,23 @@ export class InventoryService {
   }
 
   async createProduct(dto: CreateProductDto) {
-    if (dto.sku) {
-      const exists = await this.db.product.findFirst({ where: { sku: dto.sku } })
-      if (exists) throw new ConflictException('MÃ£ SKU Ä‘Ã£ tá»“n táº¡i')
+    const nextGroupCode = `${dto.groupCode ?? dto.sku ?? ''}`.trim() || null
+    if (nextGroupCode) {
+      const exists = await this.db.product.findFirst({
+        where: {
+          OR: [
+            { groupCode: nextGroupCode },
+            { sku: nextGroupCode },
+          ],
+        },
+      })
+      if (exists) throw new ConflictException('Ma nhom san pham da ton tai')
     }
-    const productData: any = { ...dto }
+    const productData: any = {
+      ...dto,
+      groupCode: nextGroupCode,
+      sku: nextGroupCode,
+    }
     const normalizeVariants = (variants: CreateVariantDto[]) =>
       variants.map((variant) => prepareVariantPayload(variant, dto.name))
 
@@ -878,11 +870,27 @@ export class InventoryService {
 
   async updateProduct(id: string, dto: UpdateProductDto) {
     await this.findProductById(id)
-    if (dto.sku) {
-      const exists = await this.db.product.findFirst({ where: { sku: dto.sku, id: { not: id } } })
-      if (exists) throw new ConflictException('MÃ£ SKU Ä‘Ã£ tá»“n táº¡i')
+    const nextGroupCode = dto.groupCode === undefined && dto.sku === undefined
+      ? undefined
+      : `${dto.groupCode ?? dto.sku ?? ''}`.trim() || null
+    if (nextGroupCode) {
+      const exists = await this.db.product.findFirst({
+        where: {
+          id: { not: id },
+          OR: [
+            { groupCode: nextGroupCode },
+            { sku: nextGroupCode },
+          ],
+        },
+      })
+      if (exists) throw new ConflictException('Ma nhom san pham da ton tai')
     }
-    const updated = await this.db.product.update({ where: { id }, data: dto as any })
+    const payload: any = { ...dto }
+    if (nextGroupCode !== undefined) {
+      payload.groupCode = nextGroupCode
+      payload.sku = nextGroupCode
+    }
+    const updated = await this.db.product.update({ where: { id }, data: payload as any })
     return { success: true, data: updated }
   }
 
@@ -905,6 +913,7 @@ export class InventoryService {
         where: { id },
         data: {
           deletedAt: new Date(),
+          groupCode: product.groupCode ? `${product.groupCode}${suffix}` : null,
           sku: product.sku ? `${product.sku}${suffix}` : null,
           barcode: product.barcode ? `${product.barcode}${suffix}` : null
         }
@@ -940,6 +949,13 @@ export class InventoryService {
       if (existing) restoredSku = product.sku || null
     }
 
+    let restoredGroupCode = product.groupCode
+    if (restoredGroupCode && restoredGroupCode.includes('_deleted_')) {
+      restoredGroupCode = restoredGroupCode.split('_deleted_')[0] ?? null
+      const existing = await this.db.product.findFirst({ where: { groupCode: restoredGroupCode, deletedAt: null } })
+      if (existing) restoredGroupCode = product.groupCode || null
+    }
+
     let restoredBarcode = product.barcode
     if (restoredBarcode && restoredBarcode.includes('_deleted_')) {
       restoredBarcode = restoredBarcode.split('_deleted_')[0] ?? null
@@ -949,7 +965,12 @@ export class InventoryService {
 
     await this.db.product.update({
       where: { id },
-      data: { deletedAt: null, sku: restoredSku || null, barcode: restoredBarcode || null }
+      data: {
+        deletedAt: null,
+        groupCode: restoredGroupCode || restoredSku || null,
+        sku: restoredSku || restoredGroupCode || null,
+        barcode: restoredBarcode || null,
+      }
     })
 
     const variants = await this.db.productVariant.findMany({ where: { productId: id } })
@@ -1167,4 +1188,5 @@ export class InventoryService {
     return { success: true, message: 'XÃ³a báº£ng giÃ¡ thÃ nh cÃ´ng' }
   }
 }
+
 

@@ -4,13 +4,9 @@
  */
 import type { CartItem } from '@petshop/shared';
 
-export type CartItemCallbacks = {
-    onRemoveItem: (id: string) => void;
-    onUpdateQuantity: (id: string, qty: number) => void;
-    onUpdateDiscountItem: (id: string, discount: number) => void;
-    onUpdateItemVariant: (id: string, variantId: string) => void;
-    onUpdateItemNotes: (id: string, notes: string) => void;
-};
+// Re-export from shared location — single source of truth
+export type { CartItemCallbacks } from '@/app/(dashboard)/_shared/cart/cart.types';
+import type { CartItemCallbacks } from '@/app/(dashboard)/_shared/cart/cart.types';
 
 export type PosCartRowProps = {
     item: CartItem;
