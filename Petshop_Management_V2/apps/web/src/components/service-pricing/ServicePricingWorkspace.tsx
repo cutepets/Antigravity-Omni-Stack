@@ -993,12 +993,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const [editingBandKey, setEditingBandKey] = useState<string | null>(null)
   const [newHoliday, setNewHoliday] = useState<HolidayDraft>(() => createHolidayDraft())
   const [editingHolidayId, setEditingHolidayId] = useState<string | null>(null)
-  const [previewForm, setPreviewForm] = useState({
-    species: SPECIES_OPTIONS[0].value,
-    weight: '5',
-    checkIn: `${toDateInputValue(new Date())}T09:00`,
-    checkOut: `${toDateInputValue(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000))}T18:00`,
-  })
   const canManagePricing = mode === 'HOTEL'
     ? hasAnyPermission(['hotel.update', 'settings.pricing_policy.manage'])
     : hasAnyPermission(['grooming.update', 'settings.pricing_policy.manage'])
@@ -1264,20 +1258,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       toast.success('Đã xóa kỳ lễ')
     },
     onError: (error: any) => toast.error(error?.response?.data?.message || 'Không xóa được kỳ lễ'),
-  })
-
-  const previewMutation = useMutation({
-    mutationFn: () => {
-      const weight = parseWeightInput(previewForm.weight)
-      if (weight === null) throw new Error('Cân nặng không hợp lệ')
-      return hotelApi.calculatePrice({
-        species: previewForm.species,
-        weight,
-        checkIn: new Date(previewForm.checkIn).toISOString(),
-        checkOut: new Date(previewForm.checkOut).toISOString(),
-      })
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.message || error?.message || 'Không preview được giá Hotel'),
   })
 
   const [isSavingBands, setIsSavingBands] = useState(false)
@@ -1933,11 +1913,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
               deleteHolidayMutation.mutate(id)
             }}
             isSavingHoliday={createHolidayMutation.isPending || updateHolidayMutation.isPending || deleteHolidayMutation.isPending}
-            previewForm={previewForm}
-            setPreviewForm={setPreviewForm}
-            onPreview={() => previewMutation.mutate()}
-            preview={previewMutation.data}
-            isPreviewing={previewMutation.isPending}
             canManagePricing={canManagePricing}
             permissionHint={permissionError}
           />
@@ -1971,11 +1946,6 @@ function UnifiedHotelPricingPanel({
   onEditHoliday,
   onDeleteHoliday,
   isSavingHoliday,
-  previewForm,
-  setPreviewForm,
-  onPreview,
-  preview,
-  isPreviewing,
   canManagePricing,
   permissionHint,
 }: {
@@ -2002,18 +1972,12 @@ function UnifiedHotelPricingPanel({
   onEditHoliday: (holiday: HolidayCalendarDate) => void
   onDeleteHoliday: (id: string) => void
   isSavingHoliday: boolean
-  previewForm: { species: string; weight: string; checkIn: string; checkOut: string }
-  setPreviewForm: (value: { species: string; weight: string; checkIn: string; checkOut: string }) => void
-  onPreview: () => void
-  preview?: Awaited<ReturnType<typeof hotelApi.calculatePrice>>
-  isPreviewing: boolean
   canManagePricing: boolean
   permissionHint: string
 }) {
   const [isEditMode, setIsEditMode] = useState(false)
   const totalColumns = 1 + HOTEL_SPECIES_COLUMNS.length * DAY_TYPE_OPTIONS.length
   const canEditHotelPricing = canManagePricing && isEditMode
-  const aggregatedPreviewLines = preview ? aggregateHotelPreviewLines(preview) : []
 
   const handleExitEditMode = () => {
     onBandEdit(null)
@@ -2218,77 +2182,6 @@ function UnifiedHotelPricingPanel({
       </div>
 
       <div className="flex min-h-0 flex-col gap-4">
-        <div className="rounded-[28px] border border-border bg-background-secondary/70 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="text-base font-black text-foreground">Tính tiền hotel nhanh</h3>
-            <button type="button" onClick={onPreview} disabled={isPreviewing} className="h-11 rounded-xl bg-primary-500 px-4 text-sm font-bold text-white disabled:opacity-50 sm:min-w-[110px]">
-              Tính
-            </button>
-          </div>
-          <div className="mt-3 flex gap-3">
-            <label className="grid min-w-0 flex-1 gap-2">
-              <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Thời gian</span>
-              <HotelPreviewDateTimeRangeField
-                checkIn={previewForm.checkIn}
-                checkOut={previewForm.checkOut}
-                onChange={(patch) => setPreviewForm({ ...previewForm, ...patch })}
-                disabled={isPreviewing}
-              />
-            </label>
-            <label className="grid w-[60px] shrink-0 gap-2">
-              <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Kg</span>
-              <input
-                value={previewForm.weight}
-                onChange={(event) => setPreviewForm({ ...previewForm, weight: event.target.value })}
-                placeholder="0"
-                disabled={isPreviewing}
-                className="h-11 w-full min-w-0 rounded-xl border border-border bg-background-base px-1 text-center text-sm font-bold text-foreground outline-none transition-colors hover:border-primary-500 focus:border-primary-500 disabled:opacity-50"
-              />
-            </label>
-            <label className="grid w-[120px] shrink-0 gap-2">
-              <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Loài</span>
-              <div className="flex h-11 rounded-2xl border border-border bg-background-base p-1">
-                {HOTEL_SPECIES_COLUMNS.map((speciesOption) => (
-                  <button
-                    key={`preview-top-${speciesOption.value}`}
-                    type="button"
-                    disabled={isPreviewing}
-                    onClick={() => setPreviewForm({ ...previewForm, species: speciesOption.value })}
-                    className={cn(
-                      'min-w-0 flex-1 truncate rounded-xl px-2 text-[13px] font-bold transition-all disabled:opacity-50',
-                      previewForm.species === speciesOption.value ? 'bg-primary-500 text-white shadow-sm' : 'text-foreground-muted hover:text-foreground hover:bg-background-secondary',
-                    )}
-                  >
-                    {speciesOption.label}
-                  </button>
-                ))}
-              </div>
-            </label>
-          </div>
-          {preview ? (
-            <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-background-base">
-              <div className="grid grid-cols-[minmax(0,1fr)_40px_80px_90px] gap-3 border-b border-border bg-background-secondary/60 px-3 py-2.5 text-[11px] font-black uppercase tracking-[0.05em] text-foreground-muted">
-                <span className="truncate">Dịch vụ</span>
-                <span className="shrink-0 text-right">Ngày</span>
-                <span className="shrink-0 text-right">Đơn giá</span>
-                <span className="shrink-0 text-right">Thành tiền</span>
-              </div>
-              {aggregatedPreviewLines.map((line, index) => (
-                <div key={`preview-top-row-${line.dayType}-${index}`} className="grid grid-cols-[minmax(0,1fr)_40px_80px_90px] items-center gap-3 border-b border-border/70 px-3 py-2.5 text-[12px] last:border-b-0">
-                  <span className="truncate font-semibold text-foreground" title={line.label}>{line.label}</span>
-                  <span className="shrink-0 text-right tabular-nums text-foreground-muted">{line.quantityDays}</span>
-                  <span className="shrink-0 text-right tabular-nums text-foreground-muted">{line.unitPriceLabel}</span>
-                  <span className="shrink-0 text-right font-black tabular-nums text-primary-500">{formatCurrency(line.subtotal)}</span>
-                </div>
-              ))}
-              <div className="flex items-center justify-between bg-primary-500/10 px-4 py-3 text-sm font-black text-primary-500">
-                <span>Tổng</span>
-                <span>{formatCurrency(preview.totalPrice)}</span>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
         <HolidayCalendarPanel
           holidays={holidays}
           newHoliday={newHoliday}

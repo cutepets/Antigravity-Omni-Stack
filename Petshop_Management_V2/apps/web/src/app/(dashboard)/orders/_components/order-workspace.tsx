@@ -26,6 +26,7 @@ import {
 import { usePaymentIntentSession } from '@/app/(dashboard)/_shared/payment/use-payment-intent-session'
 import { OrderProductSearch } from './order/OrderProductSearch'
 import { OrderCartItems, type CartItemCallbacks } from './order/OrderCartItems'
+import { OrderCartSection } from './order/OrderCartSection'
 import { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches'
 import { OrderCustomerSection } from './order/OrderCustomerSection'
 
@@ -459,22 +460,17 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
   )
 }
 
-// ── OrderCartSection ─────────────────────────────────────────────────────────
-// Adapter: maps useOrderWorkspace draft items → CartItem format consumed by PosCartItems.
-
-type OrderCartSectionProps = {
-  draft: any
-  branches: any[]
-  selectedRowIndex: number
-  isEditing: boolean
-  noteEditingId: string | null
-  setNoteEditingId: (id: string | null) => void
+branches: any[]
+selectedRowIndex: number
+isEditing: boolean
+noteEditingId: string | null
+setNoteEditingId: (id: string | null) => void
   discountEditingId: string | null
-  setDiscountEditingId: (id: string | null) => void
+setDiscountEditingId: (id: string | null) => void
   onChangeQuantity: (index: number, value: string) => void
-  onChangeItemDiscount: (index: number, value: string) => void
-  onRemoveItem: (index: number) => void
-  onSwapItem?: (item: any) => void
+    onChangeItemDiscount: (index: number, value: string) => void
+      onRemoveItem: (index: number) => void
+        onSwapItem ?: (item: any) => void
 }
 
 function OrderCartSection({

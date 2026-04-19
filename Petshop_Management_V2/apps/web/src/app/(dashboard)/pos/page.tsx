@@ -201,11 +201,6 @@ function PosPageContent() {
               />
             </div>
 
-            <HotelQuickPreviewTool
-              triggerClassName="shrink-0 border-white/20 bg-white/10 px-3 text-white hover:bg-white/20"
-              triggerLabelClassName="hidden xl:inline"
-            />
-
             <button
               className={`hidden lg:block p-1.5 hover:bg-white/20 rounded border transition-colors shrink-0 ${store.isMultiSelect ? 'border-amber-400 text-amber-400 bg-white/10' : 'border-white/20 text-white'}`}
               title={store.isMultiSelect ? "Tắt chọn nhiều" : "Bật chọn nhiều (Thêm nhanh nhiều sản phẩm liên tục)"}
@@ -277,8 +272,8 @@ function PosPageContent() {
         <div className="hidden lg:flex items-center gap-3 shrink-0 py-1.5">
           <div className="flex items-center gap-2 px-2 border-r border-white/20">
             {customerPricing?.priceBookName ? (
-              <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white">
-                BG: {customerPricing.priceBookName}
+              <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-sm font-semibold text-white tracking-wide shadow-sm">
+                {customerPricing.priceBookName}
               </span>
             ) : null}
             {(customerPricing?.discountRate ?? 0) > 0 ? (
@@ -394,6 +389,10 @@ function PosPageContent() {
                   } as any);
                 }}
               >+ Sản phẩm tạm</button>
+              <HotelQuickPreviewTool
+                triggerClassName="h-auto rounded border-border bg-surface px-4 py-1.5 text-foreground hover:border-primary-500 hover:bg-surface"
+                triggerLabelClassName=""
+              />
             </div>
 
             <div className="p-2 px-4 bg-surface border-t border-border">

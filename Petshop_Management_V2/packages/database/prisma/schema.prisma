@@ -266,6 +266,7 @@ model Pet {
   healthNotes      PetHealthNote[]
   vaccinations     PetVaccination[]
   weightLogs       PetWeightLog[]
+  timeline         PetTimeline[]
   branch           Branch?           @relation(fields: [branchId], references: [id])
   customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
@@ -315,10 +316,25 @@ model PetHealthNote {
   @@map("pet_health_notes")
 }
 
+model PetTimeline {
+  id        String   @id @default(cuid())
+  petId     String
+  action    String   // 'INFO_UPDATED' | 'WEIGHT_UPDATED' | 'VACCINATION_ADDED' | 'CREATED'
+  note      String?
+  metadata  Json?    // { changes: [{ field, label, from, to }] } hoặc { weight, notes }
+  createdAt DateTime @default(now())
+  pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([createdAt])
+  @@map("pet_timelines")
+}
+
 model Product {
   id                  String                    @id @default(cuid())
   name                String
   sku                 String?                   @unique
+  groupCode           String?                   @unique
   barcode             String?                   @unique
   category            String?
   targetSpecies       String?
@@ -355,6 +371,7 @@ model Product {
   stockCountItems     StockCountItem[]
 
   @@index([sku])
+  @@index([groupCode])
   @@index([category])
   @@map("products")
 }

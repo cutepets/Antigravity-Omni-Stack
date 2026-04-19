@@ -187,6 +187,7 @@ export function UnifiedPetProfile({
   const ageLabel = getAgeLabel(pet?.dateOfBirth);
   const lastVaccination = pet?.vaccinations?.[0]; // Assuming order is desc
   const weightLogs = pet?.weightLogs ?? [];
+  const petTimeline = pet?.timeline ?? [];
   const serviceHistory = useMemo(() => {
     const history: Array<{
       id: string;
@@ -232,7 +233,7 @@ export function UnifiedPetProfile({
     ...(hideSuggestions ? [] : [{ id: 'suggestions' as const, label: 'Gợi ý', count: suggestedServices.length, icon: Sparkles }]),
     { id: 'services' as const, label: 'Dịch vụ', count: serviceHistory.length, icon: Clock3 },
     { id: 'vaccines' as const, label: 'Tiêm phòng', count: pet?.vaccinations?.length ?? 0, icon: Syringe },
-    { id: 'updates' as const, label: 'Lịch sử', count: weightLogs.length + (pet?.updatedAt ? 1 : 0), icon: Info },
+    { id: 'updates' as const, label: 'Lịch sử', count: petTimeline.length, icon: Info },
   ];
 
   const handleAddUpdate = async () => {
@@ -324,11 +325,13 @@ export function UnifiedPetProfile({
             <div className="px-6 py-5">
               <div className="flex flex-col gap-5">
                 <div className="flex items-start gap-5">
-                  <div className="flex h-[120px] w-[120px] shrink-0 items-center justify-center rounded-2xl bg-background-secondary text-5xl font-black uppercase text-foreground-muted shadow-inner">
+                  <div className="shrink-0 rounded-2xl bg-background-secondary text-5xl font-black uppercase text-foreground-muted shadow-inner overflow-hidden">
                     {pet?.avatar ? (
-                      <Image src={avatarUrl} alt={pet.name} className="h-full w-full rounded-2xl object-cover" width={400} height={400} unoptimized />
+                      <Image src={avatarUrl} alt={pet.name} className="block rounded-2xl object-cover" width={120} height={120} unoptimized />
                     ) : (
-                      <span className="opacity-50">{pet.name?.charAt(0)}</span>
+                      <div className="flex h-[88px] w-[88px] items-center justify-center">
+                        <span className="opacity-50">{pet.name?.charAt(0)}</span>
+                      </div>
                     )}
                   </div>
 
@@ -409,7 +412,7 @@ export function UnifiedPetProfile({
                         icon={Info}
                         label="Tuổi"
                         value={ageLabel || 'Chưa có ngày sinh'}
-                        sub={pet.dateOfBirth ? `Sinh ngày ${fmtDate(pet.dateOfBirth)}` : 'Cập nhật ngày sinh để tính tuổi'}
+                        sub={pet.dateOfBirth ? `Sinh ngày ${fmtDate(pet.dateOfBirth)}` : null}
                         tone="blue"
                       />
                       <PetStatCard
@@ -738,91 +741,71 @@ export function UnifiedPetProfile({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between mt-6 mb-2">
+                  <div className="flex items-center mt-4 mb-2">
                     <h3 className="font-semibold text-sm">Lịch sử thay đổi</h3>
-                    {!isAddingUpdate && (
-                      <button
-                        onClick={() => {
-                          setUpdateWeightValue(pet?.weight ? String(pet.weight) : '');
-                          setUpdateNote('');
-                          setIsAddingUpdate(true);
-                        }}
-                        className="text-xs font-semibold text-primary-600 bg-primary-50 px-2.5 py-1 rounded-md hover:bg-primary-100 transition-colors flex items-center gap-1"
-                      >
-                        <Plus size={12} /> Thêm ghi chú
-                      </button>
-                    )}
                   </div>
 
-                  {isAddingUpdate && (
-                    <div className="rounded-xl border border-primary-200 bg-primary-50/50 p-4 mb-4 animate-in fade-in slide-in-from-top-2">
-                      <div className="flex gap-2 mb-3">
-                        <div className="w-24 shrink-0">
-                          <label className="text-[10px] font-bold uppercase text-foreground-muted mb-1 block">Cân nặng (kg)</label>
-                          <input
-                            type="number"
-                            value={updateWeightValue}
-                            onChange={(e) => setUpdateWeightValue(e.target.value)}
-                            className="w-full bg-white border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-primary-500 transition-colors"
-                            placeholder="0.0"
-                            step="0.1"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-[10px] font-bold uppercase text-foreground-muted mb-1 block">Nội dung thay đổi</label>
-                          <input
-                            type="text"
-                            value={updateNote}
-                            onChange={(e) => setUpdateNote(e.target.value)}
-                            className="w-full bg-white border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-primary-500 transition-colors"
-                            placeholder="Cạo lông, tắm, v.v..."
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleAddUpdate();
-                            }}
-                            autoFocus
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => setIsAddingUpdate(false)}
-                          className="px-3 py-1.5 text-xs font-medium text-foreground-muted hover:text-foreground hover:bg-background-secondary rounded-lg transition-colors"
-                        >
-                          Hủy
-                        </button>
-                        <button
-                          onClick={handleAddUpdate}
-                          disabled={isSavingWeight}
-                          className="bg-primary-500 hover:bg-primary-600 text-white px-3 py-1.5 text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          {isSavingWeight ? 'Đang lưu...' : 'Lưu cập nhật'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {weightLogs.length > 0 ? (
+                  {petTimeline.length > 0 ? (
                     <div className="space-y-3">
-                      {weightLogs.map((log: any) => (
-                        <div
-                          key={log.id}
-                          className="flex items-center justify-between rounded-xl border border-border bg-background-secondary p-4"
-                        >
-                          <div>
-                            <p className="text-base font-semibold text-foreground flex items-center gap-2">
-                              <Scale size={16} className="text-amber-500" />
-                              {log.weight} kg
-                            </p>
-                            {log.notes ? (
-                              <p className="mt-1 text-sm text-foreground-muted/70">{log.notes}</p>
-                            ) : null}
+                      {petTimeline.map((entry: any) => {
+                        const meta = entry.metadata as any ?? {}
+                        const isInfo = entry.action === 'INFO_UPDATED'
+                        const isWeight = entry.action === 'WEIGHT_UPDATED'
+                        const isVac = entry.action === 'VACCINATION_ADDED'
+                        return (
+                          <div key={entry.id} className="rounded-xl border border-border bg-background-secondary p-4">
+                            <div className="flex items-start gap-3">
+                              <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isWeight ? 'bg-amber-500/10 text-amber-500'
+                                  : isVac ? 'bg-success/10 text-success'
+                                    : 'bg-primary-500/10 text-primary-500'
+                                }`}>
+                                {isWeight ? <Scale size={14} /> : isVac ? <Syringe size={14} /> : <Pencil size={14} />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-sm font-semibold text-foreground">
+                                    {isWeight ? 'Cập nhật cân nặng'
+                                      : isVac ? 'Thêm mũi tiêm'
+                                        : 'Sửa thông tin'}
+                                  </p>
+                                  <p className="text-xs text-foreground-muted shrink-0">{fmtDate(entry.createdAt)}</p>
+                                </div>
+
+                                {isWeight && (
+                                  <p className="mt-1 text-sm text-foreground-muted">
+                                    <span className="font-semibold text-foreground">{meta.weight} kg</span>
+                                    {meta.notes ? <span> — {meta.notes}</span> : null}
+                                  </p>
+                                )}
+
+                                {isVac && (
+                                  <p className="mt-1 text-sm text-foreground-muted">
+                                    <span className="font-semibold text-foreground">{meta.vaccineName}</span>
+                                    {meta.notes ? <span> — {meta.notes}</span> : null}
+                                  </p>
+                                )}
+
+                                {isInfo && Array.isArray(meta.changes) && meta.changes.length > 0 && (
+                                  <ul className="mt-1.5 space-y-0.5">
+                                    {meta.changes.map((c: any, i: number) => (
+                                      <li key={i} className="text-sm text-foreground-muted">
+                                        <span className="font-medium text-foreground">{c.label}:</span>{' '}
+                                        <span className="line-through opacity-50">{c.from || 'trống'}</span>{' → '}
+                                        <span className="text-foreground font-medium">{c.to || 'trống'}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-sm text-foreground-muted">{fmtDate(log.date)}</p>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : (
-                    <div className="text-sm text-foreground-muted p-4 rounded-xl border border-dashed border-border text-center">Chưa có lịch sử cân nặng</div>
+                    <div className="text-sm text-foreground-muted p-6 rounded-xl border border-dashed border-border text-center">
+                      Chưa có lịch sử thay đổi nào được ghi lại
+                    </div>
                   )}
                 </div>
               ) : null}

@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useCustomerSearch } from '@/components/search/use-commerce-search'
 import { CustomerSearchResults } from '@/components/search/customer-search-results'
-import { PosAddCustomerModal } from '@/app/(dashboard)/pos/components/PosAddCustomerModal'
+import { AddCustomerModal as PosAddCustomerModal } from '@/app/(dashboard)/_shared/customer/components/AddCustomerModal'
 import { PetFormModal } from '@/app/(dashboard)/pets/_components/pet-form-modal'
 import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile'
 

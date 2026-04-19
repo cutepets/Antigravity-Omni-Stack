@@ -2,12 +2,13 @@
 import Image from 'next/image';
 
 import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   BadgeCheck,
   ChevronDown,
   CornerDownRight,
+  FileSpreadsheet,
   ImagePlus,
   PackageCheck,
   Pencil,
@@ -24,6 +25,8 @@ import { inventoryApi } from '@/lib/api/inventory.api'
 import { getDisplayBranchStocks, getResolvedVariantLabels, groupVariantsWithConversions, parseConversionRate } from '@/lib/inventory-conversion-stock'
 import { toast } from 'sonner'
 import { ProductFormModal } from './product-form-modal'
+import { ProductExcelModal } from './product-excel-modal'
+import { exportProductWorkbook } from './product-excel'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import {
 
@@ -238,7 +241,11 @@ export function ProductList() {
   const [pageSize, setPageSize] = useState(20)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false)
+  const [showExcelMenu, setShowExcelMenu] = useState(false)
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set())
+  const excelMenuRef = useRef<HTMLDivElement | null>(null)
+  const canImportProducts = canCreateProduct || canUpdateProduct
 
   // Reset page when any filter changes
   useEffect(() => {
@@ -259,12 +266,28 @@ export function ProductList() {
     }
   }, [canReadProducts, isAuthLoading, router])
 
+  useEffect(() => {
+    if (!showExcelMenu) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!excelMenuRef.current?.contains(event.target as Node)) {
+        setShowExcelMenu(false)
+      }
+    }
+
+    window.addEventListener('mousedown', handlePointerDown)
+    return () => window.removeEventListener('mousedown', handlePointerDown)
+  }, [showExcelMenu])
+
   const { data, isLoading } = useQuery({
-    queryKey: ['products', search, category, systemStatus, page, pageSize],
+    queryKey: ['products', search, category, brandQuery, saleStatus, stockStatus, systemStatus, page, pageSize],
     queryFn: () =>
       inventoryApi.getProducts({
         search: search || undefined,
         category: category || undefined,
+        brand: brandQuery || undefined,
+        saleStatus,
+        stockStatus,
         status: systemStatus,
         page,
         limit: pageSize,
@@ -282,29 +305,8 @@ export function ProductList() {
 
   const categoryOptions = Array.isArray(categories) ? categories : (categories as any)?.data ?? []
 
-  const filteredProducts = useMemo(() => {
-    return rawProducts.filter((product: any) => {
-      const productBrand = `${product.brand ?? ''}`.toLowerCase()
-      const active = Boolean(product.isActive ?? true)
-
-      const productBranchStocks = getDisplayBranchStocks(product) as BranchStockRow[]
-      const totalStock = sumStock(productBranchStocks, Number(product.stock ?? 0))
-      const minStock = sumMinStock(productBranchStocks, Number(product.minStock ?? 0))
-
-      const matchesBrand = !brandQuery || productBrand.includes(brandQuery.trim().toLowerCase())
-      const matchesSaleStatus = saleStatus === 'all' || (saleStatus === 'active' ? active : !active)
-      const matchesStockStatus =
-        stockStatus === 'all' ||
-        (stockStatus === 'in_stock' && totalStock > 0) ||
-        (stockStatus === 'out_of_stock' && totalStock <= 0) ||
-        (stockStatus === 'low_stock' && totalStock > 0 && totalStock <= minStock)
-
-      return matchesBrand && matchesSaleStatus && matchesStockStatus
-    })
-  }, [brandQuery, rawProducts, saleStatus, stockStatus])
-
   const productRows = useMemo(() => {
-    const rows = filteredProducts.map((product: any) => {
+    const rows = rawProducts.map((product: any) => {
       const { groups, looseConversions, totalChildren } = buildVariantGroups(product)
       const productStocks = getDisplayBranchStocks(product) as BranchStockRow[]
       const hasVariants = totalChildren > 0
@@ -363,7 +365,7 @@ export function ProductList() {
       if (comparison === 0) comparison = compareText(left.name, right.name)
       return comparison * directionFactor
     })
-  }, [columnSort, filteredProducts])
+  }, [columnSort, rawProducts])
 
   const visibleProductRowIds = useMemo(
     () => productRows.map((product: any) => `product:${product.id}`),
@@ -402,6 +404,58 @@ export function ProductList() {
       }
     },
   })
+
+  const exportMutation = useMutation({
+    mutationFn: async (scope: 'all' | 'filtered' | 'selected') => {
+      const filters =
+        scope === 'all'
+          ? { status: systemStatus }
+          : {
+            search: search || undefined,
+            category: category || undefined,
+            brand: brandQuery || undefined,
+            saleStatus,
+            stockStatus,
+            status: systemStatus,
+          }
+
+      const response = await inventoryApi.exportProducts({
+        scope,
+        filters,
+        productIds: scope === 'selected' ? selectedProductIds : undefined,
+      })
+      const payload = response?.data ?? {}
+      const rows = payload.rows ?? []
+      if (!Array.isArray(rows)) {
+        throw new Error('Phản hồi xuất Excel sản phẩm không hợp lệ.')
+      }
+
+      await exportProductWorkbook({
+        rows,
+        guideRows: payload.guideRows ?? [],
+        priceBookHeaders: payload.priceBookHeaders ?? [],
+        fileName: `san-pham-${scope}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      })
+
+      return rows.length as number
+    },
+    onSuccess: (rowCount) => {
+      toast.success(`Đã xuất ${rowCount} dòng dữ liệu sản phẩm ra Excel.`)
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || error?.message || 'Không thể xuất Excel sản phẩm.')
+    },
+  })
+
+  const handleExportProducts = (scope: 'all' | 'filtered' | 'selected') => {
+    if (scope === 'selected' && selectedProductIds.length === 0) {
+      toast.error('Hãy chọn ít nhất một sản phẩm để xuất.')
+      return
+    }
+
+    setShowExcelMenu(false)
+    exportMutation.mutate(scope)
+  }
 
   const toggleExpanded = (productId: string) => {
     setExpandedProductIds((current) => {
@@ -518,7 +572,70 @@ export function ProductList() {
           />
         }
         extraActions={
-          canCreateProduct ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {canReadProducts ? (
+              <div ref={excelMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowExcelMenu((current) => !current)}
+                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 text-sm font-semibold text-foreground transition-colors hover:border-primary-500/60"
+                >
+                  <FileSpreadsheet size={16} className="text-primary-500" />
+                  Excel
+                  <ChevronDown size={14} className={`transition-transform ${showExcelMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showExcelMenu ? (
+                  <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-64 overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+                    <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-foreground-muted">
+                      Thao tac Excel
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleExportProducts('all')}
+                      disabled={exportMutation.isPending}
+                      className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-background-secondary disabled:opacity-50"
+                    >
+                      <span>Xuat tat ca</span>
+                      <span className="text-xs text-foreground-muted">Moi san pham</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExportProducts('filtered')}
+                      disabled={exportMutation.isPending}
+                      className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-background-secondary disabled:opacity-50"
+                    >
+                      <span>Xuat theo bo loc</span>
+                      <span className="text-xs text-foreground-muted">Theo man hinh hien tai</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExportProducts('selected')}
+                      disabled={exportMutation.isPending || selectedProductIds.length === 0}
+                      className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-background-secondary disabled:opacity-50"
+                    >
+                      <span>Xuat da chon</span>
+                      <span className="text-xs text-foreground-muted">{selectedProductIds.length} san pham</span>
+                    </button>
+                    {canImportProducts ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowExcelMenu(false)
+                          setIsExcelModalOpen(true)
+                        }}
+                        className="flex w-full items-center justify-between border-t border-border px-4 py-3 text-left text-sm font-semibold text-primary-500 transition-colors hover:bg-primary-500/5"
+                      >
+                        <span>Nhap tu Excel</span>
+                        <span className="text-xs text-foreground-muted">Preview truoc khi ghi</span>
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {canCreateProduct ? (
             <button
               type="button"
               onClick={() => setIsModalOpen(true)}
@@ -527,7 +644,8 @@ export function ProductList() {
               <Plus size={16} />
               Thêm sản phẩm
             </button>
-          ) : null
+            ) : null}
+          </div>
         }
       />
 
@@ -709,6 +827,16 @@ export function ProductList() {
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['products'] })
           setIsModalOpen(false)
+        }}
+      />
+
+      <ProductExcelModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['products'] })
+          clearSelection()
+          setIsExcelModalOpen(false)
         }}
       />
 

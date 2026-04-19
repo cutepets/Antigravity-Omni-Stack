@@ -23,6 +23,7 @@ import {
   UpdateProductDto,
   UpdateServiceDto,
 } from './inventory.service'
+import type { ProductExportRequest, ProductImportRequest } from './product-excel.js'
 
 @ApiTags('Inventory')
 @Controller('inventory')
@@ -36,6 +37,27 @@ export class InventoryController {
   @ApiOperation({ summary: 'Danh sách sản phẩm' })
   findAllProducts(@Query() query: FindProductsDto) {
     return this.inventoryService.findAllProducts(query)
+  }
+
+  @Post('products/export')
+  @Permissions('product.read')
+  @ApiOperation({ summary: 'Xuất danh sách sản phẩm ra dữ liệu Excel' })
+  exportProducts(@Body() body: ProductExportRequest) {
+    return this.inventoryService.exportProducts(body)
+  }
+
+  @Post('products/import/preview')
+  @Permissions('product.create', 'product.update')
+  @ApiOperation({ summary: 'Xem trước import Excel sản phẩm' })
+  previewProductImport(@Body() body: ProductImportRequest) {
+    return this.inventoryService.previewProductImport(body)
+  }
+
+  @Post('products/import/commit')
+  @Permissions('product.create', 'product.update')
+  @ApiOperation({ summary: 'Thực thi import Excel sản phẩm' })
+  commitProductImport(@Body() body: ProductImportRequest) {
+    return this.inventoryService.commitProductImport(body)
   }
 
   @Get('products/:id')

@@ -9,7 +9,7 @@ import { CustomerSearchResults } from '@/components/search/customer-search-resul
 import { useCustomerSearch } from '@/components/search/use-commerce-search';
 import { api } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { PosAddCustomerModal } from './PosAddCustomerModal';
+import { AddCustomerModal as PosAddCustomerModal } from '@/app/(dashboard)/_shared/customer/components/AddCustomerModal';
 import { PetFormModal } from '../../pets/_components/pet-form-modal';
 import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile';
 

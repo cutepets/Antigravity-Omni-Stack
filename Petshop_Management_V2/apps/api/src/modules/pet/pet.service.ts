@@ -257,6 +257,7 @@ export class PetService {
         customer: { select: { id: true, fullName: true, phone: true } },
         weightLogs: { orderBy: { date: 'desc' }, take: 10 },
         vaccinations: { orderBy: { date: 'desc' }, take: 20 },
+        timeline: { orderBy: { createdAt: 'desc' }, take: 50 },
         groomingSessions: {
           orderBy: { createdAt: 'desc' },
           take: 20,
@@ -289,10 +290,19 @@ export class PetService {
   }
 
   async update(id: string, updatePetDto: UpdatePetDto, user?: AccessUser, requestedBranchId?: string) {
+    // Fetch old values to compare
     const pet = await this.db.pet.findFirst({
       where: this.mergePetScope(this.buildPetIdentityWhere(id), user),
       select: {
         id: true,
+        name: true,
+        breed: true,
+        gender: true,
+        dateOfBirth: true,
+        color: true,
+        allergies: true,
+        temperament: true,
+        notes: true,
         customerId: true,
         branchId: true,
         customer: { select: { branchId: true } },
@@ -338,6 +348,44 @@ export class PetService {
       },
     })
 
+    // Build change log
+    const FIELD_LABELS: Record<string, string> = {
+      name: 'Tên',
+      breed: 'Giống',
+      gender: 'Giới tính',
+      dateOfBirth: 'Ngày sinh',
+      color: 'Màu lông',
+      allergies: 'Dị ứng',
+      temperament: 'Tính cách',
+      notes: 'Ghi chú',
+    }
+    const changes: Array<{ field: string; label: string; from: string | null; to: string | null }> = []
+
+    for (const [field, label] of Object.entries(FIELD_LABELS)) {
+      const oldVal = (pet as any)[field]
+      let newVal = (updatePetDto as any)[field]
+      if (field === 'dateOfBirth') {
+        newVal = dateOfBirth ?? null
+        const fmtOld = oldVal ? new Date(oldVal).toLocaleDateString('vi-VN') : null
+        const fmtNew = newVal ? new Date(newVal).toLocaleDateString('vi-VN') : null
+        if (fmtOld !== fmtNew) changes.push({ field, label, from: fmtOld, to: fmtNew })
+        continue
+      }
+      if (newVal !== undefined && String(oldVal ?? '') !== String(newVal ?? '')) {
+        changes.push({ field, label, from: String(oldVal ?? ''), to: String(newVal ?? '') })
+      }
+    }
+
+    if (changes.length > 0) {
+      await this.db.petTimeline.create({
+        data: {
+          petId: pet.id,
+          action: 'INFO_UPDATED',
+          metadata: { changes },
+        },
+      })
+    }
+
     return { success: true, data: updated }
   }
 
@@ -358,10 +406,22 @@ export class PetService {
       },
     })
 
-    await this.db.pet.update({
-      where: { id: pet.id },
-      data: { weight: addWeightLogDto.weight },
-    })
+    await Promise.all([
+      this.db.pet.update({
+        where: { id: pet.id },
+        data: { weight: addWeightLogDto.weight },
+      }),
+      this.db.petTimeline.create({
+        data: {
+          petId: pet.id,
+          action: 'WEIGHT_UPDATED',
+          metadata: {
+            weight: addWeightLogDto.weight,
+            notes: addWeightLogDto.notes ?? null,
+          },
+        },
+      }),
+    ])
 
     return { success: true, data: weightLog }
   }
@@ -382,6 +442,18 @@ export class PetService {
         ...(addVaccinationDto.nextDueDate ? { nextDueDate: new Date(addVaccinationDto.nextDueDate) } : {}),
         ...(addVaccinationDto.notes ? { notes: addVaccinationDto.notes } : {}),
         ...(addVaccinationDto.photoUrl ? { photoUrl: addVaccinationDto.photoUrl } : {}),
+      },
+    })
+
+    await this.db.petTimeline.create({
+      data: {
+        petId: pet.id,
+        action: 'VACCINATION_ADDED',
+        metadata: {
+          vaccineName: addVaccinationDto.vaccineName,
+          date: addVaccinationDto.date,
+          notes: addVaccinationDto.notes ?? null,
+        },
       },
     })
 
