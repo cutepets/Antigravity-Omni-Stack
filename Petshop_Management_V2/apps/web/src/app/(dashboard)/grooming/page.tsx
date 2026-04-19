@@ -12,7 +12,7 @@ export default function GroomingPage() {
   return (
     <PageContainer
       maxWidth="full"
-      className="!h-full !min-h-0 !gap-0 !overflow-hidden !py-4"
+      className="!gap-0 !py-4"
     >
       <Suspense fallback={<div className="p-4">Đang tải cấu trúc bảng grooming...</div>}>
         <GroomingBoard />

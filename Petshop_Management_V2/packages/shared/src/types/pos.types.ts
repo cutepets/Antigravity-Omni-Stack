@@ -1,5 +1,16 @@
 import type { PaymentMethod, PaymentEntry } from './order.types'
 
+export type PriceBookPriceMap = Record<string, number>
+
+export interface CustomerPricingProfile {
+  groupId?: string
+  groupName?: string
+  groupColor?: string
+  priceBookId?: string
+  priceBookName?: string
+  discountRate?: number
+}
+
 // POS-specific types (frontend only, not stored in DB directly)
 export interface CartItem {
   id: string
@@ -22,7 +33,10 @@ export interface CartItem {
   type: 'product' | 'service' | 'hotel' | 'grooming'
   serviceType?: string
   unit: string
+  baseUnit?: string
   baseUnitPrice?: number
+  priceBookPrices?: PriceBookPriceMap | null
+  basePriceBookPrices?: PriceBookPriceMap | null
   baseSku?: string
   image?: string
   variantName?: string
@@ -74,6 +88,7 @@ export interface OrderTab {
   title: string
   customerId?: string
   customerName: string
+  customerPricing?: CustomerPricingProfile | null
   productSearch: string
   cart: CartItem[]
   payments: PaymentEntry[]

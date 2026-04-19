@@ -1,9 +1,11 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { parseVariantConversionUnit, resolveProductVariantLabels, matchSearch } from '@petshop/shared'
 import { orderApi } from '@/lib/api/order.api'
 import { api } from '@/lib/api'
+import { resolveCatalogProductPricing } from '@/app/(dashboard)/pos/utils/customer-pricing'
 
 const buildSearchableText = (values: unknown[]): string =>
   values
@@ -92,6 +94,9 @@ const createProductEntry = (product: any, variant?: any) => {
     image: variant?.image ?? product.image,
     price: resolvedPrice,
     sellingPrice: resolvedPrice,
+    baseProductPrice: product.sellingPrice ?? product.price ?? 0,
+    baseProductPriceBookPrices: product.priceBookPrices,
+    priceBookPrices: variant?.priceBookPrices ?? product.priceBookPrices,
     unit: product.unit,
     stock: variant?.stock ?? product.stock,
     availableStock: variant?.availableStock ?? product.availableStock,
@@ -126,15 +131,22 @@ const flattenProductEntries = (products: any[]) =>
     return nonConversionVariants.map((variant: any) => createProductEntry(product, variant))
   })
 
-export function useCatalogProducts(search?: string) {
-  return useQuery({
-    queryKey: ['pos', 'products', search],
+export function useCatalogProducts(search?: string, priceBookId?: string) {
+  const catalogQuery = useQuery({
+    queryKey: ['pos', 'catalog'],
     queryFn: async () => {
       const data = await orderApi.getCatalog()
-      const entries = flattenProductEntries(data.products ?? []).toSorted(compareProductEntries(search))
-      if (!search) return entries
+      return flattenProductEntries(data.products ?? [])
+    },
+    staleTime: 5 * 60_000, // 5 phút, catalog không đổi thường xuyên
+  })
 
-      return entries.filter((product: any) => {
+  const sortedAndFiltered = useMemo(() => {
+    const entries = (catalogQuery.data ?? []).map((entry: any) => resolveCatalogProductPricing(entry, priceBookId))
+    if (!search) return entries.toSorted(compareProductEntries())
+
+    return entries
+      .filter((product: any) => {
         const searchableText = buildSearchableText([
           product.productName,
           product.displayName,
@@ -147,9 +159,15 @@ export function useCatalogProducts(search?: string) {
 
         return searchableText ? matchSearch(search, searchableText) : false
       })
-    },
-    staleTime: 30_000,
-  })
+      .toSorted(compareProductEntries(search))
+  }, [catalogQuery.data, priceBookId, search])
+
+  return {
+    data: sortedAndFiltered,
+    isLoading: catalogQuery.isLoading,
+    isError: catalogQuery.isError,
+    refetch: catalogQuery.refetch,
+  }
 }
 
 export function useCatalogServices(search?: string) {

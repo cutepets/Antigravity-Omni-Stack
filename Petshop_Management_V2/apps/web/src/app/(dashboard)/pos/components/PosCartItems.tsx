@@ -35,6 +35,7 @@ type PosCartItemsProps = {
   setNoteEditingId: (id: string | null) => void;
   discountEditingId: string | null;
   setDiscountEditingId: (id: string | null) => void;
+  lastAddedItemId?: string | null;
   // Optional — when provided, bypasses usePosStore (used by OrderWorkspace)
   callbacks?: CartItemCallbacks;
 };
@@ -51,6 +52,7 @@ type PosCartRowProps = {
   setDiscountEditingId: (id: string | null) => void;
   store: any; // may be null when callbacks provided
   callbacks?: CartItemCallbacks;
+  isFlashing?: boolean;
 };
 
 type PosCartDiscountEditorProps = {
@@ -90,6 +92,7 @@ export function PosCartItems({
   setNoteEditingId,
   discountEditingId,
   setDiscountEditingId,
+  lastAddedItemId,
   callbacks,
 }: PosCartItemsProps) {
   const store = usePosStore();
@@ -121,6 +124,7 @@ export function PosCartItems({
           setDiscountEditingId={setDiscountEditingId}
           store={store}
           callbacks={callbacks}
+          isFlashing={lastAddedItemId === item.id}
         />
       ))}
     </>
@@ -179,7 +183,7 @@ function TempCartRow({
   }, [item.unitPrice]);
 
   const cellStyle: React.CSSProperties = {
-    color: '#1f2937',
+    color: 'var(--color-foreground, #1f2937)',
     backgroundColor: 'transparent',
     border: 'none',
     borderBottom: '1px solid transparent',
@@ -196,7 +200,7 @@ function TempCartRow({
   return (
     <div
       id={`cart-row-${item.id}`}
-      className={`flex flex-col border-b hover:bg-amber-50/40 transition-colors group ${idx === selectedRowIndex ? 'bg-amber-50/40' : ''}`}
+      className={`flex flex-col border-b hover:bg-amber-50/40 transition-colors group border-l-2 ${idx === selectedRowIndex ? 'bg-amber-100 border-l-amber-500' : 'border-l-transparent'}`}
       style={{ borderBottomColor: '#fcd34d' }}
     >
       {/* Desktop row */}
@@ -238,7 +242,7 @@ function TempCartRow({
               }
             }}
             placeholder="Thêm sản phẩm tạm"
-            style={{ ...cellStyle, color: descDraft ? '#1f2937' : '#6b7280', fontStyle: descDraft ? 'normal' : 'italic' }}
+            style={{ ...cellStyle, color: descDraft ? 'var(--color-foreground, #1f2937)' : 'var(--color-foreground-muted, #6b7280)', fontStyle: descDraft ? 'normal' : 'italic' }}
             onMouseEnter={(e) => { e.currentTarget.style.borderBottomColor = '#fcd34d'; }}
             onMouseLeave={(e) => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderBottomColor = 'transparent'; }}
           />
@@ -297,7 +301,7 @@ function TempCartRow({
         </div>
 
         {/* Total */}
-        <div style={{ textAlign: 'right', fontSize: 15, fontWeight: 700, color: total > 0 ? '#1f2937' : '#9ca3af' }}>
+        <div style={{ textAlign: 'right', fontSize: 15, fontWeight: 700, color: total > 0 ? 'var(--color-foreground, #1f2937)' : 'var(--color-foreground-muted, #9ca3af)' }}>
           {total > 0 ? total.toLocaleString('vi-VN') : 'đ'}
         </div>
       </div>
@@ -332,8 +336,8 @@ function TempProductInlineRow({
   };
 
   const inputBase: React.CSSProperties = {
-    color: '#1f2937',
-    backgroundColor: '#fff',
+    color: 'var(--color-foreground, #1f2937)',
+    backgroundColor: 'var(--color-surface, #fff)',
     border: '1px solid #93c5fd',
     borderRadius: '6px',
     outline: 'none',
@@ -511,6 +515,7 @@ function PosCartRow({
   setDiscountEditingId,
   store,
   callbacks,
+  isFlashing,
 }: PosCartRowProps) {
   const {
     trueVariants,
@@ -557,8 +562,8 @@ function PosCartRow({
   return (
     <div
       id={`cart-row-${item.id}`}
-      className={`flex flex-col border-b border-gray-100 hover:bg-primary-50/30 transition-colors group ${idx === selectedRowIndex ? 'bg-primary-50/30' : ''
-        }`}
+      className={`flex flex-col border-b border-gray-100 hover:bg-primary-50/40 transition-colors group ${idx === selectedRowIndex ? 'bg-primary-100 border-l-2 border-l-primary-500' : 'border-l-2 border-l-transparent'
+        } ${isFlashing ? 'cart-row-flash' : ''}`}
     >
       {/* desktop row */}
       <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-3">

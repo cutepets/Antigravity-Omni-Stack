@@ -20,11 +20,13 @@ import { PosCheckoutPanel } from './components/PosCheckoutPanel';
 import { PosProductSearch } from './components/PosProductSearch';
 import { PosNotifications } from './components/PosNotifications';
 import { PosBranchSelect } from './components/PosBranchSelect';
-import { Menu, X, Plus, Home, NotebookText, Settings, UserCircle2, Bell, LogOut, Maximize, Store, QrCode, Zap, EyeOff, Eye, ListChecks } from 'lucide-react';
+import { Menu, X, Plus, Home, NotebookText, Settings, UserCircle2, Bell, LogOut, Maximize, Store, QrCode, EyeOff, Eye, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
 import { moneyRaw } from '@/app/(dashboard)/_shared/payment/payment.utils';
+import { HotelQuickPreviewTool } from '@/components/hotel-quick-preview/HotelQuickPreviewTool';
 
 function PosPageContent() {
   const store = usePosStore();
@@ -32,6 +34,8 @@ function PosPageContent() {
   const cartTotal = useCartTotal();
   const cartCount = useCartItemCount();
   const activeBranchId = useAuthStore((state) => state.activeBranchId);
+  const authUser = useAuthStore((state) => state.user);
+  const router = useRouter();
   const {
     showHotelCheckout,
     setShowHotelCheckout,
@@ -48,6 +52,7 @@ function PosPageContent() {
     navigateRowDown,
     decrementSelectedRow,
     incrementSelectedRow,
+    lastAddedItemId,
   } = usePosCart();
 
   const [showTempProductModal, setShowTempProductModal] = useState(false);
@@ -96,6 +101,7 @@ function PosPageContent() {
 
   const { data: branches = [] } = useBranches();
   const manualDiscountTotal = activeTab?.manualDiscountTotal ?? activeTab?.discountTotal ?? 0;
+  const customerPricing = activeTab?.customerPricing;
 
   // â”€â”€ Keyboard shortcuts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
@@ -139,12 +145,12 @@ function PosPageContent() {
       if (e.key === 'ArrowUp') {
         if (!isInputFocused) {
           e.preventDefault();
-          navigateRowUp();
+          navigateRowDown();
         }
       } else if (e.key === 'ArrowDown') {
         if (!isInputFocused) {
           e.preventDefault();
-          navigateRowDown();
+          navigateRowUp();
         }
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -162,7 +168,7 @@ function PosPageContent() {
   if (!activeTab) return null;
 
   return (
-    <div className="flex flex-col h-screen bg-[#f0f2f5] font-sans text-gray-800 overflow-hidden">
+    <div className="flex flex-col h-screen bg-background font-sans text-foreground overflow-hidden">
       {/* â• â• â•  HEADER (V1 KiotViet Style) â• â• â•  */}
       <header className="relative z-50 flex items-center justify-between px-2 lg:px-3 h-[50px] bg-[#0089A1] text-white shrink-0 gap-2">
 
@@ -188,8 +194,17 @@ function PosPageContent() {
             <Menu size={20} className="cursor-pointer hover:opacity-80 transition-opacity hidden lg:block shrink-0" />
 
             <div className="flex-1 lg:w-[300px] lg:flex-none">
-              <PosProductSearch onSelect={handleAddItem} />
+              <PosProductSearch
+                onSelect={handleAddItem}
+                resultsVariant="pos"
+                inputClassName="border border-white/35 bg-white/90 shadow-sm"
+              />
             </div>
+
+            <HotelQuickPreviewTool
+              triggerClassName="shrink-0 border-white/20 bg-white/10 px-3 text-white hover:bg-white/20"
+              triggerLabelClassName="hidden xl:inline"
+            />
 
             <button
               className={`hidden lg:block p-1.5 hover:bg-white/20 rounded border transition-colors shrink-0 ${store.isMultiSelect ? 'border-amber-400 text-amber-400 bg-white/10' : 'border-white/20 text-white'}`}
@@ -230,7 +245,6 @@ function PosPageContent() {
                     `}
                   >
                     <span className="truncate flex-1 text-[13px] font-medium">{tab.title}</span>
-                    <Zap size={12} className={isActive ? "text-amber-500" : "text-white/50"} />
                     {store.tabs.length > 1 && (
                       <button
                         className={`p-0.5 ml-1 rounded-sm flex items-center justify-center
@@ -262,7 +276,17 @@ function PosPageContent() {
         {/* Right: Actions */}
         <div className="hidden lg:flex items-center gap-3 shrink-0 py-1.5">
           <div className="flex items-center gap-2 px-2 border-r border-white/20">
-            <span className="text-sm font-medium">Quản trị viên</span>
+            {customerPricing?.priceBookName ? (
+              <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white">
+                BG: {customerPricing.priceBookName}
+              </span>
+            ) : null}
+            {(customerPricing?.discountRate ?? 0) > 0 ? (
+              <span className="inline-flex items-center rounded-full bg-amber-300/20 px-2.5 py-1 text-xs font-semibold text-amber-100">
+                CK: {customerPricing?.discountRate}%
+              </span>
+            ) : null}
+            <span className="text-sm font-medium">{authUser?.fullName ?? 'Nhân viên'}</span>
             <PosBranchSelect />
           </div>
 
@@ -306,13 +330,13 @@ function PosPageContent() {
       </header>
 
       {/* â• â• â•  MAIN POS AREA â• â• â•  */}
-      <main className="flex-1 flex flex-col lg:grid lg:grid-cols-[1fr_390px] xl:grid-cols-[1fr_420px] lg:grid-rows-[auto_1fr_auto] overflow-y-auto lg:overflow-hidden bg-[#f0f2f5] relative">
+      <main className="flex-1 flex flex-col lg:grid lg:grid-cols-[1fr_390px] xl:grid-cols-[1fr_420px] lg:grid-rows-[auto_1fr_auto] overflow-y-auto lg:overflow-hidden bg-background relative">
 
         {/* 3. CART VIEW (Mobile: 3rd, Desktop: Left Col, Row 1-3) */}
-        <div className="order-3 lg:col-start-1 lg:row-start-1 lg:row-span-3 flex flex-col bg-white shadow-sm z-10 lg:overflow-hidden min-h-[400px]">
+        <div className="order-3 lg:col-start-1 lg:row-start-1 lg:row-span-3 flex flex-col bg-surface shadow-sm z-10 lg:overflow-hidden min-h-[400px]">
 
           {/* Table Header */}
-          <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-2 bg-gray-50 border-b border-gray-200 text-[13px] font-semibold text-gray-600 uppercase">
+          <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-2 bg-surface-secondary border-b border-border text-[13px] font-semibold text-foreground-muted uppercase">
             <div className="text-center">#</div>
             <div></div>
             <div className="text-center">Ảnh</div>
@@ -334,35 +358,30 @@ function PosPageContent() {
               setNoteEditingId={setNoteEditingId}
               discountEditingId={discountEditingId}
               setDiscountEditingId={setDiscountEditingId}
+              lastAddedItemId={lastAddedItemId}
             />
           </div>
 
           {/* Bottom Toolbar & Notes */}
-          <div className="mt-auto flex flex-col bg-gray-50 border-t border-gray-200">
+          <div className="mt-auto flex flex-col bg-surface-secondary border-t border-border">
             <div className="flex items-center gap-2 p-2 px-4 shadow-[0_-2px_10px_rgba(0,0,0,0.02)] z-10 overflow-x-auto no-scrollbar whitespace-nowrap">
               <button
-                className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors"
+                className="px-4 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors"
                 onClick={() => {
                   const check = window.confirm('Xác nhận làm mới Đơn hàng?');
                   if (check) store.clearCart();
                 }}
               >Xoá tất cả</button>
-              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">Khuyến mại</button>
-              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">Đổi trả hàng</button>
-              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">Xem đơn hàng</button>
-              <button className="px-4 py-1.5 text-sm bg-white border border-gray-200 text-gray-700 rounded hover:border-primary-500 transition-colors">In phiếu</button>
-
-              <div className="flex-1"></div>
-
+              <button className="px-4 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors">Khuyến mại</button>
               <button
-                onClick={() => setShowHotelCheckout(true)}
-                className="px-4 py-1.5 text-sm bg-amber-50 border border-amber-200 text-amber-700 rounded hover:bg-amber-100 transition-colors font-medium"
-              >
-                + Trả chuồng (Hotel)
-              </button>
-
+                className="px-4 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors"
+                onClick={() => {
+                  const url = authUser?.id ? `/orders?staffId=${authUser.id}` : '/orders';
+                  router.push(url);
+                }}
+              >Xem đơn hàng</button>
               <button
-                className="px-4 py-1.5 text-sm bg-primary-50 border border-primary-200 text-primary-700 rounded hover:bg-primary-100 transition-colors font-medium"
+                className="px-4 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors"
                 onClick={() => {
                   store.addItem({
                     id: `temp-${Date.now()}`,
@@ -374,16 +393,14 @@ function PosPageContent() {
                     isTemp: true,
                   } as any);
                 }}
-              >
-                + Sản phẩm tạm
-              </button>
+              >+ Sản phẩm tạm</button>
             </div>
 
-            <div className="p-2 px-4 bg-white border-t border-gray-200">
+            <div className="p-2 px-4 bg-surface border-t border-border">
               <input
                 type="text"
                 placeholder="Gõ để ghi chú đơn hàng..."
-                className="w-full text-sm outline-none border-none py-1 placeholder:text-gray-400 italic"
+                className="w-full text-sm outline-none border-none py-1 placeholder:text-foreground-muted italic text-foreground bg-transparent"
                 value={activeTab.notes || ''}
                 onChange={(e) => store.setNotes(e.target.value)}
               />
@@ -392,7 +409,7 @@ function PosPageContent() {
         </div>
 
         {/* 1. CUSTOMER & PETS (Mobile: 1st, Desktop: Right Col, Row 1) */}
-        <div className="order-1 lg:col-start-2 lg:row-start-1 bg-white border-b lg:border-l lg:border-b-0 border-gray-200 z-30 relative">
+        <div className="order-1 lg:col-start-2 lg:row-start-1 bg-surface border-b lg:border-l lg:border-b-0 border-border z-30 relative">
           <PosCustomerV1
             onSelectSuggestedService={handleSelectSuggestedService}
           />

@@ -1,7 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { resolveProductVariantLabels, type CartItem, type OrderTab, type PaymentEntry, type PaymentMethod } from '@petshop/shared';
+import {
+  resolveProductVariantLabels,
+  type CartItem,
+  type CustomerPricingProfile,
+  type OrderTab,
+  type PaymentEntry,
+  type PaymentMethod,
+} from '@petshop/shared';
 import { getCartQuantityStep, roundCartQuantity } from '@/app/(dashboard)/_shared/cart/cart.utils';
+import { applyCustomerPricingToCartItem, normalizeCustomerPricingProfile } from '@/app/(dashboard)/pos/utils/customer-pricing';
 
 type PosRoundingUnit = 100 | 1000;
 export type PosTheme = 'light' | 'dark' | 'system';
@@ -12,6 +20,7 @@ const createNewTab = (id?: string, tabNumber?: number): OrderTab => ({
   title: tabNumber != null ? `Đơn ${tabNumber}` : 'Đơn mới',
   customerId: undefined,
   customerName: 'Khách lẻ',
+  customerPricing: null,
   productSearch: '',
   cart: [],
   payments: [],
@@ -77,6 +86,11 @@ const reconcileTabDiscounts = (
 
 const calculateCartTotal = (tab: OrderTab) =>
   calculateCartSubtotal(tab.cart) - toFiniteNumber(tab.discountTotal) + toFiniteNumber(tab.shippingFee);
+
+const repriceCartByCustomer = (
+  cart: OrderTab['cart'],
+  customerPricing?: CustomerPricingProfile | null,
+) => cart.map((item) => applyCustomerPricingToCartItem(item, customerPricing));
 
 // ─── Store Interface ──────────────────────────────────────────────────────────
 interface PosStore {
@@ -145,7 +159,8 @@ interface PosStore {
   clearCart: () => void;
 
   // ── Customer Actions ─────────────────────────────────────────
-  setCustomer: (id: string | undefined, name: string) => void;
+  setCustomer: (id: string | undefined, name: string, pricing?: CustomerPricingProfile | null) => void;
+  setCustomerPricing: (pricing?: CustomerPricingProfile | null) => void;
   togglePet: (petId: string) => void;
   setActivePets: (petIds: string[]) => void;
 
@@ -287,16 +302,19 @@ export const usePosStore = create<PosStore>()(
 
         // ── Cart Actions ─────────────────────────────────────────
         addItem: (rawItem) => {
-          const item: CartItem = {
-            ...rawItem,
-            quantity: rawItem.quantity ?? 1,
-            discountItem: rawItem.discountItem ?? 0,
-            vatRate: rawItem.vatRate ?? 0,
-            unit: rawItem.unit ?? 'cái',
-          };
-
           set((s) =>
             updateActiveTab(s, (tab) => {
+              const item: CartItem = applyCustomerPricingToCartItem(
+                {
+                  ...rawItem,
+                  quantity: rawItem.quantity ?? 1,
+                  discountItem: rawItem.discountItem ?? 0,
+                  vatRate: rawItem.vatRate ?? 0,
+                  unit: rawItem.unit ?? 'cái',
+                } as CartItem,
+                tab.customerPricing,
+              );
+
               // Check if item already in cart (same id + type)
               const existIdx = tab.cart.findIndex((c) => c.id === item.id && c.type === item.type);
               if (existIdx >= 0) {
@@ -391,7 +409,7 @@ export const usePosStore = create<PosStore>()(
 
                   if (variantId === 'base') {
                     // Reset to base product
-                    return {
+                    return applyCustomerPricingToCartItem({
                       ...c,
                       productVariantId: undefined,
                       variantName: undefined,
@@ -400,10 +418,11 @@ export const usePosStore = create<PosStore>()(
                       sku: baseSku,
                       unit: baseUnit,
                       unitPrice: baseUnitPrice,
+                      priceBookPrices: c.basePriceBookPrices ?? c.priceBookPrices,
                       baseSku,
                       baseUnitPrice,
                       baseUnit,
-                    };
+                    }, tab.customerPricing);
                   }
 
                   if (c.variants) {
@@ -431,7 +450,7 @@ export const usePosStore = create<PosStore>()(
                       const unitLabel = resolvedLabels.unitLabel ?? undefined;
                       const variantName = [variantLabel, unitLabel].filter(Boolean).join(' • ') || undefined;
 
-                      return {
+                      return applyCustomerPricingToCartItem({
                         ...c,
                         productVariantId: variant.id,
                         variantName,
@@ -440,6 +459,7 @@ export const usePosStore = create<PosStore>()(
                         sku: variant.sku ?? baseSku,
                         unit: unitLabel ?? variant.unit ?? baseUnit,
                         unitPrice: variant.sellingPrice ?? variant.price ?? baseUnitPrice,
+                        priceBookPrices: variant.priceBookPrices ?? c.priceBookPrices,
                         stock: variant.stock ?? c.stock,
                         availableStock: variant.availableStock ?? c.availableStock,
                         trading: variant.trading ?? c.trading,
@@ -448,7 +468,7 @@ export const usePosStore = create<PosStore>()(
                         baseSku,
                         baseUnitPrice,
                         baseUnit,
-                      };
+                      }, tab.customerPricing);
                     }
                   }
                 }
@@ -471,13 +491,34 @@ export const usePosStore = create<PosStore>()(
           ),
 
         // ── Customer ─────────────────────────────────────────────
-        setCustomer: (id, name) =>
+        setCustomer: (id, name, pricing) =>
           set((s) =>
-            updateActiveTab(s, () => ({
-              customerId: id,
-              customerName: name,
-              activePetIds: [],
-            })),
+            updateActiveTab(s, (tab) => {
+              const customerPricing =
+                pricing === undefined
+                  ? tab.customerPricing ?? null
+                  : normalizeCustomerPricingProfile(pricing);
+              const isSameCustomer = tab.customerId === id;
+
+              return {
+                customerId: id,
+                customerName: name,
+                customerPricing,
+                activePetIds: isSameCustomer ? tab.activePetIds : [],
+                cart: repriceCartByCustomer(tab.cart, customerPricing),
+              };
+            }),
+          ),
+
+        setCustomerPricing: (pricing) =>
+          set((s) =>
+            updateActiveTab(s, (tab) => {
+              const customerPricing = normalizeCustomerPricingProfile(pricing);
+              return {
+                customerPricing,
+                cart: repriceCartByCustomer(tab.cart, customerPricing),
+              };
+            }),
           ),
 
         togglePet: (petId) =>

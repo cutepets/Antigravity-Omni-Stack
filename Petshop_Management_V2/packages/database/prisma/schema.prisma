@@ -185,6 +185,7 @@ model CustomerGroup {
   name        String     @unique
   color       String     @default("#6366f1")
   pricePolicy String     @default("Giá lẻ")
+  priceBookId String?
   discount    Float      @default(0)
   description String?
   isActive    Boolean    @default(true)
@@ -192,7 +193,9 @@ model CustomerGroup {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   customers   Customer[]
+  priceBook   PriceBook? @relation(fields: [priceBookId], references: [id], onDelete: SetNull)
 
+  @@index([priceBookId])
   @@map("customer_groups")
 }
 
@@ -784,13 +787,15 @@ model SpaPriceRule {
   sku             String?           // Editable SKU
   species         String?
   packageCode     String
-  weightBandId    String
+  weightBandId    String?
+  minWeight       Float?
+  maxWeight       Float?
   price           Float
   durationMinutes Int?
   isActive        Boolean           @default(true)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
-  weightBand      ServiceWeightBand @relation(fields: [weightBandId], references: [id], onDelete: Cascade)
+  weightBand      ServiceWeightBand? @relation(fields: [weightBandId], references: [id], onDelete: Cascade)
 
   @@index([packageCode, species, isActive])
   @@index([weightBandId, packageCode])
@@ -1650,6 +1655,7 @@ model SystemConfig {
   petBreedsV2                String?
   petTemperaments            String?
   petVaccineOpts             String?
+  hotelExtraServices         String?
 
   @@map("system_configs")
 }
@@ -1692,15 +1698,16 @@ model Unit {
 }
 
 model PriceBook {
-  id        String   @id @default(cuid())
-  name      String
-  channel   String
-  branchIds String?
-  isDefault Boolean  @default(false)
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String          @id @default(cuid())
+  name           String
+  channel        String
+  branchIds      String?
+  isDefault      Boolean         @default(false)
+  isActive       Boolean         @default(true)
+  sortOrder      Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  customerGroups CustomerGroup[]
 
   @@map("price_books")
 }

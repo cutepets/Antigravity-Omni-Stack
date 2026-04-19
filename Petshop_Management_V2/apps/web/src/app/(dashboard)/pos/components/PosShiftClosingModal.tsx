@@ -83,19 +83,19 @@ function buildShiftReportPrintHtml({
 }) {
   const reportRows = summary
     ? [
-        ['Tiền mặt đầu ca', summary.openAmount, false],
-        ['Thu phần mềm', (summary.orderCashIncome ?? 0) + (summary.manualCashIncome ?? 0), false],
-        ['Chi phần mềm', (summary.orderCashExpense ?? 0) + (summary.manualCashExpense ?? 0), false],
-        ['Bán được', summary.netCashAmount ?? 0, false],
-        ['Thiếu két đầu ca', summary.reserveShortageAtOpen ?? 0, false],
-        ['Bù két', summary.reserveTopUpAmount ?? 0, false],
-        ['Thực rút', summary.withdrawableAmount ?? 0, false],
-        ['Cần thu được', summary.expectedCloseAmount ?? 0, false],
-        ['Thu CK/Thẻ', summary.nonCashIncome ?? 0, false],
-        ['Chi CK/Thẻ', summary.nonCashExpense ?? 0, false],
-        ['Số đơn giao dịch', summary.orderCount ?? 0, true],
-        ['Số đơn trả/hoàn', summary.refundCount ?? 0, true],
-      ]
+      ['Tiền mặt đầu ca', summary.openAmount, false],
+      ['Thu phần mềm', (summary.orderCashIncome ?? 0) + (summary.manualCashIncome ?? 0), false],
+      ['Chi phần mềm', (summary.orderCashExpense ?? 0) + (summary.manualCashExpense ?? 0), false],
+      ['Bán được', summary.netCashAmount ?? 0, false],
+      ['Thiếu két đầu ca', summary.reserveShortageAtOpen ?? 0, false],
+      ['Bù két', summary.reserveTopUpAmount ?? 0, false],
+      ['Thực rút', summary.withdrawableAmount ?? 0, false],
+      ['Cần thu được', summary.expectedCloseAmount ?? 0, false],
+      ['Thu CK/Thẻ', summary.nonCashIncome ?? 0, false],
+      ['Chi CK/Thẻ', summary.nonCashExpense ?? 0, false],
+      ['Số đơn giao dịch', summary.orderCount ?? 0, true],
+      ['Số đơn trả/hoàn', summary.refundCount ?? 0, true],
+    ]
     : []
 
   const rowsHtml = reportRows
@@ -111,15 +111,15 @@ function buildShiftReportPrintHtml({
 
   const paymentRows = summary?.otherPayments?.length
     ? summary.otherPayments
-        .map(
-          (payment) => `
+      .map(
+        (payment) => `
             <div class="line compact">
               <span>${escapeHtml(payment.label)}</span>
               <span>+${formatCurrency(payment.income)} / -${formatCurrency(payment.expense)}</span>
             </div>
           `,
-        )
-        .join('')
+      )
+      .join('')
     : ''
 
   return `<!doctype html>
@@ -347,9 +347,9 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
   const isSaving = startShift.isPending || endShift.isPending
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[96vh] w-full max-w-[840px] flex-col overflow-hidden rounded-2xl bg-slate-50 shadow-2xl">
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+    <div className="fixed inset-0 z-1000 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[96vh] w-full max-w-[840px] flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-6 py-4">
           <h2 className="text-xl font-bold text-slate-900">{modeLabel}</h2>
           <div className="flex items-center gap-3">
             {shift ? (
@@ -457,7 +457,7 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-3 overflow-y-auto bg-white p-4 lg:max-h-full">
+          <div className="flex flex-col gap-3 overflow-y-auto bg-surface p-4 lg:max-h-full">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-slate-800">
                 {isOpening ? 'Tiền mặt đầu ca' : 'Kiểm đếm tiền cuối ca'}
@@ -584,7 +584,7 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-6 py-4">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-6 py-4">
           <div className="flex items-center gap-2">
             <button
               type="button"

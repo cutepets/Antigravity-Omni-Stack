@@ -138,7 +138,22 @@ export function resolveCartItemStockState(
         )
 
     const stockSource = currentTrueVariant ?? currentVariantObj ?? item
-    const sourceSellableQty = getSellableQuantity(stockSource, branchId)
+
+    // branchStocks được lưu ở root cart item, không phải trong từng variant.
+    // Nếu stockSource (variant) không có branchStocks, fallback về item-level branchStocks.
+    const effectiveStockSource =
+        Array.isArray((stockSource as any)?.branchStocks) && (stockSource as any).branchStocks.length > 0
+            ? stockSource
+            : {
+                ...stockSource,
+                branchStocks: (item as any).branchStocks,
+                availableStock: (stockSource as any)?.availableStock ?? (item as any).availableStock,
+                stock: (stockSource as any)?.stock ?? (item as any).stock,
+                trading: (stockSource as any)?.trading ?? (item as any).trading,
+                reserved: (stockSource as any)?.reserved ?? (item as any).reserved,
+            }
+
+    const sourceSellableQty = getSellableQuantity(effectiveStockSource, branchId)
     const currentConversionRate = parseConversionRate(currentVariantObj?.conversions)
     const sellableQty =
         isCurrentConversion && currentConversionRate && sourceSellableQty !== null

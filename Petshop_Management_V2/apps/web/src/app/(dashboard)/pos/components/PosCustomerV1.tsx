@@ -30,7 +30,7 @@ export interface PosCustomerV1Props {
   theme?: 'pos' | 'system';
 }
 
-export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'pos' }: PosCustomerV1Props) {
+export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'system' }: PosCustomerV1Props) {
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [customerQuery, setCustomerQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,7 +42,8 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
 
   // Always call hooks unconditionally (Rules of Hooks)
   // When callbacks provided, store values won't be used for customer mutations
-  const store = usePosStore();
+  const setCustomer = usePosStore((state) => state.setCustomer);
+  const setCustomerPricing = usePosStore((state) => state.setCustomerPricing);
   const activeTab = useActiveTab();
 
   // Customer ID/name resolved from callbacks (Order mode) or store (POS mode)
@@ -82,7 +83,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
     if (callbacks) {
       callbacks.onSelectCustomer(savedCustomer.id, savedCustomer.fullName);
     } else {
-      store.setCustomer(savedCustomer.id, savedCustomer.fullName);
+      setCustomer(savedCustomer.id, savedCustomer.fullName, null);
     }
     refetchCustomerDetail();
     setShowCustomerModal(false);
@@ -124,6 +125,24 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (callbacks) return;
+    if (!customerId) {
+      setCustomerPricing(null);
+      return;
+    }
+    if (!customerDetail) return;
+
+    setCustomerPricing({
+      groupId: customerDetail.group?.id,
+      groupName: customerDetail.group?.name,
+      groupColor: customerDetail.group?.color,
+      priceBookId: customerDetail.group?.priceBookId,
+      priceBookName: customerDetail.group?.priceBook?.name ?? customerDetail.group?.pricePolicy,
+      discountRate: Number(customerDetail.group?.discount ?? 0),
+    });
+  }, [callbacks, customerDetail, customerId, setCustomerPricing]);
+
   if (!callbacks && !activeTab) return null;
 
   const hasCustomer = !!customerId;
@@ -132,7 +151,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
     if (callbacks) {
       callbacks.onSelectCustomer(customer.id, customer.fullName || customer.name || 'Khách lẻ');
     } else {
-      store.setCustomer(customer.id, customer.fullName);
+      setCustomer(customer.id, customer.fullName, null);
     }
     setShowCustomerSearch(false);
     setCustomerQuery('');
@@ -142,7 +161,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
     if (callbacks) {
       callbacks.onRemoveCustomer();
     } else {
-      store.setCustomer(undefined, 'Khách lẻ');
+      setCustomer(undefined, 'Khách lẻ', null);
     }
   };
 
@@ -246,7 +265,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
       )}
 
       {showCustomerSearch && !hasCustomer && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 shadow-xl overflow-hidden z-50 flex flex-col">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-border shadow-xl overflow-hidden z-50 flex flex-col">
           <CustomerSearchResults
             customers={customers as any[]}
             query={customerQuery}
@@ -257,7 +276,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
               if (callbacks) {
                 callbacks.onSelectCustomer('', 'Khách lẻ');
               } else {
-                store.setCustomer(undefined, 'Khách lẻ');
+                setCustomer(undefined, 'Khách lẻ', null);
               }
               setShowCustomerSearch(false);
             }}

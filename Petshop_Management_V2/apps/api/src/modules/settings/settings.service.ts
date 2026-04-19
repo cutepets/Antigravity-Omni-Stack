@@ -1505,13 +1505,20 @@ export class SettingsService {
   // ─── Customer Groups ──────────────────────────────────────────────────────
 
   async findAllCustomerGroups() {
-    const groups = await this.db.customerGroup.findMany({ orderBy: { createdAt: 'desc' } })
+    const groups = await this.db.customerGroup.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { priceBook: { select: { id: true, name: true } } },
+    })
     return { success: true, data: groups }
   }
 
-  async createCustomerGroup(dto: { name: string; color?: string; discount?: number; description?: string }) {
+  async createCustomerGroup(dto: { name: string; color?: string; pricePolicy?: string; priceBookId?: string; discount?: number; description?: string }) {
     const group = await this.db.customerGroup.create({ data: dto as any })
-    return { success: true, data: group }
+    const withBook = await this.db.customerGroup.findUnique({
+      where: { id: group.id },
+      include: { priceBook: { select: { id: true, name: true } } },
+    })
+    return { success: true, data: withBook }
   }
 
   async updateCustomerGroup(id: string, dto: any) {
@@ -1527,18 +1534,20 @@ export class SettingsService {
       }
     }
 
-    const { name, color, pricePolicy, discount, description, isActive, isDefault } = dto;
+    const { name, color, pricePolicy, priceBookId, discount, description, isActive, isDefault } = dto;
     const updated = await this.db.customerGroup.update({
       where: { id },
       data: {
         ...(name !== undefined && { name }),
         ...(color !== undefined && { color }),
         ...(pricePolicy !== undefined && { pricePolicy }),
+        ...('priceBookId' in dto && { priceBookId: priceBookId ?? null }),
         ...(discount !== undefined && { discount }),
         ...(description !== undefined && { description }),
         ...(isActive !== undefined && { isActive }),
         ...(isDefault !== undefined && { isDefault }),
-      }
+      },
+      include: { priceBook: { select: { id: true, name: true } } },
     })
     return { success: true, data: updated }
   }
@@ -1554,8 +1563,18 @@ export class SettingsService {
       throw new BadRequestException('Không thể xóa nhóm khách hàng mặc định')
     }
 
+    // Nếu nhóm đang có khách → chuyển về nhóm mặc định trước khi xóa
     if (group._count.customers > 0) {
-      throw new BadRequestException(`Không thể xóa do đang có ${group._count.customers} khách hàng thuộc nhóm này`)
+      const defaultGroup = await this.db.customerGroup.findFirst({
+        where: { isDefault: true, id: { not: id } },
+      })
+      if (!defaultGroup) {
+        throw new BadRequestException('Không tìm thấy nhóm mặc định để chuyển khách hàng sang')
+      }
+      await this.db.customer.updateMany({
+        where: { groupId: id },
+        data: { groupId: defaultGroup.id },
+      })
     }
 
     await this.db.customerGroup.delete({ where: { id } })

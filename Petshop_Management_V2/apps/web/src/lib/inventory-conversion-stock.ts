@@ -39,6 +39,11 @@ export type ProductLike = {
   variants?: VariantLike[] | null
 }
 
+export type VariantGroupTree<TVariant extends VariantLike = VariantLike> = {
+  item: TVariant
+  children: TVariant[]
+}
+
 const NUMERIC_FIELDS = [
   'stock',
   'reservedStock',
@@ -149,6 +154,28 @@ export function getConversionVariants<TVariant extends VariantLike>(
     : new Set<string>(['__base__', `${productName ?? ''}`.trim().toLowerCase()].filter(Boolean))
 
   return allConversions.filter((variant) => targetGroupKeys.has(getProductVariantGroupKey(productName, variant)))
+}
+
+export function groupVariantsWithConversions<TVariant extends VariantLike>(
+  variants?: TVariant[] | null,
+  productName?: string | null,
+) {
+  const allVariants = variants ?? []
+  const trueVariants = getTrueVariants(allVariants)
+  const conversionVariants = allVariants.filter((variant) => isConversionVariant(variant))
+  const usedConversionIds = new Set<string>()
+
+  const groups: VariantGroupTree<TVariant>[] = trueVariants.map((item) => {
+    const children = getConversionVariants(allVariants, item, productName)
+    children.forEach((child) => usedConversionIds.add(child.id))
+    return { item, children }
+  })
+
+  return {
+    groups,
+    looseConversions: conversionVariants.filter((item) => !usedConversionIds.has(item.id)),
+    totalItems: trueVariants.length + conversionVariants.length,
+  }
 }
 
 export function normalizeBranchStocks(rows?: BranchStockLike[] | null) {

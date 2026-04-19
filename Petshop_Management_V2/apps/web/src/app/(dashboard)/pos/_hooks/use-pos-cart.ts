@@ -41,25 +41,38 @@ export function usePosCart() {
     // ── Keyboard nav ──────────────────────────────────────────────────────────
     const [selectedRowIndex, setSelectedRowIndex] = useState<number>(-1);
 
+    // ── Flash animation tracking ───────────────────────────────────────────────
+    const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
+    const flashItem = useCallback((id: string) => {
+        setLastAddedItemId(id);
+        setTimeout(() => setLastAddedItemId(null), 700);
+    }, []);
+
     // ── Add to cart ───────────────────────────────────────────────────────────
     const handleAddItem = useCallback(
         (item: any) => {
             const activePetId = activeTab?.activePetIds?.[0];
 
             if (isHotelService(item)) {
-                store.addItem(buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id ?? activePetId));
+                const cartItem = buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id ?? activePetId);
+                store.addItem(cartItem);
+                flashItem(cartItem.id);
                 toast.success('Đã thêm dịch vụ vào giỏ');
                 return;
             }
 
             if (isGroomingService(item)) {
-                store.addItem(buildGroomingCartItem(item, item.petId ?? item.petSnapshot?.id ?? activePetId));
+                const cartItem = buildGroomingCartItem(item, item.petId ?? item.petSnapshot?.id ?? activePetId);
+                store.addItem(cartItem);
+                flashItem(cartItem.id);
                 toast.success('Đã thêm dịch vụ vào giỏ');
                 return;
             }
 
             if (isCatalogService(item)) {
-                store.addItem(buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id ?? activePetId));
+                const cartItem = buildDirectServiceCartItem(item, item.petId ?? item.petSnapshot?.id ?? activePetId);
+                store.addItem(cartItem);
+                flashItem(cartItem.id);
                 toast.success('Đã thêm dịch vụ vào giỏ');
                 return;
             }
@@ -75,15 +88,16 @@ export function usePosCart() {
             });
             const variantLabel =
                 resolvedLabels.variantLabel &&
-                resolvedLabels.variantLabel.trim().toLowerCase() !== normalizedProductName
+                    resolvedLabels.variantLabel.trim().toLowerCase() !== normalizedProductName
                     ? resolvedLabels.variantLabel
                     : undefined;
             const unitLabel = resolvedLabels.unitLabel ?? undefined;
             const variantName = [variantLabel, unitLabel].filter(Boolean).join(' • ') || undefined;
             const baseUnit = item.unit ?? 'cái';
 
+            const newId = buildCartLineId('product', productId, productVariantId ?? 'base');
             store.addItem({
-                id: buildCartLineId('product', productId, productVariantId ?? 'base'),
+                id: newId,
                 productId,
                 productVariantId,
                 description: productName,
@@ -93,12 +107,14 @@ export function usePosCart() {
                 type: 'product',
                 image: item.image,
                 unit: unitLabel ?? baseUnit,
+                priceBookPrices: item.priceBookPrices,
+                basePriceBookPrices: item.baseProductPriceBookPrices ?? item.priceBookPrices,
                 variants: item.variants,
                 variantName,
                 variantLabel,
                 unitLabel,
                 baseSku: item.sku,
-                baseUnitPrice: unitPrice,
+                baseUnitPrice: item.baseProductPrice ?? unitPrice,
                 baseUnit,
                 stock: item.stock,
                 availableStock: item.availableStock,
@@ -106,8 +122,9 @@ export function usePosCart() {
                 reserved: item.reserved,
                 branchStocks: item.branchStocks,
             } as any);
+            flashItem(newId);
         },
-        [store, activeTab?.activePetIds],
+        [store, activeTab?.activePetIds, flashItem],
     );
 
     // ── Suggested service selection (from pet profile) ────────────────────────
@@ -203,5 +220,7 @@ export function usePosCart() {
         // handlers
         handleAddItem,
         handleSelectSuggestedService,
+        // flash
+        lastAddedItemId,
     };
 }

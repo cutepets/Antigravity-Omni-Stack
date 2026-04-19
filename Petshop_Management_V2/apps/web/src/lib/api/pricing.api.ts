@@ -21,6 +21,8 @@ export interface SpaPriceRule {
   species: string | null
   packageCode: string
   weightBandId: string | null
+  minWeight?: number | null
+  maxWeight?: number | null
   sku?: string | null
   price: number
   durationMinutes: number | null
@@ -45,6 +47,14 @@ export interface HotelPriceRule {
     name: string
   } | null
   weightBand?: ServiceWeightBand
+}
+
+export interface HotelExtraService {
+  sku?: string | null
+  name: string
+  minWeight?: number | null
+  maxWeight?: number | null
+  price: number
 }
 
 export interface HolidayCalendarDate {
@@ -74,6 +84,8 @@ export interface SpaRulePayload {
   species?: string | null
   packageCode: string
   weightBandId?: string | null
+  minWeight?: number | null
+  maxWeight?: number | null
   sku?: string | null
   price: number
   durationMinutes?: number | null
@@ -91,6 +103,14 @@ export interface HotelRulePayload {
   halfDayPrice?: number
   fullDayPrice: number
   isActive?: boolean
+}
+
+export interface HotelExtraServicePayload {
+  sku?: string | null
+  name: string
+  minWeight?: number | null
+  maxWeight?: number | null
+  price: number
 }
 
 export const pricingApi = {
@@ -117,6 +137,12 @@ export const pricingApi = {
 
   bulkUpsertHotelRules: (rules: HotelRulePayload[]) =>
     api.put<HotelPriceRule[]>('/pricing/hotel-rules/bulk', { rules }).then((res) => res.data),
+
+  getHotelExtraServices: () =>
+    api.get<HotelExtraService[]>('/pricing/hotel-extra-services').then((res) => res.data),
+
+  bulkUpsertHotelExtraServices: (services: HotelExtraServicePayload[]) =>
+    api.put<HotelExtraService[]>('/pricing/hotel-extra-services/bulk', { services }).then((res) => res.data),
 
   getHolidays: (params: { year?: number; isActive?: boolean }) =>
     api.get<HolidayCalendarDate[]>('/pricing/holidays', { params }).then((res) => res.data),

@@ -341,7 +341,7 @@ export function GroomingBoard() {
     <DataListShell className="min-h-0">
       <div className="flex flex-col flex-1 min-h-0 gap-4">
         {viewMode === 'pricing' ? (
-          <div className="flex flex-col flex-1 min-h-0">
+          <div className="flex flex-col">
             <ServicePricingWorkspace mode="GROOMING" />
           </div>
         ) : (

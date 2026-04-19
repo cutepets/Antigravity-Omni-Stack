@@ -72,6 +72,15 @@ export class GroomingService {
       throw new BadRequestException('Thu cung can co can nang de tinh gia SPA')
     }
 
+    const matchesSpecies = (value?: string | null) => !value || value.trim().toLowerCase() === species?.toLowerCase()
+    const matchesCustomRange = (rule: { minWeight?: number | null; maxWeight?: number | null }) => {
+      if (rule.minWeight === null || rule.minWeight === undefined) {
+        return rule.maxWeight === null || rule.maxWeight === undefined
+      }
+      const maxWeight = rule.maxWeight === null || rule.maxWeight === undefined ? Number.POSITIVE_INFINITY : Number(rule.maxWeight)
+      return weight >= Number(rule.minWeight) && weight < maxWeight
+    }
+
     const bands = await this.db.serviceWeightBand.findMany({
       where: {
         serviceType: 'GROOMING',
@@ -81,41 +90,69 @@ export class GroomingService {
       },
       orderBy: [{ sortOrder: 'asc' }, { minWeight: 'asc' }],
     })
-    // Match species case-insensitively in JS, fallback to null-species band
     const weightBand =
       bands.find((band) => band.species?.trim().toLowerCase() === species?.toLowerCase()) ??
-      bands.find((band) => !band.species)
+      bands.find((band) => !band.species) ??
+      null
 
-    if (!weightBand) {
-      throw new BadRequestException(`Chua cau hinh hang can SPA cho ${weight}kg`)
-    }
+    const weightBandedRules = weightBand
+      ? await this.db.spaPriceRule.findMany({
+        where: {
+          packageCode: dto.packageCode,
+          weightBandId: weightBand.id,
+          isActive: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+      : []
 
-    const rules = await this.db.spaPriceRule.findMany({
-      where: {
-        packageCode: dto.packageCode,
-        weightBandId: weightBand.id,
-        isActive: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    })
-    // Match species case-insensitively in JS, fallback to null-species rule
-    const priceRule =
-      rules.find((rule) => rule.species?.trim().toLowerCase() === species?.toLowerCase()) ??
-      rules.find((rule) => !rule.species)
+    let priceRule =
+      weightBandedRules.find((rule) => matchesSpecies(rule.species)) ??
+      weightBandedRules.find((rule) => !rule.species) ??
+      null
 
     if (!priceRule) {
-      throw new BadRequestException(`Chua cau hinh gia SPA ${dto.packageCode} cho hang can ${weightBand.label}`)
+      const customRangeRules = await this.db.spaPriceRule.findMany({
+        where: {
+          packageCode: dto.packageCode,
+          weightBandId: null,
+          isActive: true,
+        },
+        orderBy: [{ minWeight: 'asc' }, { createdAt: 'desc' }],
+      })
+
+      const customWeightMatchedRules = customRangeRules.filter((rule) => matchesCustomRange(rule))
+      priceRule =
+        customWeightMatchedRules.find((rule) => matchesSpecies(rule.species)) ??
+        customWeightMatchedRules.find((rule) => !rule.species) ??
+        null
     }
+
+    if (!priceRule) {
+      if (weightBand) {
+        throw new BadRequestException(`Chua cau hinh gia SPA ${dto.packageCode} cho hang can ${weightBand.label}`)
+      }
+      throw new BadRequestException(`Chua cau hinh gia SPA ${dto.packageCode} cho ${weight}kg`)
+    }
+
+    const effectiveWeightBand = weightBand ?? (priceRule.minWeight !== null || priceRule.maxWeight !== null
+      ? {
+        id: null,
+        label: `${priceRule.minWeight ?? 0}-${priceRule.maxWeight ?? 'INF'}kg`,
+        minWeight: priceRule.minWeight ?? 0,
+        maxWeight: priceRule.maxWeight ?? null,
+      }
+      : null)
 
     const pricingSnapshot = {
       source: 'spa-price-rule',
       packageCode: dto.packageCode,
       species,
       weight,
-      weightBandId: weightBand.id,
-      weightBandLabel: weightBand.label,
-      weightBandMin: weightBand.minWeight,
-      weightBandMax: weightBand.maxWeight,
+      weightBandId: effectiveWeightBand?.id ?? null,
+      weightBandLabel: effectiveWeightBand?.label ?? null,
+      weightBandMin: effectiveWeightBand?.minWeight ?? null,
+      weightBandMax: effectiveWeightBand?.maxWeight ?? null,
       priceRuleId: priceRule.id,
       price: priceRule.price,
       durationMinutes: priceRule.durationMinutes,
@@ -129,12 +166,7 @@ export class GroomingService {
       packageCode: dto.packageCode,
       price: priceRule.price,
       durationMinutes: priceRule.durationMinutes,
-      weightBand: {
-        id: weightBand.id,
-        label: weightBand.label,
-        minWeight: weightBand.minWeight,
-        maxWeight: weightBand.maxWeight,
-      },
+      weightBand: effectiveWeightBand,
       pricingSnapshot,
     }
   }
@@ -200,7 +232,7 @@ export class GroomingService {
         serviceId: dto.serviceId ?? null,
         packageCode: dto.packageCode ?? null,
         weightAtBooking: pricingPreview?.weight ?? pet.weight ?? null,
-        weightBandId: pricingPreview?.weightBand.id ?? null,
+        weightBandId: pricingPreview?.weightBand?.id ?? null,
         ...(pricingPreview ? { pricingSnapshot: pricingPreview.pricingSnapshot } : {}),
         startTime: dto.startTime ? new Date(dto.startTime) : null,
         notes: dto.notes ?? null,

@@ -227,6 +227,20 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
               </div>
             </div>
 
+            {/* Nhóm khách hàng */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Nhóm khách hàng</label>
+              <div className="relative">
+                <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><Users size={18} /></div>
+                <select {...register('groupId')} className="form-input pl-10 h-11">
+                  <option value="">-- Chọn nhóm --</option>
+                  {customerGroups.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}{g.isDefault ? ' (mặc định)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {/* Địa chỉ */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-foreground mb-1.5">Địa chỉ</label>
@@ -254,37 +268,6 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
               </div>
             </div>
 
-            {/* Nhóm khách hàng & Trạng thái */}
-            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Nhóm khách hàng</label>
-                <div className="relative">
-                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><Users size={18} /></div>
-                  <select {...register('groupId')} className="form-input pl-10 h-11">
-                    <option value="">-- Chọn nhóm khách hàng --</option>
-                    {customerGroups.map(g => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5 opacity-0 pointer-events-none hidden md:block">Trạng thái</label>
-                <div className="flex items-center justify-between p-2.5 bg-background-tertiary rounded-xl border border-border h-11">
-                  <div>
-                    <p className="text-sm font-medium text-foreground leading-tight">Trạng thái hoạt động</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setValue('isActive', !isActive)}
-                    className={`transition-colors shrink-0 ${isActive ? 'text-primary-500' : 'text-foreground-muted'}`}
-                  >
-                    {isActive ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Advanced section toggle */}

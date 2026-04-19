@@ -8,9 +8,8 @@ import Link from 'next/link'
 import { ArrowLeft, Box, Copy, History, Layers, Package, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { toast } from 'sonner'
-import { getProductVariantGroupKey } from '@petshop/shared'
 import { inventoryApi } from '@/lib/api/inventory.api'
-import { getDisplayBranchStocks, getResolvedVariantLabels, parseConversionRate } from '@/lib/inventory-conversion-stock'
+import { findParentTrueVariant, getDisplayBranchStocks, getResolvedVariantLabels, groupVariantsWithConversions, parseConversionRate } from '@/lib/inventory-conversion-stock'
 import { ProductFormModal } from '../../_components/product-form-modal'
 import { settingsApi } from '@/lib/api'
 import { useAuthorization } from '@/hooks/useAuthorization'
@@ -95,45 +94,6 @@ function formatInventoryQuantity(value: number) {
   })
 }
 
-function normalizeVariantGroupKey(value?: string | null) {
-  return (
-    value
-      ?.normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim()
-      .toLowerCase() ?? ''
-  )
-}
-
-function getEquivalentVariantGroupKeys(productName: string, variant: any) {
-  const groupKey = normalizeVariantGroupKey(getProductVariantGroupKey(productName, variant)) || '__base__'
-  const normalizedProductName = normalizeVariantGroupKey(productName)
-  const keys = new Set<string>([groupKey])
-
-  if (normalizedProductName) {
-    if (groupKey === '__base__') {
-      keys.add(normalizedProductName)
-    }
-
-    if (groupKey === normalizedProductName) {
-      keys.add('__base__')
-    }
-  }
-
-  return keys
-}
-
-function matchesVariantGroup(productName: string, leftVariant: any, rightVariant: any) {
-  const leftKeys = getEquivalentVariantGroupKeys(productName, leftVariant)
-  const rightKeys = getEquivalentVariantGroupKeys(productName, rightVariant)
-
-  for (const key of leftKeys) {
-    if (rightKeys.has(key)) return true
-  }
-
-  return false
-}
-
 function normalizeBranchStocks(rows: BranchStockRow[] | undefined) {
   return Array.isArray(rows) ? rows : []
 }
@@ -194,7 +154,6 @@ function mergeBranchRowsWithBranches(rows: BranchStockRow[], branches: BranchOpt
 function buildDetailTree(product: any) {
   const rootBranchStocks = normalizeBranchStocks(getDisplayBranchStocks(product) as BranchStockRow[])
   const rawVariants = Array.isArray(product.variants) ? product.variants : []
-  const trueVariants = rawVariants.filter((variant: any) => !parseConversionRate(variant.conversions))
 
   const detailItems: DetailItem[] = rawVariants.map((variant: any) => {
     const conversionRate = parseConversionRate(variant.conversions)
@@ -203,7 +162,7 @@ function buildDetailTree(product: any) {
     const displayUnit = conversionRate ? unitLabel || product.unit : product.unit
     const formula = conversionRate ? `${conversionRate} ${product.unit} = 1 ${displayUnit}` : null
     const sourceVariantId = conversionRate
-      ? trueVariants.find((candidate: any) => matchesVariantGroup(product.name, candidate, variant))?.id ?? null
+      ? findParentTrueVariant(rawVariants, variant, product.name)?.id ?? null
       : variant.id
 
     return {
@@ -241,34 +200,31 @@ function buildDetailTree(product: any) {
     branchStocks: rootBranchStocks,
   } satisfies DetailItem
 
-  const variantItems: DetailItem[] = detailItems.filter((item: DetailItem) => item.kind === 'variant')
-  const conversionItems: DetailItem[] = detailItems.filter((item: DetailItem) => item.kind === 'conversion')
-  const assignedConversions = new Set<string>()
-
-  const groups: Array<{ item: DetailItem; children: DetailItem[] }> = variantItems.map((item: DetailItem) => {
-    const children = conversionItems.filter(
-      (child: DetailItem) => {
-        const rawChild = rawVariants.find((variant: any) => variant.id === child.id)
-        const rawItem = rawVariants.find((variant: any) => variant.id === item.id)
-        return rawChild && rawItem ? matchesVariantGroup(product.name, rawChild, rawItem) : false
-      },
-    )
-    children.forEach((child: DetailItem) => assignedConversions.add(child.key))
-    return { item, children }
-  })
-
-  const looseConversions: DetailItem[] = conversionItems.filter((item: DetailItem) => !assignedConversions.has(item.key))
   const itemMap = new Map<string, DetailItem>([
     [rootItem.key, rootItem],
     ...detailItems.map((item: DetailItem) => [item.key, item] as const),
   ])
+  const grouped = groupVariantsWithConversions(rawVariants, product.name)
+  const groups = grouped.groups.map(({ item, children }) => ({
+    item: itemMap.get(`variant:${item.id}`) ?? rootItem,
+    children: children
+      .map((child) => itemMap.get(`variant:${child.id}`))
+      .filter((child): child is DetailItem => Boolean(child)),
+  }))
+  const looseConversions = grouped.looseConversions
+    .map((item) => itemMap.get(`variant:${item.id}`))
+    .filter((item): item is DetailItem => Boolean(item))
+  const defaultItemKey = groups[0]?.item.key ?? looseConversions[0]?.key ?? rootItem.key
+  const showRootRow = rawVariants.length === 0
 
   return {
     rootItem,
     groups,
     looseConversions,
     itemMap,
-    count: itemMap.size,
+    count: showRootRow ? 1 : grouped.totalItems,
+    defaultItemKey,
+    showRootRow,
   }
 }
 
@@ -322,8 +278,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
 
   const product = data?.data
   const detailTree = useMemo(() => (product ? buildDetailTree(product) : null), [product])
-  const hasComplexVariants = detailTree ? (detailTree.groups.length > 1 || (detailTree.groups[0]?.children.length ?? 0) > 0 || detailTree.looseConversions.length > 0) : false
-  const visualCount = hasComplexVariants && detailTree ? detailTree.count : 1
+  const visualCount = detailTree?.count ?? 1
 
   if (isAuthLoading) {
     return <div className="p-6 text-foreground-muted flex items-center justify-center h-40">Đang kiểm tra quyền truy cập...</div>
@@ -347,7 +302,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
     }
   }
 
-  const activeItem = detailTree.itemMap.get(selectedItemKey) ?? detailTree.rootItem
+  const activeItem = detailTree.itemMap.get(selectedItemKey || detailTree.defaultItemKey) ?? detailTree.rootItem
   const branches = Array.isArray(branchesData)
     ? branchesData
       .filter((branch: any) => branch?.id && branch?.name)
@@ -463,24 +418,6 @@ export function ProductDetailView({ productId }: { productId: string }) {
                   <span className="badge text-[10px] px-2 py-0.5 rounded-full uppercase bg-gray-500/10 text-gray-400 border border-gray-500/20">Ngưng bán</span>
                 )}
               </div>
-              <div className="flex flex-col gap-1 mt-2">
-                {priceBooks.length > 0 ? (
-                  priceBooks.map((pb: any) => {
-                    const price = activeItem.priceBookPrices?.[pb.id] ?? activeItem.price ?? 0
-                    return (
-                      <div key={pb.id} className="flex items-center justify-between text-sm">
-                        <span className="text-foreground-muted truncate pr-2">{pb.name}:</span>
-                        <span className="text-primary-500 font-semibold">{price.toLocaleString('vi-VN')}₫</span>
-                      </div>
-                    )
-                  })
-                ) : (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-foreground-muted">Giá:</span>
-                    <span className="text-primary-500 font-semibold">{(activeItem.price ?? 0).toLocaleString('vi-VN')}₫</span>
-                  </div>
-                )}
-              </div>
               {activeItem.formula && <div className="text-xs text-foreground-muted mt-1">{activeItem.formula}</div>}
             </div>
           </div>
@@ -528,35 +465,35 @@ export function ProductDetailView({ productId }: { productId: string }) {
               </div>
 
               <div className="relative pl-3 border-l-2 border-primary-500">
-                <button
-                  type="button"
-                  onClick={() => setSelectedItemKey(detailTree.rootItem.key)}
-                  className={`w-full text-left flex items-center justify-between gap-3 rounded-xl px-3 py-2 transition-colors ${activeItem.key === detailTree.rootItem.key ? 'bg-primary-500/10 ring-1 ring-primary-500/30' : 'hover:bg-background-secondary/60'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-background-tertiary flex items-center justify-center shrink-0 text-primary-500 relative">
-                      <Package size={16} />
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary-500 rounded-full border-2 border-background" />
-                    </div>
-                    <div className="flex flex-col overflow-hidden">
-                      <div className={`text-sm font-semibold truncate ${activeItem.key === detailTree.rootItem.key ? 'text-primary-500' : 'text-foreground'}`}>
-                        {detailTree.rootItem.name}
+                {detailTree.showRootRow ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedItemKey(detailTree.rootItem.key)}
+                    className={`w-full text-left flex items-center justify-between gap-3 rounded-xl px-3 py-2 transition-colors ${activeItem.key === detailTree.rootItem.key ? 'bg-primary-500/10 ring-1 ring-primary-500/30' : 'hover:bg-background-secondary/60'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-background-tertiary flex items-center justify-center shrink-0 text-primary-500 relative">
+                        <Package size={16} />
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary-500 rounded-full border-2 border-background" />
                       </div>
-                      <div className="text-[10px] text-foreground-muted truncate">{detailTree.rootItem.sku || 'SKU N/A'}</div>
+                      <div className="flex flex-col overflow-hidden">
+                        <div className={`text-sm font-semibold truncate ${activeItem.key === detailTree.rootItem.key ? 'text-primary-500' : 'text-foreground'}`}>
+                          {detailTree.rootItem.name}
+                        </div>
+                        <div className="text-[10px] text-foreground-muted truncate">{detailTree.rootItem.sku || 'SKU N/A'}</div>
+                      </div>
                     </div>
-                  </div>
-                  {priceBooks.length > 0 && (
-                    <div className="flex items-center gap-4 shrink-0">
-                      {priceBooks.map((pb: any) => {
-                        const price = detailTree.rootItem.priceBookPrices?.[pb.id] ?? detailTree.rootItem.price ?? 0
-                        return <span key={pb.id} className="w-20 text-right text-sm font-semibold text-primary-500 truncate">{price.toLocaleString('vi-VN')}</span>
-                      })}
-                    </div>
-                  )}
-                </button>
-
-                {hasComplexVariants && (
-                  <div className="mt-4 flex flex-col gap-3 pl-5 relative">
+                    {priceBooks.length > 0 && (
+                      <div className="flex items-center gap-4 shrink-0">
+                        {priceBooks.map((pb: any) => {
+                          const price = detailTree.rootItem.priceBookPrices?.[pb.id] ?? detailTree.rootItem.price ?? 0
+                          return <span key={pb.id} className="w-20 text-right text-sm font-semibold text-primary-500 truncate">{price.toLocaleString('vi-VN')}</span>
+                        })}
+                      </div>
+                    )}
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-3 pl-5 relative">
                     <div className="absolute top-0 bottom-0 left-0 w-px bg-border" />
 
                     {detailTree.groups.map(({ item, children }) => (

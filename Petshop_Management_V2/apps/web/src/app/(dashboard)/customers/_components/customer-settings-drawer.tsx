@@ -29,6 +29,8 @@ type CustomerGroup = {
   name: string
   color: string
   pricePolicy: string
+  priceBookId?: string | null
+  priceBook?: { id: string; name: string } | null
   discount: number
   description?: string | null
   isDefault: boolean
@@ -101,15 +103,18 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
   const [mounted, setMounted] = useState(false)
   const queryClient = useQueryClient()
   const [form, setForm] = useState<LoyaltyConfigState>(DEFAULT_LOYALTY_CONFIG)
-  const [groupForm, setGroupForm] = useState({
+  const emptyGroupForm = {
     id: '',
     name: '',
     color: GROUP_COLOR_OPTIONS[0],
-    pricePolicy: 'Giá lẻ',
+    priceBookId: '' as string, // '' = giá lẻ (no book), or a price book id
     discount: 0,
     description: '',
     isDefault: false,
-  })
+  }
+  const [groupForm, setGroupForm] = useState(emptyGroupForm)
+  const [editGroupMode, setEditGroupMode] = useState(false)
+  const [editLoyaltyMode, setEditLoyaltyMode] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -182,25 +187,28 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
 
   const groupMutation = useMutation({
     mutationFn: async (payload: typeof groupForm) => {
+      const selectedBook = priceBooks.find((pb) => pb.id === payload.priceBookId)
+      const pricePolicy = selectedBook ? selectedBook.name : 'Giá lẻ'
+      const body = {
+        name: payload.name,
+        color: payload.color,
+        pricePolicy,
+        priceBookId: payload.priceBookId || null,
+        discount: payload.discount,
+        description: payload.description,
+        isDefault: payload.isDefault,
+      }
       if (payload.id) {
-        const res = await api.put(`/customer-groups/${payload.id}`, payload)
+        const res = await api.put(`/customer-groups/${payload.id}`, body)
         return res.data
       }
-      const res = await api.post('/customer-groups', payload)
+      const res = await api.post('/customer-groups', body)
       return res.data
     },
     onSuccess: () => {
-      toast.success('Đã lưu nhóm khách hàng')
+      toast.success(groupForm.id ? 'Cập nhật nhóm thành công' : 'Đã thêm nhóm khách hàng')
       queryClient.invalidateQueries({ queryKey: ['settings', 'customer-groups'] })
-      setGroupForm({
-        id: '',
-        name: '',
-        color: GROUP_COLOR_OPTIONS[0],
-        pricePolicy: 'Giá lẻ',
-        discount: 0,
-        description: '',
-        isDefault: false,
-      })
+      setGroupForm(emptyGroupForm)
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message || 'Không thể lưu nhóm khách hàng')
@@ -227,6 +235,7 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
         customerGroups.map((group) =>
           api.put(`/customer-groups/${group.id}`, {
             ...group,
+            priceBookId: group.priceBookId ?? null,
             isDefault: group.id === targetId,
           })
         )
@@ -298,124 +307,7 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
             </div>
 
             <div className="p-6 flex-1 space-y-8 pb-12">
-              <div data-hotkey-scope className="rounded-3xl border border-border/70 bg-background-secondary p-6 shadow-sm">
-                <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 text-lg font-bold text-foreground">
-                      <Trophy size={20} className="text-yellow-400" />
-                      Cấu hình tích điểm
-                    </div>
-                    <p className="mt-1 text-sm text-foreground-muted">
-                      Tùy chỉnh quy tắc tích điểm, hạng thẻ và ưu đãi theo nhóm.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setForm(parseLoyaltyConfig(configs))}
-                      data-hotkey-esc
-                      className="h-10 rounded-xl border border-border px-4 text-sm font-medium text-foreground-muted transition-colors hover:text-foreground"
-                    >
-                      Hủy
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => saveConfigMutation.mutate(form)}
-                      disabled={saveConfigMutation.isPending || isLoadingConfigs || !hasUnsavedConfig}
-                      data-hotkey-enter
-                      className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-                    >
-                      {saveConfigMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                      Lưu
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 xl:grid-cols-4">
-                  <label className="space-y-2">
-                    <span className="text-sm text-foreground-muted">Số tiền / 1 điểm</span>
-                    <input
-                      type="number"
-                      value={form.loyaltySpendPerPoint}
-                      onChange={(event) => setForm((current) => ({ ...current, loyaltySpendPerPoint: Number(event.target.value) }))}
-                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm text-foreground-muted">1 điểm quy đổi</span>
-                    <input
-                      type="number"
-                      value={form.loyaltyPointValue}
-                      onChange={(event) => setForm((current) => ({ ...current, loyaltyPointValue: Number(event.target.value) }))}
-                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm text-foreground-muted">Điểm hết hạn (tháng)</span>
-                    <input
-                      type="number"
-                      value={form.loyaltyPointExpiryMonths}
-                      onChange={(event) => setForm((current) => ({ ...current, loyaltyPointExpiryMonths: Number(event.target.value) }))}
-                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm text-foreground-muted">Giữ hạng (tháng)</span>
-                    <input
-                      type="number"
-                      value={form.loyaltyTierRetentionMonths}
-                      onChange={(event) => setForm((current) => ({ ...current, loyaltyTierRetentionMonths: Number(event.target.value) }))}
-                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                    />
-                  </label>
-                </div>
-
-                <div className="mt-8 overflow-hidden rounded-2xl border border-border/60">
-                  <table className="w-full min-w-[900px]">
-                    <thead className="bg-background/60">
-                      <tr className="border-b border-border/60">
-                        <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Hạng</th>
-                        <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Ngưỡng chi tiêu (VND)</th>
-                        <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Chiết khấu (%)</th>
-                        <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Ưu đãi</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {form.loyaltyTierRules.map((rule) => (
-                        <tr key={rule.tier} className="border-b border-border/50 last:border-b-0">
-                          <td className="px-5 py-4">
-                            <TierChip tier={rule.tier} />
-                          </td>
-                          <td className="px-5 py-3">
-                            <input
-                              type="number"
-                              value={rule.minSpent}
-                              onChange={(event) => handleTierRuleChange(rule.tier, 'minSpent', Number(event.target.value))}
-                              className="h-10 w-[200px] rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                            />
-                          </td>
-                          <td className="px-5 py-3">
-                            <input
-                              type="number"
-                              value={rule.discount}
-                              onChange={(event) => handleTierRuleChange(rule.tier, 'discount', Number(event.target.value))}
-                              className="h-10 w-[120px] rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                            />
-                          </td>
-                          <td className="px-5 py-3">
-                            <input
-                              value={rule.benefit}
-                              onChange={(event) => handleTierRuleChange(rule.tier, 'benefit', event.target.value)}
-                              className="h-10 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
+              {/* ─── Nhóm khách hàng ──────────────────────────── */}
               <div data-hotkey-scope className="rounded-3xl border border-border/70 bg-background-secondary p-6 shadow-sm">
                 <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -423,123 +315,128 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
                       <Tag size={20} className="text-primary-500" />
                       Quản lý nhóm khách hàng
                     </div>
-                    <p className="mt-1 text-sm text-foreground-muted">
-                      Phân loại khách hàng để áp dụng chính sách giá và chiết khấu.
-                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditGroupMode((v) => !v)
+                      if (editGroupMode) setGroupForm(emptyGroupForm)
+                    }}
+                    className={`inline-flex h-9 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition-colors ${editGroupMode
+                      ? 'border-primary-500/60 bg-primary-500/10 text-primary-400 hover:bg-primary-500/20'
+                      : 'border-border text-foreground-muted hover:text-foreground'
+                      }`}
+                  >
+                    {editGroupMode ? <X size={14} /> : <Pencil size={14} />}
+                    {editGroupMode ? 'Đóng' : 'Cập nhật'}
+                  </button>
                 </div>
 
-                <div className="mb-6 grid gap-4 xl:grid-cols-[1.4fr_1fr_140px_1.5fr_auto]">
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-medium text-foreground-muted">Tên nhóm</span>
-                    <input
-                      value={groupForm.name}
-                      onChange={(event) => setGroupForm((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="Khách lẻ"
-                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                    />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-medium text-foreground-muted">Chính sách giá</span>
-                    <select
-                      value={groupForm.pricePolicy}
-                      onChange={(event) => setGroupForm((current) => ({ ...current, pricePolicy: event.target.value }))}
-                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                    >
-                      <option value="Giá lẻ">Giá lẻ</option>
-                      <option value="Giá sỉ">Giá sỉ</option>
-                      {priceBooks.map((pb) => (
-                        <option key={pb.id} value={pb.name}>{pb.name}</option>
+                {editGroupMode && (
+                  <>
+                    <div className={`mb-6 grid gap-4 xl:grid-cols-[1.4fr_1fr_140px_auto] transition-all ${groupForm.id ? 'rounded-2xl border-2 border-primary-500/60 bg-primary-500/5 p-4 -mx-2' : ''
+                      }`}>
+                      {groupForm.id && (
+                        <div className="col-span-full flex items-center gap-2 text-sm font-semibold text-primary-400 mb-1">
+                          <Pencil size={14} />
+                          Đang sửa nhóm: <span className="text-foreground font-bold">{groupForm.name || '...'}</span>
+                        </div>
+                      )}
+                      <label className="space-y-1.5">
+                        <span className="text-xs font-medium text-foreground-muted">Tên nhóm</span>
+                        <input
+                          value={groupForm.name}
+                          onChange={(event) => setGroupForm((current) => ({ ...current, name: event.target.value }))}
+                          placeholder="Khách lẻ"
+                          className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                        />
+                      </label>
+                      <label className="space-y-1.5">
+                        <span className="text-xs font-medium text-foreground-muted">Bảng giá</span>
+                        <select
+                          value={groupForm.priceBookId}
+                          onChange={(event) => setGroupForm((current) => ({ ...current, priceBookId: event.target.value }))}
+                          className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                        >
+                          <option value="">Giá lẻ (mặc định)</option>
+                          {priceBooks.map((pb) => (
+                            <option key={pb.id} value={pb.id}>{pb.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-1.5">
+                        <span className="text-xs font-medium text-foreground-muted">Chiết khấu (%)</span>
+                        <input
+                          type="number"
+                          value={groupForm.discount}
+                          onChange={(event) => setGroupForm((current) => ({ ...current, discount: Number(event.target.value) }))}
+                          placeholder="0"
+                          className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                        />
+                      </label>
+                      <label className="space-y-1.5">
+                        <span className="text-xs font-medium text-foreground-muted">&nbsp;</span>
+                        <button
+                          type="button"
+                          onClick={() => groupMutation.mutate(groupForm)}
+                          disabled={groupMutation.isPending || !groupForm.name.trim()}
+                          data-hotkey-enter
+                          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                        >
+                          {groupMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                          {groupForm.id ? 'Lưu nhóm' : 'Thêm nhóm'}
+                        </button>
+                      </label>
+                      {groupForm.id && (
+                        <button
+                          type="button"
+                          onClick={() => setGroupForm(emptyGroupForm)}
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground-muted transition-colors hover:text-foreground self-end"
+                        >
+                          <X size={14} />
+                          Hủy sửa
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="mb-6 flex items-center gap-2">
+                      {GROUP_COLOR_OPTIONS.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setGroupForm((current) => ({ ...current, color }))}
+                          className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-105 ${groupForm.color === color ? 'border-white' : 'border-transparent'
+                            }`}
+                          style={{ backgroundColor: color }}
+                        />
                       ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-medium text-foreground-muted">Chiết khấu (%)</span>
-                    <input
-                      type="number"
-                      value={groupForm.discount}
-                      onChange={(event) => setGroupForm((current) => ({ ...current, discount: Number(event.target.value) }))}
-                      placeholder="0"
-                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                    />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-medium text-foreground-muted">Mô tả</span>
-                    <input
-                      value={groupForm.description}
-                      onChange={(event) => setGroupForm((current) => ({ ...current, description: event.target.value }))}
-                      placeholder="Mô tả nhóm"
-                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-                    />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-medium text-foreground-muted">&nbsp;</span>
-                    <button
-                      type="button"
-                      onClick={() => groupMutation.mutate(groupForm)}
-                      disabled={groupMutation.isPending || !groupForm.name.trim()}
-                      data-hotkey-enter
-                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-                    >
-                      {groupMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                      {groupForm.id ? 'Lưu nhóm' : 'Thêm nhóm'}
-                    </button>
-                  </label>
-                  {groupForm.id && (
-                    <button
-                      type="button"
-                      onClick={() => setGroupForm({
-                        id: '',
-                        name: '',
-                        color: GROUP_COLOR_OPTIONS[0],
-                        pricePolicy: 'Giá lẻ',
-                        discount: 0,
-                        description: '',
-                        isDefault: false,
-                      })}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground-muted transition-colors hover:text-foreground self-end"
-                    >
-                      <X size={14} />
-                      Hủy sửa
-                    </button>
-                  )}
-                </div>
-
-                <div className="mb-6 flex items-center gap-2">
-                  {GROUP_COLOR_OPTIONS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setGroupForm((current) => ({ ...current, color }))}
-                      className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-105 ${groupForm.color === color ? 'border-white' : 'border-transparent'
-                        }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="overflow-hidden rounded-2xl border border-border/60">
-                  <table className="w-full min-w-[1100px]">
+                  <table className="w-full">
                     <thead className="bg-background/60">
                       <tr className="border-b border-border/60">
                         <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Nhóm</th>
                         <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Chính sách giá</th>
                         <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Chiết khấu</th>
-                        <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Mô tả</th>
                         <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Mặc định</th>
-                        <th className="px-5 py-4 text-right text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Thao tác</th>
+                        {editGroupMode && (
+                          <th className="px-5 py-4 text-right text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Thao tác</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
                       {isLoadingGroups ? (
                         <tr>
-                          <td colSpan={6} className="px-5 py-12 text-center text-foreground-muted">
+                          <td colSpan={editGroupMode ? 4 : 3} className="px-5 py-12 text-center text-foreground-muted">
                             <Loader2 size={18} className="mx-auto animate-spin" />
                           </td>
                         </tr>
                       ) : customerGroups.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-5 py-12 text-center text-foreground-muted">
+                          <td colSpan={editGroupMode ? 4 : 3} className="px-5 py-12 text-center text-foreground-muted">
                             Chưa có nhóm khách hàng nào.
                           </td>
                         </tr>
@@ -552,53 +449,57 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
                                 {group.name}
                               </div>
                             </td>
-                            <td className="px-5 py-4 text-foreground">{group.pricePolicy}</td>
+                            <td className="px-5 py-4 text-foreground">
+                              {group.priceBook?.name ?? group.pricePolicy}
+                            </td>
                             <td className="px-5 py-4">
                               <span className="inline-flex rounded-full bg-primary-500/10 px-3 py-1 text-sm font-semibold text-primary-400">
                                 -{group.discount}%
                               </span>
                             </td>
-                            <td className="px-5 py-4 text-foreground">{group.description || '—'}</td>
                             <td className="px-5 py-4">
                               <button
                                 type="button"
-                                onClick={() => setDefaultGroupMutation.mutate(group.id)}
-                                className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${group.isDefault ? 'bg-yellow-400/10 text-yellow-300' : 'text-foreground-muted hover:text-yellow-300'
+                                onClick={() => editGroupMode && setDefaultGroupMutation.mutate(group.id)}
+                                disabled={!editGroupMode}
+                                className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${group.isDefault ? 'bg-yellow-400/10 text-yellow-300' : editGroupMode ? 'text-foreground-muted hover:text-yellow-300' : 'text-foreground-muted opacity-50 cursor-default'
                                   }`}
                               >
                                 <Star size={16} fill={group.isDefault ? 'currentColor' : 'none'} />
                               </button>
                             </td>
-                            <td className="px-5 py-4">
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setGroupForm({
-                                      id: group.id,
-                                      name: group.name,
-                                      color: group.color,
-                                      pricePolicy: group.pricePolicy,
-                                      discount: Number(group.discount || 0),
-                                      description: group.description || '',
-                                      isDefault: group.isDefault,
-                                    })
-                                  }
-                                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-foreground-muted transition-colors hover:bg-background hover:text-foreground"
-                                >
-                                  <Pencil size={15} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (confirm(`Xóa nhóm "${group.name}"?`)) deleteGroupMutation.mutate(group.id)
-                                  }}
-                                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-foreground-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              </div>
-                            </td>
+                            {editGroupMode && (
+                              <td className="px-5 py-4">
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setGroupForm({
+                                        id: group.id,
+                                        name: group.name,
+                                        color: group.color,
+                                        priceBookId: group.priceBookId ?? '',
+                                        discount: Number(group.discount || 0),
+                                        description: group.description || '',
+                                        isDefault: group.isDefault,
+                                      })
+                                    }
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-foreground-muted transition-colors hover:bg-background hover:text-foreground"
+                                  >
+                                    <Pencil size={15} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (confirm(`Xóa nhóm "${group.name}"?`)) deleteGroupMutation.mutate(group.id)
+                                    }}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-foreground-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         ))
                       )}
@@ -607,40 +508,162 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-border/70 bg-background-secondary p-6 shadow-sm">
-                <div className="mb-5 flex items-center gap-2 text-lg font-bold text-foreground">
-                  <Trophy size={18} className="text-yellow-400" />
-                  Top khách hàng theo điểm
-                </div>
-
-                <div className="space-y-4">
-                  {isLoadingTopCustomers ? (
-                    <div className="flex h-24 items-center justify-center text-foreground-muted">
-                      <Loader2 size={18} className="animate-spin" />
+              {/* ─── Cấu hình tích điểm ──────────────────────── */}
+              <div data-hotkey-scope className="rounded-3xl border border-border/70 bg-background-secondary p-6 shadow-sm">
+                <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 text-lg font-bold text-foreground">
+                      <Trophy size={20} className="text-yellow-400" />
+                      Cấu hình tích điểm
                     </div>
-                  ) : (
-                    topCustomers.map((customer: any, index: number) => (
-                      <div key={customer.id} className="flex items-center justify-between gap-4 rounded-2xl border border-border/50 bg-background px-4 py-3">
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-yellow-400/15 text-sm font-bold text-yellow-300">
-                            {index + 1}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-foreground">{customer.fullName}</div>
-                            <div className="mt-0.5 text-sm text-foreground-muted">{customer.phone || '—'}</div>
-                          </div>
-                        </div>
-
-                        <div className="text-right">
-                          <div className="font-bold text-yellow-300">{customer.points ?? 0} điểm</div>
-                          <div className="mt-1">
-                            <TierChip tier={(customer.tier || 'BRONZE') as LoyaltyTierRule['tier']} />
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editLoyaltyMode ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => { setForm(parseLoyaltyConfig(configs)); setEditLoyaltyMode(false) }}
+                          data-hotkey-esc
+                          className="h-10 rounded-xl border border-border px-4 text-sm font-medium text-foreground-muted transition-colors hover:text-foreground"
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => saveConfigMutation.mutate(form)}
+                          disabled={saveConfigMutation.isPending || isLoadingConfigs || !hasUnsavedConfig}
+                          data-hotkey-enter
+                          className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                        >
+                          {saveConfigMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                          Lưu
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEditLoyaltyMode(true)}
+                        className="inline-flex h-9 items-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground-muted transition-colors hover:text-foreground"
+                      >
+                        <Pencil size={14} />
+                        Cập nhật
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {editLoyaltyMode ? (
+                  <>
+                    <div className="grid gap-4 xl:grid-cols-4">
+                      <label className="space-y-2">
+                        <span className="text-sm text-foreground-muted">Số tiền / 1 điểm</span>
+                        <input
+                          type="number"
+                          value={form.loyaltySpendPerPoint}
+                          onChange={(event) => setForm((current) => ({ ...current, loyaltySpendPerPoint: Number(event.target.value) }))}
+                          className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-sm text-foreground-muted">1 điểm quy đổi</span>
+                        <input
+                          type="number"
+                          value={form.loyaltyPointValue}
+                          onChange={(event) => setForm((current) => ({ ...current, loyaltyPointValue: Number(event.target.value) }))}
+                          className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-sm text-foreground-muted">Điểm hết hạn (tháng)</span>
+                        <input
+                          type="number"
+                          value={form.loyaltyPointExpiryMonths}
+                          onChange={(event) => setForm((current) => ({ ...current, loyaltyPointExpiryMonths: Number(event.target.value) }))}
+                          className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-sm text-foreground-muted">Giữ hạng (tháng)</span>
+                        <input
+                          type="number"
+                          value={form.loyaltyTierRetentionMonths}
+                          onChange={(event) => setForm((current) => ({ ...current, loyaltyTierRetentionMonths: Number(event.target.value) }))}
+                          className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-8 overflow-hidden rounded-2xl border border-border/60">
+                      <table className="w-full min-w-[900px]">
+                        <thead className="bg-background/60">
+                          <tr className="border-b border-border/60">
+                            <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Hạng</th>
+                            <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Ngưỡng chi tiêu (VND)</th>
+                            <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Chiết khấu (%)</th>
+                            <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Ưu đãi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {form.loyaltyTierRules.map((rule) => (
+                            <tr key={rule.tier} className="border-b border-border/50 last:border-b-0">
+                              <td className="px-5 py-4">
+                                <TierChip tier={rule.tier} />
+                              </td>
+                              <td className="px-5 py-3">
+                                <input
+                                  type="number"
+                                  value={rule.minSpent}
+                                  onChange={(event) => handleTierRuleChange(rule.tier, 'minSpent', Number(event.target.value))}
+                                  className="h-10 w-[200px] rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                                />
+                              </td>
+                              <td className="px-5 py-3">
+                                <input
+                                  type="number"
+                                  value={rule.discount}
+                                  onChange={(event) => handleTierRuleChange(rule.tier, 'discount', Number(event.target.value))}
+                                  className="h-10 w-[120px] rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                                />
+                              </td>
+                              <td className="px-5 py-3">
+                                <input
+                                  value={rule.benefit}
+                                  onChange={(event) => handleTierRuleChange(rule.tier, 'benefit', event.target.value)}
+                                  className="h-10 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div className="overflow-hidden rounded-2xl border border-border/60">
+                    <table className="w-full min-w-[900px]">
+                      <thead className="bg-background/60">
+                        <tr className="border-b border-border/60">
+                          <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Hạng</th>
+                          <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Ngưỡng chi tiêu (VND)</th>
+                          <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Chiết khấu (%)</th>
+                          <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-[0.12em] text-foreground-muted">Ưu đãi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {form.loyaltyTierRules.map((rule) => (
+                          <tr key={rule.tier} className="border-b border-border/50 last:border-b-0">
+                            <td className="px-5 py-4"><TierChip tier={rule.tier} /></td>
+                            <td className="px-5 py-4 text-foreground">{rule.minSpent.toLocaleString('vi-VN')}</td>
+                            <td className="px-5 py-4">
+                              <span className="inline-flex rounded-full bg-primary-500/10 px-3 py-1 text-sm font-semibold text-primary-400">{rule.discount}%</span>
+                            </td>
+                            <td className="px-5 py-4 text-foreground-muted text-sm">{rule.benefit || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
             </div>

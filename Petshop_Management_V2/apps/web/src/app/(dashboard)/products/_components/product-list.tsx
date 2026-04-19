@@ -20,9 +20,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { getProductVariantGroupKey } from '@petshop/shared'
 import { inventoryApi } from '@/lib/api/inventory.api'
-import { getDisplayBranchStocks, getResolvedVariantLabels, parseConversionRate } from '@/lib/inventory-conversion-stock'
+import { getDisplayBranchStocks, getResolvedVariantLabels, groupVariantsWithConversions, parseConversionRate } from '@/lib/inventory-conversion-stock'
 import { toast } from 'sonner'
 import { ProductFormModal } from './product-form-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
@@ -131,21 +130,19 @@ function buildVariantGroups(product: any) {
     }
   })
 
-  const variants = items.filter((item) => item.kind === 'variant')
-  const conversions = items.filter((item) => item.kind === 'conversion')
-  const usedConversionIds = new Set<string>()
-  const groups: VariantGroup[] = variants.map((item) => {
-    const children = conversions.filter(
-      (child) => getProductVariantGroupKey(product.name, child) === getProductVariantGroupKey(product.name, item),
-    )
-    children.forEach((child) => usedConversionIds.add(child.id))
-    return { item, children }
-  })
+  const itemMap = new Map<string, ListVariantItem>(items.map((item) => [item.id, item]))
+  const grouped = groupVariantsWithConversions(rawVariants, product.name)
+  const groups: VariantGroup[] = grouped.groups.map(({ item, children }) => ({
+    item: itemMap.get(item.id)!,
+    children: children.map((child) => itemMap.get(child.id)).filter((child): child is ListVariantItem => Boolean(child)),
+  }))
 
   return {
     groups,
-    looseConversions: conversions.filter((item) => !usedConversionIds.has(item.id)),
-    totalChildren: items.length,
+    looseConversions: grouped.looseConversions
+      .map((item) => itemMap.get(item.id))
+      .filter((item): item is ListVariantItem => Boolean(item)),
+    totalChildren: grouped.totalItems,
   }
 }
 

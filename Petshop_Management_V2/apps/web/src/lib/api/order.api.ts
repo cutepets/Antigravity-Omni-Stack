@@ -158,6 +158,7 @@ export interface OrderListParams {
   status?: string;
   customerId?: string;
   productId?: string;
+  staffId?: string;
   page?: number;
   limit?: number;
   dateFrom?: string;

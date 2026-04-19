@@ -5,17 +5,17 @@ import * as Popover from '@radix-ui/react-popover'
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, addMonths, endOfMonth, endOfWeek, isAfter, isBefore, isSameDay, isSameMonth, startOfMonth, startOfWeek } from 'date-fns'
-import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, ChevronDown, Pencil, Plus, RefreshCw, Save, X } from 'lucide-react'
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, ChevronDown, Copy, Pencil, Plus, RefreshCw, Save, X } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { hotelApi } from '@/lib/api/hotel.api'
 import {
   pricingApi,
+  type HotelExtraService,
   type HolidayCalendarDate,
   type PricingDayType,
   type PricingServiceType,
   type ServiceWeightBand,
 } from '@/lib/api/pricing.api'
-import { settingsApi } from '@/lib/api/settings.api'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { useAuthStore } from '@/stores/auth.store'
 import { cn, formatCurrency } from '@/lib/utils'
@@ -52,6 +52,15 @@ type FlatRateDraft = {
   maxWeight: string
   price: string
   durationMinutes: string
+}
+
+type HotelExtraServiceDraft = {
+  key: string
+  sku: string
+  name: string
+  minWeight: string
+  maxWeight: string
+  price: string
 }
 
 type HotelDraft = {
@@ -106,6 +115,8 @@ const HOTEL_INCLUDED = [
   'Ngày ăn 2 bữa với hạt mix thịt sấy, pate, ức gà, thịt xay, cơm.',
   'Gửi clip bé vào tối hàng ngày qua Zalo.',
 ]
+
+const CAT_SPECIES = SPECIES_OPTIONS[1]?.value ?? 'MÃ¨o'
 
 const GROOMING_EXTRA_SERVICES = [
   { name: 'Tắm nấm, bọ <5kg', price: '30k' },
@@ -334,6 +345,35 @@ function getHotelRuleKey(weightBandId: string, dayType: PricingDayType, species 
 
 function getHotelBandGroupKey(band: Pick<ServiceWeightBand, 'label' | 'minWeight' | 'maxWeight'>) {
   return `${band.label}:${band.minWeight}:${band.maxWeight ?? 'INF'}`
+}
+
+function getGroomingBandMatchKey(label: string, minWeight: number, maxWeight: number | null) {
+  return `${label.trim().toLocaleLowerCase()}:${minWeight}:${maxWeight ?? 'INF'}`
+}
+
+function getSpaFlatRuleMatchKey(name: string, minWeight: number | null, maxWeight: number | null) {
+  return `${name.trim().toLocaleLowerCase()}:${minWeight ?? 'NULL'}:${maxWeight ?? 'INF'}`
+}
+
+function createHotelExtraServiceDraft(base?: Partial<HotelExtraServiceDraft>): HotelExtraServiceDraft {
+  return {
+    key: base?.key ?? createDraftKey('hotel-extra'),
+    sku: base?.sku ?? '',
+    name: base?.name ?? '',
+    minWeight: base?.minWeight ?? '',
+    maxWeight: base?.maxWeight ?? '',
+    price: base?.price ?? '',
+  }
+}
+
+function hasHotelExtraServiceContent(draft: HotelExtraServiceDraft) {
+  return Boolean(
+    draft.sku.trim() ||
+    draft.name.trim() ||
+    draft.minWeight.trim() ||
+    draft.maxWeight.trim() ||
+    draft.price.trim(),
+  )
 }
 
 function buildBandDraft(band: ServiceWeightBand): BandDraft {
@@ -947,6 +987,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const [spaServiceColumns, setSpaServiceColumns] = useState<SpaServiceColumn[]>([])
   const [spaDrafts, setSpaDrafts] = useState<Record<string, SpaDraft>>({})
   const [flatRateDrafts, setFlatRateDrafts] = useState<FlatRateDraft[]>([])
+  const [hotelExtraServiceDrafts, setHotelExtraServiceDrafts] = useState<HotelExtraServiceDraft[]>([])
   const [hotelDrafts, setHotelDrafts] = useState<Record<string, HotelDraft>>({})
   const [removedBandIds, setRemovedBandIds] = useState<string[]>([])
   const [editingBandKey, setEditingBandKey] = useState<string | null>(null)
@@ -993,10 +1034,17 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     enabled: mode === 'HOTEL',
   })
 
+  const hotelExtraServicesQuery = useQuery({
+    queryKey: ['pricing', 'hotel-extra-services'],
+    queryFn: () => pricingApi.getHotelExtraServices(),
+    enabled: mode === 'HOTEL',
+  })
+
   const rawBands = useMemo(() => bandsQuery.data ?? [], [bandsQuery.data])
   const spaRules = useMemo(() => spaRulesQuery.data ?? [], [spaRulesQuery.data])
   const hotelRules = useMemo(() => hotelRulesQuery.data ?? [], [hotelRulesQuery.data])
   const holidays = useMemo(() => holidaysQuery.data ?? [], [holidaysQuery.data])
+  const hotelExtraServices = useMemo(() => hotelExtraServicesQuery.data ?? [], [hotelExtraServicesQuery.data])
 
   const bands = useMemo(() => {
     if (mode !== 'HOTEL') return rawBands
@@ -1050,11 +1098,10 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     const columns = buildSpaServiceColumns(sourcePackageCodes)
     const serviceKeyByCode = new Map(columns.map((column) => [column.packageCode, column.key]))
     const nextDrafts: Record<string, SpaDraft> = {}
-    for (const rule of spaRules) {
-      if (!rule.weightBandId) continue  // flat-rate rules handled separately
+    for (const rule of weightBandedRules) {
       const serviceKey = serviceKeyByCode.get(rule.packageCode)
       if (!serviceKey) continue
-      nextDrafts[getSpaRuleKey(rule.weightBandId, serviceKey)] = {
+      nextDrafts[getSpaRuleKey(rule.weightBandId!, serviceKey)] = {
         id: rule.id,
         sku: rule.sku ?? '',
         price: formatCurrencyInput(rule.price),
@@ -1063,21 +1110,26 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     }
     setSpaServiceColumns(columns)
     setSpaDrafts(nextDrafts)
-
-    // Initialize flat-rate drafts (rules with no weightBandId)
-    const flatRates = spaRules
-      .filter((rule) => !rule.weightBandId)
-      .map((rule) => ({
-        key: rule.id,
-        id: rule.id,
-        sku: rule.sku ?? '',
-        name: rule.packageCode,
-        minWeight: '',
-        maxWeight: '',
-        price: formatCurrencyInput(rule.price),
-        durationMinutes: formatIntegerInput(rule.durationMinutes),
-      }))
-    setFlatRateDrafts(flatRates)
+    setFlatRateDrafts(
+      spaRules
+        .filter((rule) => !rule.weightBandId)
+        .sort((left, right) => {
+          const leftMinWeight = left.minWeight ?? -1
+          const rightMinWeight = right.minWeight ?? -1
+          if (leftMinWeight !== rightMinWeight) return leftMinWeight - rightMinWeight
+          return left.packageCode.localeCompare(right.packageCode)
+        })
+        .map((rule) => ({
+          key: rule.id,
+          id: rule.id,
+          sku: rule.sku ?? '',
+          name: rule.packageCode,
+          minWeight: formatWeightInput(rule.minWeight),
+          maxWeight: formatWeightInput(rule.maxWeight),
+          price: formatCurrencyInput(rule.price),
+          durationMinutes: formatIntegerInput(rule.durationMinutes),
+        })),
+    )
   }, [mode, spaRules])
 
   useEffect(() => {
@@ -1101,6 +1153,21 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     }
     setHotelDrafts(nextDrafts)
   }, [hotelBandIdMap, hotelRules, mode])
+
+  useEffect(() => {
+    if (mode !== 'HOTEL') return
+    setHotelExtraServiceDrafts(
+      hotelExtraServices.map((service: HotelExtraService) =>
+        createHotelExtraServiceDraft({
+          sku: service.sku ?? '',
+          name: service.name,
+          minWeight: formatWeightInput(service.minWeight),
+          maxWeight: formatWeightInput(service.maxWeight),
+          price: formatCurrencyInput(service.price),
+        }),
+      ),
+    )
+  }, [hotelExtraServices, mode])
 
   const invalidSpaCells = useMemo(() => {
     if (mode !== 'GROOMING') return 0
@@ -1216,6 +1283,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const [isSavingBands, setIsSavingBands] = useState(false)
   const [isSavingGrooming, setIsSavingGrooming] = useState(false)
   const [isSavingHotel, setIsSavingHotel] = useState(false)
+  const [copyingServiceKey, setCopyingServiceKey] = useState<string | null>(null)
 
   const saveAllBands = async () => {
     if (!ensureCanManagePricing()) return
@@ -1304,12 +1372,223 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     )
   }
 
+  const copySpaServiceToCat = async (serviceKey: string) => {
+    if (!ensureCanManagePricing()) return
+    if (species === CAT_SPECIES) {
+      toast.error('Äang á»Ÿ báº£ng giÃ¡ mÃ¨o')
+      return
+    }
+
+    const service = spaServiceColumns.find((column) => column.key === serviceKey)
+    const packageCode = service?.packageCode.trim()
+    if (!packageCode) {
+      toast.error('Cáº§n nháº­p tÃªn dá»‹ch vá»¥ trÆ°á»›c khi sao chÃ©p')
+      return
+    }
+
+    const pricedBands = bandDrafts.flatMap((band, index) => {
+      const minWeight = parseWeightInput(band.minWeight)
+      if (!band.label.trim() || minWeight === null) return []
+      const draft = spaDrafts[getSpaRuleKey(band.key, serviceKey)]
+      const price = parseCurrencyInput(draft?.price ?? '')
+      if (price === null || price <= 0) return []
+      return [{
+        band,
+        index,
+        minWeight,
+        maxWeight: parseWeightInput(band.maxWeight),
+        draft,
+        price,
+      }]
+    })
+
+    if (pricedBands.length === 0) {
+      toast.error(`Dá»‹ch vá»¥ "${packageCode}" chÆ°a cÃ³ giÃ¡ nÃ o Ä‘á»ƒ sao chÃ©p`)
+      return
+    }
+
+    setCopyingServiceKey(`service:${serviceKey}`)
+    try {
+      const [catBands, catRules] = await Promise.all([
+        pricingApi.getWeightBands({ serviceType: 'GROOMING', species: CAT_SPECIES, isActive: true }),
+        pricingApi.getSpaRules({ species: CAT_SPECIES, isActive: true }),
+      ])
+
+      const catBandBySignature = new Map(
+        catBands.map((band) => [getGroomingBandMatchKey(band.label, band.minWeight, band.maxWeight), band] as const),
+      )
+      const targetBandIds = new Map<string, string>()
+
+      for (const { band, index, minWeight, maxWeight } of pricedBands) {
+        const signature = getGroomingBandMatchKey(band.label, minWeight, maxWeight)
+        const matchedBand = catBandBySignature.get(signature)
+        const savedBand = await pricingApi.upsertWeightBand({
+          id: matchedBand?.id,
+          serviceType: 'GROOMING',
+          species: CAT_SPECIES,
+          label: band.label.trim(),
+          minWeight,
+          maxWeight,
+          sortOrder: index,
+          isActive: true,
+        })
+        catBandBySignature.set(signature, savedBand)
+        targetBandIds.set(band.key, savedBand.id)
+      }
+
+      const preservedRules = catRules
+        .filter((rule) => rule.packageCode !== packageCode)
+        .map((rule) => ({
+          id: rule.id,
+          species: rule.species ?? CAT_SPECIES,
+          packageCode: rule.packageCode,
+          weightBandId: rule.weightBandId ?? undefined,
+          minWeight: rule.minWeight ?? null,
+          maxWeight: rule.maxWeight ?? null,
+          sku: rule.sku ?? null,
+          price: rule.price,
+          durationMinutes: rule.durationMinutes ?? null,
+          isActive: rule.isActive,
+        }))
+
+      const copiedRules = pricedBands.flatMap(({ band, draft, price }) => {
+        const weightBandId = targetBandIds.get(band.key)
+        if (!weightBandId) return []
+        return [{
+          species: CAT_SPECIES,
+          packageCode,
+          weightBandId,
+          minWeight: null,
+          maxWeight: null,
+          sku: draft?.sku || null,
+          price,
+          durationMinutes: parseIntegerInput(draft?.durationMinutes ?? '') ?? null,
+          isActive: true,
+        }]
+      })
+
+      await pricingApi.bulkUpsertSpaRules({
+        species: CAT_SPECIES,
+        rules: [...preservedRules, ...copiedRules],
+      })
+
+      invalidatePricing()
+      toast.success(`ÄÃ£ sao chÃ©p "${packageCode}" sang báº£ng mÃ¨o`)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || `KhÃ´ng sao chÃ©p Ä‘Æ°á»£c "${packageCode}" sang báº£ng mÃ¨o`)
+    } finally {
+      setCopyingServiceKey(null)
+    }
+  }
+
+  const copyFlatRateServiceToCat = async (draftKey: string) => {
+    if (!ensureCanManagePricing()) return
+    if (species === CAT_SPECIES) {
+      toast.error('Đang ở bảng giá mèo')
+      return
+    }
+
+    const draft = flatRateDrafts.find((item) => item.key === draftKey)
+    const packageCode = draft?.name.trim()
+    const price = parseCurrencyInput(draft?.price ?? '')
+    const minWeight = parseWeightInput(draft?.minWeight ?? '')
+    const maxWeight = parseWeightInput(draft?.maxWeight ?? '')
+    if (!packageCode) {
+      toast.error('Cần nhập tên dịch vụ trước khi sao chép')
+      return
+    }
+    if (price === null || price <= 0) {
+      toast.error(`Dịch vụ "${packageCode}" chưa có giá để sao chép`)
+      return
+    }
+    if (minWeight === null && maxWeight !== null) {
+      toast.error('Khoảng cân của dịch vụ khác chưa hợp lệ')
+      return
+    }
+    if (minWeight !== null && maxWeight !== null && maxWeight <= minWeight) {
+      toast.error('Khoảng cân của dịch vụ khác chưa hợp lệ')
+      return
+    }
+
+    const draftMatchKey = getSpaFlatRuleMatchKey(packageCode, minWeight, maxWeight)
+    setCopyingServiceKey(`flat:${draftKey}`)
+    try {
+      const catRules = await pricingApi.getSpaRules({ species: CAT_SPECIES, isActive: true })
+      const preservedRules = catRules
+        .filter((rule) => rule.weightBandId || getSpaFlatRuleMatchKey(rule.packageCode, rule.minWeight ?? null, rule.maxWeight ?? null) !== draftMatchKey)
+        .map((rule) => ({
+          id: rule.id,
+          species: rule.species ?? CAT_SPECIES,
+          packageCode: rule.packageCode,
+          weightBandId: rule.weightBandId ?? undefined,
+          minWeight: rule.minWeight ?? null,
+          maxWeight: rule.maxWeight ?? null,
+          sku: rule.sku ?? null,
+          price: rule.price,
+          durationMinutes: rule.durationMinutes ?? null,
+          isActive: rule.isActive,
+        }))
+
+      await pricingApi.bulkUpsertSpaRules({
+        species: CAT_SPECIES,
+        rules: [
+          ...preservedRules,
+          {
+            species: CAT_SPECIES,
+            packageCode,
+            weightBandId: undefined,
+            minWeight,
+            maxWeight,
+            sku: draft?.sku || null,
+            price,
+            durationMinutes: parseIntegerInput(draft?.durationMinutes ?? '') ?? null,
+            isActive: true,
+          },
+        ],
+      })
+
+      invalidatePricing()
+      toast.success(`Đã sao chép "${packageCode}" sang bảng mèo`)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || `Không sao chép được "${packageCode}" sang bảng mèo`)
+    } finally {
+      setCopyingServiceKey(null)
+    }
+  }
+
   const saveGroomingMatrix = async () => {
     if (!ensureCanManagePricing()) return
     const invalidBand = bandDrafts.some((draft) => !draft.label.trim() || parseWeightInput(draft.minWeight) === null)
     if (invalidBand) {
       toast.error('Cần nhập tên hạng cân và min kg cho tất cả các dòng')
       return
+    }
+
+    const invalidFlatRate = flatRateDrafts.some((draft) => {
+      if (!draft.name.trim()) return false
+      const minWeight = parseWeightInput(draft.minWeight)
+      const maxWeight = parseWeightInput(draft.maxWeight)
+      if (minWeight === null && maxWeight !== null) return true
+      if (minWeight !== null && maxWeight !== null && maxWeight <= minWeight) return true
+      return false
+    })
+    if (invalidFlatRate) {
+      toast.error('Dịch vụ khác có khoảng cân không hợp lệ')
+      return
+    }
+    const duplicateFlatRateSignatures = new Set<string>()
+    for (const draft of flatRateDrafts) {
+      if (!draft.name.trim()) continue
+      const signature = getSpaFlatRuleMatchKey(
+        draft.name,
+        parseWeightInput(draft.minWeight),
+        parseWeightInput(draft.maxWeight),
+      )
+      if (duplicateFlatRateSignatures.has(signature)) {
+        toast.error('Dịch vụ khác đang bị trùng tên và khoảng cân')
+        return
+      }
+      duplicateFlatRateSignatures.add(signature)
     }
 
     const normalizedServices = spaServiceColumns.map((column) => ({
@@ -1378,8 +1657,6 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
           }]
         }),
       )
-
-      // Also include flat-rate rules (no weight band)
       const flatRateRules = flatRateDrafts
         .filter((fr) => fr.name.trim())
         .map((fr) => ({
@@ -1387,6 +1664,8 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
           species,
           packageCode: fr.name.trim(),
           weightBandId: undefined,
+          minWeight: parseWeightInput(fr.minWeight),
+          maxWeight: parseWeightInput(fr.maxWeight),
           sku: fr.sku || null,
           price: parseCurrencyInput(fr.price) ?? 0,
           durationMinutes: parseIntegerInput(fr.durationMinutes ?? '') ?? null,
@@ -1418,6 +1697,42 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     if (invalidBand) {
       toast.error('Cần nhập tên hạng cân và min kg cho tất cả các dòng')
       return
+    }
+
+    const invalidHotelExtraService = hotelExtraServiceDrafts.some((draft) => {
+      if (!hasHotelExtraServiceContent(draft)) return false
+      const minWeight = parseWeightInput(draft.minWeight)
+      const maxWeight = parseWeightInput(draft.maxWeight)
+      const hasMinWeightInput = draft.minWeight.trim().length > 0
+      const hasMaxWeightInput = draft.maxWeight.trim().length > 0
+      const price = parseCurrencyInput(draft.price)
+
+      if (!draft.name.trim()) return true
+      if (price === null || price <= 0) return true
+      if (hasMinWeightInput && minWeight === null) return true
+      if (hasMaxWeightInput && maxWeight === null) return true
+      if (minWeight === null && maxWeight !== null) return true
+      if (minWeight !== null && maxWeight !== null && maxWeight <= minWeight) return true
+      return false
+    })
+    if (invalidHotelExtraService) {
+      toast.error('Dá»‹ch vá»¥ khÃ¡c Hotel Ä‘ang cÃ³ dÃ²ng thiáº¿u tÃªn, giÃ¡ hoáº·c khoáº£ng cÃ¢n khÃ´ng há»£p lá»‡')
+      return
+    }
+
+    const duplicateHotelExtraSignatures = new Set<string>()
+    for (const draft of hotelExtraServiceDrafts) {
+      if (!hasHotelExtraServiceContent(draft)) continue
+      const signature = getSpaFlatRuleMatchKey(
+        draft.name,
+        parseWeightInput(draft.minWeight),
+        parseWeightInput(draft.maxWeight),
+      )
+      if (duplicateHotelExtraSignatures.has(signature)) {
+        toast.error('Dá»‹ch vá»¥ khÃ¡c Hotel Ä‘ang bá»‹ trÃ¹ng tÃªn vÃ  khoáº£ng cÃ¢n')
+        return
+      }
+      duplicateHotelExtraSignatures.add(signature)
     }
 
     setIsSavingHotel(true)
@@ -1468,7 +1783,20 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
           return false
         }
 
-        await pricingApi.bulkUpsertHotelRules(rules)
+        const hotelExtraServicesPayload = hotelExtraServiceDrafts
+          .filter((draft) => hasHotelExtraServiceContent(draft))
+          .map((draft) => ({
+            sku: draft.sku.trim() || null,
+            name: draft.name.trim(),
+            minWeight: parseWeightInput(draft.minWeight),
+            maxWeight: parseWeightInput(draft.maxWeight),
+            price: parseCurrencyInput(draft.price) ?? 0,
+          }))
+
+        await Promise.all([
+          pricingApi.bulkUpsertHotelRules(rules),
+          pricingApi.bulkUpsertHotelExtraServices(hotelExtraServicesPayload),
+        ])
         for (const bandId of removedBandIds) {
           await pricingApi.deactivateWeightBand(bandId)
         }
@@ -1518,16 +1846,16 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       : 'Cấu hình giá theo hạng cân và các gói dịch vụ.'
   const missingCount = mode === 'HOTEL' ? invalidHotelCells : invalidSpaCells
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-4">
       <section className="hidden">
         {/* Title area hidden as it is moved to Top Header */}
       </section>
 
 
 
-      <section className="grid min-h-0 flex-1 gap-4">
+      <section className="grid gap-4">
         {mode === 'GROOMING' ? (
-          <div className="flex flex-col gap-4 min-h-0">
+          <div className="flex flex-col gap-4">
             <GroomingPricingMatrix
               bands={bandDrafts}
               serviceColumns={spaServiceColumns}
@@ -1553,6 +1881,9 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
               setSpecies={setSpecies}
               flatRateDrafts={flatRateDrafts}
               onFlatRateChange={setFlatRateDrafts}
+              onCopyServiceToCat={copySpaServiceToCat}
+              onCopyFlatRateServiceToCat={copyFlatRateServiceToCat}
+              copyingServiceKey={copyingServiceKey}
             />
           </div>
         ) : (
@@ -1573,6 +1904,8 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
             isSaving={isSavingHotel}
             isCreatingPreset={presetBandsMutation.isPending}
             holidays={holidays}
+            hotelExtraServiceDrafts={hotelExtraServiceDrafts}
+            onHotelExtraServiceDraftsChange={setHotelExtraServiceDrafts}
             newHoliday={newHoliday}
             editingHolidayId={editingHolidayId}
             onHolidayDraftChange={updateHolidayDraft}
@@ -1628,6 +1961,8 @@ function UnifiedHotelPricingPanel({
   isSaving,
   isCreatingPreset,
   holidays,
+  hotelExtraServiceDrafts,
+  onHotelExtraServiceDraftsChange,
   newHoliday,
   editingHolidayId,
   onHolidayDraftChange,
@@ -1657,6 +1992,8 @@ function UnifiedHotelPricingPanel({
   isSaving: boolean
   isCreatingPreset: boolean
   holidays: HolidayCalendarDate[]
+  hotelExtraServiceDrafts: HotelExtraServiceDraft[]
+  onHotelExtraServiceDraftsChange: (drafts: HotelExtraServiceDraft[]) => void
   newHoliday: HolidayDraft
   editingHolidayId: string | null
   onHolidayDraftChange: (patch: Partial<HolidayDraft>) => void
@@ -1965,10 +2302,117 @@ function UnifiedHotelPricingPanel({
           canManagePricing={canManagePricing}
           canEditPricing={canEditHotelPricing}
         />
+
+        <HotelExtraServicesPanel
+          drafts={hotelExtraServiceDrafts}
+          onChange={onHotelExtraServiceDraftsChange}
+          canEditPricing={canEditHotelPricing}
+        />
       </div>
     </div>
   )
 }
+
+function HotelExtraServicesPanel({
+  drafts,
+  onChange,
+  canEditPricing,
+}: {
+  drafts: HotelExtraServiceDraft[]
+  onChange: (drafts: HotelExtraServiceDraft[]) => void
+  canEditPricing: boolean
+}) {
+  return (
+    <div className="rounded-[28px] border border-border bg-background-secondary/70 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-black text-foreground">Dịch vụ khác</h3>
+        </div>
+
+        {canEditPricing ? (
+          <button
+            type="button"
+            onClick={() => onChange([...drafts, createHotelExtraServiceDraft()])}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-dashed border-primary-500/35 bg-primary-500/5 px-4 text-sm font-bold text-primary-500 transition-colors hover:bg-primary-500/10"
+          >
+            <Plus size={14} />
+            Thêm
+          </button>
+        ) : null}
+      </div>
+
+      <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-background-base">
+        <div className="custom-scrollbar overflow-x-auto">
+          <div className="grid min-w-[720px] grid-cols-[100px_minmax(0,1fr)_64px_64px_120px_40px] gap-2 border-b border-border bg-background-secondary/60 px-3 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-foreground-muted">
+            <span>SKU</span>
+            <span>Tên dịch vụ</span>
+            <span className="text-center">Từ KG</span>
+            <span className="text-center">Đến KG</span>
+            <span className="text-right">Giá</span>
+            <span />
+          </div>
+
+          {drafts.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-foreground-muted">Chưa có dịch vụ khác cho Hotel.</p>
+          ) : (
+            drafts.map((draft, index) => (
+              <div key={draft.key} className="grid min-w-[720px] grid-cols-[100px_minmax(0,1fr)_64px_64px_120px_40px] items-center gap-2 border-b border-border/70 px-3 py-2.5 last:border-b-0">
+                <input
+                  value={draft.sku}
+                  onChange={(event) => onChange(drafts.map((item, itemIndex) => itemIndex === index ? { ...item, sku: event.target.value } : item))}
+                  disabled={!canEditPricing}
+                  placeholder="-"
+                  className="h-10 rounded-xl border border-border bg-background-secondary/70 px-3 text-[11px] font-black uppercase tracking-[0.14em] text-primary-500 outline-none focus:border-primary-500 disabled:opacity-60"
+                />
+                <input
+                  value={draft.name}
+                  onChange={(event) => onChange(drafts.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))}
+                  disabled={!canEditPricing}
+                  placeholder="Tên dịch vụ"
+                  className="h-10 rounded-xl border border-border bg-background-secondary/70 px-3 text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                />
+                <input
+                  value={draft.minWeight}
+                  onChange={(event) => onChange(drafts.map((item, itemIndex) => itemIndex === index ? { ...item, minWeight: event.target.value } : item))}
+                  disabled={!canEditPricing}
+                  inputMode="decimal"
+                  placeholder="0"
+                  className="h-10 min-w-[50px] rounded-xl border border-border bg-background-secondary/70 px-2 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                />
+                <input
+                  value={draft.maxWeight}
+                  onChange={(event) => onChange(drafts.map((item, itemIndex) => itemIndex === index ? { ...item, maxWeight: event.target.value } : item))}
+                  disabled={!canEditPricing}
+                  inputMode="decimal"
+                  placeholder="∞"
+                  className="h-10 min-w-[50px] rounded-xl border border-border bg-background-secondary/70 px-2 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                />
+                <PriceInput
+                  value={draft.price}
+                  onChange={(value) => onChange(drafts.map((item, itemIndex) => itemIndex === index ? { ...item, price: value } : item))}
+                  disabled={!canEditPricing}
+                />
+                <div className="flex items-center justify-center">
+                  {canEditPricing ? (
+                    <button
+                      type="button"
+                      onClick={() => onChange(drafts.filter((_, itemIndex) => itemIndex !== index))}
+                      title="XÃ³a dá»‹ch vá»¥"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10"
+                    >
+                      <X size={14} />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PriceInput({ value, onChange, placeholder, disabled = false }: { value: string; onChange: (value: string) => void; placeholder?: string; disabled?: boolean }) {
   return (
     <input
@@ -2007,6 +2451,9 @@ function GroomingPricingMatrix({
   setSpecies,
   flatRateDrafts,
   onFlatRateChange,
+  onCopyServiceToCat,
+  onCopyFlatRateServiceToCat,
+  copyingServiceKey,
 }: {
   bands: BandDraft[]
   serviceColumns: SpaServiceColumn[]
@@ -2029,6 +2476,9 @@ function GroomingPricingMatrix({
   setSpecies: (value: string) => void
   flatRateDrafts: FlatRateDraft[]
   onFlatRateChange: (drafts: FlatRateDraft[]) => void
+  onCopyServiceToCat: (serviceKey: string) => void
+  onCopyFlatRateServiceToCat: (draftKey: string) => void
+  copyingServiceKey: string | null
 }) {
   const [isEditMode, setIsEditMode] = useState(false)
   const totalColumns = Math.max(1, serviceColumns.length * 2 + 1)
@@ -2040,7 +2490,7 @@ function GroomingPricingMatrix({
   }
 
   return (
-    <div className="min-h-0 rounded-[28px] border border-border bg-background-secondary/70 p-4">
+    <div className="flex flex-col rounded-[28px] border border-border bg-background-secondary/70 p-4">
       <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <button
@@ -2118,8 +2568,8 @@ function GroomingPricingMatrix({
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
-        <div className="min-w-0 flex-1 custom-scrollbar overflow-auto rounded-2xl border border-border bg-background-base">
+      <div className="flex flex-col gap-4">
+        <div className="min-w-0 shrink-0 overflow-x-auto overflow-y-hidden rounded-2xl border border-border bg-background-base">
           <table className="w-full min-w-[1200px] border-separate border-spacing-0 text-left text-sm">
             <thead className="sticky top-0 z-10 bg-background-secondary">
               <tr>
@@ -2144,6 +2594,17 @@ function GroomingPricingMatrix({
                         ) : (
                           <span className="truncate text-xs font-black text-foreground">{column.packageCode || 'Dịch vụ mới'}</span>
                         )}
+                        {canManagePricing && species !== CAT_SPECIES ? (
+                          <button
+                            type="button"
+                            onClick={() => onCopyServiceToCat(column.key)}
+                            title="Sao chép sang bảng giá mèo"
+                            disabled={copyingServiceKey !== null}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sky-400 transition-colors hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {copyingServiceKey === `service:${column.key}` ? <RefreshCw size={13} className="animate-spin" /> : <Copy size={13} />}
+                          </button>
+                        ) : null}
                         {canEditPricing && (
                           <button
                             type="button"
@@ -2269,11 +2730,10 @@ function GroomingPricingMatrix({
         </div>
 
         {/* ── Flat-rate services panel ─────────────────────────────── */}
-        <div className="w-full xl:w-[380px] shrink-0 rounded-2xl border border-border bg-background-base">
+        <div className="overflow-hidden rounded-2xl border border-border bg-background-base">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">Dịch vụ khác</p>
-              <p className="mt-0.5 text-[11px] text-foreground-muted/70">Không theo hạng cân</p>
             </div>
             {canEditPricing && (
               <button
@@ -2294,7 +2754,10 @@ function GroomingPricingMatrix({
           </div>
 
           {/* Header row */}
-          <div className="grid border-b border-border bg-background-secondary" style={{ gridTemplateColumns: '68px 1fr 50px 50px 82px 38px 30px' }}>
+          <div
+            className="grid border-b border-border bg-background-secondary"
+            style={{ gridTemplateColumns: 'minmax(70px, 120px) minmax(120px, 1fr) minmax(50px, 100px) minmax(50px, 100px) minmax(50px, 150px) minmax(50px, 100px) 72px' }}
+          >
             {['SKU', 'Tên dịch vụ', 'Từ kg', 'Đến kg', 'Giá', 'Phút', ''].map((label) => (
               <div key={label} className="px-1.5 py-2 text-center text-[10px] font-black uppercase tracking-[0.14em] text-foreground-muted">{label}</div>
             ))}
@@ -2310,8 +2773,8 @@ function GroomingPricingMatrix({
             flatRateDrafts.map((fr, idx) => (
               <div
                 key={fr.key}
-                className="grid items-center border-b border-border/60 last:border-b-0"
-                style={{ gridTemplateColumns: '68px 1fr 50px 50px 82px 38px 30px' }}
+                className="grid items-center border-b border-border/60 last:border-b-0  "
+                style={{ gridTemplateColumns: 'minmax(70px, 120px) minmax(120px, 1fr) minmax(50px, 100px) minmax(50px, 100px) minmax(50px, 150px) minmax(50px, 100px) 72px' }}
               >
                 <div className="px-1 py-1.5">
                   <input
@@ -2319,7 +2782,7 @@ function GroomingPricingMatrix({
                     onChange={(e) => onFlatRateChange(flatRateDrafts.map((r, i) => i === idx ? { ...r, sku: e.target.value } : r))}
                     placeholder="SKU"
                     disabled={!canEditPricing}
-                    className="h-8 w-full rounded border border-border bg-background-secondary px-1 text-center text-[10px] font-black uppercase tracking-[0.1em] text-primary-500 placeholder:text-foreground-muted/30 outline-none focus:border-primary-500 disabled:opacity-60"
+                    className="h-8 w-full rounded border border-border bg-background-secondary px-1 text-center text-[10px] font-black uppercase tracking-widest text-primary-500 placeholder:text-foreground-muted/30 outline-none focus:border-primary-500 disabled:opacity-60"
                   />
                 </div>
                 <div className="px-1 py-1.5">
@@ -2370,7 +2833,18 @@ function GroomingPricingMatrix({
                   />
                   <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-foreground-muted">ph</span>
                 </div>
-                <div className="flex items-center justify-center px-1 py-1.5">
+                <div className="flex items-center justify-center gap-1 px-1 py-1.5">
+                  {canManagePricing && species !== CAT_SPECIES ? (
+                    <button
+                      type="button"
+                      onClick={() => onCopyFlatRateServiceToCat(fr.key)}
+                      title="Sao chép sang bảng giá mèo"
+                      disabled={copyingServiceKey !== null}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-sky-400 transition-colors hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {copyingServiceKey === `flat:${fr.key}` ? <RefreshCw size={13} className="animate-spin" /> : <Copy size={13} />}
+                    </button>
+                  ) : null}
                   {canEditPricing && (
                     <button
                       type="button"

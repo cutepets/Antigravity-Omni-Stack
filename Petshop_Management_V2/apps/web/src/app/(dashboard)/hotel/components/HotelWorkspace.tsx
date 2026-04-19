@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { LayoutGrid, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DataListShell } from '@petshop/ui/data-list'
+import { HotelQuickPreviewTool } from '@/components/hotel-quick-preview/HotelQuickPreviewTool'
 import { ServicePricingWorkspace } from '@/components/service-pricing/ServicePricingWorkspace'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import StayList from './StayList'
@@ -58,7 +59,8 @@ function HotelWorkspaceContent() {
       <div className="flex flex-col flex-1 min-h-0 gap-4">
         {/* Header & Tabs */}
         {viewMode !== 'pricing' && (
-          <div className="flex items-center justify-end mb-4">
+          <div className="mb-4 flex items-center justify-end gap-3">
+            <HotelQuickPreviewTool triggerClassName="bg-background-secondary text-foreground hover:bg-background-secondary/80" />
             <div className="inline-flex items-center p-1 border rounded-2xl border-border bg-background-secondary">
               <button 
                 type="button" 
@@ -82,7 +84,7 @@ function HotelWorkspaceContent() {
 
         {/* Content Area */}
         {viewMode === 'pricing' ? (
-          <div className="flex flex-col flex-1 min-h-0">
+          <div className="flex flex-col">
             <ServicePricingWorkspace mode="HOTEL" />
           </div>
         ) : (

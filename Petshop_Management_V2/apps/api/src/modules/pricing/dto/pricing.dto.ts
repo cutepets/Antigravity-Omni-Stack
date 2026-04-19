@@ -87,6 +87,14 @@ export class SpaRuleInputDto {
   weightBandId?: string | null
 
   @IsNumber()
+  @IsOptional()
+  minWeight?: number | null
+
+  @IsNumber()
+  @IsOptional()
+  maxWeight?: number | null
+
+  @IsNumber()
   price!: number
 
   @IsNumber()
@@ -152,6 +160,33 @@ export class BulkUpsertHotelRulesDto {
   @ValidateNested({ each: true })
   @Type(() => HotelRuleInputDto)
   rules!: HotelRuleInputDto[]
+}
+
+export class HotelExtraServiceInputDto {
+  @IsString()
+  @IsOptional()
+  sku?: string | null
+
+  @IsString()
+  name!: string
+
+  @IsNumber()
+  @IsOptional()
+  minWeight?: number | null
+
+  @IsNumber()
+  @IsOptional()
+  maxWeight?: number | null
+
+  @IsNumber()
+  price!: number
+}
+
+export class BulkUpsertHotelExtraServicesDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HotelExtraServiceInputDto)
+  services!: HotelExtraServiceInputDto[]
 }
 
 export class CreateHolidayDto {

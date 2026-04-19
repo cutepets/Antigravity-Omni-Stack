@@ -279,7 +279,17 @@ export class CustomerService {
           take: Number(limit),
           orderBy,
           include: {
-            group: { select: { id: true, name: true, color: true, discount: true, pricePolicy: true } },
+            group: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+                discount: true,
+                pricePolicy: true,
+                priceBookId: true,
+                priceBook: { select: { id: true, name: true } },
+              },
+            },
             pets: { 
               select: { 
                 id: true, 
@@ -312,7 +322,17 @@ export class CustomerService {
       orderBy,
       take: 500,
       include: {
-        group: { select: { id: true, name: true, color: true, discount: true, pricePolicy: true } },
+        group: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+            discount: true,
+            pricePolicy: true,
+            priceBookId: true,
+            priceBook: { select: { id: true, name: true } },
+          },
+        },
         pets: { 
           select: { 
             id: true, 
@@ -565,7 +585,17 @@ export class CustomerService {
 
   private _fullInclude() {
     return {
-      group: { select: { id: true, name: true, color: true, discount: true, pricePolicy: true } },
+      group: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          discount: true,
+          pricePolicy: true,
+          priceBookId: true,
+          priceBook: { select: { id: true, name: true } },
+        },
+      },
       pets: true,
       orders: {
         orderBy: { createdAt: 'desc' as const },

@@ -1,0 +1,3 @@
+ALTER TABLE "spa_price_rules"
+ADD COLUMN "minWeight" DOUBLE PRECISION,
+ADD COLUMN "maxWeight" DOUBLE PRECISION;

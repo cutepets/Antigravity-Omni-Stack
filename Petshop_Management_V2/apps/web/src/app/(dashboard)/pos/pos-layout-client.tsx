@@ -9,13 +9,10 @@ export function PosLayoutClient({ children }: { children: React.ReactNode }) {
     const posTheme = usePosStore((s) => s.posTheme);
 
     useEffect(() => {
-        // Set browser tab title using active branch name as shop name
         const branch = allowedBranches.find((b: any) => b.id === activeBranchId) ?? allowedBranches[0];
         const shopName = branch?.name ?? 'Petshop';
         const prev = document.title;
         document.title = `POS | ${shopName}`;
-
-        // Add fullscreen class to body to hide sidebar/header from parent layout
         document.body.classList.add('pos-fullscreen');
 
         return () => {
@@ -24,25 +21,23 @@ export function PosLayoutClient({ children }: { children: React.ReactNode }) {
         };
     }, [activeBranchId, allowedBranches]);
 
-    // Apply POS theme independently from system theme
+    // Apply POS theme as data-pos-theme on body.
+    // CSS variables are overridden in globals.css for body[data-pos-theme="dark/light"].
+    // This cascades correctly to all children WITHOUT touching next-themes or html class.
     useEffect(() => {
-        const htmlEl = document.documentElement;
-        const prevDark = htmlEl.classList.contains('dark');
-        const prevLight = htmlEl.classList.contains('light');
+        const body = document.body;
 
         if (posTheme === 'light') {
-            htmlEl.classList.remove('dark');
-            htmlEl.classList.add('light');
+            body.setAttribute('data-pos-theme', 'light');
         } else if (posTheme === 'dark') {
-            htmlEl.classList.remove('light');
-            htmlEl.classList.add('dark');
+            body.setAttribute('data-pos-theme', 'dark');
+        } else {
+            body.removeAttribute('data-pos-theme');
         }
-        // 'system' → don't touch classes, follow the app's theme provider
 
         return () => {
-            // Restore previous state when leaving POS
-            htmlEl.classList.toggle('dark', prevDark);
-            htmlEl.classList.toggle('light', prevLight);
+            // Remove when leaving POS so system theme restores naturally
+            body.removeAttribute('data-pos-theme');
         };
     }, [posTheme]);
 

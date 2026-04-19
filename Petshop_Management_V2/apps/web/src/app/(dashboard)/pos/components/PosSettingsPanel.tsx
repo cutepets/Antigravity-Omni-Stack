@@ -72,7 +72,6 @@ export function PosSettingsPanel() {
     if (selectablePaymentMethods.some((method) => method.id === defaultPayment)) {
       return defaultPayment
     }
-
     return selectablePaymentMethods.find((method) => method.isDefault)?.id ?? selectablePaymentMethods[0]?.id ?? ''
   }, [defaultPayment, selectablePaymentMethods])
 
@@ -82,7 +81,7 @@ export function PosSettingsPanel() {
   }, [defaultPayment, resolvedDefaultPaymentId, setDefaultPayment])
 
   const renderTabs = () => (
-    <div className="flex items-center border-b border-gray-200">
+    <div className="flex items-center border-b border-border">
       {[
         { id: 'POS' as const, label: 'Cài đặt POS', icon: SlidersHorizontal },
         { id: 'PRINT' as const, label: 'Cài đặt in', icon: Printer },
@@ -92,7 +91,9 @@ export function PosSettingsPanel() {
         return (
           <button
             key={tab.id}
-            className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${activeTab === tab.id ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 hover:bg-gray-50'
+            className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${activeTab === tab.id
+                ? 'text-primary-600 border-b-2 border-primary-600'
+                : 'text-foreground-muted hover:bg-surface-hover'
               }`}
             onClick={() => setActiveTab(tab.id)}
           >
@@ -108,23 +109,23 @@ export function PosSettingsPanel() {
     checked: boolean,
     onChange: (checked: boolean) => void,
   ) => (
-    <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3">
-      <div className="text-[15px] font-medium">{label}</div>
+    <div className="flex items-center justify-between rounded-lg border border-border bg-surface-secondary p-3">
+      <div className="text-[15px] font-medium text-foreground">{label}</div>
       <label className="relative inline-flex cursor-pointer items-center">
         <input type="checkbox" className="peer sr-only" checked={checked} onChange={(event) => onChange(event.target.checked)} />
-        <div className="h-6 w-11 rounded-full bg-gray-300 peer-focus:outline-none peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-['']"></div>
+        <div className="h-6 w-11 rounded-full bg-border peer-focus:outline-none peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-border after:bg-surface after:transition-all after:content-['']"></div>
       </label>
     </div>
   )
 
   const renderPOS = () => (
-    <div className="flex animate-fade-in flex-col gap-4 p-4 text-gray-800">
-      <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-500">Tùy chỉnh hành vi POS</h3>
+    <div className="flex animate-in fade-in slide-in-from-bottom-1 duration-200 flex-col gap-4 p-4 text-foreground">
+      <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-foreground-muted">Tùy chỉnh hành vi POS</h3>
 
       {/* POS Theme Selector */}
-      <div className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
-        <div className="text-[15px] font-medium">Giao diện POS</div>
-        <div className="text-xs text-gray-500">Khi vào POS, áp dụng theme sau (độc lập với hệ thống)</div>
+      <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-secondary p-3">
+        <div className="text-[15px] font-medium text-foreground">Giao diện POS</div>
+        <div className="text-xs text-foreground-muted">Khi vào POS, áp dụng theme sau (độc lập với hệ thống)</div>
         <div className="mt-1 grid grid-cols-3 gap-2">
           {[
             { value: 'light' as const, label: 'Sáng', Icon: Sun },
@@ -138,8 +139,8 @@ export function PosSettingsPanel() {
                 type="button"
                 onClick={() => setPosTheme(value)}
                 className={`flex flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 text-xs font-semibold transition-colors ${isSelected
-                  ? 'border-primary-500 bg-primary-500 text-white shadow'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-primary-300'
+                    ? 'border-primary-500 bg-primary-500 text-white shadow'
+                    : 'border-border bg-surface text-foreground hover:border-primary-300'
                   }`}
               >
                 <Icon size={16} />
@@ -155,13 +156,13 @@ export function PosSettingsPanel() {
       {renderToggle('Âm thanh thao tác', soundEnabled, setSoundEnabled)}
       {renderToggle('Làm tròn tổng tiền', roundingEnabled, setRoundingEnabled)}
 
-      <div className="flex flex-col gap-3 rounded-lg border border-gray-100 bg-gray-50 p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface-secondary p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[15px] font-medium">Đơn vị làm tròn</div>
-            <div className="text-xs text-gray-500">Chỉ áp dụng round down theo 100 hoặc 1000 VND</div>
+            <div className="text-[15px] font-medium text-foreground">Đơn vị làm tròn</div>
+            <div className="text-xs text-foreground-muted">Chỉ áp dụng round down theo 100 hoặc 1000 VND</div>
           </div>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-primary-600 shadow-sm">
+          <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-primary-600 shadow-sm">
             {roundingUnit.toLocaleString('vi-VN')} VND
           </span>
         </div>
@@ -174,8 +175,8 @@ export function PosSettingsPanel() {
                 type="button"
                 onClick={() => setRoundingUnit(unit as 100 | 1000)}
                 className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${isSelected
-                  ? 'border-primary-500 bg-primary-500 text-white shadow'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-primary-300'
+                    ? 'border-primary-500 bg-primary-500 text-white shadow'
+                    : 'border-border bg-surface text-foreground hover:border-primary-300'
                   }`}
               >
                 {unit.toLocaleString('vi-VN')}
@@ -183,16 +184,16 @@ export function PosSettingsPanel() {
             )
           })}
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-foreground-muted">
           Ví dụ 25,970 sẽ thành 25,900 hoặc 25,000 tùy đơn vị đang chọn.
         </div>
       </div>
 
-      <div className="mt-2 flex flex-col gap-3 rounded-lg border border-gray-100 bg-gray-50 p-4">
+      <div className="mt-2 flex flex-col gap-3 rounded-lg border border-border bg-surface-secondary p-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[15px] font-medium">Kích thước giao diện</div>
-            <div className="text-xs text-gray-500">Tương thích với màn hình hiện tại</div>
+            <div className="text-[15px] font-medium text-foreground">Kích thước giao diện</div>
+            <div className="text-xs text-foreground-muted">Tương thích với màn hình hiện tại</div>
           </div>
           <div className="font-bold text-primary-600">
             {zoomLevel > 100 ? '+' : ''}
@@ -201,7 +202,7 @@ export function PosSettingsPanel() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 font-bold hover:bg-gray-100"
+            className="flex h-8 w-8 items-center justify-center rounded border border-border font-bold text-foreground hover:bg-surface-hover"
             onClick={() => setZoomLevel(Math.max(75, zoomLevel - 5))}
           >
             -
@@ -214,11 +215,11 @@ export function PosSettingsPanel() {
             step="5"
             value={zoomLevel}
             onChange={(event) => setZoomLevel(parseInt(event.target.value, 10))}
-            className="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-gray-200 accent-primary-600"
+            className="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-border accent-primary-600"
           />
 
           <button
-            className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 font-bold hover:bg-gray-100"
+            className="flex h-8 w-8 items-center justify-center rounded border border-border font-bold text-foreground hover:bg-surface-hover"
             onClick={() => setZoomLevel(Math.min(150, zoomLevel + 5))}
           >
             +
@@ -227,18 +228,18 @@ export function PosSettingsPanel() {
         <div className="text-center">
           <button
             onClick={() => setZoomLevel(100)}
-            className="mx-auto flex items-center justify-center gap-1 text-[11px] text-gray-500 underline decoration-dashed underline-offset-2 hover:text-gray-800"
+            className="mx-auto flex items-center justify-center gap-1 text-[11px] text-foreground-muted underline decoration-dashed underline-offset-2 hover:text-foreground"
           >
             Về mặc định (100%)
           </button>
         </div>
       </div>
 
-      <div className="mt-2 flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
-        <div className="text-[15px] font-medium">Phương thức thanh toán mặc định</div>
+      <div className="mt-2 flex flex-col gap-2 rounded-lg border border-border bg-surface-secondary p-3">
+        <div className="text-[15px] font-medium text-foreground">Phương thức thanh toán mặc định</div>
 
         {isPaymentMethodsLoading ? (
-          <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500">
+          <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-foreground-muted">
             Đang tải cấu hình thanh toán...
           </div>
         ) : null}
@@ -259,19 +260,17 @@ export function PosSettingsPanel() {
                   <button
                     key={method.id}
                     type="button"
-                    className={`flex flex-col items-start gap-1.5 rounded-xl border px-3 py-2.5 text-left transition-all ${
-                      isSelected
+                    className={`flex flex-col items-start gap-1.5 rounded-xl border px-3 py-2.5 text-left transition-all ${isSelected
                         ? `${colorClasses.chip} shadow-sm ring-2 ${colorClasses.ring}`
-                        : `${colorClasses.softSurface} text-gray-700 hover:shadow-sm`
-                    }`}
+                        : `${colorClasses.softSurface} text-foreground hover:shadow-sm`
+                      }`}
                     onClick={() => setDefaultPayment(method.id)}
                   >
                     <div className="flex w-full items-center justify-between gap-2">
                       <span className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${colorClasses.accent}`} />
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          isSelected ? 'bg-white/20 text-current' : colorClasses.chipSubtle
-                        }`}
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isSelected ? 'bg-white/20 text-current' : colorClasses.chipSubtle
+                          }`}
                       >
                         {PAYMENT_METHOD_TYPE_LABELS[method.type]}
                       </span>
@@ -294,30 +293,30 @@ export function PosSettingsPanel() {
   )
 
   const renderPrint = () => (
-    <div className="flex animate-fade-in flex-col gap-4 p-4 text-gray-800">
-      <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-500">Cài đặt máy in</h3>
+    <div className="flex animate-in fade-in slide-in-from-bottom-1 duration-200 flex-col gap-4 p-4 text-foreground">
+      <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-foreground-muted">Cài đặt máy in</h3>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[15px] font-medium">IP máy in (LAN / Wifi)</label>
-        <div className="mb-1 text-xs text-gray-500">Nhập IP của máy in nếu cần kết nối qua mạng LAN hoặc Wifi.</div>
+        <label className="text-[15px] font-medium text-foreground">IP máy in (LAN / Wifi)</label>
+        <div className="mb-1 text-xs text-foreground-muted">Nhập IP của máy in nếu cần kết nối qua mạng LAN hoặc Wifi.</div>
         <input
           type="text"
           value={printerIp}
           onChange={(event) => setPrinterIp(event.target.value)}
           placeholder="VD: 192.168.1.100"
-          className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 outline-none transition-colors focus:border-primary-500 focus:bg-white"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-foreground placeholder:text-foreground-muted outline-none transition-colors focus:border-primary-500"
         />
       </div>
 
       <div className="mt-2 flex flex-col gap-1.5">
-        <label className="text-[15px] font-medium">Khổ giấy</label>
+        <label className="text-[15px] font-medium text-foreground">Khổ giấy</label>
         <div className="grid grid-cols-3 gap-2">
           {['K57', 'K80', 'A4'].map((size) => (
             <button
               key={size}
               className={`rounded-lg py-2.5 text-sm font-semibold ${paperSize === size
-                ? 'bg-primary-500 text-white shadow'
-                : 'border border-gray-200 bg-gray-50 text-gray-700 hover:border-primary-300'
+                  ? 'bg-primary-500 text-white shadow'
+                  : 'border border-border bg-surface text-foreground hover:border-primary-300'
                 }`}
               onClick={() => setPaperSize(size)}
             >
@@ -333,10 +332,10 @@ export function PosSettingsPanel() {
   )
 
   const renderShortcuts = () => (
-    <div className="flex animate-fade-in flex-col gap-4 p-4 text-gray-800">
+    <div className="flex animate-in fade-in slide-in-from-bottom-1 duration-200 flex-col gap-4 p-4 text-foreground">
       <div className="mb-1 flex items-center justify-between">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Phím tắt có thể tùy chỉnh</h3>
-        <button className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs hover:bg-gray-50">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-foreground-muted">Phím tắt có thể tùy chỉnh</h3>
+        <button className="flex items-center gap-1 rounded border border-border bg-surface px-2 py-1 text-xs text-foreground hover:bg-surface-hover">
           Mặc định
         </button>
       </div>
@@ -348,17 +347,17 @@ export function PosSettingsPanel() {
           ['Mở cửa sổ thanh toán', 'F7'],
           ['Xác nhận đơn hàng', 'F12'],
         ].map(([label, key]) => (
-          <div key={label} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-2.5 px-4">
-            <span className="text-[15px] font-medium text-gray-700">{label}</span>
+          <div key={label} className="flex items-center justify-between rounded-lg border border-border bg-surface-secondary p-2.5 px-4">
+            <span className="text-[15px] font-medium text-foreground">{label}</span>
             <div className="flex items-center gap-2">
-              <kbd className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-bold text-gray-600 shadow-sm">{key}</kbd>
-              <button className="px-2 text-sm text-gray-500 hover:text-primary-600">Sửa</button>
+              <kbd className="rounded border border-border bg-surface px-2 py-1 text-xs font-bold text-foreground shadow-sm">{key}</kbd>
+              <button className="px-2 text-sm text-foreground-muted hover:text-primary-600">Sửa</button>
             </div>
           </div>
         ))}
       </div>
 
-      <h3 className="mb-1 mt-2 text-xs font-bold uppercase tracking-wider text-gray-500">Phím cố định</h3>
+      <h3 className="mb-1 mt-2 text-xs font-bold uppercase tracking-wider text-foreground-muted">Phím cố định</h3>
       <div className="flex flex-col gap-2">
         {[
           ['Tìm kiếm khách hàng (phụ)', 'F2'],
@@ -368,9 +367,9 @@ export function PosSettingsPanel() {
           ['Tăng / giảm số lượng SP', 'Up / Down'],
           ['Xác nhận / chuyển dòng', 'Enter'],
         ].map(([label, key]) => (
-          <div key={label} className="flex items-center justify-between bg-white px-1">
-            <span className="text-[15px] text-gray-500">{label}</span>
-            <kbd className="rounded bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-500">{key}</kbd>
+          <div key={label} className="flex items-center justify-between bg-transparent px-1">
+            <span className="text-[15px] text-foreground-muted">{label}</span>
+            <kbd className="rounded bg-surface-secondary px-2 py-0.5 text-xs font-bold text-foreground-muted">{key}</kbd>
           </div>
         ))}
       </div>
@@ -391,14 +390,14 @@ export function PosSettingsPanel() {
         <div className="fixed inset-0 z-100 flex justify-end font-sans">
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
 
-          <div className="relative flex h-full w-[400px] flex-col bg-white shadow-2xl animate-slide-in-right">
-            <div className="flex items-center justify-between border-b border-gray-200 p-4">
-              <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800">
+          <div className="relative flex h-full w-[400px] flex-col bg-surface shadow-2xl animate-in slide-in-from-right duration-250 ease-[cubic-bezier(0.16,1,0.3,1)]">
+            <div className="flex items-center justify-between border-b border-border p-4">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
                 <Settings size={20} className="text-primary-600" />
                 Cài đặt POS
               </h2>
               <button
-                className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100"
+                className="rounded-lg p-1.5 text-foreground-muted transition-colors hover:bg-surface-hover"
                 onClick={() => setIsOpen(false)}
               >
                 <X size={20} />
@@ -415,38 +414,6 @@ export function PosSettingsPanel() {
           </div>
         </div>
       ) : null}
-
-      <style jsx>{`
-        .animate-slide-in-right {
-          animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-
-        @keyframes slideInRight {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-
-        .animate-fade-in {
-          animation: fadeIn 0.2s ease-out forwards;
-        }
-
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(5px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </>
   )
 }

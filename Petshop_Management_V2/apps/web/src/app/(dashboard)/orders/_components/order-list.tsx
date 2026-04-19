@@ -161,6 +161,7 @@ export function OrderList() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlProductId = searchParams.get('productId') ?? ''
+  const urlStaffId = searchParams.get('staffId') ?? ''
 
   const [search, setSearch] = useState('')
   const [paymentStatus, setPaymentStatus] = useState('')
@@ -180,12 +181,13 @@ export function OrderList() {
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data, isLoading } = useQuery({
-    queryKey: ['orders', search, paymentStatus, orderStatus, page, pageSize, urlProductId],
+    queryKey: ['orders', search, paymentStatus, orderStatus, page, pageSize, urlProductId, urlStaffId],
     queryFn: () => orderApi.list({
       search,
       paymentStatus: paymentStatus || undefined,
       status: orderStatus || undefined,
       productId: urlProductId || undefined,
+      staffId: urlStaffId || undefined,
       page,
       limit: pageSize,
     }),

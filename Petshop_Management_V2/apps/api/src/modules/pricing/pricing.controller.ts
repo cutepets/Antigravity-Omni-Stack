@@ -3,6 +3,7 @@ import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import {
+  BulkUpsertHotelExtraServicesDto,
   BulkUpsertHotelRulesDto,
   BulkUpsertSpaRulesDto,
   CreateHolidayDto,
@@ -63,6 +64,18 @@ export class PricingController {
   @Permissions('hotel.update', 'settings.pricing_policy.manage')
   bulkUpsertHotelRules(@Body() dto: BulkUpsertHotelRulesDto) {
     return this.pricingService.bulkUpsertHotelRules(dto)
+  }
+
+  @Get('hotel-extra-services')
+  @Permissions('hotel.read', 'settings.pricing_policy.manage')
+  listHotelExtraServices() {
+    return this.pricingService.listHotelExtraServices()
+  }
+
+  @Put('hotel-extra-services/bulk')
+  @Permissions('hotel.update', 'settings.pricing_policy.manage')
+  bulkUpsertHotelExtraServices(@Body() dto: BulkUpsertHotelExtraServicesDto) {
+    return this.pricingService.bulkUpsertHotelExtraServices(dto)
   }
 
   @Get('holidays')

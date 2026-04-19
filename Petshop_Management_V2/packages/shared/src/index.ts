@@ -8,7 +8,9 @@ export * from './types/domain.types'
 // pos.types imports PaymentEntry from order.types — use named exports to avoid duplicate re-export
 export type {
   CartItem,
+  CustomerPricingProfile,
   OrderTab,
+  PriceBookPriceMap,
 } from './types/pos.types'
 
 // Utils

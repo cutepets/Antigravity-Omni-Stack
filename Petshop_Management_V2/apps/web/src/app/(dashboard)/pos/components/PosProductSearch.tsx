@@ -10,6 +10,7 @@ export interface PosProductSearchProps {
   onSelect: (item: any) => void;
   // Optional overrides — khi dùng ngoài POS (e.g. OrderWorkspace)
   branchId?: string;
+  priceBookId?: string;
   cartItems?: { productId?: string; productVariantId?: string; serviceId?: string; quantity: number }[];
   isMultiSelectControlled?: boolean;        // nếu true → dùng isMultiSelectValue/onSetMultiSelect
   isMultiSelectValue?: boolean;
@@ -53,6 +54,7 @@ function getSellableQuantity(stockSource: any, branchId?: string) {
 export function PosProductSearch({
   onSelect,
   branchId: branchIdProp,
+  priceBookId: priceBookIdProp,
   cartItems: cartItemsProp,
   isMultiSelectControlled = false,
   isMultiSelectValue = false,
@@ -75,6 +77,9 @@ export function PosProductSearch({
 
   // Resolved values: prefer props, fall back to POS store
   const effectiveBranchId = branchIdProp ?? activeTab?.branchId;
+  const effectivePriceBookId =
+    priceBookIdProp ??
+    (branchIdProp === undefined && cartItemsProp === undefined ? activeTab?.customerPricing?.priceBookId : undefined);
   const effectiveCartItems = cartItemsProp ?? activeTab?.cart ?? [];
   const isMultiSelect = isMultiSelectControlled ? isMultiSelectValue : posIsMultiSelect;
   const setIsMultiSelect = isMultiSelectControlled
@@ -89,7 +94,7 @@ export function PosProductSearch({
   const mobileInputRef = useRef<HTMLInputElement>(null);
   const isProgrammaticFocus = useRef(false);
 
-  const { data: products = [], isLoading: loadingProducts } = usePosProducts(query);
+  const { data: products = [], isLoading: loadingProducts } = usePosProducts(query, effectivePriceBookId);
 
   const results = products
     .filter((item: any) => {

@@ -27,6 +27,11 @@
   --color-foreground-muted: hsl(var(--fg3));
   --color-border: hsl(var(--bd));
 
+  /* Surface aliases — bg-surface/bg-surface-secondary/bg-surface-hover */
+  --color-surface: hsl(var(--bg2));
+  --color-surface-secondary: hsl(var(--bg3));
+  --color-surface-hover: hsl(var(--bg3));
+
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
@@ -110,6 +115,61 @@
     /* Very muted text */
     --bd: 217 32.6% 17.5%;
     /* Clean subtle border */
+  }
+
+  /* ── POS Isolated Theme ─────────────────────────────────────────────────────
+     Applied via data-pos-theme="dark|light" on <body> when user is on /pos.
+     IMPORTANT: Tailwind v4 @theme resolves hsl(var(--bg)) into static values on :root.
+     So overriding --bg alone is NOT enough — must override the computed --color-* vars.
+  */
+  body[data-pos-theme="dark"] {
+    color-scheme: dark;
+    /* raw tokens */
+    --bg: 222 47% 11%;
+    --bg2: 222 47% 13%;
+    --bg3: 222 47% 16%;
+    --fg: 210 40% 98%;
+    --fg2: 215 20.2% 65.1%;
+    --fg3: 215 16.3% 46.9%;
+    --bd: 217 32.6% 17.5%;
+    /* computed --color-* overrides (Tailwind v4 @theme tokens) */
+    --color-background: hsl(222 47% 11%);
+    --color-background-base: hsl(222 47% 11%);
+    --color-background-secondary: hsl(222 47% 13%);
+    --color-background-tertiary: hsl(222 47% 16%);
+    --color-foreground: hsl(210 40% 98%);
+    --color-foreground-base: hsl(210 40% 98%);
+    --color-foreground-secondary: hsl(215 20.2% 65.1%);
+    --color-foreground-muted: hsl(215 16.3% 46.9%);
+    --color-border: hsl(217 32.6% 17.5%);
+    --color-surface: hsl(222 47% 13%);
+    --color-surface-secondary: hsl(222 47% 16%);
+    --color-surface-hover: hsl(222 47% 16%);
+  }
+
+  body[data-pos-theme="light"] {
+    color-scheme: light;
+    /* raw tokens */
+    --bg: 220 20% 96%;
+    --bg2: 210 20% 99%;
+    --bg3: 220 14% 91%;
+    --fg: 220 25% 12%;
+    --fg2: 220 15% 32%;
+    --fg3: 220 10% 48%;
+    --bd: 220 15% 82%;
+    /* computed --color-* overrides (Tailwind v4 @theme tokens) */
+    --color-background: hsl(220 20% 96%);
+    --color-background-base: hsl(220 20% 96%);
+    --color-background-secondary: hsl(210 20% 99%);
+    --color-background-tertiary: hsl(220 14% 91%);
+    --color-foreground: hsl(220 25% 12%);
+    --color-foreground-base: hsl(220 25% 12%);
+    --color-foreground-secondary: hsl(220 15% 32%);
+    --color-foreground-muted: hsl(220 10% 48%);
+    --color-border: hsl(220 15% 82%);
+    --color-surface: hsl(210 20% 99%);
+    --color-surface-secondary: hsl(220 14% 91%);
+    --color-surface-hover: hsl(220 14% 91%);
   }
 
   * {
@@ -335,4 +395,27 @@ body.pos-fullscreen header.glass-panel {
 body.pos-fullscreen main {
   padding: 0 !important;
   overflow: hidden !important;
+}
+
+/* ── POS cart row flash animation ─────────────────────────────────────── */
+@keyframes cart-row-flash {
+  0% {
+    background-color: transparent;
+  }
+
+  20% {
+    background-color: rgb(16 185 129 / 0.18);
+  }
+
+  60% {
+    background-color: rgb(16 185 129 / 0.12);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+.cart-row-flash {
+  animation: cart-row-flash 0.7s ease-out forwards;
 }

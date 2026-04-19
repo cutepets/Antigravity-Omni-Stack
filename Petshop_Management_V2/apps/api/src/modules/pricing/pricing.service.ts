@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { DatabaseService } from '../../database/database.service.js'
 import {
+  BulkUpsertHotelExtraServicesDto,
   BulkUpsertHotelRulesDto,
   BulkUpsertSpaRulesDto,
   CreateHolidayDto,
@@ -178,6 +179,80 @@ export class PricingService {
     }
   }
 
+  private normalizeSpaRuleWeightRange(rule: { weightBandId?: string | null; minWeight?: unknown; maxWeight?: unknown }) {
+    if (rule.weightBandId) {
+      return { minWeight: null, maxWeight: null }
+    }
+
+    const minWeight = this.normalizeOptionalNumber(rule.minWeight, 'Can nang toi thieu', 0)
+    const maxWeight = this.normalizeOptionalNumber(rule.maxWeight, 'Can nang toi da', 0)
+
+    if (minWeight === null && maxWeight !== null) {
+      throw new BadRequestException('Can nhap can nang toi thieu khi co can nang toi da')
+    }
+
+    if (minWeight !== null && maxWeight !== null && maxWeight <= minWeight) {
+      throw new BadRequestException('Can nang toi da phai lon hon can nang toi thieu')
+    }
+
+    return { minWeight, maxWeight }
+  }
+
+  private getSpaRuleComboKey(rule: { weightBandId?: string | null; packageCode: string; minWeight?: number | null; maxWeight?: number | null }) {
+    if (rule.weightBandId) {
+      return `BAND:${rule.weightBandId}:${rule.packageCode}`
+    }
+
+    return `FLAT:${rule.packageCode}:${rule.minWeight ?? 'NULL'}:${rule.maxWeight ?? 'INF'}`
+  }
+
+  private normalizeHotelExtraServiceWeightRange(service: { minWeight?: unknown; maxWeight?: unknown }) {
+    const minWeight = this.normalizeOptionalNumber(service.minWeight, 'Can nang toi thieu', 0)
+    const maxWeight = this.normalizeOptionalNumber(service.maxWeight, 'Can nang toi da', 0)
+
+    if (minWeight === null && maxWeight !== null) {
+      throw new BadRequestException('Can nhap can nang toi thieu khi co can nang toi da')
+    }
+
+    if (minWeight !== null && maxWeight !== null && maxWeight <= minWeight) {
+      throw new BadRequestException('Can nang toi da phai lon hon can nang toi thieu')
+    }
+
+    return { minWeight, maxWeight }
+  }
+
+  private parseHotelExtraServicesConfig(rawValue: string | null | undefined) {
+    if (!rawValue) return []
+
+    try {
+      const parsed = JSON.parse(rawValue)
+      if (!Array.isArray(parsed)) return []
+      return parsed
+        .map((item) => {
+          const normalizedItem = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+          const { minWeight, maxWeight } = this.normalizeHotelExtraServiceWeightRange(normalizedItem)
+          const price = this.normalizeNumber(normalizedItem.price, 'Gia dich vu khac')
+          return {
+            sku: this.normalizeOptionalText(typeof normalizedItem.sku === 'string' ? normalizedItem.sku : null),
+            name: this.normalizeText(typeof normalizedItem.name === 'string' ? normalizedItem.name : '', 'Ten dich vu khac'),
+            minWeight,
+            maxWeight,
+            price,
+          }
+        })
+    } catch {
+      return []
+    }
+  }
+
+  async listHotelExtraServices() {
+    const config = await (this.db as any).systemConfig.findFirst({
+      select: { hotelExtraServices: true },
+    })
+
+    return this.parseHotelExtraServicesConfig(config?.hotelExtraServices)
+  }
+
   async listWeightBands(query: { serviceType?: string; species?: string; isActive?: string }) {
     const serviceType = this.normalizeServiceType(query.serviceType)
     const species = this.normalizeSpecies(query.species)
@@ -258,7 +333,6 @@ export class PricingService {
     const species = this.normalizeSpecies(query.species)
     const isActive = query.isActive === undefined ? undefined : String(query.isActive) !== 'false'
 
-    // Weight-banded rules (original safe query)
     const weightBandedRules = await this.db.spaPriceRule.findMany({
       where: {
         ...(species !== null ? { species } : {}),
@@ -269,7 +343,6 @@ export class PricingService {
       orderBy: [{ weightBand: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
     })
 
-    // Flat-rate rules (null weightBandId — queried separately to avoid Prisma OR issues)
     const flatRateRules = await this.db.spaPriceRule.findMany({
       where: {
         weightBandId: null,
@@ -277,7 +350,7 @@ export class PricingService {
         ...(isActive !== undefined ? { isActive } : {}),
       } as any,
       include: { weightBand: true },
-      orderBy: [{ createdAt: 'asc' }],
+      orderBy: [{ minWeight: 'asc' }, { createdAt: 'asc' }],
     })
 
     return [...weightBandedRules, ...flatRateRules]
@@ -290,6 +363,8 @@ export class PricingService {
       species: string | null
       packageCode: string
       weightBandId: string | null
+      minWeight: number | null
+      maxWeight: number | null
       sku?: string | null
       price: number
       durationMinutes: number | null
@@ -297,15 +372,17 @@ export class PricingService {
     }> = []
 
     for (const rule of dto.rules ?? []) {
-      // Only validate weightBandId if provided (flat-rate rules have no band)
       if (rule.weightBandId) {
         await this.assertWeightBandScope(rule.weightBandId, 'GROOMING')
       }
+      const { minWeight, maxWeight } = this.normalizeSpaRuleWeightRange(rule)
       normalizedRules.push({
         id: rule.id,
         species,
         packageCode: this.normalizeText(rule.packageCode, 'Gói SPA'),
         weightBandId: rule.weightBandId ?? null,
+        minWeight,
+        maxWeight,
         sku: rule.sku ?? null,
         price: this.normalizeNumber(rule.price, 'Giá SPA'),
         durationMinutes: this.normalizeOptionalNumber(rule.durationMinutes, 'Thời lượng', 1),
@@ -319,10 +396,7 @@ export class PricingService {
         include: { weightBand: true },
         orderBy: [{ weightBand: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
       })
-      const existingByCombo = new Map(existingRules.map((rule) => [
-        rule.weightBandId ? `${rule.weightBandId}:${rule.packageCode}` : `NULL:${rule.packageCode}`,
-        rule,
-      ]))
+      const existingByCombo = new Map(existingRules.map((rule) => [this.getSpaRuleComboKey(rule), rule]))
       const retainedIds = new Set<string>()
       const results = []
 
@@ -331,6 +405,8 @@ export class PricingService {
           species: rule.species,
           packageCode: rule.packageCode,
           weightBandId: rule.weightBandId ?? null,
+          minWeight: rule.minWeight,
+          maxWeight: rule.maxWeight,
           sku: rule.sku ?? null,
           price: rule.price,
           durationMinutes: rule.durationMinutes,
@@ -343,10 +419,7 @@ export class PricingService {
           retainedIds.add(current.id)
           results.push(await tx.spaPriceRule.update({ where: { id: current.id }, data, include: { weightBand: true } }))
         } else {
-          // For flat-rate rules, use packageCode as unique key (no weightBandId)
-          const comboKey = rule.weightBandId
-            ? `${rule.weightBandId}:${rule.packageCode}`
-            : `NULL:${rule.packageCode}`
+          const comboKey = this.getSpaRuleComboKey(rule)
           const current = existingByCombo.get(comboKey)
           if (current) {
             retainedIds.add(current.id)
@@ -366,8 +439,10 @@ export class PricingService {
       }
 
       return results.sort((left, right) => {
-        const bandOrder = (left.weightBand?.sortOrder ?? 0) - (right.weightBand?.sortOrder ?? 0)
+        const bandOrder = (left.weightBand?.sortOrder ?? Number.MAX_SAFE_INTEGER) - (right.weightBand?.sortOrder ?? Number.MAX_SAFE_INTEGER)
         if (bandOrder !== 0) return bandOrder
+        const minWeightOrder = (left.minWeight ?? -1) - (right.minWeight ?? -1)
+        if (minWeightOrder !== 0) return minWeightOrder
         return left.createdAt.getTime() - right.createdAt.getTime()
       })
     })
@@ -436,6 +511,46 @@ export class PricingService {
       }
       return results
     })
+  }
+
+  async bulkUpsertHotelExtraServices(dto: BulkUpsertHotelExtraServicesDto) {
+    const services = (dto.services ?? []).map((service) => {
+      const { minWeight, maxWeight } = this.normalizeHotelExtraServiceWeightRange(service)
+      return {
+        sku: this.normalizeOptionalText(service.sku),
+        name: this.normalizeText(service.name, 'Ten dich vu khac'),
+        minWeight,
+        maxWeight,
+        price: this.normalizeNumber(service.price, 'Gia dich vu khac'),
+      }
+    })
+
+    const duplicateKeys = new Set<string>()
+    for (const service of services) {
+      const key = `${service.name.trim().toLowerCase()}:${service.minWeight ?? 'NULL'}:${service.maxWeight ?? 'INF'}`
+      if (duplicateKeys.has(key)) {
+        throw new BadRequestException('Dich vu khac Hotel dang bi trung ten va khoang can')
+      }
+      duplicateKeys.add(key)
+    }
+
+    const payload = JSON.stringify(services)
+    const existing = await (this.db as any).systemConfig.findFirst({
+      select: { id: true },
+    })
+
+    if (existing) {
+      await (this.db as any).systemConfig.update({
+        where: { id: existing.id },
+        data: { hotelExtraServices: payload },
+      })
+    } else {
+      await (this.db as any).systemConfig.create({
+        data: { hotelExtraServices: payload },
+      })
+    }
+
+    return services
   }
 
   async listHolidays(query: { year?: string | number; isActive?: string }) {

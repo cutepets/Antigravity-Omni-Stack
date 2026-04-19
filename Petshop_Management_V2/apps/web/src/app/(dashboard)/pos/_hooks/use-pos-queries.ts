@@ -50,6 +50,23 @@ const isWeightInBand = (
   return weight >= minWeight && weight < maxWeight;
 };
 
+const hasCustomSpaWeightRange = (rule: { minWeight?: number | null; maxWeight?: number | null }) =>
+  rule.minWeight !== null && rule.minWeight !== undefined;
+
+const isWeightInSpaRule = (weight: number, rule: { minWeight?: number | null; maxWeight?: number | null }) => {
+  if (!hasCustomSpaWeightRange(rule)) return false;
+  const minWeight = Number(rule.minWeight ?? 0);
+  const maxWeight = rule.maxWeight === null || rule.maxWeight === undefined ? Number.POSITIVE_INFINITY : Number(rule.maxWeight);
+  return weight >= minWeight && weight < maxWeight;
+};
+
+const getSpaRuleWeightLabel = (rule: { minWeight?: number | null; maxWeight?: number | null }) => {
+  if (!hasCustomSpaWeightRange(rule)) return undefined;
+  const minWeight = Number(rule.minWeight ?? 0);
+  const maxWeight = rule.maxWeight === null || rule.maxWeight === undefined ? '∞' : String(rule.maxWeight);
+  return `${minWeight}-${maxWeight}kg`;
+};
+
 const packageLabel = (code?: string | null) =>
   String(code ?? '')
     .trim()
@@ -196,13 +213,51 @@ function buildPricingSuggestions({
   // ── Flat-rate spa suggestions (no weightBand, score 60) ───────────────────
   // Deduplicate by packageCode — show each service type once
   const weightMatchedPackageCodes = new Set(weightMatchedSpaSuggestions.map((s) => s.packageCode));
+  const customRangeSpaSuggestions = hasPricingProfile
+    ? spaRules
+      .filter(
+        (rule) =>
+          !rule.weightBand &&
+          !rule.weightBandId &&
+          hasCustomSpaWeightRange(rule) &&
+          isSpeciesMatch(species, getRuleSpecies(rule)) &&
+          isWeightInSpaRule(weight, rule) &&
+          !weightMatchedPackageCodes.has(rule.packageCode),
+      )
+      .map((rule) => ({
+        id: `pricing:grooming:custom:${rule.id}`,
+        entryType: 'pricing-grooming',
+        pricingKind: 'GROOMING',
+        type: 'grooming',
+        name: packageLabel(rule.packageCode),
+        description: undefined,
+        sku: getPricingSku('SPA', packageLabel(rule.packageCode), getSpaRuleWeightLabel(rule), rule.packageCode),
+        price: rule.price,
+        sellingPrice: rule.price,
+        duration: rule.durationMinutes ?? undefined,
+        packageCode: rule.packageCode,
+        weightBandId: undefined,
+        weightBandLabel: getSpaRuleWeightLabel(rule),
+        pricingRuleId: rule.id,
+        petSnapshot: pet,
+        suggestionKind: 'SPA' as const,
+        suggestionScore: 85,
+        isWeightMatched: true,
+        reason: `Giá grooming theo khoảng cân ${getSpaRuleWeightLabel(rule) ?? 'phù hợp'}.`,
+      }))
+    : [];
+  const matchedSpaPackageCodes = new Set([
+    ...weightMatchedPackageCodes,
+    ...customRangeSpaSuggestions.map((s) => s.packageCode),
+  ]);
   const flatRateSpaSuggestions = spaRules
     .filter(
       (rule) =>
         !rule.weightBand &&
         !rule.weightBandId &&
+        !hasCustomSpaWeightRange(rule) &&
         isSpeciesMatch(species, getRuleSpecies(rule)) &&
-        !weightMatchedPackageCodes.has(rule.packageCode),
+        !matchedSpaPackageCodes.has(rule.packageCode),
     )
     .map((rule) => ({
       id: `pricing:grooming:flat:${rule.id}`,
@@ -288,6 +343,7 @@ function buildPricingSuggestions({
 
   return [
     ...weightMatchedSpaSuggestions,
+    ...customRangeSpaSuggestions,
     ...weightMatchedHotelSuggestions,
     ...flatRateSpaSuggestions,
     ...flatRateHotelSuggestions,
