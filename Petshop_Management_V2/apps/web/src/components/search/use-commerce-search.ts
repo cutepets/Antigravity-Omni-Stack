@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { parseVariantConversionUnit, resolveProductVariantLabels, matchSearch } from '@petshop/shared'
+import { parseVariantConversionUnit, parseConversionRate, resolveProductVariantLabels, matchSearch } from '@petshop/shared'
 import { orderApi } from '@/lib/api/order.api'
 import { api } from '@/lib/api'
 import { resolveCatalogProductPricing } from '@/app/(dashboard)/pos/utils/customer-pricing'
@@ -124,6 +124,62 @@ const createProductEntry = (product: any, variant?: any) => {
   }
 }
 
+/** Entry cho conversion variant (thùng, hộp...). Dùng riêng khi barcode/SKU exact match. */
+const createConversionEntry = (product: any, convVariant: any) => {
+  const { variantLabel, unitLabel } = resolveProductVariantLabels(product.name, convVariant)
+  const conversions = convVariant.conversions
+  const conversionRate = parseConversionRate(conversions) ?? 1
+  const conversionUnit = parseVariantConversionUnit(conversions) ?? convVariant.name ?? ''
+  const resolvedPrice = convVariant.sellingPrice ?? convVariant.price ?? product.sellingPrice ?? product.price ?? 0
+
+  return {
+    ...product,
+    id: `product:${product.id}:conv:${convVariant.id}`,
+    entryId: `product:${product.id}:conv:${convVariant.id}`,
+    entryType: 'product-variant',
+    productId: product.id,
+    productVariantId: convVariant.id,
+    productName: product.name,
+    name: product.name,
+    displayName: product.name,
+    variantLabel: null,
+    unitLabel: unitLabel ?? conversionUnit,
+    sku: convVariant.sku ?? product.sku,
+    barcode: convVariant.barcode ?? product.barcode,
+    conversionSkus: [],
+    conversionRate,
+    conversionUnit,
+    image: convVariant.image ?? product.image,
+    price: resolvedPrice,
+    sellingPrice: resolvedPrice,
+    baseProductPrice: product.sellingPrice ?? product.price ?? 0,
+    baseProductPriceBookPrices: product.priceBookPrices,
+    priceBookPrices: convVariant.priceBookPrices ?? product.priceBookPrices,
+    unit: conversionUnit || product.unit,
+    stock: convVariant.stock ?? product.stock,
+    availableStock: convVariant.availableStock ?? product.availableStock,
+    trading: convVariant.trading ?? product.trading,
+    reserved: convVariant.reserved ?? product.reserved,
+    branchStocks: convVariant.branchStocks?.length ? convVariant.branchStocks : product.branchStocks,
+    soldCount: convVariant.soldCount ?? product.soldCount ?? 0,
+    salesMetrics: convVariant.salesMetrics ?? product.salesMetrics,
+    variants: product.variants,
+    hasVariants: false,
+    isConversion: true,
+  }
+}
+
+/** Flatten bao gồm cả conversion variants — dùng cho lookup barcode/SKU chính xác */
+const flattenAllEntries = (products: any[]) =>
+  products.flatMap((product: any) => {
+    const rawVariants = Array.isArray(product.variants) ? product.variants : []
+    const displayEntries = flattenProductEntries([product])
+    const conversionEntries = rawVariants
+      .filter((v: any) => isConversionVariant(v))
+      .map((v: any) => createConversionEntry(product, v))
+    return [...displayEntries, ...conversionEntries]
+  })
+
 const flattenProductEntries = (products: any[]) =>
   products.flatMap((product: any) => {
     const rawVariants = Array.isArray(product.variants) ? product.variants : []
@@ -149,16 +205,46 @@ export function useCatalogProducts(search?: string, priceBookId?: string) {
     queryKey: ['pos', 'catalog'],
     queryFn: async () => {
       const data = await orderApi.getCatalog()
-      return flattenProductEntries(data.products ?? [])
+      const products = data.products ?? []
+      return {
+        // Danh sách hiển thị bình thường (không có conversion entries riêng lᮧ)
+        displayEntries: flattenProductEntries(products),
+        // Danh sách đầy đủ gồm cả conversion variants — dùng cho lookup exact barcode/SKU
+        allEntries: flattenAllEntries(products),
+      }
     },
-    staleTime: 5 * 60_000, // 5 phút, catalog không đổi thường xuyên
+    staleTime: 5 * 60_000,
   })
 
   const sortedAndFiltered = useMemo(() => {
-    const entries = (catalogQuery.data ?? []).map((entry: any) => resolveCatalogProductPricing(entry, priceBookId))
-    if (!search) return entries.toSorted(compareProductEntries())
+    const { displayEntries = [], allEntries = [] } = catalogQuery.data ?? {}
+    const normalizedSearch = normalizeSearchTerm(search)
 
-    return entries
+    if (!search || !normalizedSearch) {
+      return displayEntries
+        .map((entry: any) => resolveCatalogProductPricing(entry, priceBookId))
+        .toSorted(compareProductEntries())
+    }
+
+    // --- Exact barcode/SKU lookup ---
+    // Nếu search term khớp chính xác barcode hoặc SKU của một conversion entry
+    // → ưu tiên trả conversion entry đó (dùng khi quet mã vạch thùng, hộp)
+    const exactConversion = allEntries.find((entry: any) => {
+      if (!entry.isConversion) return false
+      const codes = [entry.sku, entry.barcode]
+        .filter((v: any): v is string => Boolean(v))
+        .map((v: string) => v.toLowerCase())
+      return codes.some((c) => c === normalizedSearch)
+    })
+
+    if (exactConversion) {
+      // Chỉ trả đúng entry conversion này (không kèm các kết quả khác để auto-select hoạt động)
+      return [resolveCatalogProductPricing(exactConversion, priceBookId)]
+    }
+
+    // --- Full text search (display entries) ---
+    return displayEntries
+      .map((entry: any) => resolveCatalogProductPricing(entry, priceBookId))
       .filter((product: any) => {
         const searchableText = buildSearchableText([
           product.productName,
@@ -170,7 +256,6 @@ export function useCatalogProducts(search?: string, priceBookId?: string) {
           product.barcode,
           ...(Array.isArray(product.conversionSkus) ? product.conversionSkus : []),
         ])
-
         return searchableText ? matchSearch(search, searchableText) : false
       })
       .toSorted(compareProductEntries(search))
