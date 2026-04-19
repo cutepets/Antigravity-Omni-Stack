@@ -119,14 +119,16 @@ export function usePetPricingSuggestions(pet: any) {
   const spaRulesQuery = useQuery({
     queryKey: ['pos', 'pricing-suggestions', 'spa', 'all-active'],
     queryFn: () => pricingApi.getSpaRules({ isActive: true }),
-    enabled: Boolean(pet?.id) && hasPricingProfile,
+    // Fetch for all pets — needed to show flat-rate services (no weight band)
+    enabled: Boolean(pet?.id),
     staleTime: 30_000,
   });
 
   const hotelRulesQuery = useQuery({
     queryKey: ['pos', 'pricing-suggestions', 'hotel', currentYear, 'all-active'],
     queryFn: () => pricingApi.getHotelRules({ year: currentYear, isActive: true }),
-    enabled: Boolean(pet?.id) && hasPricingProfile,
+    // Fetch for all pets — needed to show flat-rate hotel services
+    enabled: Boolean(pet?.id),
     staleTime: 30_000,
   });
 
@@ -162,34 +164,74 @@ function buildPricingSuggestions({
   spaRules: SpaPriceRule[];
   hotelRules: HotelPriceRule[];
 }) {
-  if (!pet || !hasPricingProfile) return [];
+  if (!pet) return [];
 
-  const spaSuggestions = spaRules
-    .filter((rule) => isSpeciesMatch(species, getRuleSpecies(rule)) && isWeightInBand(weight, rule.weightBand))
+  // ── Weight-matched spa suggestions (score 90) ─────────────────────────────
+  const weightMatchedSpaSuggestions = hasPricingProfile
+    ? spaRules
+      .filter((rule) => rule.weightBand && isSpeciesMatch(species, getRuleSpecies(rule)) && isWeightInBand(weight, rule.weightBand))
+      .map((rule) => ({
+        id: `pricing:grooming:${rule.id}`,
+        entryType: 'pricing-grooming',
+        pricingKind: 'GROOMING',
+        type: 'grooming',
+        name: packageLabel(rule.packageCode),
+        description: undefined,
+        sku: getPricingSku('SPA', packageLabel(rule.packageCode), rule.weightBand?.label, rule.packageCode),
+        price: rule.price,
+        sellingPrice: rule.price,
+        duration: rule.durationMinutes ?? undefined,
+        packageCode: rule.packageCode,
+        weightBandId: rule.weightBandId,
+        weightBandLabel: rule.weightBand?.label,
+        pricingRuleId: rule.id,
+        petSnapshot: pet,
+        suggestionKind: 'SPA' as const,
+        suggestionScore: 90,
+        isWeightMatched: true,
+        reason: `Giá từ bảng giá grooming cho hạng ${rule.weightBand?.label ?? 'phù hợp'}.`,
+      }))
+    : [];
+
+  // ── Flat-rate spa suggestions (no weightBand, score 60) ───────────────────
+  // Deduplicate by packageCode — show each service type once
+  const weightMatchedPackageCodes = new Set(weightMatchedSpaSuggestions.map((s) => s.packageCode));
+  const flatRateSpaSuggestions = spaRules
+    .filter(
+      (rule) =>
+        !rule.weightBand &&
+        !rule.weightBandId &&
+        isSpeciesMatch(species, getRuleSpecies(rule)) &&
+        !weightMatchedPackageCodes.has(rule.packageCode),
+    )
     .map((rule) => ({
-      id: `pricing:grooming:${rule.id}`,
+      id: `pricing:grooming:flat:${rule.id}`,
       entryType: 'pricing-grooming',
       pricingKind: 'GROOMING',
       type: 'grooming',
       name: packageLabel(rule.packageCode),
       description: undefined,
-      sku: getPricingSku('SPA', packageLabel(rule.packageCode), rule.weightBand?.label, rule.packageCode),
+      sku: getPricingSku('SPA', packageLabel(rule.packageCode), undefined, rule.packageCode),
       price: rule.price,
       sellingPrice: rule.price,
       duration: rule.durationMinutes ?? undefined,
       packageCode: rule.packageCode,
-      weightBandId: rule.weightBandId,
-      weightBandLabel: rule.weightBand?.label,
+      weightBandId: undefined,
+      weightBandLabel: undefined,
       pricingRuleId: rule.id,
       petSnapshot: pet,
-      suggestionKind: 'SPA',
-      suggestionScore: 90,
-      reason: `Giá từ bảng giá grooming cho hạng ${rule.weightBand?.label ?? 'phù hợp'}.`,
+      suggestionKind: 'SPA' as const,
+      suggestionScore: 60,
+      isWeightMatched: false,
+      reason: 'Dịch vụ giá cố định (không phân loại theo cân nặng).',
     }));
 
-  const matchingHotelRules = hotelRules.filter((rule) => isSpeciesMatch(species, getRuleSpecies(rule)) && isWeightInBand(weight, rule.weightBand));
+  // ── Weight-matched hotel suggestion (score 85) ────────────────────────────
+  const matchingHotelRules = hasPricingProfile
+    ? hotelRules.filter((rule) => isSpeciesMatch(species, getRuleSpecies(rule)) && isWeightInBand(weight, rule.weightBand))
+    : [];
   const regularHotelRule = matchingHotelRules.find((rule) => rule.dayType === 'REGULAR') ?? matchingHotelRules[0];
-  const hotelSuggestions = regularHotelRule
+  const weightMatchedHotelSuggestions = regularHotelRule
     ? [{
       id: `pricing:hotel:${regularHotelRule.weightBandId}`,
       entryType: 'pricing-hotel',
@@ -205,13 +247,51 @@ function buildPricingSuggestions({
       weightBandLabel: regularHotelRule.weightBand?.label,
       pricingRuleId: regularHotelRule.id,
       petSnapshot: pet,
-      suggestionKind: 'HOTEL',
+      suggestionKind: 'HOTEL' as const,
       suggestionScore: 85,
+      isWeightMatched: true,
       reason: 'Tính giá hotel theo ngày nhận/trả, tự tách ngày lễ và ngày thường.',
     }]
     : [];
 
-  return [...spaSuggestions, ...hotelSuggestions].sort((left, right) => right.suggestionScore - left.suggestionScore);
+  // ── Flat-rate hotel suggestions (no weightBand, score 55) ────────────────
+  const hasWeightMatchedHotel = weightMatchedHotelSuggestions.length > 0;
+  const flatRateHotelRules = !hasWeightMatchedHotel
+    ? hotelRules.filter(
+      (rule) =>
+        !rule.weightBand &&
+        !rule.weightBandId &&
+        rule.dayType === 'REGULAR' &&
+        isSpeciesMatch(species, getRuleSpecies(rule)),
+    )
+    : [];
+  const flatRateHotelSuggestions = flatRateHotelRules.slice(0, 1).map((rule) => ({
+    id: `pricing:hotel:flat:${rule.id}`,
+    entryType: 'pricing-hotel',
+    pricingKind: 'HOTEL',
+    type: 'hotel',
+    name: 'Hotel lưu trú',
+    description: 'Chọn ngày để tính giá',
+    sku: getPricingSku('HOTEL', 'Hotel lưu trú', undefined),
+    price: rule.fullDayPrice,
+    sellingPrice: rule.fullDayPrice,
+    duration: undefined,
+    weightBandId: undefined,
+    weightBandLabel: undefined,
+    pricingRuleId: rule.id,
+    petSnapshot: pet,
+    suggestionKind: 'HOTEL' as const,
+    suggestionScore: 55,
+    isWeightMatched: false,
+    reason: 'Dịch vụ khách sạn giá cố định.',
+  }));
+
+  return [
+    ...weightMatchedSpaSuggestions,
+    ...weightMatchedHotelSuggestions,
+    ...flatRateSpaSuggestions,
+    ...flatRateHotelSuggestions,
+  ].sort((left, right) => right.suggestionScore - left.suggestionScore);
 }
 
 // ─── Customer Search ──────────────────────────────────────────────────────────

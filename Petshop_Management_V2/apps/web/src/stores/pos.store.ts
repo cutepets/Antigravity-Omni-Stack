@@ -4,6 +4,7 @@ import { resolveProductVariantLabels, type CartItem, type OrderTab, type Payment
 import { getCartQuantityStep, roundCartQuantity } from '@/app/(dashboard)/_shared/cart/cart.utils';
 
 type PosRoundingUnit = 100 | 1000;
+export type PosTheme = 'light' | 'dark' | 'system';
 
 // ─── Default tab factory ──────────────────────────────────────────────────────
 const createNewTab = (id?: string, tabNumber?: number): OrderTab => ({
@@ -89,6 +90,9 @@ interface PosStore {
   isMultiSelect: boolean;
   setIsMultiSelect: (val: boolean) => void;
 
+  posTheme: PosTheme;
+  setPosTheme: (val: PosTheme) => void;
+
   autoFocusSearch: boolean;
   setAutoFocusSearch: (val: boolean) => void;
   barcodeMode: boolean;
@@ -135,6 +139,8 @@ interface PosStore {
   updateItemPrice: (itemId: string, price: number) => void;
   updateDiscountItem: (itemId: string, discount: number) => void;
   updateItemNotes: (itemId: string, notes: string) => void;
+  updateItemDescription: (itemId: string, description: string) => void;
+  updateItemUnit: (itemId: string, unit: string) => void;
   updateItemVariant: (itemId: string, variantId: string) => void;
   clearCart: () => void;
 
@@ -205,6 +211,9 @@ export const usePosStore = create<PosStore>()(
         setOutOfStockHidden: (hidden) => set({ outOfStockHidden: hidden }),
         isMultiSelect: false,
         setIsMultiSelect: (val) => set({ isMultiSelect: val }),
+
+        posTheme: 'light',
+        setPosTheme: (val) => set({ posTheme: val }),
 
         autoFocusSearch: true,
         setAutoFocusSearch: (val) => set({ autoFocusSearch: val }),
@@ -352,6 +361,24 @@ export const usePosStore = create<PosStore>()(
             })),
           ),
 
+        updateItemDescription: (itemId, description) =>
+          set((s) =>
+            updateActiveTab(s, (tab) => ({
+              cart: tab.cart.map((c) =>
+                c.id === itemId ? { ...c, description } : c,
+              ),
+            })),
+          ),
+
+        updateItemUnit: (itemId, unit) =>
+          set((s) =>
+            updateActiveTab(s, (tab) => ({
+              cart: tab.cart.map((c) =>
+                c.id === itemId ? { ...c, unit, baseUnit: unit } : c,
+              ),
+            })),
+          ),
+
         updateItemVariant: (itemId, variantId) =>
           set((s) =>
             updateActiveTab(s, (tab) => ({
@@ -398,7 +425,7 @@ export const usePosStore = create<PosStore>()(
                       const resolvedLabels = resolveProductVariantLabels(productName, variant);
                       const variantLabel =
                         resolvedLabels.variantLabel &&
-                        resolvedLabels.variantLabel.trim().toLowerCase() !== normalizedProductName
+                          resolvedLabels.variantLabel.trim().toLowerCase() !== normalizedProductName
                           ? resolvedLabels.variantLabel
                           : undefined;
                       const unitLabel = resolvedLabels.unitLabel ?? undefined;
@@ -575,6 +602,7 @@ export const usePosStore = create<PosStore>()(
           paperSize: state.paperSize,
           autoPrint: state.autoPrint,
           autoPrintQR: state.autoPrintQR,
+          posTheme: state.posTheme,
         };
       },
       merge: (persistedState, currentState) => {

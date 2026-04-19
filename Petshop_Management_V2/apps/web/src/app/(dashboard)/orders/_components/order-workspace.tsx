@@ -342,7 +342,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             />
           </div>
 
-          <div className="flex min-h-0 flex-col overflow-y-auto custom-scrollbar">
+          <div className="flex min-h-0 flex-col overflow-hidden">
             <OrderRightPanel
               mode={mode}
               subtotal={workspace.subtotal}
@@ -358,8 +358,8 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
               notes={workspace.draft.notes}
               onNotesChange={workspace.handleChangeNotes}
               timeline={workspace.timeline as any[]}
+              payments={workspace.order?.payments as any[]}
               paymentIntents={workspace.paymentIntents as any[]}
-              relatedDocuments={workspace.relatedDocuments}
               itemsCount={workspace.draft.items.length}
               orderStatus={workspace.order?.status}
             />

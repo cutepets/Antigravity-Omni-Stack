@@ -224,7 +224,7 @@ export function UnifiedPetProfile({
     );
   }, [pet]);
 
-  const suggestedServices = pricingSuggestionsQuery.data?.slice(0, 6) ?? [];
+  const suggestedServices = pricingSuggestionsQuery.data?.slice(0, 20) ?? [];
 
   if (!isOpen || !petId) return null;
 
@@ -596,7 +596,11 @@ export function UnifiedPetProfile({
                                 <span className="text-[12px] font-normal text-foreground-muted">
                                   · {service.weightBandLabel}
                                 </span>
-                              ) : null}
+                              ) : (
+                                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-foreground-muted/10 text-foreground-muted">
+                                  Giá cố định
+                                </span>
+                              )}
                             </div>
                           </div>
 

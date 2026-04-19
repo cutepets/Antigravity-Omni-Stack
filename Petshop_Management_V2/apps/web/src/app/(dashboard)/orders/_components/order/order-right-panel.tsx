@@ -1,17 +1,11 @@
 'use client'
 
-import { Calendar, ExternalLink, FileText, MessageSquare } from 'lucide-react'
+import { Calendar, MessageSquare } from 'lucide-react'
+import { getPaymentMethodColorClasses } from '@/lib/payment-methods'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { PaymentStatusBadge, OrderStatusBadge } from './order-badges'
-import { ORDER_ACTION_LABELS, ORDER_STATUS_LABEL } from './order.constants'
+import { ORDER_ACTION_LABELS } from './order.constants'
 import type { OrderWorkspaceMode } from './order.types'
-
-interface RelatedDocument {
-  id: string
-  label: string
-  href: string
-  tone?: string
-}
 
 interface OrderRightPanelProps {
   mode: OrderWorkspaceMode
@@ -28,75 +22,170 @@ interface OrderRightPanelProps {
   notes: string
   onNotesChange: (v: string) => void
   timeline: any[]
-  relatedDocuments: RelatedDocument[]
   itemsCount: number
   orderStatus?: string
+  payments?: any[]
   paymentIntents?: any[]
 }
 
-function buildHistorySummary(entry: any) {
-  const actorName =
-    entry.performedByUser?.fullName ?? entry.performedByUser?.staffCode ?? 'Chưa xác định'
-  const statusLabel =
-    entry.fromStatus || entry.toStatus
-      ? [
-        entry.fromStatus ? ORDER_STATUS_LABEL[entry.fromStatus] ?? entry.fromStatus : null,
-        entry.toStatus ? `→ ${ORDER_STATUS_LABEL[entry.toStatus] ?? entry.toStatus}` : null,
-      ]
-        .filter(Boolean)
-        .join(' ')
-      : null
-
-  return [actorName, statusLabel, entry.note].filter(Boolean).join(' • ')
+function inferPaymentMethodFromLabel(label?: string | null) {
+  const normalized = String(label ?? '').trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized.includes('tien mat') || normalized.includes('tiền mặt') || normalized.includes('cash')) return 'CASH'
+  if (normalized.includes('quet the') || normalized.includes('quẹt thẻ') || normalized.includes('the') || normalized.includes('card')) return 'CARD'
+  if (
+    normalized.includes('vi dien tu') ||
+    normalized.includes('ví điện tử') ||
+    normalized.includes('wallet') ||
+    normalized.includes('momo') ||
+    normalized.includes('zalo')
+  ) return 'EWALLET'
+  if (normalized.includes('ket hop') || normalized.includes('kết hợp') || normalized.includes('mixed')) return 'MIXED'
+  if (normalized.includes('cong no') || normalized.includes('công nợ') || normalized.includes('credit')) return 'ORDER_CREDIT'
+  return 'BANK'
 }
 
-function getDocumentToneClass(tone?: string) {
-  if (tone === 'income') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-  if (tone === 'expense') return 'border-rose-500/20 bg-rose-500/10 text-rose-300'
-  if (tone === 'grooming') return 'border-sky-500/20 bg-sky-500/10 text-sky-300'
-  if (tone === 'hotel') return 'border-amber-500/20 bg-amber-500/10 text-amber-300'
-  return 'border-border bg-background text-foreground'
+function getPaymentTextClass(method?: string | null, colorKey?: string | null, label?: string | null) {
+  const resolvedMethod = (method ?? inferPaymentMethodFromLabel(label) ?? '').trim().toUpperCase()
+
+  switch (resolvedMethod) {
+    case 'BANK':
+      return getPaymentMethodColorClasses('BANK', colorKey).text
+    case 'CARD':
+      return getPaymentMethodColorClasses('CARD', colorKey).text
+    case 'EWALLET':
+      return getPaymentMethodColorClasses('EWALLET', colorKey).text
+    case 'CASH':
+      return getPaymentMethodColorClasses('CASH', colorKey).text
+    case 'MIXED':
+      return 'text-amber-500'
+    case 'ORDER_CREDIT':
+      return 'text-slate-400'
+    default:
+      return 'text-foreground-secondary'
+  }
 }
 
-function RelatedDocumentsSection({ relatedDocuments }: { relatedDocuments: RelatedDocument[] }) {
+function getPaymentDisplayLabel(method?: string | null, fallbackLabel?: string | null) {
+  const resolvedMethod = String(method ?? '').trim().toUpperCase()
+  if (resolvedMethod === 'CASH') return 'Tiền mặt'
+  if (resolvedMethod === 'BANK') return fallbackLabel?.trim() || 'Chuyển khoản'
+  if (resolvedMethod === 'CARD') return 'Quẹt thẻ'
+  if (resolvedMethod === 'EWALLET') return fallbackLabel?.trim() || 'Ví điện tử'
+  if (resolvedMethod === 'MIXED') return 'Kết hợp'
+  if (resolvedMethod === 'ORDER_CREDIT') return 'Công nợ'
+  return fallbackLabel?.trim() || method?.trim() || 'Khác'
+}
+
+function getPaidPaymentRows(payments: any[] = [], paymentIntents: any[] = []) {
+  const normalizedPayments = Array.isArray(payments)
+    ? payments
+      .filter((payment: any) => Number(payment?.amount) > 0)
+      .map((payment: any, index: number) => ({
+        id: payment.id ?? `payment-${index}`,
+        label: getPaymentDisplayLabel(payment.method, payment.paymentAccountLabel),
+        amount: Number(payment.amount) || 0,
+        method: payment.method ?? null,
+        colorKey: null,
+      }))
+    : []
+
+  if (normalizedPayments.length > 0) {
+    return normalizedPayments
+  }
+
+  return paymentIntents
+    .filter((intent: any) => intent?.status === 'PAID')
+    .map((intent: any) => ({
+      id: intent.id,
+      label: intent.paymentMethod?.name || 'Khác',
+      amount: Number(intent.amount) || 0,
+      method: intent.paymentMethod?.type ?? null,
+      colorKey: intent.paymentMethod?.colorKey ?? null,
+    }))
+}
+
+function splitHistoryNote(note?: string | null) {
+  return String(note ?? '')
+    .split(/\s(?:•|·|â€¢|Â·|Ã‚Â·|Ã¢â‚¬Â¢)\s/g)
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+function isPaymentHistoryAction(action?: string | null) {
+  return action === 'PAYMENT_ADDED' || action === 'PAID' || action === 'PAYMENT_CONFIRMED'
+}
+
+function getHistoryLink(entry: any) {
+  const label = String(entry?.metadata?.historyLink?.label ?? '').trim()
+  const href = String(entry?.metadata?.historyLink?.href ?? '').trim()
+  if (!label || !href) return null
+  return { label, href }
+}
+
+function normalizeSearchText(value?: string | null) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function shouldHideHistoryPart(part: string) {
+  return normalizeSearchText(part).startsWith('xuat kho luc')
+}
+
+function renderHistoryNote(entry: any, note: string) {
+  if (!note) return null
+
+  const parts = splitHistoryNote(note)
+  if (parts.length === 0) return null
+
+  const historyLink = getHistoryLink(entry)
+  const paymentLabelIndex = isPaymentHistoryAction(entry?.action)
+    ? historyLink && parts[0] === historyLink.label
+      ? 1
+      : 0
+    : -1
+
   return (
-    <div className="px-4 py-4">
-      <div className="rounded-2xl border border-border bg-background-secondary p-4">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-foreground-muted">
-          <FileText size={13} />
-          Phiếu liên quan
-        </div>
+    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs leading-relaxed text-foreground-muted">
+      {parts.map((part, index) => {
+        const content = index > 0 ? `• ${part}` : part
 
-        {relatedDocuments.length > 0 ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {relatedDocuments.map((document) => (
-              <a
-                key={document.id}
-                href={document.href}
-                target="_blank"
-                rel="noreferrer"
-                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors hover:border-primary-500/35 hover:text-primary-500 ${getDocumentToneClass(document.tone)}`}
-              >
-                <span>{document.label}</span>
-                <ExternalLink size={12} />
-              </a>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-4 text-sm text-foreground-muted">
-            Đơn hàng này chưa có phiếu liên kết.
-          </div>
-        )}
-      </div>
+        if (historyLink && index === 0 && part === historyLink.label) {
+          return (
+            <a
+              key={`${part}-${index}`}
+              href={historyLink.href}
+              className="font-semibold text-primary-500 transition-colors hover:text-primary-400"
+            >
+              {content}
+            </a>
+          )
+        }
+
+        if (index === paymentLabelIndex) {
+          return (
+            <span
+              key={`${part}-${index}`}
+              className={`font-medium ${getPaymentTextClass(undefined, null, part)}`}
+            >
+              {content}
+            </span>
+          )
+        }
+
+        return <span key={`${part}-${index}`}>{content}</span>
+      })}
     </div>
   )
 }
 
 function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatus?: string }) {
   return (
-    <div className="px-4 py-4">
-      <div className="rounded-2xl border border-border bg-background-secondary p-4">
-        <div className="flex items-center justify-between gap-3 mb-4">
+    <div className="min-h-0 flex-1 px-4 py-4">
+      <div className="flex h-full min-h-0 flex-col rounded-2xl border border-border bg-background-secondary p-4">
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-foreground-muted">
             Lịch sử
           </div>
@@ -104,31 +193,25 @@ function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatu
         </div>
 
         {timeline.length > 0 ? (
-          <div className="relative">
-            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border/60" />
+          <div className="relative min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
+            <div className="absolute bottom-2 left-[7px] top-2 w-px bg-border/60" />
             <div className="space-y-0">
               {timeline.map((entry: any) => {
                 const actorName = entry.performedByUser?.fullName ?? entry.performedByUser?.staffCode ?? null
-                // Gộp ghi chú nhưng bỏ dòng "Xuất kho lúc..." vì timestamp đã hiện ở trên
-                const rawNote: string = entry.note ?? ''
-                const cleanNote = rawNote
-                  .split(' · ')
-                  .filter((part) => !part.startsWith('Xuất kho lúc'))
-                  .join(' · ')
+                const cleanNote = splitHistoryNote(String(entry.note ?? ''))
+                  .filter((part) => !shouldHideHistoryPart(part))
+                  .join(' • ')
                   .trim()
 
                 return (
                   <div key={entry.id} className="relative grid grid-cols-[16px_1fr] gap-x-3 pb-4 last:pb-0">
-                    {/* Dot */}
                     <div className="flex justify-center pt-[5px]">
                       <span className="h-[9px] w-[9px] shrink-0 rounded-full bg-primary-500 ring-2 ring-background-secondary" />
                     </div>
 
-                    {/* Content — compact 2 dòng */}
                     <div>
-                      {/* Dòng 1: Tên hành động + NV + thời gian */}
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-sm font-semibold text-foreground leading-snug">
+                        <span className="text-sm font-semibold leading-snug text-foreground">
                           {ORDER_ACTION_LABELS[entry.action] ?? entry.action}
                           {actorName ? (
                             <span className="ml-1.5 text-xs font-normal text-foreground-muted">{actorName}</span>
@@ -139,12 +222,7 @@ function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatu
                         </span>
                       </div>
 
-                      {/* Dòng 2: note súc tích (nếu có) */}
-                      {cleanNote ? (
-                        <div className="mt-0.5 text-xs text-foreground-muted leading-relaxed">
-                          {cleanNote}
-                        </div>
-                      ) : null}
+                      {cleanNote ? renderHistoryNote(entry, cleanNote) : null}
                     </div>
                   </div>
                 )
@@ -161,7 +239,6 @@ function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatu
   )
 }
 
-
 export function OrderRightPanel({
   mode,
   subtotal,
@@ -177,11 +254,13 @@ export function OrderRightPanel({
   notes,
   onNotesChange,
   timeline,
-  relatedDocuments,
   itemsCount,
   orderStatus,
+  payments = [],
   paymentIntents = [],
 }: OrderRightPanelProps) {
+  const paidPaymentRows = getPaidPaymentRows(payments, paymentIntents)
+
   return (
     <div className="flex h-full flex-col">
       <div className="space-y-3 border-b border-border px-4 py-4">
@@ -192,9 +271,7 @@ export function OrderRightPanel({
               <span className="badge badge-primary px-1.5 py-0 text-[10px]">{itemsCount}</span>
             ) : null}
           </span>
-          <span className="text-sm font-semibold text-foreground tabular-nums">
-            {formatCurrency(subtotal)}
-          </span>
+          <span className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(subtotal)}</span>
         </div>
 
         <div className="flex items-center justify-between gap-3">
@@ -229,9 +306,7 @@ export function OrderRightPanel({
 
         <div className="flex items-center justify-between rounded-xl border border-border bg-background-secondary px-3 py-3">
           <span className="text-base font-semibold text-foreground">Cần thanh toán</span>
-          <span className="text-[28px] font-black text-primary-500 tabular-nums">
-            {formatCurrency(total)}
-          </span>
+          <span className="text-[28px] font-black text-primary-500 tabular-nums">{formatCurrency(total)}</span>
         </div>
       </div>
 
@@ -242,31 +317,29 @@ export function OrderRightPanel({
             <PaymentStatusBadge status={paymentStatus} />
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-foreground-muted">Đã thu</span>
-            <span className="text-sm font-semibold text-success tabular-nums">
-              {formatCurrency(amountPaid)}
-            </span>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-sm text-foreground-muted">Đã thu</span>
+            </div>
+            <span className="text-sm font-semibold text-success tabular-nums">{formatCurrency(amountPaid)}</span>
           </div>
 
-          {paymentIntents && paymentIntents.length > 0 ? (
-            <div className="flex flex-col items-end gap-1">
-              {paymentIntents
-                .filter((intent: any) => intent.status === 'PAID')
-                .map((intent: any, idx: number) => (
-                  <div key={intent.id || idx} className="flex items-center gap-2 text-[13px] text-foreground-muted">
-                    <span>{intent.paymentMethod?.name || 'Khác'}</span>
-                    <span className="tabular-nums">- {formatCurrency(intent.amount)}</span>
-                  </div>
-                ))}
+          {paidPaymentRows.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              {paidPaymentRows.map((payment, idx) => (
+                <div key={payment.id || idx} className="flex items-center justify-between gap-4 text-[13px] leading-relaxed">
+                  <span className={`font-medium ${getPaymentTextClass(payment.method, payment.colorKey, payment.label)}`}>
+                    {payment.label}
+                  </span>
+                  <span className="shrink-0 text-foreground-muted tabular-nums">{formatCurrency(payment.amount)}</span>
+                </div>
+              ))}
             </div>
           ) : null}
 
           <div className="mt-1 flex items-center justify-between pt-1">
             <span className="text-sm text-foreground-muted">Còn lại</span>
-            <span className="text-sm font-semibold text-foreground tabular-nums">
-              {formatCurrency(remainingAmount)}
-            </span>
+            <span className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(remainingAmount)}</span>
           </div>
         </div>
       ) : null}
@@ -276,22 +349,17 @@ export function OrderRightPanel({
           <MessageSquare size={13} />
           Ghi chú
         </div>
-        <textarea
-          rows={3}
+        <input
+          type="text"
           value={notes}
           disabled={!isEditing && mode === 'detail'}
           onChange={(event) => onNotesChange(event.target.value)}
           placeholder="Ghi chú cho đơn hàng..."
-          className="w-full resize-none rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors disabled:cursor-default disabled:bg-background-secondary disabled:text-foreground-muted"
+          className="h-11 w-full rounded-2xl border border-border bg-background px-4 text-sm text-foreground outline-none transition-colors disabled:cursor-default disabled:bg-background-secondary disabled:text-foreground-muted"
         />
       </div>
 
-      {mode === 'detail' ? (
-        <>
-          <RelatedDocumentsSection relatedDocuments={relatedDocuments} />
-          <HistorySection timeline={timeline} orderStatus={orderStatus} />
-        </>
-      ) : null}
+      {mode === 'detail' ? <HistorySection timeline={timeline} orderStatus={orderStatus} /> : null}
 
       {mode !== 'detail' ? (
         <div className="px-4 py-4">

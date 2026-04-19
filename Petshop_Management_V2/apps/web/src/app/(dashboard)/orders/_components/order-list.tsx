@@ -26,6 +26,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { orderApi } from '@/lib/api/order.api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
+import { getPaymentMethodColorClasses } from '@/lib/payment-methods'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { exportOrdersToExcel } from '@/lib/order-export'
 import { OrderStatusBadge, PaymentStatusBadge } from './order/order-badges'
@@ -71,6 +72,80 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
   COLUMN_OPTIONS.filter((c) => c.sortable).map((c) => c.id)
 )
+
+function getPaymentMethodLabel(value?: string | null) {
+  switch (`${value ?? ''}`.trim().toUpperCase()) {
+    case 'CASH':
+      return 'Tiền mặt'
+    case 'BANK':
+      return 'Chuyển khoản'
+    case 'CARD':
+      return 'Thẻ'
+    case 'EWALLET':
+      return 'Ví điện tử'
+    case 'MIXED':
+      return 'Kết hợp'
+    case 'ORDER_CREDIT':
+      return 'Công nợ'
+    default:
+      return value?.trim() || '—'
+  }
+}
+
+function getOrderPaymentColorClasses(method?: string | null) {
+  switch (`${method ?? ''}`.trim().toUpperCase()) {
+    case 'BANK':
+      return { text: getPaymentMethodColorClasses('BANK').text }
+    case 'CARD':
+      return { text: getPaymentMethodColorClasses('CARD').text }
+    case 'EWALLET':
+      return { text: getPaymentMethodColorClasses('EWALLET').text }
+    case 'CASH':
+      return { text: getPaymentMethodColorClasses('CASH').text }
+    case 'MIXED':
+      return {
+        text: 'text-amber-500',
+      }
+    case 'ORDER_CREDIT':
+      return {
+        text: 'text-slate-400',
+      }
+    default:
+      return {
+        text: 'text-foreground-secondary',
+      }
+  }
+}
+
+function getOrderPaymentBadges(order: any) {
+  const paymentBadges = Array.isArray(order?.payments)
+    ? Array.from(
+      new Map(
+        order.payments
+          .map((payment: any) => {
+            const method = String(payment?.method ?? '').trim().toUpperCase()
+            const paymentAccountLabel = String(payment?.paymentAccountLabel ?? '').trim()
+            const label = paymentAccountLabel || getPaymentMethodLabel(method)
+            if (!label || label === '—') return null
+
+            return [`${method}:${label}`, { label, method }]
+          })
+          .filter(Boolean) as Array<[string, { label: string; method: string }]>,
+      ).values(),
+    )
+    : []
+
+  if (paymentBadges.length > 0) {
+    return paymentBadges
+  }
+
+  const legacyPaymentMethod = String(order?.paymentMethod ?? '').trim()
+  if (legacyPaymentMethod) {
+    return [{ label: getPaymentMethodLabel(legacyPaymentMethod), method: legacyPaymentMethod }]
+  }
+
+  return []
+}
 
 function StockStatusBadge({ stockExportedAt, status }: { stockExportedAt?: string | null; status?: string }) {
   if (stockExportedAt) {
@@ -463,10 +538,22 @@ export function OrderList() {
                     </td>
                   );
                   case 'payment': return (
-                    <td key={columnId} className="px-3 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5 text-xs text-foreground-secondary font-medium">
-                        <CreditCard size={13} className="text-foreground-muted" />
-                        {o.paymentMethod?.replace('_', ' ') || '—'}
+                    <td key={columnId} className="px-3 py-3">
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
+                        {getOrderPaymentBadges(o).length > 0 ? (
+                          getOrderPaymentBadges(o).map((badge: { label: string; method: string }, idx: number) => (
+                            <span
+                              key={`${badge.method}-${badge.label}-${idx}`}
+                              className={`font-semibold ${getOrderPaymentColorClasses(badge.method).text}`}
+                              title={badge.label}
+                            >
+                              {badge.label}
+                              {idx < getOrderPaymentBadges(o).length - 1 ? ',' : ''}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-foreground-muted">—</span>
+                        )}
                       </div>
                     </td>
                   );

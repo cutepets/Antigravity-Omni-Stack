@@ -46,7 +46,7 @@ function getPrismaErrorCode(error: unknown) {
 
 @Injectable()
 export class PricingService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   private deriveHalfDayPrice(fullDayPrice: number) {
     return Math.round(fullDayPrice / 2)
@@ -257,7 +257,9 @@ export class PricingService {
   async listSpaRules(query: { species?: string; isActive?: string }) {
     const species = this.normalizeSpecies(query.species)
     const isActive = query.isActive === undefined ? undefined : String(query.isActive) !== 'false'
-    return this.db.spaPriceRule.findMany({
+
+    // Weight-banded rules (original safe query)
+    const weightBandedRules = await this.db.spaPriceRule.findMany({
       where: {
         ...(species !== null ? { species } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
@@ -266,6 +268,19 @@ export class PricingService {
       include: { weightBand: true },
       orderBy: [{ weightBand: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
     })
+
+    // Flat-rate rules (null weightBandId — queried separately to avoid Prisma OR issues)
+    const flatRateRules = await this.db.spaPriceRule.findMany({
+      where: {
+        weightBandId: null,
+        ...(species !== null ? { species } : {}),
+        ...(isActive !== undefined ? { isActive } : {}),
+      } as any,
+      include: { weightBand: true },
+      orderBy: [{ createdAt: 'asc' }],
+    })
+
+    return [...weightBandedRules, ...flatRateRules]
   }
 
   async bulkUpsertSpaRules(dto: BulkUpsertSpaRulesDto) {
@@ -274,7 +289,7 @@ export class PricingService {
       id?: string | undefined
       species: string | null
       packageCode: string
-      weightBandId: string
+      weightBandId: string | null
       sku?: string | null
       price: number
       durationMinutes: number | null
@@ -282,12 +297,15 @@ export class PricingService {
     }> = []
 
     for (const rule of dto.rules ?? []) {
-      await this.assertWeightBandScope(rule.weightBandId, 'GROOMING')
+      // Only validate weightBandId if provided (flat-rate rules have no band)
+      if (rule.weightBandId) {
+        await this.assertWeightBandScope(rule.weightBandId, 'GROOMING')
+      }
       normalizedRules.push({
         id: rule.id,
         species,
         packageCode: this.normalizeText(rule.packageCode, 'Gói SPA'),
-        weightBandId: rule.weightBandId,
+        weightBandId: rule.weightBandId ?? null,
         sku: rule.sku ?? null,
         price: this.normalizeNumber(rule.price, 'Giá SPA'),
         durationMinutes: this.normalizeOptionalNumber(rule.durationMinutes, 'Thời lượng', 1),
@@ -301,15 +319,18 @@ export class PricingService {
         include: { weightBand: true },
         orderBy: [{ weightBand: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
       })
-      const existingByCombo = new Map(existingRules.map((rule) => [`${rule.weightBandId}:${rule.packageCode}`, rule]))
+      const existingByCombo = new Map(existingRules.map((rule) => [
+        rule.weightBandId ? `${rule.weightBandId}:${rule.packageCode}` : `NULL:${rule.packageCode}`,
+        rule,
+      ]))
       const retainedIds = new Set<string>()
       const results = []
 
       for (const rule of normalizedRules) {
-        const data = {
+        const data: any = {
           species: rule.species,
           packageCode: rule.packageCode,
-          weightBandId: rule.weightBandId,
+          weightBandId: rule.weightBandId ?? null,
           sku: rule.sku ?? null,
           price: rule.price,
           durationMinutes: rule.durationMinutes,
@@ -322,7 +343,10 @@ export class PricingService {
           retainedIds.add(current.id)
           results.push(await tx.spaPriceRule.update({ where: { id: current.id }, data, include: { weightBand: true } }))
         } else {
-          const comboKey = `${rule.weightBandId}:${rule.packageCode}`
+          // For flat-rate rules, use packageCode as unique key (no weightBandId)
+          const comboKey = rule.weightBandId
+            ? `${rule.weightBandId}:${rule.packageCode}`
+            : `NULL:${rule.packageCode}`
           const current = existingByCombo.get(comboKey)
           if (current) {
             retainedIds.add(current.id)

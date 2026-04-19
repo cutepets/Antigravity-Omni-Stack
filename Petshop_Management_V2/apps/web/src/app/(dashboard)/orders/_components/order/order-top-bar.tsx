@@ -144,7 +144,7 @@ export function OrderTopBar({
           isEditing={isEditing}
           onSelectCustomer={(id, name) => onSelectCustomer({ id, fullName: name })}
           onRemoveCustomer={onRemoveCustomer}
-          onSelectSuggestedService={isEditing ? onSelectSuggestedService : undefined}
+          onSelectSuggestedService={onSelectSuggestedService}
           col1HeaderNode={
             <div className="flex items-center gap-2">
               <button

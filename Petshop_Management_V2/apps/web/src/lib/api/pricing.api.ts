@@ -20,7 +20,7 @@ export interface SpaPriceRule {
   id: string
   species: string | null
   packageCode: string
-  weightBandId: string
+  weightBandId: string | null
   sku?: string | null
   price: number
   durationMinutes: number | null
@@ -73,7 +73,7 @@ export interface SpaRulePayload {
   id?: string
   species?: string | null
   packageCode: string
-  weightBandId: string
+  weightBandId?: string | null
   sku?: string | null
   price: number
   durationMinutes?: number | null

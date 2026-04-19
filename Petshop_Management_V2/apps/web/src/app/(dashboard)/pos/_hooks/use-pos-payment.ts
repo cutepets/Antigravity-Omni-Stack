@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
 import type { PaymentEntry } from '@petshop/shared';
 import type { CreateOrderPayload, OrderPaymentIntent } from '@/lib/api/order.api';
@@ -21,7 +20,6 @@ import { usePosStore, useActiveTab, useCartTotal } from '@/stores/pos.store';
 import { useCreateOrder } from './use-pos-mutations';
 
 export function usePosPayment() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const store = usePosStore();
   const activeTab = useActiveTab();
@@ -522,7 +520,11 @@ export function usePosPayment() {
       setCustomerMoneyInput('');
 
       if (orderResult?.id) {
-        router.push(`/orders/${orderResult.id}`);
+        setShowPaymentModal(false);
+        setShowBookingModal(false);
+        setShowQrPaymentModal(false);
+        clearQrIntent();
+        store.resetActiveTab();
       }
     },
     [
@@ -534,8 +536,8 @@ export function usePosPayment() {
       hasServiceItems,
       isQrBankPayment,
       preferredPaymentMethod,
-      router,
       store,
+      clearQrIntent,
     ],
   );
 

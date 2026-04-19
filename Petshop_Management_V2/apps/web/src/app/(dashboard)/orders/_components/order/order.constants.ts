@@ -46,6 +46,7 @@ export const ORDER_ACTION_LABELS: Record<string, string> = {
   CREATED: 'Tạo đơn hàng',
   APPROVED: 'Duyệt đơn',
   PAYMENT_ADDED: 'Thêm thanh toán',
+  SERVICE_ADDED: 'Thêm dịch vụ',
   PAID: 'Thanh toán',
   STOCK_EXPORTED: 'Xuất kho',
   COMPLETED: 'Hoàn thành',

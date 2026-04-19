@@ -83,7 +83,8 @@ export class SpaRuleInputDto {
   packageCode!: string
 
   @IsString()
-  weightBandId!: string
+  @IsOptional()
+  weightBandId?: string | null
 
   @IsNumber()
   price!: number

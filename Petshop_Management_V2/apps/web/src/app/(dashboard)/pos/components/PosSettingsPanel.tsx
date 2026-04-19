@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Keyboard, Printer, Settings, SlidersHorizontal, X } from 'lucide-react'
+import { Keyboard, Moon, Monitor, Printer, Settings, SlidersHorizontal, Sun, X } from 'lucide-react'
 import { settingsApi } from '@/lib/api/settings.api'
-import { PAYMENT_METHOD_TYPE_LABELS } from '@/lib/payment-methods'
+import { getPaymentMethodColorClasses, PAYMENT_METHOD_TYPE_LABELS } from '@/lib/payment-methods'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePosStore } from '@/stores/pos.store'
 
@@ -38,6 +38,8 @@ export function PosSettingsPanel() {
     setAutoPrint,
     autoPrintQR,
     setAutoPrintQR,
+    posTheme,
+    setPosTheme,
   } = usePosStore()
 
   const { data: paymentMethods = [], isLoading: isPaymentMethodsLoading, isError: isPaymentMethodsError } = useQuery({
@@ -49,7 +51,7 @@ export function PosSettingsPanel() {
   useEffect(() => {
     const container = document.querySelector('main')?.parentElement
     if (container) {
-      ;(container as any).style.zoom = `${zoomLevel}%`
+      ; (container as any).style.zoom = `${zoomLevel}%`
     }
   }, [zoomLevel])
 
@@ -90,9 +92,8 @@ export function PosSettingsPanel() {
         return (
           <button
             key={tab.id}
-            className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${
-              activeTab === tab.id ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 hover:bg-gray-50'
-            }`}
+            className={`flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${activeTab === tab.id ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 hover:bg-gray-50'
+              }`}
             onClick={() => setActiveTab(tab.id)}
           >
             <Icon size={16} /> {tab.label}
@@ -120,6 +121,35 @@ export function PosSettingsPanel() {
     <div className="flex animate-fade-in flex-col gap-4 p-4 text-gray-800">
       <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-500">Tùy chỉnh hành vi POS</h3>
 
+      {/* POS Theme Selector */}
+      <div className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
+        <div className="text-[15px] font-medium">Giao diện POS</div>
+        <div className="text-xs text-gray-500">Khi vào POS, áp dụng theme sau (độc lập với hệ thống)</div>
+        <div className="mt-1 grid grid-cols-3 gap-2">
+          {[
+            { value: 'light' as const, label: 'Sáng', Icon: Sun },
+            { value: 'dark' as const, label: 'Tối', Icon: Moon },
+            { value: 'system' as const, label: 'Hệ thống', Icon: Monitor },
+          ].map(({ value, label, Icon }) => {
+            const isSelected = posTheme === value
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setPosTheme(value)}
+                className={`flex flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 text-xs font-semibold transition-colors ${isSelected
+                  ? 'border-primary-500 bg-primary-500 text-white shadow'
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-primary-300'
+                  }`}
+              >
+                <Icon size={16} />
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       {renderToggle('Tự động focus ô tìm kiếm', autoFocusSearch, setAutoFocusSearch)}
       {renderToggle('Chế độ quét mã vạch', barcodeMode, setBarcodeMode)}
       {renderToggle('Âm thanh thao tác', soundEnabled, setSoundEnabled)}
@@ -143,11 +173,10 @@ export function PosSettingsPanel() {
                 key={unit}
                 type="button"
                 onClick={() => setRoundingUnit(unit as 100 | 1000)}
-                className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
-                  isSelected
-                    ? 'border-primary-500 bg-primary-500 text-white shadow'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-primary-300'
-                }`}
+                className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${isSelected
+                  ? 'border-primary-500 bg-primary-500 text-white shadow'
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-primary-300'
+                  }`}
               >
                 {unit.toLocaleString('vi-VN')}
               </button>
@@ -225,18 +254,31 @@ export function PosSettingsPanel() {
             <div className="mt-1 grid grid-cols-2 gap-2">
               {selectablePaymentMethods.map((method) => {
                 const isSelected = resolvedDefaultPaymentId === method.id
+                const colorClasses = getPaymentMethodColorClasses(method.type, method.colorKey)
                 return (
                   <button
                     key={method.id}
                     type="button"
-                    className={`flex items-center justify-center rounded-lg border px-3 py-2 text-center transition-colors ${
+                    className={`flex flex-col items-start gap-1.5 rounded-xl border px-3 py-2.5 text-left transition-all ${
                       isSelected
-                        ? 'border-primary-500 bg-primary-500 text-white shadow'
-                        : 'border-gray-200 bg-white text-gray-700 hover:border-primary-300'
+                        ? `${colorClasses.chip} shadow-sm ring-2 ${colorClasses.ring}`
+                        : `${colorClasses.softSurface} text-gray-700 hover:shadow-sm`
                     }`}
                     onClick={() => setDefaultPayment(method.id)}
                   >
-                    <div className="text-[13px] font-semibold">{method.name}</div>
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <span className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${colorClasses.accent}`} />
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          isSelected ? 'bg-white/20 text-current' : colorClasses.chipSubtle
+                        }`}
+                      >
+                        {PAYMENT_METHOD_TYPE_LABELS[method.type]}
+                      </span>
+                    </div>
+                    <div className="w-full">
+                      <div className="text-[13px] font-semibold leading-tight">{method.name}</div>
+                    </div>
                   </button>
                 )
               })}
@@ -273,11 +315,10 @@ export function PosSettingsPanel() {
           {['K57', 'K80', 'A4'].map((size) => (
             <button
               key={size}
-              className={`rounded-lg py-2.5 text-sm font-semibold ${
-                paperSize === size
-                  ? 'bg-primary-500 text-white shadow'
-                  : 'border border-gray-200 bg-gray-50 text-gray-700 hover:border-primary-300'
-              }`}
+              className={`rounded-lg py-2.5 text-sm font-semibold ${paperSize === size
+                ? 'bg-primary-500 text-white shadow'
+                : 'border border-gray-200 bg-gray-50 text-gray-700 hover:border-primary-300'
+                }`}
               onClick={() => setPaperSize(size)}
             >
               {size}
@@ -347,7 +388,7 @@ export function PosSettingsPanel() {
       </button>
 
       {isOpen ? (
-        <div className="fixed inset-0 z-[100] flex justify-end font-sans">
+        <div className="fixed inset-0 z-100 flex justify-end font-sans">
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
 
           <div className="relative flex h-full w-[400px] flex-col bg-white shadow-2xl animate-slide-in-right">

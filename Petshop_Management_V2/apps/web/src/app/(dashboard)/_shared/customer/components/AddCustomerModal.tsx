@@ -1,7 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, UserPlus, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { useEffect, useState } from 'react';
+import {
+  AlertTriangle,
+  Building2,
+  ChevronDown,
+  ChevronUp,
+  Mail,
+  MapPin,
+  Phone,
+  Receipt,
+  User,
+  UserPlus,
+  X,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
 
@@ -14,195 +27,289 @@ interface AddCustomerModalProps {
 
 export function AddCustomerModal({ isOpen, onClose, initialData, onSaved }: AddCustomerModalProps) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [form, setForm] = useState({ 
-    fullName: '', phone: '', email: '', address: '',
-    taxCode: '', companyName: '', companyAddress: '', representativeName: '', representativePhone: ''
+  const [form, setForm] = useState({
+    fullName: '',
+    phone: '',
+    email: '',
+    address: '',
+    taxCode: '',
+    companyName: '',
+    companyAddress: '',
+    representativeName: '',
+    representativePhone: '',
   });
 
   useEffect(() => {
-    if (isOpen) {
-      if (initialData) {
-        setForm({
-          fullName: initialData.fullName || '',
-          phone: initialData.phone || '',
-          email: initialData.email || '',
-          address: initialData.address || '',
-          taxCode: initialData.taxCode || '',
-          companyName: initialData.companyName || '',
-          companyAddress: initialData.companyAddress || '',
-          representativeName: initialData.representativeName || '',
-          representativePhone: initialData.representativePhone || ''
-        });
-      } else {
-        setForm({ fullName: '', phone: '', email: '', address: '', taxCode: '', companyName: '', companyAddress: '', representativeName: '', representativePhone: '' });
-      }
-      setShowAdvanced(false);
+    if (!isOpen) return;
+
+    if (initialData) {
+      setForm({
+        fullName: initialData.fullName || '',
+        phone: initialData.phone || '',
+        email: initialData.email || '',
+        address: initialData.address || '',
+        taxCode: initialData.taxCode || '',
+        companyName: initialData.companyName || '',
+        companyAddress: initialData.companyAddress || '',
+        representativeName: initialData.representativeName || '',
+        representativePhone: initialData.representativePhone || '',
+      });
+    } else {
+      setForm({
+        fullName: '',
+        phone: '',
+        email: '',
+        address: '',
+        taxCode: '',
+        companyName: '',
+        companyAddress: '',
+        representativeName: '',
+        representativePhone: '',
+      });
     }
+
+    setError('');
+    setShowAdvanced(false);
   }, [isOpen, initialData]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
+
+  const inputClass =
+    'h-11 w-full rounded-2xl border border-border bg-background px-4 text-sm text-foreground outline-none transition-colors focus:border-primary-500 placeholder:text-foreground-muted';
+  const iconInputClass = `${inputClass} pl-11`;
 
   const handleSave = async () => {
     if (!form.fullName || !form.phone) {
-      alert("Vui lòng nhập Tên và Số điện thoại!");
+      const message = 'Vui lòng nhập tên và số điện thoại';
+      setError(message);
+      toast.error(message);
       return;
     }
+
     try {
       setLoading(true);
+      setError('');
+
       if (initialData?.id) {
         const res = await api.put(`/customers/${initialData.id}`, { ...form });
+        toast.success('Cập nhật khách hàng thành công');
         onSaved(res.data.data ?? res.data);
       } else {
         const res = await api.post('/customers', { ...form, isActive: true });
+        toast.success('Thêm khách hàng thành công');
         onSaved(res.data.data ?? res.data);
       }
     } catch (e: any) {
-      alert(e.response?.data?.message || "Có lỗi xảy ra khi lưu khách hàng");
+      const message = e.response?.data?.message || 'Có lỗi xảy ra khi lưu khách hàng';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <UserPlus className="text-primary-500" size={20} />
-            {initialData?.id ? 'Cập nhật khách hàng' : 'Thêm khách hàng nhanh'}
-          </h2>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
+  return createPortal(
+    <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 sm:p-6">
+      <div className="absolute inset-0 bg-background-base/80 backdrop-blur-sm" onClick={onClose} />
+
+      <div className="card relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden p-0 shadow-2xl animate-in fade-in zoom-in duration-200">
+        <div className="flex items-start justify-between gap-4 border-b border-border bg-background-tertiary px-6 py-5">
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 text-xl font-bold text-foreground">
+              <UserPlus className="text-primary-500" size={20} />
+              {initialData?.id ? 'Cập nhật khách hàng' : 'Thêm khách hàng nhanh'}
+            </h2>
+            <p className="mt-1 text-sm text-foreground-muted">
+              {initialData?.id
+                ? 'Chỉnh sửa nhanh thông tin khách hàng ngay trên đơn hàng'
+                : 'Tạo khách hàng mới và gán trực tiếp vào đơn hàng'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-background-secondary text-foreground-muted transition-colors hover:text-foreground"
+          >
             <X size={18} />
           </button>
         </div>
-        
-        <div className="p-5 space-y-4 overflow-y-auto no-scrollbar">
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1">Tên khách hàng <span className="text-red-500">*</span></label>
-            <input 
-              className="w-full form-input text-sm px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none shadow-sm" 
-              value={form.fullName} 
-              onChange={e => setForm({...form, fullName: e.target.value})} 
-              placeholder="Nguyễn Văn A" 
-              autoFocus 
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1">Số điện thoại <span className="text-red-500">*</span></label>
-            <input 
-              className="w-full form-input text-sm px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none shadow-sm" 
-              value={form.phone} 
-              onChange={e => setForm({...form, phone: e.target.value})} 
-              placeholder="09xxxxxxxxx" 
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1">Email</label>
-              <input 
-                type="email" 
-                className="w-full form-input text-sm px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none shadow-sm" 
-                value={form.email} 
-                onChange={e => setForm({...form, email: e.target.value})} 
-                placeholder="email@mail.com" 
-              />
+
+        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+          {error && (
+            <div className="flex items-center gap-2 rounded-2xl border border-error/20 bg-error/10 px-4 py-3 text-sm text-error">
+              <AlertTriangle size={16} />
+              <span>{error}</span>
             </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className="mb-1.5 block text-sm font-medium text-foreground">
+                Họ và tên <span className="text-error">*</span>
+              </label>
+              <div className="relative">
+                <User className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                <input
+                  className={iconInputClass}
+                  value={form.fullName}
+                  onChange={e => setForm({ ...form, fullName: e.target.value })}
+                  placeholder="Ví dụ: Nguyễn Văn A"
+                  autoFocus
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1">Địa chỉ</label>
-              <input 
-                className="w-full form-input text-sm px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none shadow-sm" 
-                value={form.address} 
-                onChange={e => setForm({...form, address: e.target.value})} 
-                placeholder="Quận / Thành phố" 
-              />
+              <label className="mb-1.5 block text-sm font-medium text-foreground">
+                Số điện thoại <span className="text-error">*</span>
+              </label>
+              <div className="relative">
+                <Phone className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                <input
+                  className={iconInputClass}
+                  value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value })}
+                  placeholder="09xxxxxxxx"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Email</label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                <input
+                  type="email"
+                  className={iconInputClass}
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  placeholder="example@mail.com"
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Địa chỉ</label>
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                <input
+                  className={iconInputClass}
+                  value={form.address}
+                  onChange={e => setForm({ ...form, address: e.target.value })}
+                  placeholder="Số nhà, đường, phường..."
+                />
+              </div>
             </div>
           </div>
 
-          <div className="pt-2">
+          <div className="rounded-2xl border border-border bg-background-secondary/40">
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-[13px] font-semibold text-primary-600 hover:text-primary-700 flex items-center gap-1.5 transition-colors"
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
             >
-              {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              Thông tin nâng cao (Công ty / Xuất HĐ)
-            </button>
-          </div>
-
-          {showAdvanced && (
-            <div className="space-y-4 pt-2 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-slate-700 block mb-1">Mã số thuế (MST)</label>
-                  <input 
-                    className="w-full form-input text-sm px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none shadow-sm" 
-                    value={form.taxCode} 
-                    onChange={e => setForm({...form, taxCode: e.target.value})} 
-                    placeholder="Mã số thuế" 
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-700 block mb-1">Tên công ty</label>
-                  <input 
-                    className="w-full form-input text-sm px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none shadow-sm" 
-                    value={form.companyName} 
-                    onChange={e => setForm({...form, companyName: e.target.value})} 
-                    placeholder="Tên công ty" 
-                  />
-                </div>
-              </div>
-              
               <div>
-                <label className="text-sm font-medium text-slate-700 block mb-1">Địa chỉ công ty</label>
-                <input 
-                  className="w-full form-input text-sm px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none shadow-sm" 
-                  value={form.companyAddress} 
-                  onChange={e => setForm({...form, companyAddress: e.target.value})} 
-                  placeholder="Địa chỉ công ty" 
-                />
+                <div className="text-sm font-semibold text-foreground">Thông tin nâng cao</div>
+                <div className="text-xs text-foreground-muted">Công ty, MST và thông tin xuất hóa đơn</div>
               </div>
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background text-foreground-muted">
+                {showAdvanced ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </span>
+            </button>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {showAdvanced && (
+              <div className="grid grid-cols-1 gap-4 border-t border-border px-4 py-4 md:grid-cols-2 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div>
-                  <label className="text-sm font-medium text-slate-700 block mb-1">Người đại diện</label>
-                  <input 
-                    className="w-full form-input text-sm px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none shadow-sm" 
-                    value={form.representativeName} 
-                    onChange={e => setForm({...form, representativeName: e.target.value})} 
-                    placeholder="Tên người đại diện" 
-                  />
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">Mã số thuế</label>
+                  <div className="relative">
+                    <Receipt className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                    <input
+                      className={iconInputClass}
+                      value={form.taxCode}
+                      onChange={e => setForm({ ...form, taxCode: e.target.value })}
+                      placeholder="MST"
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="text-sm font-medium text-slate-700 block mb-1">Số đại diện</label>
-                  <input 
-                    className="w-full form-input text-sm px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all outline-none shadow-sm" 
-                    value={form.representativePhone} 
-                    onChange={e => setForm({...form, representativePhone: e.target.value})} 
-                    placeholder="SĐT người đại diện" 
-                  />
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">Tên công ty</label>
+                  <div className="relative">
+                    <Building2 className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                    <input
+                      className={iconInputClass}
+                      value={form.companyName}
+                      onChange={e => setForm({ ...form, companyName: e.target.value })}
+                      placeholder="Tên công ty"
+                    />
+                  </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">Địa chỉ công ty</label>
+                  <div className="relative">
+                    <MapPin className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                    <input
+                      className={iconInputClass}
+                      value={form.companyAddress}
+                      onChange={e => setForm({ ...form, companyAddress: e.target.value })}
+                      placeholder="Địa chỉ công ty"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">Người đại diện</label>
+                  <div className="relative">
+                    <User className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                    <input
+                      className={iconInputClass}
+                      value={form.representativeName}
+                      onChange={e => setForm({ ...form, representativeName: e.target.value })}
+                      placeholder="Tên người đại diện"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">Số đại diện</label>
+                  <div className="relative">
+                    <Phone className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                    <input
+                      className={iconInputClass}
+                      value={form.representativePhone}
+                      onChange={e => setForm({ ...form, representativePhone: e.target.value })}
+                      placeholder="SĐT người đại diện"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        <div className="p-4 border-t border-slate-100 flex justify-between gap-2">
-          <button 
-            onClick={onClose} 
-            className="px-6 py-2.5 hover:bg-slate-100 text-slate-600 rounded-xl text-sm font-semibold transition-colors"
+        <div className="flex items-center justify-end gap-3 border-t border-border bg-background-tertiary px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 items-center justify-center rounded-2xl border border-border px-5 text-sm font-semibold text-foreground transition-colors hover:border-primary-500/30 hover:text-primary-500"
           >
-            Huỷ
+            Hủy
           </button>
-          <button 
-            onClick={handleSave} 
-            disabled={loading} 
-            className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={loading}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <UserPlus size={18} /> {loading ? 'Đang lưu...' : 'Lưu & chọn'}
+            <UserPlus size={18} />
+            {loading ? 'Đang lưu...' : 'Lưu & chọn'}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

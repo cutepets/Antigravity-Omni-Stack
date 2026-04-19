@@ -2,6 +2,7 @@
 import Image from 'next/image';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, Plus, Pencil, PawPrint, Medal } from 'lucide-react';
 import { usePosStore, useActiveTab } from '@/stores/pos.store';
 import { CustomerSearchResults } from '@/components/search/customer-search-results';
@@ -284,7 +285,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
         />
       )}
 
-      {hasCustomer && customerDetail && selectedPetId ? (
+      {hasCustomer && customerDetail && selectedPetId ? createPortal(
         <UnifiedPetProfile
           isOpen
           petId={selectedPetId}
@@ -292,7 +293,8 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'po
           onClose={() => setSelectedPetId(null)}
           onSelectService={handleSelectServiceFromPet}
           mode="pos"
-        />
+        />,
+        document.body
       ) : null}
     </div>
   );

@@ -74,6 +74,13 @@ function extractTaggedNote(notes: unknown, tag: string) {
   return reason || undefined
 }
 
+function formatTimelineParts(parts: Array<unknown>) {
+  return parts
+    .map((part) => String(part ?? '').trim())
+    .filter(Boolean)
+    .join(' • ')
+}
+
 function buildSearchHref(basePath: string, params: Record<string, string | null | undefined>) {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
@@ -220,21 +227,135 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
         (left, right) => new Date(right?.createdAt ?? 0).getTime() - new Date(left?.createdAt ?? 0).getTime(),
       )
       : []
+    const paymentTransactions = Array.isArray(order.transactions)
+      ? [...order.transactions]
+        .filter((transaction: any) => transaction?.type === 'INCOME' && Number(transaction?.amount) > 0)
+        .sort(
+          (left, right) =>
+            new Date(right?.createdAt ?? right?.date ?? 0).getTime() -
+            new Date(left?.createdAt ?? left?.date ?? 0).getTime(),
+        )
+      : []
 
     if (!hasAnyAction('PAYMENT_ADDED', 'PAID', 'PAYMENT_CONFIRMED')) {
-      payments.forEach((payment: any, index: number) => {
-        if (!payment?.createdAt) return
-        createSyntheticEntry({
-          id: `synthetic-payment-${payment.id ?? index}`,
-          action: 'PAYMENT_ADDED',
-          createdAt: payment.createdAt,
-          note: [
-            payment.paymentAccountLabel ?? payment.method,
-            formatTimelineAmount(payment.amount),
-            payment.note,
+      if (paymentTransactions.length > 0) {
+        paymentTransactions.forEach((transaction: any, index: number) => {
+          const createdAt = transaction.createdAt ?? transaction.date ?? order.updatedAt ?? order.createdAt
+          if (!createdAt) return
+
+          createSyntheticEntry({
+            id: `synthetic-payment-transaction-${transaction.id ?? index}` ,
+            action: 'PAYMENT_ADDED',
+            createdAt,
+            note: formatTimelineParts([
+              transaction.voucherNumber,
+              transaction.paymentAccountLabel ?? transaction.paymentMethod,
+              formatTimelineAmount(transaction.amount),
+            ]),
+            metadata: {
+              historyLink: transaction.voucherNumber
+                ? {
+                  label: transaction.voucherNumber,
+                  href: buildFinanceVoucherHref(transaction.voucherNumber),
+                }
+                : null,
+            },
+          })
+        })
+      } else {
+        payments.forEach((payment: any, index: number) => {
+          if (!payment?.createdAt) return
+          createSyntheticEntry({
+            id: `synthetic-payment-${payment.id ?? index}` ,
+            action: 'PAYMENT_ADDED',
+            createdAt: payment.createdAt,
+            note: formatTimelineParts([
+              payment.paymentAccountLabel ?? payment.method,
+              formatTimelineAmount(payment.amount),
+              payment.note,
+            ]),
+          })
+        })
+      }
+    }
+
+    if (!hasAnyAction('SERVICE_ADDED')) {
+      const seenServiceKeys = new Set<string>()
+      const serviceItems = Array.isArray(order.items)
+        ? [...order.items].sort(
+          (left: any, right: any) =>
+            new Date(right?.createdAt ?? right?.groomingSession?.createdAt ?? right?.hotelStay?.createdAt ?? 0).getTime() -
+            new Date(left?.createdAt ?? left?.groomingSession?.createdAt ?? left?.hotelStay?.createdAt ?? 0).getTime(),
+        )
+        : []
+
+      serviceItems.forEach((item: any, index: number) => {
+        const groomingSession = item?.groomingSession
+        const groomingId = item?.groomingSessionId ?? groomingSession?.id
+        if (groomingId) {
+          const sessionCode = groomingSession?.sessionCode || groomingId.slice(-6).toUpperCase()
+          const serviceKey = `grooming:${groomingId}`
+          if (seenServiceKeys.has(serviceKey)) return
+          seenServiceKeys.add(serviceKey)
+
+          const petSummary = [
+            item?.petName ?? groomingSession?.petName,
+            groomingSession?.weightAtBooking ? `${groomingSession.weightAtBooking}kg` : null,
           ]
             .filter(Boolean)
-            .join(' • '),
+            .join(' ')
+
+          createSyntheticEntry({
+            id: `synthetic-service-grooming-${groomingId}-${index}` ,
+            action: 'SERVICE_ADDED',
+            createdAt: item?.createdAt ?? groomingSession?.createdAt ?? order.createdAt,
+            note: formatTimelineParts([
+              sessionCode,
+              item?.description ?? item?.name ?? groomingSession?.packageCode ?? 'Spa',
+              petSummary,
+            ]),
+            metadata: {
+              historyLink: {
+                label: sessionCode,
+                href: buildSearchHref('/grooming', {
+                  view: 'list',
+                  search: sessionCode || groomingId,
+                  sessionId: groomingId,
+                }),
+              },
+            },
+          })
+          return
+        }
+
+        const hotelStay = item?.hotelStay
+        const hotelStayId = item?.hotelStayId ?? hotelStay?.id
+        if (!hotelStayId) return
+
+        const stayCode = hotelStay?.stayCode || hotelStayId.slice(-6).toUpperCase()
+        const serviceKey = `hotel:${hotelStayId}`
+        if (seenServiceKeys.has(serviceKey)) return
+        seenServiceKeys.add(serviceKey)
+
+        createSyntheticEntry({
+          id: `synthetic-service-hotel-${hotelStayId}-${index}` ,
+          action: 'SERVICE_ADDED',
+          createdAt: item?.createdAt ?? hotelStay?.createdAt ?? order.createdAt,
+          note: formatTimelineParts([
+            stayCode,
+            item?.description ?? item?.name ?? 'Khách sạn',
+            item?.petName ?? hotelStay?.petName,
+          ]),
+          metadata: {
+            historyLink: {
+              label: stayCode,
+              href: buildSearchHref('/hotel', {
+                view: 'list',
+                search: stayCode || hotelStayId,
+                stayId: hotelStayId,
+              }),
+            },
+          },
         })
       })
     }
@@ -257,7 +378,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       })
     }
 
-    // QUICK order: ẩn synthetic COMPLETED (Tạo đơn → Thanh toán → Xuất kho là đủ)
+    // QUICK order: áº©n synthetic COMPLETED (Táº¡o Ä‘Æ¡n â†’ Thanh toÃ¡n â†’ Xuáº¥t kho lÃ  Ä‘á»§)
     const isQuickOrder = !order.items?.some((i: any) =>
       i.groomingSessionId || i.hotelStayId || i.type === 'grooming' || i.type === 'hotel'
     )
@@ -274,7 +395,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       order.completedAt &&
       order.status === 'COMPLETED' &&
       !hasAnyAction('COMPLETED', 'SETTLED') &&
-      !(isQuickOrder && hasStockExported) // ẩn Hoàn thành cho QUICK order đã có Xuất kho
+      !(isQuickOrder && hasStockExported) // áº©n HoÃ n thÃ nh cho QUICK order Ä‘Ã£ cÃ³ Xuáº¥t kho
     ) {
       createSyntheticEntry({
         id: `synthetic-completed-${order.id}`,
@@ -304,17 +425,17 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       })
     }
 
-    // Priority để tie-break khi cùng timestamp: CREATED < PAYMENT < STOCK_EXPORTED < COMPLETED
+    // Priority Ä‘á»ƒ tie-break khi cÃ¹ng timestamp: CREATED < PAYMENT < STOCK_EXPORTED < COMPLETED
     const ACTION_PRIORITY: Record<string, number> = {
       CREATED: 1, PAYMENT_ADDED: 2, PAID: 2, PAYMENT_CONFIRMED: 2,
-      APPROVED: 3, STOCK_EXPORTED: 4, SETTLED: 5, COMPLETED: 6,
+      SERVICE_ADDED: 3, APPROVED: 4, STOCK_EXPORTED: 5, SETTLED: 6, COMPLETED: 7,
     }
     const getPriority = (action: string) => ACTION_PRIORITY[action] ?? 99
 
     return [...baseTimeline, ...syntheticEntries].sort((left, right) => {
       const timeDiff = new Date(right?.createdAt ?? 0).getTime() - new Date(left?.createdAt ?? 0).getTime()
       if (timeDiff !== 0) return timeDiff
-      // Cùng timestamp: action có priority cao hơn → hiện trên (newest first)
+      // CÃ¹ng timestamp: action cÃ³ priority cao hÆ¡n â†’ hiá»‡n trÃªn (newest first)
       return getPriority(right?.action ?? '') - getPriority(left?.action ?? '')
     })
   }, [mode, order, timeline])
@@ -342,13 +463,13 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     const isCompleted = currentStatus === 'COMPLETED'
     const isCancelled = currentStatus === 'CANCELLED'
 
-    // QUICK order (POS thuần sản phẩm): ẩn bước Hoàn thành
+    // QUICK order (POS thuáº§n sáº£n pháº©m): áº©n bÆ°á»›c HoÃ n thÃ nh
     const isQuickOrder = mode === 'detail' && !order?.items?.some((i: any) =>
       i.groomingSessionId || i.hotelStayId || i.type === 'grooming' || i.type === 'hotel'
     )
 
     // Stage: 0=draft, 1=paid, 2=exported, 3=completed
-    // QUICK: max stage = 2 (Xuất kho là xong)
+    // QUICK: max stage = 2 (Xuáº¥t kho lÃ  xong)
     const rawStage = isCompleted ? 3 : isExported ? 2 : isPaid ? 1 : 0
     const currentStage = isQuickOrder ? Math.min(rawStage, 2) : rawStage
 
@@ -370,7 +491,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       { key: 'PAID', label: 'Thanh toán', idx: 1 },
       { key: 'EXPORTED', label: 'Xuất kho', idx: 2 },
     ]
-    // Luôn hiển thị 3 bước (bỏ bước 4 Hoàn thành)
+    // LuÃ´n hiá»ƒn thá»‹ 3 bÆ°á»›c (bá» bÆ°á»›c 4 HoÃ n thÃ nh)
     const steps = allSteps
 
     const stepMetas: Record<string, string | undefined> = {
@@ -436,63 +557,6 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   const selectedCustomerName = customerDetail?.fullName || customerDetail?.name || draft.customerName
   const selectedCustomerPhone = customerDetail?.phone || order?.customer?.phone || ''
   const selectedCustomerAddress = customerDetail?.address || order?.customer?.address || ''
-  const relatedDocuments = useMemo(() => {
-    if (!order) return []
-
-    const documents = new Map<string, { id: string; label: string; href: string; tone: string }>()
-
-    for (const transaction of order.transactions ?? []) {
-      if (!transaction?.voucherNumber) continue
-      const prefix = transaction.type === 'EXPENSE' ? 'PC' : 'PT'
-      const key = `finance:${transaction.voucherNumber}`
-      documents.set(key, {
-        id: key,
-        label: `${prefix}: ${transaction.voucherNumber}`,
-        href: buildFinanceVoucherHref(transaction.voucherNumber),
-        tone: transaction.type === 'EXPENSE' ? 'expense' : 'income',
-      })
-    }
-
-    for (const item of order.items ?? []) {
-      const groomingId = item?.groomingSessionId
-      if (groomingId) {
-        const sessionCode = item?.groomingSession?.sessionCode || null
-        const searchValue = sessionCode || groomingId
-        const key = `grooming:${groomingId}`
-        documents.set(key, {
-          id: key,
-          label: `SPA: ${sessionCode || groomingId.slice(-6).toUpperCase()}`,
-          href: buildSearchHref('/grooming', {
-            view: 'list',
-            search: searchValue,
-            sessionId: groomingId,
-          }),
-          tone: 'grooming',
-        })
-      }
-
-      const hotelStay = item?.hotelStay
-      const hotelStayId = hotelStay?.id || item?.hotelStayId
-      if (hotelStayId) {
-        const stayCode = hotelStay?.stayCode || null
-        const searchValue = stayCode || hotelStayId
-        const key = `hotel:${hotelStayId}`
-        documents.set(key, {
-          id: key,
-          label: `HOTEL: ${stayCode || hotelStayId.slice(-6).toUpperCase()}`,
-          href: buildSearchHref('/hotel', {
-            view: 'list',
-            search: searchValue,
-            stayId: hotelStayId,
-          }),
-          tone: 'hotel',
-        })
-      }
-    }
-
-    return Array.from(documents.values())
-  }, [order])
-
   const canEditCurrentOrder =
     mode === 'detail' && canUpdateOrder && !isOrderReadonly(order?.status)
   const actionFlags = {
@@ -559,12 +623,10 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     })
   }
 
-  const addCatalogItem = (entry: any) => {
+  const addCatalogItem = (entry: any, _petId?: string, _petName?: string) => {
     if (!isEditing) return
 
     if (entry.entryType?.startsWith('product') || entry.productId) {
-      // Variants đã được expand thành từng dòng riêng trong search panel
-      // Không cần modal chọn phiên bản nữa — thêm thẳng vào draft
       mergeItemIntoDraft(buildProductCartItem(entry))
       setItemSearch('')
       return
@@ -575,6 +637,15 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
         toast.error('Cần chọn khách hàng trước khi thêm dịch vụ hotel')
         return
       }
+      // If petId already provided (from UnifiedPetProfile), add directly
+      if (_petId) {
+        const cartItem = buildDirectServiceCartItem(entry, _petId, _petName)
+        if (_petName) cartItem.itemNotes = `Thú cưng: ${_petName}`
+        mergeItemIntoDraft(cartItem)
+        setItemSearch('')
+        toast.success('Đã thêm dịch vụ lưu chuồng vào giỏ')
+        return
+      }
       setHotelServiceDraft(entry)
       return
     }
@@ -582,6 +653,15 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     if (isGroomingService(entry)) {
       if (!draft.customerId) {
         toast.error('Cần chọn khách hàng trước khi thêm dịch vụ grooming')
+        return
+      }
+      // If petId already provided (from UnifiedPetProfile), add directly
+      if (_petId) {
+        const cartItem = buildGroomingCartItem(entry, _petId, _petName)
+        if (_petName) cartItem.itemNotes = `Thú cưng: ${_petName}`
+        mergeItemIntoDraft(cartItem)
+        setItemSearch('')
+        toast.success('Đã thêm dịch vụ vào giỏ')
         return
       }
       setGroomingServiceDraft(entry)
@@ -784,7 +864,6 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     selectedCustomerName,
     selectedCustomerPhone,
     selectedCustomerAddress,
-    relatedDocuments,
     branchName,
     showBranch,
     operatorName,

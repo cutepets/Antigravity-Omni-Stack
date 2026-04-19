@@ -43,6 +43,17 @@ type SpaDraft = {
   durationMinutes: string
 }
 
+type FlatRateDraft = {
+  key: string
+  id?: string
+  sku: string
+  name: string
+  minWeight: string
+  maxWeight: string
+  price: string
+  durationMinutes: string
+}
+
 type HotelDraft = {
   id?: string
   sku: string
@@ -935,6 +946,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const [bandDrafts, setBandDrafts] = useState<BandDraft[]>([])
   const [spaServiceColumns, setSpaServiceColumns] = useState<SpaServiceColumn[]>([])
   const [spaDrafts, setSpaDrafts] = useState<Record<string, SpaDraft>>({})
+  const [flatRateDrafts, setFlatRateDrafts] = useState<FlatRateDraft[]>([])
   const [hotelDrafts, setHotelDrafts] = useState<Record<string, HotelDraft>>({})
   const [removedBandIds, setRemovedBandIds] = useState<string[]>([])
   const [editingBandKey, setEditingBandKey] = useState<string | null>(null)
@@ -1031,13 +1043,15 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
 
   useEffect(() => {
     if (mode !== 'GROOMING') return
-    const sourcePackageCodes = spaRules.length > 0
-      ? spaRules.map((rule) => rule.packageCode)
+    const weightBandedRules = spaRules.filter((rule) => rule.weightBandId)
+    const sourcePackageCodes = weightBandedRules.length > 0
+      ? weightBandedRules.map((rule) => rule.packageCode)
       : SPA_PACKAGES.map((pkg) => pkg.code)
     const columns = buildSpaServiceColumns(sourcePackageCodes)
     const serviceKeyByCode = new Map(columns.map((column) => [column.packageCode, column.key]))
     const nextDrafts: Record<string, SpaDraft> = {}
     for (const rule of spaRules) {
+      if (!rule.weightBandId) continue  // flat-rate rules handled separately
       const serviceKey = serviceKeyByCode.get(rule.packageCode)
       if (!serviceKey) continue
       nextDrafts[getSpaRuleKey(rule.weightBandId, serviceKey)] = {
@@ -1049,6 +1063,21 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     }
     setSpaServiceColumns(columns)
     setSpaDrafts(nextDrafts)
+
+    // Initialize flat-rate drafts (rules with no weightBandId)
+    const flatRates = spaRules
+      .filter((rule) => !rule.weightBandId)
+      .map((rule) => ({
+        key: rule.id,
+        id: rule.id,
+        sku: rule.sku ?? '',
+        name: rule.packageCode,
+        minWeight: '',
+        maxWeight: '',
+        price: formatCurrencyInput(rule.price),
+        durationMinutes: formatIntegerInput(rule.durationMinutes),
+      }))
+    setFlatRateDrafts(flatRates)
   }, [mode, spaRules])
 
   useEffect(() => {
@@ -1350,7 +1379,22 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
         }),
       )
 
-      await pricingApi.bulkUpsertSpaRules({ species, rules })
+      // Also include flat-rate rules (no weight band)
+      const flatRateRules = flatRateDrafts
+        .filter((fr) => fr.name.trim())
+        .map((fr) => ({
+          id: fr.id,
+          species,
+          packageCode: fr.name.trim(),
+          weightBandId: undefined,
+          sku: fr.sku || null,
+          price: parseCurrencyInput(fr.price) ?? 0,
+          durationMinutes: parseIntegerInput(fr.durationMinutes ?? '') ?? null,
+          isActive: true,
+        }))
+        .filter((fr) => fr.price > 0)
+
+      await pricingApi.bulkUpsertSpaRules({ species, rules: [...rules, ...flatRateRules] })
 
       for (const bandId of removedBandIds) {
         await pricingApi.deactivateWeightBand(bandId)
@@ -1507,6 +1551,8 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
               canManagePricing={canManagePricing}
               species={species}
               setSpecies={setSpecies}
+              flatRateDrafts={flatRateDrafts}
+              onFlatRateChange={setFlatRateDrafts}
             />
           </div>
         ) : (
@@ -1959,6 +2005,8 @@ function GroomingPricingMatrix({
   canManagePricing,
   species,
   setSpecies,
+  flatRateDrafts,
+  onFlatRateChange,
 }: {
   bands: BandDraft[]
   serviceColumns: SpaServiceColumn[]
@@ -1979,6 +2027,8 @@ function GroomingPricingMatrix({
   canManagePricing: boolean
   species: string
   setSpecies: (value: string) => void
+  flatRateDrafts: FlatRateDraft[]
+  onFlatRateChange: (drafts: FlatRateDraft[]) => void
 }) {
   const [isEditMode, setIsEditMode] = useState(false)
   const totalColumns = Math.max(1, serviceColumns.length * 2 + 1)
@@ -2068,153 +2118,273 @@ function GroomingPricingMatrix({
         </div>
       </div>
 
-      <div className="custom-scrollbar overflow-auto rounded-2xl border border-border bg-background-base">
-        <table className="w-full min-w-[1200px] border-separate border-spacing-0 text-left text-sm">
-          <thead className="sticky top-0 z-10 bg-background-secondary">
-            <tr>
-              <th className="w-auto min-w-[280px] border-b border-r border-border bg-background-secondary px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">
-                Hạng cân
-              </th>
-              {serviceColumns.length === 0 ? (
-                <th className="border-b border-border px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">
-                  Dịch vụ
-                </th>
-              ) : serviceColumns.map((column) => (
-                <th key={column.key} className="border-b border-r border-border px-3 py-2 min-w-[240px]">
-                  <div className="flex flex-col items-center gap-0.5">
-                    <div className="flex items-center justify-center gap-2">
-                      {canEditPricing ? (
-                        <input
-                          value={column.packageCode}
-                          onChange={(event) => onServiceChange(column.key, event.target.value)}
-                          placeholder="Tên dịch vụ"
-                          className="h-8 w-full min-w-[100px] rounded-lg border border-border bg-background-base px-2 text-xs font-bold text-foreground outline-none focus:border-primary-500"
-                        />
-                      ) : (
-                        <span className="truncate text-xs font-black text-foreground">{column.packageCode || 'Dịch vụ mới'}</span>
-                      )}
-                      {canEditPricing && (
-                        <button
-                          type="button"
-                          onClick={() => onServiceRemove(column.key)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
-                        >
-                          <X size={13} />
-                        </button>
-                      )}
-                    </div>
-                    <span className="text-[9px] font-semibold uppercase tracking-widest text-foreground-muted/60">SKU · Giá · Thời gian</span>
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {bands.length === 0 ? (
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+        <div className="min-w-0 flex-1 custom-scrollbar overflow-auto rounded-2xl border border-border bg-background-base">
+          <table className="w-full min-w-[1200px] border-separate border-spacing-0 text-left text-sm">
+            <thead className="sticky top-0 z-10 bg-background-secondary">
               <tr>
-                <td colSpan={totalColumns} className="px-4 py-12 text-center text-sm text-foreground-muted">
-                  Chưa có hạng cân. Bấm "+ Hạng cân" để bắt đầu.
-                </td>
-              </tr>
-            ) : bands.map((band, index) => (
-              <tr key={band.key} className="border-b border-border/50 last:border-b-0">
-                <td className="border-b border-r border-border bg-background-secondary/60 px-4 py-3 align-middle">
-                  <div className="flex items-center gap-2">
-                    {canEditPricing ? (
-                      <input
-                        value={band.label}
-                        onChange={(event) => onBandChange(index, { label: event.target.value })}
-                        placeholder="Tên hạng cân"
-                        className="h-10 w-[140px] rounded-xl border border-border bg-background-base px-3 text-sm font-bold text-foreground outline-none focus:border-primary-500"
-                      />
-                    ) : (
-                      <p className="min-w-[140px] truncate text-sm font-black text-foreground" title={band.label || 'Hạng cân mới'}>
-                        {band.label || 'Hạng cân mới'}
-                      </p>
-                    )}
-                    <div className="flex shrink-0 items-center gap-1.5 ml-2">
-                      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">từ</span>
-                      <input
-                        value={band.minWeight}
-                        onChange={(event) => onBandChange(index, { minWeight: event.target.value })}
-                        disabled={!canEditPricing}
-                        inputMode="decimal"
-                        className="h-9 w-12 rounded-xl border border-border bg-background-base px-1 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
-                      />
-                      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">đến</span>
-                      <input
-                        value={band.maxWeight}
-                        onChange={(event) => onBandChange(index, { maxWeight: event.target.value })}
-                        disabled={!canEditPricing}
-                        inputMode="decimal"
-                        placeholder="∞"
-                        className="h-9 w-12 rounded-xl border border-border bg-background-base px-1 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
-                      />
-                      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">kg</span>
-                    </div>
-
-                    {canEditPricing ? (
-                      <div className="ml-1 flex shrink-0 items-center justify-center">
-                        <button
-                          type="button"
-                          onClick={() => onBandRemove(index)}
-                          title="Xoá hạng cân"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                </td>
-
+                <th className="w-auto min-w-[280px] border-b border-r border-border bg-background-secondary px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">
+                  Hạng cân
+                </th>
                 {serviceColumns.length === 0 ? (
-                  <td className="border-b border-border px-4 py-3 text-sm text-foreground-muted">Chưa có dịch vụ nào cho ma trận này.</td>
-                ) : serviceColumns.flatMap((column) => {
-                  const draft = drafts[getSpaRuleKey(band.key, column.key)] ?? { sku: '', price: '', durationMinutes: '' }
-                  const sku = buildServicePricingSku('SPA', column.packageCode, band.label)
-                  return (
-                    <td key={`${band.key}:${column.key}`} className="border-b border-r border-border px-2 py-2 align-middle">
-                      <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                  <th className="border-b border-border px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">
+                    Dịch vụ
+                  </th>
+                ) : serviceColumns.map((column) => (
+                  <th key={column.key} className="border-b border-r border-border px-3 py-2 min-w-[240px]">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="flex items-center justify-center gap-2">
                         {canEditPricing ? (
                           <input
-                            value={draft.sku}
-                            onChange={(e) => onDraftChange(band.key, column.key, { sku: e.target.value })}
-                            placeholder="-"
-                            className="w-[70px] shrink-0 rounded border border-border bg-background-base py-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500 placeholder:text-foreground-muted/30 outline-none hover:border-primary-500 focus:border-primary-500"
+                            value={column.packageCode}
+                            onChange={(event) => onServiceChange(column.key, event.target.value)}
+                            placeholder="Tên dịch vụ"
+                            className="h-8 w-full min-w-[100px] rounded-lg border border-border bg-background-base px-2 text-xs font-bold text-foreground outline-none focus:border-primary-500"
                           />
                         ) : (
-                          <span className="w-[70px] shrink-0 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500">
-                            {draft.sku || '-'}
-                          </span>
+                          <span className="truncate text-xs font-black text-foreground">{column.packageCode || 'Dịch vụ mới'}</span>
                         )}
-                        <div className="w-[90px] shrink-0">
-                          <PriceInput
-                            value={draft.price}
-                            onChange={(value) => onDraftChange(band.key, column.key, { price: value })}
-                            placeholder=""
-                            disabled={!canEditPricing}
-                          />
-                        </div>
-                        <div className="relative w-[56px] shrink-0">
-                          <input
-                            value={draft.durationMinutes}
-                            onChange={(event) => onDraftChange(band.key, column.key, { durationMinutes: event.target.value })}
-                            placeholder=""
-                            inputMode="numeric"
-                            disabled={!canEditPricing}
-                            className="block h-9 w-full rounded-lg border border-border bg-background-secondary pl-1 pr-6 text-center text-xs font-semibold text-foreground outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-70"
-                          />
-                          <span className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-[9px] text-foreground-muted">ph</span>
-                        </div>
+                        {canEditPricing && (
+                          <button
+                            type="button"
+                            onClick={() => onServiceRemove(column.key)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
                       </div>
-                    </td>
-                  )
-                })}
+                      <span className="text-[9px] font-semibold uppercase tracking-widest text-foreground-muted/60">SKU · Giá · Thời gian</span>
+                    </div>
+                  </th>
+                ))}
               </tr>
+            </thead>
+            <tbody>
+              {bands.length === 0 ? (
+                <tr>
+                  <td colSpan={totalColumns} className="px-4 py-12 text-center text-sm text-foreground-muted">
+                    Chưa có hạng cân. Bấm "+ Hạng cân" để bắt đầu.
+                  </td>
+                </tr>
+              ) : bands.map((band, index) => (
+                <tr key={band.key} className="border-b border-border/50 last:border-b-0">
+                  <td className="border-b border-r border-border bg-background-secondary/60 px-4 py-3 align-middle">
+                    <div className="flex items-center gap-2">
+                      {canEditPricing ? (
+                        <input
+                          value={band.label}
+                          onChange={(event) => onBandChange(index, { label: event.target.value })}
+                          placeholder="Tên hạng cân"
+                          className="h-10 w-[140px] rounded-xl border border-border bg-background-base px-3 text-sm font-bold text-foreground outline-none focus:border-primary-500"
+                        />
+                      ) : (
+                        <p className="min-w-[140px] truncate text-sm font-black text-foreground" title={band.label || 'Hạng cân mới'}>
+                          {band.label || 'Hạng cân mới'}
+                        </p>
+                      )}
+                      <div className="flex shrink-0 items-center gap-1.5 ml-2">
+                        <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">từ</span>
+                        <input
+                          value={band.minWeight}
+                          onChange={(event) => onBandChange(index, { minWeight: event.target.value })}
+                          disabled={!canEditPricing}
+                          inputMode="decimal"
+                          className="h-9 w-12 rounded-xl border border-border bg-background-base px-1 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                        />
+                        <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">đến</span>
+                        <input
+                          value={band.maxWeight}
+                          onChange={(event) => onBandChange(index, { maxWeight: event.target.value })}
+                          disabled={!canEditPricing}
+                          inputMode="decimal"
+                          placeholder="∞"
+                          className="h-9 w-12 rounded-xl border border-border bg-background-base px-1 text-center text-sm font-semibold text-foreground outline-none focus:border-primary-500 disabled:opacity-60"
+                        />
+                        <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">kg</span>
+                      </div>
+
+                      {canEditPricing ? (
+                        <div className="ml-1 flex shrink-0 items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => onBandRemove(index)}
+                            title="Xoá hạng cân"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </td>
+
+                  {serviceColumns.length === 0 ? (
+                    <td className="border-b border-border px-4 py-3 text-sm text-foreground-muted">Chưa có dịch vụ nào cho ma trận này.</td>
+                  ) : serviceColumns.flatMap((column) => {
+                    const draft = drafts[getSpaRuleKey(band.key, column.key)] ?? { sku: '', price: '', durationMinutes: '' }
+                    const sku = buildServicePricingSku('SPA', column.packageCode, band.label)
+                    return (
+                      <td key={`${band.key}:${column.key}`} className="border-b border-r border-border px-2 py-2 align-middle">
+                        <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                          {canEditPricing ? (
+                            <input
+                              value={draft.sku}
+                              onChange={(e) => onDraftChange(band.key, column.key, { sku: e.target.value })}
+                              placeholder="-"
+                              className="w-[70px] shrink-0 rounded border border-border bg-background-base py-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500 placeholder:text-foreground-muted/30 outline-none hover:border-primary-500 focus:border-primary-500"
+                            />
+                          ) : (
+                            <span className="w-[70px] shrink-0 text-center text-[10px] font-black uppercase tracking-[0.12em] text-primary-500">
+                              {draft.sku || '-'}
+                            </span>
+                          )}
+                          <div className="w-[90px] shrink-0">
+                            <PriceInput
+                              value={draft.price}
+                              onChange={(value) => onDraftChange(band.key, column.key, { price: value })}
+                              placeholder=""
+                              disabled={!canEditPricing}
+                            />
+                          </div>
+                          <div className="relative w-[56px] shrink-0">
+                            <input
+                              value={draft.durationMinutes}
+                              onChange={(event) => onDraftChange(band.key, column.key, { durationMinutes: event.target.value })}
+                              placeholder=""
+                              inputMode="numeric"
+                              disabled={!canEditPricing}
+                              className="block h-9 w-full rounded-lg border border-border bg-background-secondary pl-1 pr-6 text-center text-xs font-semibold text-foreground outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-70"
+                            />
+                            <span className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-[9px] text-foreground-muted">ph</span>
+                          </div>
+                        </div>
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Flat-rate services panel ─────────────────────────────── */}
+        <div className="w-full xl:w-[380px] shrink-0 rounded-2xl border border-border bg-background-base">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">Dịch vụ khác</p>
+              <p className="mt-0.5 text-[11px] text-foreground-muted/70">Không theo hạng cân</p>
+            </div>
+            {canEditPricing && (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextKey = createDraftKey('flat')
+                  onFlatRateChange([
+                    ...flatRateDrafts,
+                    { key: nextKey, sku: '', name: '', minWeight: '', maxWeight: '', price: '', durationMinutes: '' },
+                  ])
+                }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-dashed border-primary-500/40 bg-primary-500/5 px-3 text-xs font-bold text-primary-500 transition-colors hover:bg-primary-500/10"
+              >
+                <Plus size={13} />
+                Thêm
+              </button>
+            )}
+          </div>
+
+          {/* Header row */}
+          <div className="grid border-b border-border bg-background-secondary" style={{ gridTemplateColumns: '68px 1fr 50px 50px 82px 38px 30px' }}>
+            {['SKU', 'Tên dịch vụ', 'Từ kg', 'Đến kg', 'Giá', 'Phút', ''].map((label) => (
+              <div key={label} className="px-1.5 py-2 text-center text-[10px] font-black uppercase tracking-[0.14em] text-foreground-muted">{label}</div>
             ))}
-          </tbody>
-        </table>
+          </div>
+
+          {/* Data rows */}
+          {flatRateDrafts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-8 text-sm text-foreground-muted">
+              <span>Chưa có dịch vụ nào</span>
+              {canEditPricing && <span className="text-xs opacity-60">Bấm "Thêm" để tạo dịch vụ đầu tiên</span>}
+            </div>
+          ) : (
+            flatRateDrafts.map((fr, idx) => (
+              <div
+                key={fr.key}
+                className="grid items-center border-b border-border/60 last:border-b-0"
+                style={{ gridTemplateColumns: '68px 1fr 50px 50px 82px 38px 30px' }}
+              >
+                <div className="px-1 py-1.5">
+                  <input
+                    value={fr.sku}
+                    onChange={(e) => onFlatRateChange(flatRateDrafts.map((r, i) => i === idx ? { ...r, sku: e.target.value } : r))}
+                    placeholder="SKU"
+                    disabled={!canEditPricing}
+                    className="h-8 w-full rounded border border-border bg-background-secondary px-1 text-center text-[10px] font-black uppercase tracking-[0.1em] text-primary-500 placeholder:text-foreground-muted/30 outline-none focus:border-primary-500 disabled:opacity-60"
+                  />
+                </div>
+                <div className="px-1 py-1.5">
+                  <input
+                    value={fr.name}
+                    onChange={(e) => onFlatRateChange(flatRateDrafts.map((r, i) => i === idx ? { ...r, name: e.target.value } : r))}
+                    placeholder="Tên dịch vụ"
+                    disabled={!canEditPricing}
+                    className="h-8 w-full rounded-lg border border-border bg-background-secondary px-2 text-xs font-semibold text-foreground placeholder:text-foreground-muted/40 outline-none focus:border-primary-500 disabled:opacity-60"
+                  />
+                </div>
+                <div className="px-1 py-1.5">
+                  <input
+                    value={fr.minWeight}
+                    onChange={(e) => onFlatRateChange(flatRateDrafts.map((r, i) => i === idx ? { ...r, minWeight: e.target.value } : r))}
+                    placeholder="0"
+                    inputMode="decimal"
+                    disabled={!canEditPricing}
+                    className="h-8 w-full rounded border border-border bg-background-secondary px-1 text-center text-xs font-semibold text-foreground placeholder:text-foreground-muted/30 outline-none focus:border-primary-500 disabled:opacity-60"
+                  />
+                </div>
+                <div className="px-1 py-1.5">
+                  <input
+                    value={fr.maxWeight}
+                    onChange={(e) => onFlatRateChange(flatRateDrafts.map((r, i) => i === idx ? { ...r, maxWeight: e.target.value } : r))}
+                    placeholder="∞"
+                    inputMode="decimal"
+                    disabled={!canEditPricing}
+                    className="h-8 w-full rounded border border-border bg-background-secondary px-1 text-center text-xs font-semibold text-foreground placeholder:text-foreground-muted/30 outline-none focus:border-primary-500 disabled:opacity-60"
+                  />
+                </div>
+                <div className="px-1 py-1.5">
+                  <PriceInput
+                    value={fr.price}
+                    onChange={(value) => onFlatRateChange(flatRateDrafts.map((r, i) => i === idx ? { ...r, price: value } : r))}
+                    placeholder=""
+                    disabled={!canEditPricing}
+                  />
+                </div>
+                <div className="relative px-1 py-1.5">
+                  <input
+                    value={fr.durationMinutes}
+                    onChange={(e) => onFlatRateChange(flatRateDrafts.map((r, i) => i === idx ? { ...r, durationMinutes: e.target.value } : r))}
+                    placeholder=""
+                    inputMode="numeric"
+                    disabled={!canEditPricing}
+                    className="h-8 w-full rounded border border-border bg-background-secondary pl-1 pr-4 text-center text-xs font-semibold text-foreground placeholder:text-foreground-muted/30 outline-none focus:border-primary-500 disabled:opacity-60"
+                  />
+                  <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-foreground-muted">ph</span>
+                </div>
+                <div className="flex items-center justify-center px-1 py-1.5">
+                  {canEditPricing && (
+                    <button
+                      type="button"
+                      onClick={() => onFlatRateChange(flatRateDrafts.filter((_, i) => i !== idx))}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   )

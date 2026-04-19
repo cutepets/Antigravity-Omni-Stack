@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePosStore, useActiveTab, useCartTotal, useCartItemCount } from '@/stores/pos.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePosCart } from './_hooks/use-pos-cart';
@@ -49,6 +49,8 @@ function PosPageContent() {
     decrementSelectedRow,
     incrementSelectedRow,
   } = usePosCart();
+
+  const [showTempProductModal, setShowTempProductModal] = useState(false);
   const {
     currentShift,
     showShiftClosingModal,
@@ -359,7 +361,20 @@ function PosPageContent() {
                 + Trả chuồng (Hotel)
               </button>
 
-              <button className="px-4 py-1.5 text-sm bg-primary-50 border border-primary-200 text-primary-700 rounded hover:bg-primary-100 transition-colors font-medium">
+              <button
+                className="px-4 py-1.5 text-sm bg-primary-50 border border-primary-200 text-primary-700 rounded hover:bg-primary-100 transition-colors font-medium"
+                onClick={() => {
+                  store.addItem({
+                    id: `temp-${Date.now()}`,
+                    type: 'product',
+                    description: '',
+                    unitPrice: 0,
+                    quantity: 1,
+                    sku: '',
+                    isTemp: true,
+                  } as any);
+                }}
+              >
                 + Sản phẩm tạm
               </button>
             </div>

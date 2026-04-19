@@ -8,7 +8,7 @@ import { PosProductSearch, type PosProductSearchProps } from '@/app/(dashboard)/
 // Thêm toggles "Chọn nhiều" và "Ẩn hàng hết" giống POS.
 // Không chứa business logic — tất cả delegate về PosProductSearch.
 
-type OrderProductSearchProps = Omit<PosProductSearchProps, 'inputClassName' | 'containerClassName' | 'panelClassName'>
+type OrderProductSearchProps = Omit<PosProductSearchProps, 'inputClassName' | 'containerClassName' | 'panelClassName' | 'resultsVariant'>
 
 export function OrderProductSearch(props: OrderProductSearchProps) {
     const [outOfStockHidden, setOutOfStockHidden] = useState(false)
@@ -18,17 +18,11 @@ export function OrderProductSearch(props: OrderProductSearchProps) {
             <PosProductSearch
                 {...props}
                 outOfStockHidden={outOfStockHidden}
-                // System-themed input wrapper (thay cho POS bg-white)
+                resultsVariant="pos"
+                // Slight visual differentiation for the Order context input box
                 inputClassName={[
                     'bg-background-secondary/60 border border-border',
                     'focus-within:border-primary-500 focus-within:bg-background',
-                ].join(' ')}
-                // System-themed dropdown panel
-                panelClassName={[
-                    'fixed inset-0 z-50 bg-background flex flex-col',
-                    'lg:block lg:absolute lg:top-full lg:left-0 lg:mt-1 lg:w-[500px]',
-                    'lg:bg-background lg:border lg:border-border',
-                    'lg:rounded-lg lg:shadow-xl lg:h-auto lg:max-h-[550px] lg:right-auto',
                 ].join(' ')}
             />
 

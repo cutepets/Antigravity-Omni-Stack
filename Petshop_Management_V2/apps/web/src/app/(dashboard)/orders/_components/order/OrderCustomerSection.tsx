@@ -89,7 +89,7 @@ export function OrderCustomerSection({
     }
 
     const handleSelectService = (service: any, petId: string, petName?: string) => {
-        if (isEditing) onSelectSuggestedService?.(service, petId, petName)
+        onSelectSuggestedService?.(service, petId, petName)
     }
 
     // ─── Search bar (no customer selected) ──────────────────────────
@@ -148,7 +148,7 @@ export function OrderCustomerSection({
     return (
         <>
             {/* ── Col 1: Tiêu đề + Thông tin khách ───────────────────── */}
-            <div className="relative flex flex-col justify-center gap-2 px-5 py-4">
+            <div className="relative flex flex-col justify-center gap-2 px-5 py-4 min-w-[300px]">
                 {/* X = remove customer — gọn góc phải của col-1 */}
                 <button
                     onClick={onRemoveCustomer}
@@ -213,14 +213,14 @@ export function OrderCustomerSection({
             </div>
 
             {/* ── Col 2: Thú cưng ─────────────────────────── */}
-            <div className="flex flex-col justify-center gap-2 px-4 py-4">
+            <div className="flex flex-col justify-center gap-2 px-4 py-4 min-w-[200px]">
                 {/* Header label — aligned with col1HeaderNode */}
                 <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground-muted">
                     Thú cưng
                 </div>
 
                 {/* Pet list — inline, shrink to fit */}
-                <div className="flex items-end gap-1.5 flex-nowrap">
+                <div className="flex items-start gap-1.5 flex-nowrap">
                     {pets.map((pet: any) => (
                         <button
                             key={pet.id}
