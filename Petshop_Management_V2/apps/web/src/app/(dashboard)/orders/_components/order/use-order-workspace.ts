@@ -27,6 +27,7 @@ import {
   canCancelCurrentOrder,
   parseDecimalInput,
 } from './order.utils'
+import { buildTempCartItem } from '@/app/(dashboard)/_shared/cart/cart.builders'
 import type { OrderDraft, OrderPrintPayload, OrderWorkspaceMode } from './order.types'
 import { useOrderWorkspaceMutations } from './use-order-workspace-mutations'
 import { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches'
@@ -66,6 +67,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   const [groomingServiceDraft, setGroomingServiceDraft] = useState<any | null>(null)
   const [selectedRowIndex, setSelectedRowIndex] = useState(-1)
   const [pendingProductEntry, setPendingProductEntry] = useState<any | null>(null)
+  const [vatPercent, setVatPercent] = useState(0)
   const initializedOrderVersionRef = useRef<string | null>(null)
 
   const deferredItemSearch = useDeferredValue(itemSearch)
@@ -167,7 +169,11 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
       ),
     [draft.items],
   )
-  const total = Math.max(0, subtotal + draft.shippingFee - draft.discount)
+  const vatAmount = useMemo(
+    () => Math.round((subtotal + draft.shippingFee - draft.discount) * vatPercent / 100),
+    [subtotal, draft.shippingFee, draft.discount, vatPercent],
+  )
+  const total = Math.max(0, subtotal + draft.shippingFee - draft.discount + vatAmount)
   const amountPaid = Number(order?.paidAmount ?? order?.amountPaid ?? 0)
   const remainingAmount = Math.max(0, total - amountPaid)
   const hasServiceItems = draft.items.some((item) => item.type === 'grooming' || item.type === 'hotel')
@@ -398,6 +404,11 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     setItemSearch('')
   }
 
+  const handleAddTempItem = (item: { description: string; quantity: number; unitPrice: number }) => {
+    if (!isEditing) return
+    mergeItemIntoDraft(buildTempCartItem(item))
+  }
+
   const handleSave = () => {
     if (draft.items.length === 0) {
       toast.error('Đơn hàng phải có ít nhất một sản phẩm hoặc dịch vụ')
@@ -500,6 +511,9 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     operatorName,
     operatorCode,
     subtotal,
+    vatPercent,
+    vatAmount,
+    setVatPercent,
     total,
     amountPaid,
     remainingAmount,
@@ -520,6 +534,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     refundOrderMutation,
     createReturnRequestMutation,
     addCatalogItem,
+    handleAddTempItem,
     handleHotelBookingConfirm,
     handleGroomingConfirm,
     handleSave,

@@ -12,6 +12,9 @@ interface OrderRightPanelProps {
   subtotal: number
   discount: number
   shippingFee: number
+  vatPercent?: number
+  vatAmount?: number
+  onVatChange?: (pct: number) => void
   total: number
   isEditing: boolean
   onDiscountChange: (v: string) => void
@@ -244,6 +247,9 @@ export function OrderRightPanel({
   subtotal,
   discount,
   shippingFee,
+  vatPercent = 0,
+  vatAmount = 0,
+  onVatChange,
   total,
   isEditing,
   onDiscountChange,
@@ -301,6 +307,34 @@ export function OrderRightPanel({
             />
           ) : (
             <span className="text-sm font-semibold text-foreground">{formatCurrency(shippingFee)}</span>
+          )}
+        </div>
+
+        {/* VAT */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="shrink-0 text-sm text-foreground-muted">VAT</span>
+          {isEditing && onVatChange ? (
+            <div className="flex items-center gap-2">
+              <select
+                value={vatPercent}
+                onChange={(e) => onVatChange(Number(e.target.value))}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+              >
+                <option value={0}>0%</option>
+                <option value={5}>5%</option>
+                <option value={8}>8%</option>
+                <option value={10}>10%</option>
+              </select>
+              {vatAmount > 0 && (
+                <span className="text-xs text-foreground-muted tabular-nums">{formatCurrency(vatAmount)}</span>
+              )}
+            </div>
+          ) : vatPercent > 0 ? (
+            <span className="text-sm font-semibold text-foreground tabular-nums">
+              {vatPercent}% · {formatCurrency(vatAmount)}
+            </span>
+          ) : (
+            <span className="text-sm text-foreground-muted/40">—</span>
           )}
         </div>
 

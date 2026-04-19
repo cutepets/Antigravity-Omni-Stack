@@ -228,12 +228,20 @@ function isConversionVariant(variant: Record<string, any>) {
 
 function buildAttributeColumns(product: Record<string, any>, variant: Record<string, any>) {
   const productAttributes = parseJson<Array<{ name?: string; values?: string[] }>>(product.attributes, []) ?? []
+  const hasStructuredAttributes = productAttributes.some((attribute) => normalizeText(attribute?.name))
+  if (!hasStructuredAttributes) {
+    return [0, 1, 2].map(() => ({
+      name: undefined,
+      value: undefined,
+    }))
+  }
+
   const resolved = resolveProductVariantLabels(product.name, variant)
   const variantValues = splitVariantValues(resolved.variantLabel)
 
   return [0, 1, 2].map((index) => ({
     name: normalizeText(productAttributes[index]?.name),
-    value: normalizeText(variantValues[index]),
+    value: normalizeText(productAttributes[index]?.name ? variantValues[index] : undefined),
   }))
 }
 

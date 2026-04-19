@@ -138,3 +138,29 @@ export function buildServiceCartItem(service: any, petId?: string, petName?: str
     if (isGroomingService(service)) return buildGroomingCartItem(service, petId, petName)
     return buildDirectServiceCartItem(service, petId, petName)
 }
+
+// ─── Temp Product Builder ─────────────────────────────────────────────────────
+
+/**
+ * buildTempCartItem — Tạo CartItem cho sản phẩm tạm (chưa có trong kho).
+ * Dùng cho POS "Sản phẩm tạm" và Orders/New khi cần thêm item nhanh.
+ */
+export function buildTempCartItem(item: {
+    description: string
+    quantity: number
+    unitPrice: number
+}): CartItem {
+    const id = `temp:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`
+    return {
+        id,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discountItem: 0,
+        vatRate: 0,
+        type: 'product',
+        unit: 'cái',
+        isTemp: true,
+    } as CartItem
+}
+

@@ -238,6 +238,8 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             isMultiSelectValue={isMultiSelect}
             onSetMultiSelect={setIsMultiSelect}
             disabled={!workspace.isEditing}
+            isEditing={workspace.isEditing}
+            onAddTempProduct={workspace.handleAddTempItem}
           />
 
           {showPrintActions ? (
@@ -349,6 +351,9 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
               subtotal={workspace.subtotal}
               discount={workspace.draft.discount}
               shippingFee={workspace.draft.shippingFee}
+              vatPercent={workspace.vatPercent}
+              vatAmount={workspace.vatAmount}
+              onVatChange={workspace.isEditing ? (pct) => workspace.setVatPercent(pct) : undefined}
               total={workspace.total}
               isEditing={workspace.isEditing}
               onDiscountChange={workspace.handleChangeDiscount}

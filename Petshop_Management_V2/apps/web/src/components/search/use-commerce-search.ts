@@ -20,8 +20,14 @@ const compareProductEntries = (search?: string) => {
   const normalizedSearch = normalizeSearchTerm(search)
 
   return (left: any, right: any) => {
-    const leftCodes = [left.sku, left.barcode].filter((value): value is string => Boolean(value)).map((value) => value.toLowerCase())
-    const rightCodes = [right.sku, right.barcode].filter((value): value is string => Boolean(value)).map((value) => value.toLowerCase())
+    const leftCodes = [
+      left.sku, left.barcode,
+      ...(Array.isArray(left.conversionSkus) ? left.conversionSkus : []),
+    ].filter((value): value is string => Boolean(value)).map((value) => value.toLowerCase())
+    const rightCodes = [
+      right.sku, right.barcode,
+      ...(Array.isArray(right.conversionSkus) ? right.conversionSkus : []),
+    ].filter((value): value is string => Boolean(value)).map((value) => value.toLowerCase())
 
     const leftExactCode = normalizedSearch ? leftCodes.some((value) => value === normalizedSearch) : false
     const rightExactCode = normalizedSearch ? rightCodes.some((value) => value === normalizedSearch) : false
@@ -76,6 +82,12 @@ const createProductEntry = (product: any, variant?: any) => {
     ? resolvedVariantLabel
     : null
 
+  // SKUs của conversion variants để tìm kiếm (không hiển thị riêng nhưng searchable)
+  const conversionSkus = (rawVariants as any[])
+    .filter(isConversionVariant)
+    .map((v: any) => v.sku)
+    .filter((sku: any): sku is string => Boolean(sku))
+
   return {
     ...product,
     id: `product:${product.id}:${variant?.id ?? 'base'}`,
@@ -91,6 +103,7 @@ const createProductEntry = (product: any, variant?: any) => {
     unitLabel,
     sku: variant?.sku ?? product.sku,
     barcode: variant?.barcode ?? product.barcode,
+    conversionSkus,
     image: variant?.image ?? product.image,
     price: resolvedPrice,
     sellingPrice: resolvedPrice,
@@ -155,6 +168,7 @@ export function useCatalogProducts(search?: string, priceBookId?: string) {
           product.unitLabel,
           product.sku,
           product.barcode,
+          ...(Array.isArray(product.conversionSkus) ? product.conversionSkus : []),
         ])
 
         return searchableText ? matchSearch(search, searchableText) : false
