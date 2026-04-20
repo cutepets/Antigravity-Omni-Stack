@@ -1,5 +1,4 @@
 'use client'
-import Image from 'next/image';
 
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -19,7 +18,6 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { inventoryApi } from '@/lib/api/inventory.api'
 import { getDisplayBranchStocks, getResolvedVariantLabels, groupVariantsWithConversions, parseConversionRate } from '@/lib/inventory-conversion-stock'
@@ -44,6 +42,7 @@ import {
   useDataListCore,
   useDataListSelection,
 } from '@petshop/ui/data-list'
+import { ImageCell, NameCell } from './product-list.cells'
 
 type BranchStockRow = {
   stock?: number | null
@@ -170,58 +169,6 @@ const fileToDataUrl = (file: File) =>
     reader.addEventListener('error', () => reject(new Error('Không thể đọc file ảnh')))
     reader.readAsDataURL(file)
   })
-
-function ImageCell({ image, size = 'md' }: { image?: string | null; size?: 'md' | 'sm' }) {
-  const dimensions = size === 'sm' ? 'w-8 h-8 rounded-md' : 'w-10 h-10 rounded-lg'
-  return image ? (
-    <div className={`${dimensions} overflow-hidden flex-shrink-0 bg-background-secondary border border-border`}>
-      <Image src={image} alt="" className="w-full h-full object-cover" width={400} height={400} unoptimized />
-    </div>
-  ) : (
-    <div className={`${dimensions} flex items-center justify-center bg-background-secondary border border-border text-foreground-muted`}>
-      <PackageCheck size={size === 'sm' ? 14 : 18} />
-    </div>
-  )
-}
-
-// TableCheckbox is now from '@/components/data-list'
-
-function NameCell({
-  name,
-  href,
-  meta,
-  toggle,
-  prefix,
-  tone = 'product',
-}: {
-  name: string
-  href?: string
-  meta?: string | null
-  toggle?: ReactNode
-  prefix?: ReactNode
-  tone?: 'product' | 'variant' | 'conversion'
-}) {
-  return (
-    <div className="flex items-start gap-2 min-w-0">
-      <div className="w-4 flex-shrink-0 pt-1">{toggle}</div>
-      <div className="flex items-start gap-2 min-w-0 flex-1">
-        {prefix}
-        <div className="min-w-0 flex-1">
-          {href ? (
-            <Link href={href} title={name} className="block truncate font-semibold text-foreground transition-colors hover:text-primary-500">
-              {name}
-            </Link>
-          ) : (
-            <div title={name} className={`truncate ${tone === 'product' ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`}>
-              {name}
-            </div>
-          )}
-          {meta ? <div className="sr-only">{meta}</div> : null}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export function ProductList() {
   const router = useRouter()

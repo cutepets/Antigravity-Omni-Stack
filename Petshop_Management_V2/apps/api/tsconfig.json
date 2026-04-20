@@ -41,6 +41,7 @@
     "src/**/*",
     "../../packages/auth/src/**/*",
     "../../packages/database/src/**/*",
+    "../../packages/queue/src/**/*",
     "../../packages/shared/src/**/*"
   ],
   "exclude": [

@@ -114,7 +114,7 @@ function mergeBranchRowsWithBranches(rows: BranchStockRow[], branches: BranchOpt
     rowMap.set(key, {
       ...row,
       branchId: row.branchId ?? key,
-      branch: row.branch ?? { id: key, name: `Chi nhánh ${key}` },
+      branch: row.branch ?? { id: key, name: `Chi nh?nh ${key}` },
       stock: row.stock ?? 0,
       reservedStock: row.reservedStock ?? 0,
       minStock: row.minStock ?? 0,
@@ -267,12 +267,12 @@ export function ProductDetailView({ productId }: { productId: string }) {
   const deleteMutation = useMutation({
     mutationFn: () => inventoryApi.deleteProduct(productId),
     onSuccess: () => {
-      toast.success('ÄÃ£ xoÃ¡ sáº£n pháº©m')
+      toast.success('?? x?a s?n ph?m')
       queryClient.invalidateQueries({ queryKey: ['products'] })
       router.push('/products')
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Không thể xóa sáº£n pháº©m')
+      toast.error(err?.response?.data?.message || 'Kh?ng th? x?a s?n ph?m')
     },
   })
 
@@ -289,11 +289,11 @@ export function ProductDetailView({ productId }: { productId: string }) {
   }
 
   if (isLoading) {
-    return <div className="p-6 text-foreground-muted flex items-center justify-center h-40">Äang táº£i chi tiáº¿t...</div>
+    return <div className="p-6 text-foreground-muted flex items-center justify-center h-40">?ang t?i chi ti?t...</div>
   }
 
   if (!product || !detailTree) {
-    return <div className="p-6 text-error text-center">Không tìm thấy sáº£n pháº©m</div>
+    return <div className="p-6 text-error text-center">Kh?ng t?m th?y s?n ph?m</div>
   }
 
   const handleDelete = () => {
@@ -344,7 +344,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                   onClick={() => {
                     if (window.confirm('Khôi phục sản phẩm này?')) {
                       inventoryApi.restoreProduct(product.id).then(() => {
-                        toast.success('ÄÃ£ khÃ´i phá»¥c sáº£n pháº©m')
+                        toast.success('?? kh?i ph?c s?n ph?m')
                         queryClient.invalidateQueries({ queryKey: ['products'] })
                         queryClient.invalidateQueries({ queryKey: ['product-detail', product.id] })
                       }).catch(() => toast.error('Lỗi khi khôi phục'))
@@ -392,7 +392,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Lá»˜T Cá»˜T TRÃI - THÃ”NG TIN CHUNG (khoáº£ng 3/10) */}
+        {/* C?t tr?i - th?ng tin chung (kho?ng 3/10) */}
         <div className="card p-6 border border-border rounded-2xl flex flex-col gap-8 bg-background-secondary/30 lg:col-span-3">
           <div className="flex flex-col gap-6">
             <div className="w-full aspect-square rounded-xl border border-border bg-background-tertiary flex items-center justify-center overflow-hidden shrink-0">
@@ -441,9 +441,9 @@ export function ProductDetailView({ productId }: { productId: string }) {
           </div>
         </div>
 
-        {/* Cá»˜T PHáº¢I - PHIÃŠN Báº¢N VÃ€ CHI TIáº¾T (khoáº£ng 7/10) */}
+        {/* C?t ph?i - phi?n b?n v? chi ti?t (kho?ng 7/10) */}
         <div className="lg:col-span-9 flex flex-col gap-6">
-          {/* PHáº¦N PHIÃŠN Báº¢N & QUY Äá»”I Má»šI (TRÃŠN CÃ™NG BÃŠN PHáº¢I) */}
+          {/* Ph?n phi?n b?n & quy ??i m?i (tr?n c?ng b?n ph?i) */}
           <div className="card p-0 overflow-hidden border border-border rounded-2xl flex flex-col">
             <div className="p-4 border-b border-border font-semibold flex items-center justify-between text-[13px] tracking-wide uppercase text-foreground-muted bg-background-secondary/50">
               <div className="flex items-center gap-2">
@@ -593,7 +593,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
             </div>
           </div>
 
-          {/* PHáº¦N CHI TIáº¾T TỒN KHO/Lá»ŠCH Sá»¬ (DÆ¯á»šI CÃ™NG BÃŠN PHáº¢I) */}
+          {/* Ph?n chi ti?t t?n kho/l?ch s? (d??i c?ng b?n ph?i) */}
           <div className="card overflow-hidden border border-border rounded-2xl flex flex-col flex-1">
             <div className="flex items-center justify-between border-b border-border bg-background-secondary/50 px-2 pt-2">
               <div className="flex">
@@ -744,7 +744,7 @@ function resolveTransactionLink(tx: {
     case 'STOCK_RECEIPT':
       return `/inventory/receipts/${lookupId}`
     case 'SUPPLIER_RETURN':
-      return `/inventory/receipts` // supplier return khÃ´ng cÃ³ route riÃªng, dáº«n vá» danh sÃ¡ch
+      return `/inventory/receipts` // supplier return kh?ng c? route ri?ng, d?n v? danh s?ch
     case 'ORDER':
       return `/orders/${lookupId}`
     default:
@@ -841,7 +841,7 @@ function ProductHistoryTab({
             <History className="h-10 w-10 opacity-30" />
             <p className="text-sm text-center">
               {selectedBranchId
-                ? `Chưa có giao dịch cho ${itemLabel} tại ${selectedBranchName ?? 'chi nhánh này'}`
+                ? `Ch?a c? giao d?ch cho ${itemLabel} t?i ${selectedBranchName ?? 'chi nh?nh n?y'}`
                 : `Chưa có lịch sử giao dịch cho ${itemLabel}`}
             </p>
             {selectedBranchId && (
@@ -862,7 +862,7 @@ function ProductHistoryTab({
                 <th className="py-3 px-4 text-[11px] whitespace-nowrap">CHI NHÁNH</th>
                 <th className="py-3 px-4 text-[11px] text-right whitespace-nowrap">SL THAY ĐỔI</th>
                 <th className="py-3 px-4 text-[11px] whitespace-nowrap">LOẠI</th>
-                <th className="py-3 px-4 text-[11px] whitespace-nowrap">MÃ ĐƠN</th>
+                <th className="py-3 px-4 text-[11px] whitespace-nowrap">M? ??N</th>
               </tr>
             </thead>
             <tbody>
@@ -890,10 +890,10 @@ function ProductHistoryTab({
                       {dayjs(tx.createdAt).format('DD/MM/YYYY HH:mm')}
                     </td>
                     <td className="py-3 px-4 text-sm whitespace-nowrap">
-                      {tx.staff?.fullName ?? <span className="text-foreground-muted">—</span>}
+                      {tx.staff?.fullName ?? <span className="text-foreground-muted">?</span>}
                     </td>
                     <td className="py-3 px-4 text-sm whitespace-nowrap">
-                      {tx.branch?.name ?? <span className="text-foreground-muted">—</span>}
+                      {tx.branch?.name ?? <span className="text-foreground-muted">?</span>}
                     </td>
                     <td className={`py-3 px-4 text-right font-bold text-base tabular-nums whitespace-nowrap ${quantityClass}`}>
                       {quantityPrefix}{quantityText}

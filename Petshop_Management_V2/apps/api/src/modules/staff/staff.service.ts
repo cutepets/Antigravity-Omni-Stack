@@ -1,12 +1,12 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common'
 import * as bcrypt from 'bcryptjs'
-import { extname } from 'path'
 import { DatabaseService } from '../../database/database.service.js'
 import type { AuthUser } from '@petshop/shared'
 import type { DocumentType } from '@petshop/database'
 import {
   DOCUMENT_UPLOAD_EXTENSIONS,
   DOCUMENT_UPLOAD_MIME_TYPES,
+  validateUploadedFile,
 } from '../../common/utils/upload.util.js'
 
 export interface CreateStaffDto {
@@ -224,27 +224,12 @@ export class StaffService {
   ) {
     await this.findById(userId) // Ensure user exists
 
-    if (!file) {
-      throw new BadRequestException('File is required')
-    }
-
-    // Validate file size (max 10MB)
-    const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
-    if (file.size > MAX_FILE_SIZE) {
-      throw new BadRequestException('File size must be less than 10MB')
-    }
-
-    const extension = extname(file.originalname).toLowerCase()
-    const mimeType = (file.mimetype || '').toLowerCase()
-    if (!DOCUMENT_UPLOAD_MIME_TYPES.has(mimeType) || !DOCUMENT_UPLOAD_EXTENSIONS.has(extension)) {
-      throw new BadRequestException(
-        'Invalid file type. Only images (JPEG, PNG, WebP) and PDFs are allowed',
-      )
-    }
-
-    if (!file.filename) {
-      throw new BadRequestException('Uploaded file is missing filename metadata')
-    }
+    validateUploadedFile(file, {
+      allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
+      allowedExtensions: DOCUMENT_UPLOAD_EXTENSIONS,
+      maxFileSize: 10 * 1024 * 1024,
+      errorMessage: 'Invalid file type. Only images (JPEG, PNG, WebP) and PDFs are allowed',
+    })
 
     const fileUrl = `/uploads/documents/${userId}/${file.filename}`
 

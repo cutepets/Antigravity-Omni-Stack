@@ -110,7 +110,7 @@ function getPaidPaymentRows(payments: any[] = [], paymentIntents: any[] = []) {
 
 function splitHistoryNote(note?: string | null) {
   return String(note ?? '')
-    .split(/\s(?:•|·|â€¢|Â·|Ã‚Â·|Ã¢â‚¬Â¢)\s/g)
+    .split(/\s(?:\u2022|\u00B7)\s/g)
     .map((part) => part.trim())
     .filter(Boolean)
 }

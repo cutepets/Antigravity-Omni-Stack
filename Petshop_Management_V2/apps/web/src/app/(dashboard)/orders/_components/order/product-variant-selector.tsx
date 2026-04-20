@@ -43,7 +43,7 @@ export function ProductVariantSelector({
       <div className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-background shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-foreground">Chá»n phiÃªn báº£n</h3>
+            <h3 className="text-lg font-semibold text-foreground">Ch?n phi?n b?n</h3>
             <p className="mt-0.5 text-sm text-foreground-muted">{productName}</p>
           </div>
           <button
@@ -61,9 +61,9 @@ export function ProductVariantSelector({
               variant.displayName ??
               buildProductVariantName(productName, variant.variantLabel, variant.unitLabel) ??
               variant.name
-            const metaLabel = [variant.variantLabel, variant.unitLabel, variant.sku || 'KhÃ´ng cÃ³ mÃ£ SKU']
+            const metaLabel = [variant.variantLabel, variant.unitLabel, variant.sku || 'Kh?ng c? m? SKU']
               .filter(Boolean)
-              .join(' â€¢ ')
+              .join(' ? ')
 
             return (
               <button
@@ -85,7 +85,7 @@ export function ProductVariantSelector({
                   </div>
                 ) : (
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-background-secondary">
-                    <span className="text-xs font-medium text-foreground-muted">áº¢nh</span>
+                    <span className="text-xs font-medium text-foreground-muted">?nh</span>
                   </div>
                 )}
 
@@ -104,7 +104,7 @@ export function ProductVariantSelector({
                         variant.availableStock > 0 ? 'text-emerald-600' : 'text-red-500'
                       }`}
                     >
-                      {variant.availableStock > 0 ? `CÃ²n ${variant.availableStock}` : 'Háº¿t hÃ ng'}
+                      {variant.availableStock > 0 ? `C?n ${variant.availableStock}` : 'H?t h?ng'}
                     </div>
                   )}
                 </div>

@@ -21,6 +21,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module.js'
 import { LeaveModule } from './modules/leave/leave.module.js'
 import { PayrollModule } from './modules/payroll/payroll.module.js'
 import { HealthController } from './health.controller.js'
+import { QueueModule } from './modules/queue/queue.module.js'
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { HealthController } from './health.controller.js'
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
 
     // Core modules
+    QueueModule,
     AuthModule,
     UsersModule,
     RolesModule,

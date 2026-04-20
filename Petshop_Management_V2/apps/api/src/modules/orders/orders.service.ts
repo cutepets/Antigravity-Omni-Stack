@@ -137,7 +137,7 @@ type OrderPaymentIntentView = {
   } | null;
 };
 
-// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Payment method labels Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // Payment method labels
 const METHOD_LABELS: Record<string, string> = {
   CASH: 'Tiền mặt',
   BANK: 'Chuyển khoản',
@@ -173,11 +173,11 @@ export class OrdersService {
 
     const authorizedBranchIds = this.getAuthorizedBranchIds(user);
     if (!order.branchId || !authorizedBranchIds.includes(order.branchId)) {
-      throw new ForbiddenException('Báº¡n chá»‰ Ä‘Æ°á»£c truy cáº­p dá»¯ liá»‡u thuá»™c chi nhÃ¡nh Ä‘Æ°á»£c phÃ¢n quyá»n');
+      throw new ForbiddenException('Bạn chỉ được truy cập dữ liệu thuộc chi nhánh được phân quyền');
     }
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // Helpers
 
   /** Generate order number: DH202604060001 */
   private async generateOrderNumber(): Promise<string> {
@@ -505,7 +505,7 @@ export class OrdersService {
     return {
       paymentMethod: account.type as string,
       paymentAccountId: account.id as string,
-      paymentAccountLabel: `${account.name} Ã¢â‚¬Â¢ ${account.bankName} Ã¢â‚¬Â¢ ${account.accountNumber}` as string,
+      paymentAccountLabel: `${account.name} ? ${account.bankName} ? ${account.accountNumber}` as string,
     };
   }
 
@@ -1186,7 +1186,7 @@ export class OrdersService {
       if (params.existingSessionId) {
         const session = await tx.groomingSession.findUnique({ where: { id: params.existingSessionId } });
         if (session && !['PENDING', 'IN_PROGRESS', 'CANCELLED'].includes(session.status)) {
-          throw new BadRequestException(`PhiÃªn spa ${session.sessionCode ?? session.id} Ä‘Ã£ hoÃ n thÃ nh, khÃ´ng thá»ƒ bá» khá»i Ä‘Æ¡n Ä‘ang giao dá»‹ch.`);
+          throw new BadRequestException(`Phiên spa ${session.sessionCode ?? session.id} đã hoàn thành, không thể bỏ khỏi đơn đang giao dịch.`);
         }
         await tx.groomingSession.update({
           where: { id: params.existingSessionId },
@@ -1222,7 +1222,7 @@ export class OrdersService {
     if (params.existingSessionId) {
       const current = await tx.groomingSession.findUnique({ where: { id: params.existingSessionId } });
       if (current && current.status === 'CANCELLED') {
-        throw new BadRequestException(`PhiÃªn spa ${current.sessionCode ?? current.id} Ä‘Ã£ bá»‹ huá»·, khÃ´ng thá»ƒ cáº­p nháº­t láº¡i tá»« POS.`);
+        throw new BadRequestException(`Phiên spa ${current.sessionCode ?? current.id} đã bị hủy, không thể cập nhật lại từ POS.`);
       }
 
       await tx.groomingSession.update({
@@ -1268,7 +1268,7 @@ export class OrdersService {
       if (params.existingStayId) {
         const stay = await tx.hotelStay.findUnique({ where: { id: params.existingStayId } });
         if (stay && !['BOOKED', 'CANCELLED'].includes(stay.status)) {
-          throw new BadRequestException(`LÆ°á»£t lÆ°u trÃº ${stay.stayCode ?? stay.id} Ä‘Ã£ báº¯t Ä‘áº§u, khÃ´ng thá»ƒ bá» khá»i Ä‘Æ¡n Ä‘ang giao dá»‹ch.`);
+          throw new BadRequestException(`Lượt lưu trú ${stay.stayCode ?? stay.id} đã bắt đầu, không thể bỏ khỏi đơn đang giao dịch.`);
         }
         await tx.hotelStay.update({
           where: { id: params.existingStayId },
@@ -1310,7 +1310,7 @@ export class OrdersService {
     if (params.existingStayId) {
       const current = await tx.hotelStay.findUnique({ where: { id: params.existingStayId } });
       if (current && !['BOOKED', 'CHECKED_IN'].includes(current.status)) {
-        throw new BadRequestException(`LÆ°á»£t lÆ°u trÃº ${current.id} Ä‘Ã£ checkout hoáº·c huá»·, khÃ´ng thá»ƒ cáº­p nháº­t láº¡i tá»« POS.`);
+        throw new BadRequestException(`Lượt lưu trú ${current.id} đã checkout hoặc hủy, không thể cập nhật lại từ POS.`);
       }
 
       await tx.hotelStay.update({
@@ -1502,11 +1502,11 @@ export class OrdersService {
       },
     });
 
-    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     return order;
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Catalog (POS quick access) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // Catalog (POS quick access)
 
   async getProducts() {
     const products = await this.prisma.product.findMany({
@@ -1553,15 +1553,15 @@ export class OrdersService {
     });
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ createOrder Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // createOrder
   // Auto-classify: QUICK (product only) vs SERVICE (has grooming/hotel)
-  // QUICK: deduct stock immediately, status Ã¢â€ â€™ PAID/PARTIAL
-  // SERVICE: reserve stock, status Ã¢â€ â€™ PENDING, pay later
+  // QUICK: deduct stock immediately, status -> PAID/PARTIAL
+  // SERVICE: reserve stock, status -> PENDING, pay later
   async createOrder(data: CreateOrderDto, staffId: string): Promise<any> {
     const { items, payments = [], discount = 0, shippingFee = 0 } = data;
 
     if (!items || items.length === 0) {
-      throw new BadRequestException('ÄÆ¡n hÃ ng pháº£i cÃ³ Ã­t nháº¥t 1 sáº£n pháº©m');
+      throw new BadRequestException('Đơn hàng phải có ít nhất 1 sản phẩm');
     }
 
     const orderNumber = await this.generateOrderNumber();
@@ -1569,7 +1569,7 @@ export class OrdersService {
     // Classify order type
     const normalizedPayments = await this.normalizePayments(this.prisma as any, payments);
 
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Financial calculations Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    // Financial calculations
     const {
       orderType,
       orderStatus,
@@ -1764,7 +1764,7 @@ export class OrdersService {
     });
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ payOrder Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // payOrder
   // Collect additional payment for SERVICE orders (multi-payment support)
   async updateOrder(id: string, data: UpdateOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findFirst({
@@ -1781,19 +1781,19 @@ export class OrdersService {
     });
     if (order) this.assertOrderScope(order, user);
 
-    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     id = order.id; // Resolve to internal UUID
 
     if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
-      throw new BadRequestException('KhÃ´ng thá»ƒ sá»­a Ä‘Æ¡n Ä‘Ã£ hoÃ n táº¥t hoáº·c Ä‘Ã£ huá»·');
+      throw new BadRequestException('Không thể sửa đơn đã hoàn tất hoặc đã hủy');
     }
     if (!data.items?.length) {
-      throw new BadRequestException('ÄÆ¡n hÃ ng pháº£i cÃ³ Ã­t nháº¥t 1 sáº£n pháº©m hoáº·c dá»‹ch vá»¥');
+      throw new BadRequestException('Đơn hàng phải có ít nhất 1 sản phẩm hoặc dịch vụ');
     }
 
     for (const item of data.items) {
       if (item.groomingDetails && item.hotelDetails) {
-        throw new BadRequestException(`Item "${item.description}" khÃ´ng thá»ƒ vá»«a lÃ  spa vá»«a lÃ  hotel`);
+        throw new BadRequestException(`Item "${item.description}" không thể vừa là spa vừa là hotel`);
       }
     }
 
@@ -2011,7 +2011,7 @@ export class OrdersService {
         if (existingStayId) {
           const currentStay = await tx.hotelStay.findUnique({ where: { id: existingStayId } });
           if (currentStay && !['BOOKED', 'CHECKED_IN'].includes(currentStay.status)) {
-            throw new BadRequestException(`LÆ°á»£t lÆ°u trÃº ${currentStay.id} Ä‘Ã£ checkout hoáº·c há»§y, khÃ´ng thá»ƒ cáº­p nháº­t láº¡i tá»« POS.`);
+            throw new BadRequestException(`Lượt lưu trú ${currentStay.id} đã checkout hoặc hủy, không thể cập nhật lại từ POS.`);
           }
         }
 
@@ -2403,7 +2403,7 @@ export class OrdersService {
       },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     assertOrderCanAcceptPayment(order);
 
     const paymentsArr = await this.normalizePayments(
@@ -2432,7 +2432,7 @@ export class OrdersService {
     });
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ completeOrder Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // completeOrder
   // Finalize SERVICE order: validate sessions, deduct stock, update customer
   async completeOrder(id: string, dto: CompleteOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
@@ -2449,8 +2449,8 @@ export class OrdersService {
     });
     if (order) this.assertOrderScope(order, user);
 
-    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
-    if (order.status === 'COMPLETED') throw new BadRequestException('ÄÆ¡n hÃ ng Ä‘Ã£ hoÃ n thÃ nh');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    if (order.status === 'COMPLETED') throw new BadRequestException('Đơn hàng đã hoàn thành');
 
     // Validate service items are complete (unless forceComplete)
     if (!dto.forceComplete) {
@@ -2505,7 +2505,7 @@ export class OrdersService {
           quantity: item.quantity,
           orderId: order.id,
           staffId,
-          reason: `HoÃ n thÃ nh Ä‘Æ¡n ${order.orderNumber}`,
+          reason: `Hoàn thành đơn ${order.orderNumber}`,
         });
         // Mark item-level export timestamp
         await tx.orderItem.update({
@@ -2567,7 +2567,7 @@ export class OrdersService {
           paymentMethod: refundPaymentAccount.paymentMethod ?? dto.refundMethod ?? 'CASH',
           paymentAccountId: refundPaymentAccount.paymentAccountId,
           paymentAccountLabel: dto.refundPaymentAccountLabel?.trim() || refundPaymentAccount.paymentAccountLabel,
-          description: `HoÃ n tiá»n dÆ° Ä‘Æ¡n hÃ ng ${order.orderNumber}`,
+          description: `Hoàn tiền dư đơn hàng ${order.orderNumber}`,
           note: dto.settlementNote ?? null,
           source: 'ORDER_ADJUSTMENT',
           staffId,
@@ -2578,7 +2578,7 @@ export class OrdersService {
       }
       const paymentStatus = settlement.paymentStatus;
 
-      // Complete order (+ set stockExportedAt náº¿u cÃ³ sáº£n pháº©m váº­t lÃ½)
+      // Complete order (+ set stockExportedAt when physical items exist)
       const hasPhysicalItems = exportedProductItems.length > 0;
       const completed = await tx.order.update({
         where: { id },
@@ -2597,7 +2597,7 @@ export class OrdersService {
         },
       });
 
-      // Táº¡o STOCK_EXPORTED timeline entry cho Ä‘Æ¡n POS (khÃ´ng Ä‘i qua exportStock)
+      // Create STOCK_EXPORTED timeline entry for POS order (without exportStock)
       if (hasPhysicalItems) {
         const pendingTempCount = order.items.filter((i) => (i as any).isTemp).length;
         await createStockExportTimelineEntry(tx.orderTimeline as any, {
@@ -2628,7 +2628,7 @@ export class OrdersService {
     });
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ cancelOrder Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // cancelOrder
   // Cancel order: release reserved stock, cancel sessions
   async cancelOrder(id: string, dto: CancelOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
@@ -2636,7 +2636,7 @@ export class OrdersService {
       include: { items: true },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     assertOrderCanCancel(order);
 
     return this.prisma.$transaction(async (tx) => {
@@ -2676,7 +2676,7 @@ export class OrdersService {
             quantity: item.quantity,
             orderId: order.id,
             staffId,
-            reason: `HoÃ n tráº£ do huá»· Ä‘Æ¡n ${order.orderNumber}`,
+            reason: `Hoàn trả do hủy đơn ${order.orderNumber}`,
           });
         }
       }
@@ -2702,14 +2702,14 @@ export class OrdersService {
       where: { id },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
 
     return this.prisma.$transaction(async (tx) => {
       const refunded = await tx.order.update({
         where: { id },
         data: {
           status: dto.status as any,
-          notes: dto.reason ? `[HOÃ€N TIá»€N] ${dto.reason}\n${order.notes ?? ''}` : order.notes,
+          notes: dto.reason ? `[HOÀN TIỀN] ${dto.reason}\n${order.notes ?? ''}` : order.notes,
         },
         include: { items: true, payments: true },
       });
@@ -2726,11 +2726,11 @@ export class OrdersService {
       include: { items: true },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
-    if (order.status === 'COMPLETED') throw new BadRequestException('KhÃ´ng thá»ƒ sá»­a Ä‘Æ¡n Ä‘Ã£ hoÃ n thÃ nh');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    if (order.status === 'COMPLETED') throw new BadRequestException('Không thể sửa đơn đã hoàn thành');
 
     const item = order.items.find((i) => i.id === itemId);
-    if (!item) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y item trong Ä‘Æ¡n');
+    if (!item) throw new NotFoundException('Không tìm thấy item trong đơn');
 
     return this.prisma.$transaction(async (tx) => {
       // Cancel related sessions
@@ -2779,7 +2779,7 @@ export class OrdersService {
     });
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ findAll (advanced filtering) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // findAll (advanced filtering)
   async findAll(params?: {
     search?: string | undefined;
     paymentStatus?: string | undefined;
@@ -2862,7 +2862,7 @@ export class OrdersService {
     };
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ findOne Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // findOne
   async findOne(id: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findFirst({
       where: {
@@ -2887,8 +2887,7 @@ export class OrdersService {
         transactions: true,
       },
     });
-    if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     const groomingSessionIds = order.items
       .map((item) => item.groomingSessionId)
       .filter((value): value is string => Boolean(value));
@@ -3060,7 +3059,7 @@ export class OrdersService {
   // EXPORT STOCK
   // =============================================================================
 
-  // â”€â”€â”€ Private helper: trá»« kho vÃ  Ä‘Ã¡nh dáº¥u item Ä‘Ã£ xuáº¥t â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Private helper: deduct stock and mark exported items
   private async _decrementStockForItem(
     prismaOrTx: any,
     params: {
@@ -3079,7 +3078,7 @@ export class OrdersService {
       data: { stockQuantity: { decrement: quantity } },
     });
 
-    // ÄÃ¡nh dáº¥u item Ä‘Ã£ xuáº¥t kho vá»›i timestamp
+    // Mark item as exported with timestamp
     await prismaOrTx.orderItem.update({
       where: { id: orderItemId },
       data: {
@@ -3135,7 +3134,7 @@ export class OrdersService {
 
     const now = new Date();
 
-    // PhÆ°Æ¡ng Ã¡n B: Chá»‰ xuáº¥t item tháº­t (isTemp=false) cÃ³ productVariantId, chÆ°a xuáº¥t kho
+    // Option B: export only real items (isTemp=false) with productVariantId not yet exported
     const exportableItems = order.items.filter(
       (item: any) =>
         item.type === 'product' &&
@@ -3144,7 +3143,7 @@ export class OrdersService {
         !(item as any).stockExportedAt,
     );
 
-    // Cáº£nh bÃ¡o: cÃ²n item táº¡m chÆ°a swap (khÃ´ng cháº·n, cho phÃ©p partial export)
+    // Warning: there are temporary items not swapped yet (do not block, allow partial export)
     const pendingTempCount = order.items.filter(
       (item: any) => item.type === 'product' && (item as any).isTemp,
     ).length;
@@ -3154,7 +3153,7 @@ export class OrdersService {
     const nextStatus = isPaid ? 'COMPLETED' : 'PROCESSING';
 
     await this.prisma.$transaction(async (tx) => {
-      // Trá»« kho tá»«ng item tháº­t (PhÆ°Æ¡ng Ã¡n B â€” item-level tracking)
+      // Deduct stock for each real item (Option B - item-level tracking)
       for (const item of exportableItems) {
         await this._decrementStockForItem(tx, {
           orderItemId: item.id,
@@ -3265,7 +3264,7 @@ export class OrdersService {
   }
 
   // â”€â”€â”€ swapTempItem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Äá»•i sáº£n pháº©m táº¡m thÃ nh sáº£n pháº©m tháº­t; giÃ¡ pháº£i báº±ng nhau Ä‘á»ƒ giá»¯ tá»•ng Ä‘Æ¡n
+  // Swap temporary product to real product; price must match to keep order total
   async swapTempItem(
     orderId: string,
     itemId: string,
@@ -3278,28 +3277,28 @@ export class OrdersService {
       include: { items: true },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
-    if (order.status === 'CANCELLED') throw new BadRequestException('ÄÆ¡n hÃ ng Ä‘Ã£ bá»‹ há»§y');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    if (order.status === 'CANCELLED') throw new BadRequestException('Đơn hàng đã bị hủy');
 
     const item = order.items.find((i) => i.id === itemId);
-    if (!item) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y dÃ²ng hÃ ng');
+    if (!item) throw new NotFoundException('Không tìm thấy dòng hàng');
     const isTempItem = (item as any).isTemp === true || (item.type === 'product' && !item.productId && !item.productVariantId);
-    if (!isTempItem) throw new BadRequestException('DÃ²ng hÃ ng nÃ y khÃ´ng pháº£i sáº£n pháº©m táº¡m');
+    if (!isTempItem) throw new BadRequestException('Dòng hàng này không phải sản phẩm tạm');
 
-    // Láº¥y thÃ´ng tin sáº£n pháº©m tháº­t
+    // Load real product information
     const realVariant = await this.prisma.productVariant.findUnique({
       where: { id: dto.realProductVariantId },
       include: { product: true },
     });
-    if (!realVariant) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y biáº¿n thá»ƒ sáº£n pháº©m');
+    if (!realVariant) throw new NotFoundException('Không tìm thấy biến thể sản phẩm');
     if (realVariant.productId !== dto.realProductId) {
-      throw new BadRequestException('productId vÃ  productVariantId khÃ´ng khá»›p');
+      throw new BadRequestException('productId và productVariantId không khớp');
     }
 
-    // Kiá»ƒm tra giÃ¡ pháº£i báº±ng
+    // Ensure prices match
     if (Math.abs(realVariant.price - item.unitPrice) > 0.01) {
       throw new BadRequestException(
-        `GiÃ¡ sáº£n pháº©m tháº­t (${realVariant.price.toLocaleString('vi-VN')}Ä‘) pháº£i báº±ng giÃ¡ sáº£n pháº©m táº¡m (${item.unitPrice.toLocaleString('vi-VN')}Ä‘)`,
+        `Giá sản phẩm thật (${realVariant.price.toLocaleString('vi-VN')}đ) phải bằng giá sản phẩm tạm (${item.unitPrice.toLocaleString('vi-VN')}đ)`,
       );
     }
 
@@ -3323,9 +3322,9 @@ export class OrdersService {
 
     const swapAt = new Date();
 
-    // â”€â”€â”€ PhÆ°Æ¡ng Ã¡n B: Tá»± Ä‘á»™ng xuáº¥t kho náº¿u Ä‘Æ¡n Ä‘Ã£ Ä‘Æ°á»£c lÃ m nguá»“n hÃ ng trÆ°á»›c â”€â”€â”€
-    // Náº¿u order.stockExportedAt cÃ³ giÃ¡ trá»‹ â†’ Ä‘Æ¡n Ä‘Ã£ xuáº¥t kho rá»“i
-    // â†’ Item vá»«a swap cáº§n Ä‘Æ°á»£c trá»« kho ngay táº¡i thá»i Ä‘iá»ƒm swap (khÃ´ng pháº£i lÃºc bÃ¡n)
+    // Option B: auto export stock if the order was already sourced before
+    // If order.stockExportedAt has a value -> order already exported
+    // Swapped item must be deducted immediately at swap time (not at checkout)
     if (order.stockExportedAt) {
       await this._decrementStockForItem(this.prisma, {
         orderItemId: itemId,
@@ -3336,12 +3335,12 @@ export class OrdersService {
       });
     }
 
-    // Timeline: dÃ¹ng ITEM_SWAPPED thay vÃ¬ ITEM_ADDED cho Ä‘Ãºng semantic
+    // Timeline: use ITEM_SWAPPED instead of ITEM_ADDED for the correct semantic
     await this.createTimelineEntry({
       orderId,
       action: 'ITEM_SWAPPED',
-      note: `Äá»•i SP táº¡m "${oldLabel}" â†’ "${newDescription}"` +
-        (order.stockExportedAt ? ` (Ä‘Ã£ trá»« kho ${item.quantity} Ã— ${newDescription})` : ' (chÆ°a xuáº¥t kho â€” sáº½ trá»« khi xuáº¥t)'),
+      note: `Đổi SP tạm "${oldLabel}" -> "${newDescription}"` +
+        (order.stockExportedAt ? ` (đã trừ kho ${item.quantity} × ${newDescription})` : ' (chưa xuất kho - sẽ trừ khi xuất)'),
       performedBy: staffId,
     });
 
@@ -3387,11 +3386,11 @@ export class OrdersService {
       }
     }
 
-    // TÃ­nh credit = tá»•ng giÃ¡ trá»‹ items Ä‘Æ°á»£c Ä‘á»•i/tráº£ (theo Ä‘Æ¡n giÃ¡)
+    // Calculate credit = total value of exchanged/returned items (by unit price)
     let totalCredit = 0;
     for (const reqItem of dto.items) {
       const orderItem = orderItemMap.get(reqItem.orderItemId) as any;
-      // TÃ­nh credit theo tá»· lá»‡: (unitPrice - discountItem/qty) * qty_return
+      // Calculate prorated credit: (unitPrice - discountItem/qty) * qty_return
       const effectiveUnitPrice =
         orderItem.unitPrice - (orderItem.discountItem ?? 0) / orderItem.quantity;
       totalCredit += Math.max(0, effectiveUnitPrice * reqItem.quantity);
@@ -3412,7 +3411,7 @@ export class OrdersService {
     const now = new Date();
 
     return this.prisma.$transaction(async (tx) => {
-      // 1. Táº¡o OrderReturnRequest
+      // 1. Create OrderReturnRequest
       const returnRequest = await (tx as any).orderReturnRequest.create({
         data: {
           orderId,
@@ -3435,7 +3434,7 @@ export class OrdersService {
         include: { items: true },
       });
 
-      // 2. Cáº­p nháº­t tráº¡ng thÃ¡i Ä‘Æ¡n gá»‘c
+      // 2. Update original order status
       const newStatus = returnType === 'FULL' ? 'RETURNED' : 'PARTIALLY_RETURNED';
       await (tx as any).order.update({
         where: { id: orderId },
@@ -3464,7 +3463,7 @@ export class OrdersService {
         },
       });
 
-      // 4. Náº¿u cÃ³ EXCHANGE: táº¡o Ä‘Æ¡n má»›i vá»›i credit pre-applied
+      // 4. If EXCHANGE exists: create new order with pre-applied credit
       let exchangeOrder: any = null;
       if (hasExchange) {
         const exchangeOrderNumber = await this.generateOrderNumber();
@@ -3503,7 +3502,7 @@ export class OrdersService {
           } as any,
         });
 
-        // Táº¡o payment record cho credit tá»« Ä‘Æ¡n cÅ©
+        // Create payment record for credit from old order
         if (creditForExchange > 0) {
           await (tx as any).orderPayment.create({
             data: {
@@ -3517,7 +3516,7 @@ export class OrdersService {
             } as any,
           });
 
-          // Táº¡o timeline entry cho Ä‘Æ¡n má»›i
+          // Create timeline entry for new order
           await (tx as any).orderTimeline.create({
             data: {
               orderId: exchangeOrder.id,

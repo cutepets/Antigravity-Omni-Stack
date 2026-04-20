@@ -90,7 +90,7 @@ describe('Grooming CQRS Handlers', () => {
     describe('CreateGroomingHandler', () => {
         it('creates grooming session and returns success', async () => {
             const result = await commandBus.execute(
-                new CreateGroomingCommand({ petId: 'pet-1', packageCode: null } as any, { userId: 'staff-1' } as any, 'branch-1')
+                new CreateGroomingCommand({ petId: 'pet-1', packageCode: null } as any, { userId: 'staff-1', authorizedBranchIds: ['branch-1'] } as any, 'branch-1')
             )
             expect(result.success).toBe(true)
             expect(result.data.sessionCode).toBe('GRM-001')
@@ -108,7 +108,7 @@ describe('Grooming CQRS Handlers', () => {
     describe('UpdateGroomingHandler', () => {
         it('updates session and returns success', async () => {
             const result = await commandBus.execute(
-                new UpdateGroomingCommand('session-1', { status: 'IN_PROGRESS' } as any, { userId: 'staff-1' } as any, undefined)
+                new UpdateGroomingCommand('session-1', { status: 'IN_PROGRESS' } as any, { userId: 'staff-1', authorizedBranchIds: ['branch-1'] } as any, undefined)
             )
             expect(result.success).toBe(true)
             expect(result.data.status).toBe('IN_PROGRESS')
@@ -124,7 +124,7 @@ describe('Grooming CQRS Handlers', () => {
 
     describe('DeleteGroomingHandler', () => {
         it('deletes session and returns success', async () => {
-            const result = await commandBus.execute(new DeleteGroomingCommand('session-1', { userId: 'staff-1' } as any))
+            const result = await commandBus.execute(new DeleteGroomingCommand('session-1', { userId: 'staff-1', authorizedBranchIds: ['branch-1'] } as any))
             expect(result.success).toBe(true)
             expect(mockDb.groomingSession.delete).toHaveBeenCalledWith({ where: { id: 'session-1' } })
         })
@@ -189,10 +189,60 @@ describe('Grooming CQRS Handlers', () => {
         })
 
         it('throws BadRequestException if pet has no weight', async () => {
-            mockDb.pet.findFirst.mockResolvedValueOnce({ ...mockPet, weight: null })
+            mockDb.pet.findFirst.mockResolvedValueOnce({ ...mockPet, weight: undefined })
             await expect(
                 queryBus.execute(new CalculateGroomingPriceQuery({ petId: 'pet-1', packageCode: 'SPA_BASIC' }, undefined))
             ).rejects.toThrow(BadRequestException)
         })
+    })
+})
+
+// ─── Concurrency & Stress Tests ────────────────────────────────────────────────
+describe('Grooming Concurrency Tests', () => {
+    let commandBus: CommandBus
+    let module: TestingModule
+
+    beforeEach(async () => {
+        const { Test } = await import('@nestjs/testing')
+        const { CqrsModule } = await import('@nestjs/cqrs')
+        const { DatabaseService } = await import('../../database/database.service.js')
+        const { CreateGroomingHandler } = await import('./application/commands/create-grooming/create-grooming.handler.js')
+
+        module = await Test.createTestingModule({
+            imports: [CqrsModule],
+            providers: [
+                { provide: DatabaseService, useValue: mockDb },
+                CreateGroomingHandler
+            ],
+        }).compile()
+
+        await module.init()
+        commandBus = module.get(CommandBus)
+    })
+
+    afterEach(async () => {
+        await module.close()
+        jest.clearAllMocks()
+    })
+
+    it('should process 100 concurrent CreateGroomingCommands efficiently', async () => {
+        const { CreateGroomingCommand } = await import('./application/commands/create-grooming/create-grooming.command.js')
+
+        // Mock success case for all 100 instances
+        mockDb.pet.findFirst.mockResolvedValue(mockPet)
+
+        const commands = Array.from({ length: 100 }, (_, i) =>
+            new CreateGroomingCommand({ petId: 'pet-1', packageCode: null } as any, { userId: `staff-${i}`, authorizedBranchIds: ['branch-1'] } as any, 'branch-1')
+        )
+
+        const start = Date.now()
+        // Send directly to CommandBus mimicking rapid API calls
+        const results = await Promise.all(commands.map(cmd => commandBus.execute(cmd)))
+        const duration = Date.now() - start
+
+        expect(results).toHaveLength(100)
+        expect(results.every(r => r.success === true)).toBe(true)
+        expect(mockDb.groomingSession.create).toHaveBeenCalledTimes(100)
+        expect(duration).toBeLessThan(1000)
     })
 })

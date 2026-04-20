@@ -29,6 +29,7 @@ import { OrderProductSearch } from './order/OrderProductSearch'
 import { OrderCartSection } from './order/OrderCartSection'
 import { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches'
 import { OrderCustomerSection } from './order/OrderCustomerSection'
+import { OrderQrResumeBanner, OrderTempItemBanner } from './order/order-workspace-banners'
 
 export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; orderId?: string }) {
   const { data: branches = [] } = useBranches()
@@ -41,6 +42,10 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
   const [noteEditingId, setNoteEditingId] = useState<string | null>(null)
   const [discountEditingId, setDiscountEditingId] = useState<string | null>(null)
   const [isMultiSelect, setIsMultiSelect] = useState(false)
+  const tempItemCount =
+    workspace.order?.stockExportedAt && Array.isArray(workspace.order?.items)
+      ? workspace.order.items.filter((item: any) => item.isTemp).length
+      : 0
 
   const orderNumber = workspace.order?.orderNumber as string | undefined
   const {
@@ -186,8 +191,19 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
         onSelectSuggestedService={workspace.addCatalogItem}
       />
 
+      <OrderQrResumeBanner
+        show={resumeQrBanner}
+        intent={qrIntent}
+        onOpenQr={() => setShowQrModal(true)}
+        onSwitchPayment={() => {
+          clearQrIntent()
+          setShowQrModal(false)
+          workspace.setShowPayModal(true)
+        }}
+      />
+
       {/* QR Resume Banner */}
-      {resumeQrBanner && qrIntent && (
+      {false && resumeQrBanner && qrIntent && (
         <div className="mx-4 mt-2 flex items-center gap-3 rounded-xl border border-sky-500/25 bg-sky-500/8 px-4 py-2.5">
           <QrCode size={16} className="shrink-0 text-sky-500" />
           <span className="flex-1 text-sm font-medium text-foreground">
@@ -216,8 +232,10 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
         </div>
       )}
 
+      <OrderTempItemBanner count={tempItemCount} />
+
       {/* Banner: còn item tạm chưa swap sau khi đã xuất kho */}
-      {workspace.order?.stockExportedAt && workspace.order?.items?.some((i: any) => i.isTemp) && (
+      {false && workspace.order?.stockExportedAt && workspace.order?.items?.some((i: any) => i.isTemp) && (
         <div className="mx-4 mt-2 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-2.5">
           <AlertCircle size={16} className="shrink-0 text-amber-500" />
           <span className="flex-1 text-sm font-medium text-foreground">

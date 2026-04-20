@@ -57,6 +57,7 @@ import { ReceiptReturnModal } from './receipt/receipt-return-modal'
 import { ReceiptExcelModal } from './receipt/receipt-excel-modal'
 import { SelectedItem } from './receipt/receipt.types'
 import { useReceiptForm } from './receipt/use-receipt-form'
+import { RECEIPT_ITEM_GRID_COLUMNS } from './receipt/receipt-layout'
 
 
 export function CreateReceiptForm({
@@ -191,7 +192,7 @@ export function CreateReceiptForm({
     )
   }
 
-  const cols = '36px 36px 52px 96px minmax(220px,1fr) 64px 80px 104px 104px 120px 136px'
+  const cols = RECEIPT_ITEM_GRID_COLUMNS
 
   // ── Print / Export handlers ───────────────────────────────────────────────────
   const handleDuplicateReceipt = () => {
@@ -808,7 +809,7 @@ export function CreateReceiptForm({
                           <div className="min-w-0 flex-1">
                             <div className="truncate font-medium text-foreground">{product.name}</div>
                             <div className="mt-0.5 text-[11px] text-foreground-muted">
-                              {product.sku || product.barcode || '�'}
+                              {product.sku || product.barcode || '?'}
                               {product.stock !== undefined && (
                                 <span className="ml-2 font-medium text-primary-500">
                                   {'T\u1ed3n:'} {product.stock}
@@ -834,7 +835,7 @@ export function CreateReceiptForm({
                                 onClick={() => addProductToReceipt(product, { productVariantId: variant.id })}
                               >
                                 <span>{variant.unitLabel || variant.variantLabel || getVariantShortLabel(variant.name, product.name) || variant.name}</span>{/*
-                                {variant.sku || variant.barcode || '�'}
+                                {variant.sku || variant.barcode || '?'}
                             */}</button>
                             ))}
                           </div>

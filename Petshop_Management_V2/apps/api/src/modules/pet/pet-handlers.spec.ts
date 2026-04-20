@@ -362,3 +362,48 @@ describe('FindPetsHandler', () => {
         expect(callArg.branchIds).toBeUndefined()
     })
 })
+
+// ─── Concurrency & Stress Tests ────────────────────────────────────────────────
+
+describe('High Load & Concurrency Tests', () => {
+    let handler: any
+    let petRepo: ReturnType<typeof makePetRepo>
+    let db: ReturnType<typeof makeDb>
+
+    beforeEach(async () => {
+        petRepo = makePetRepo()
+        db = makeDb()
+        const { CreatePetHandler } = await import(
+            './application/commands/create-pet/create-pet.handler.js'
+        )
+        handler = new CreatePetHandler(petRepo, db as any)
+    })
+
+    it('should handle 100 concurrent CreatePetCommands without choking or leaking state', async () => {
+        const { CreatePetCommand } = await import(
+            './application/commands/create-pet/create-pet.command.js'
+        )
+        petRepo.nextCode.mockResolvedValue('PET_MOCK')
+        petRepo.save.mockResolvedValue(makePetEntityObj())
+        db.customer.findUnique.mockResolvedValue({ id: 'customer-1', branchId: 'branch-1' })
+
+        const actor = makeActor()
+        const commands = Array.from({ length: 100 }, (_, i) =>
+            new CreatePetCommand({ name: `Mochi ${i}`, species: 'Chó', customerId: 'customer-1' }, actor)
+        )
+
+        const start = Date.now()
+        // Execute all 100 creations concurrently, typical of high traffic or mass imports
+        const results = await Promise.all(commands.map(cmd => handler.execute(cmd)))
+        const duration = Date.now() - start
+
+        expect(results).toHaveLength(100)
+        expect(results.every(r => r.success === true)).toBe(true)
+        expect(petRepo.nextCode).toHaveBeenCalledTimes(100)
+        expect(petRepo.save).toHaveBeenCalledTimes(100)
+
+        // Assert non-blocking execution inside the async loop. Max duration 1s.
+        expect(duration).toBeLessThan(1000)
+    })
+})
+

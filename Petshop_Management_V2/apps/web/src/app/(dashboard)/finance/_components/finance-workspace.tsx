@@ -30,6 +30,7 @@ import { useAuthorization } from '@/hooks/useAuthorization'
 import { BankTransactionsTab } from './bank-transactions-tab'
 import { CashShiftsTab } from './cash-shifts-tab'
 import { CashVaultTab } from './cash-vault-tab'
+import { SourceBadge, TransactionBadge } from './finance-badges'
 
 type DisplayColumnId = 'voucher' | 'tags' | 'date' | 'createdAt' | 'updatedAt' | 'type' | 'payer' | 'creator' | 'branch' | 'paymentMethod' | 'amount' | 'category' | 'description' | 'ref' | 'notes' | 'source'
 type PinFilterId = 'type' | 'branch' | 'paymentMethod'
@@ -82,29 +83,6 @@ function formatCurrency(value: number) {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('vi-VN')
-}
-
-function TransactionBadge({ type }: { type: string }) {
-  const className =
-    type === 'INCOME'
-      ? 'border-emerald-500/20 bg-emerald-500/12 text-emerald-400'
-      : 'border-rose-500/20 bg-rose-500/12 text-rose-400'
-
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${className}`}>{type === 'INCOME' ? 'Thu' : 'Chi'}</span>
-}
-
-function SourceBadge({ source }: { source: string }) {
-  const palette: Record<string, string> = {
-    MANUAL: 'border-sky-500/20 bg-sky-500/12 text-sky-300',
-    ORDER_PAYMENT: 'border-amber-500/20 bg-amber-500/12 text-amber-300',
-    STOCK_RECEIPT: 'border-violet-500/20 bg-violet-500/12 text-violet-300',
-  }
-
-  return (
-    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${palette[source] ?? 'border-border bg-white/5 text-foreground-muted'}`}>
-      {source}
-    </span>
-  )
 }
 
 function getVoucherFromLocation() {

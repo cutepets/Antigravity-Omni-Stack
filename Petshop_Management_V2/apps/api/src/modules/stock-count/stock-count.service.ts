@@ -17,6 +17,7 @@ import {
   StartShiftSessionDto,
   ClaimRandomShiftDto,
 } from './dto/index.js'
+import { buildSessionProgressUpdate, resolveCountedQuantity } from './policies/stock-count.policy.js'
 import { resolveProductVariantLabels } from '@petshop/shared'
 
 const SHIFT_SEQUENCE = [
@@ -533,7 +534,7 @@ export class StockCountService {
       throw new ForbiddenException('Ca kiểm này đang được người khác thực hiện')
     }
 
-    const countedQuantity = item.systemQuantity + dto.variance
+    const countedQuantity = resolveCountedQuantity(item.systemQuantity, dto.variance)
     if (countedQuantity < 0) {
       throw new BadRequestException('Chênh lệch đang làm số lượng thực tế âm')
     }
@@ -1162,26 +1163,13 @@ export class StockCountService {
       throw new NotFoundException('Không tìm thấy phiếu kiểm kho')
     }
 
-    const countedProducts = session.shifts.reduce(
-      (sum: number, shift: { countedItems: number | null }) => sum + (shift.countedItems ?? 0),
-      0,
-    )
-    const allSubmitted =
-      session.shifts.length > 0 &&
-      session.shifts.every((shift: { status: string }) => ['SUBMITTED', 'APPROVED'].includes(shift.status))
-
-    const nextStatus =
-      session.status === 'APPROVED' || session.status === 'REJECTED'
-        ? session.status
-        : allSubmitted
-          ? 'SUBMITTED'
-          : 'DRAFT'
+    const progressUpdate = buildSessionProgressUpdate(session)
 
     await tx.stockCountSession.update({
       where: { id: sessionId },
       data: {
-        countedProducts,
-        status: nextStatus,
+        countedProducts: progressUpdate.countedProducts,
+        status: progressUpdate.status,
       },
     })
   }

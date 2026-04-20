@@ -26,6 +26,7 @@ import {
 } from '../../common/utils/upload.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard'
 import { PaymentWebhookService } from '../orders/payment-webhook.service.js'
+import { QueueService } from '../queue/queue.service'
 import {
   CreateBranchDto,
   CreateBankTransferAccountDto,
@@ -53,6 +54,7 @@ export class SettingsController {
   constructor(
     private readonly settingsService: SettingsService,
     private readonly paymentWebhookService: PaymentWebhookService,
+    private readonly queueService: QueueService,
   ) { }
 
   @Get('settings/configs')
@@ -384,6 +386,11 @@ export class SettingsController {
   @Permissions('settings.app.update', 'supplier.create', 'supplier.update')
   @ApiOperation({ summary: 'Xóa tài liệu đã upload' })
   async deleteFile(@Body('url') url: string) {
+    await this.queueService.enqueueUploadCleanup({
+      url,
+      reason: 'settings.upload.delete',
+    })
+
     await deleteUploadedFile(url, {
       publicPrefix: DOCUMENT_UPLOAD_PREFIX,
       rootDir: 'uploads/files',

@@ -36,7 +36,7 @@ export function usePosPayment() {
   const autoCashSeedRef = useRef<number | null>(null);
   const handleQrPaid = useCallback(
     (intent: OrderPaymentIntent) => {
-      toast.success('ÄÃ£ nháº­n thÃ´ng bÃ¡o chuyá»ƒn khoáº£n thÃ nh cÃ´ng');
+      toast.success('?? nh?n th?ng b?o chuy?n kho?n th?nh c?ng');
 
       if (intent.orderId) {
         void queryClient.invalidateQueries({ queryKey: ['order', intent.orderId] });

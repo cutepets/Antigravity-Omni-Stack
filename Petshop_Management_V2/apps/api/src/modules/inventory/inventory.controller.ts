@@ -24,13 +24,17 @@ import {
   UpdateServiceDto,
 } from './inventory.service'
 import type { ProductExportRequest, ProductImportRequest } from './product-excel.js'
+import { QueueService } from '../queue/queue.service'
 
 @ApiTags('Inventory')
 @Controller('inventory')
 @UseGuards(JwtGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(
+    private readonly inventoryService: InventoryService,
+    private readonly queueService: QueueService,
+  ) {}
 
   @Get('products')
   @Permissions('product.read')
@@ -43,6 +47,16 @@ export class InventoryController {
   @Permissions('product.read')
   @ApiOperation({ summary: 'Xuất danh sách sản phẩm ra dữ liệu Excel' })
   exportProducts(@Body() body: ProductExportRequest) {
+    void this.queueService.enqueueReportExport({
+      reportType: 'product_export',
+      requestedBy: 'inventory.controller',
+      params: {
+        scope: body.scope,
+        productCount: Array.isArray(body.productIds) ? body.productIds.length : 0,
+        filterCount: body.filters ? Object.keys(body.filters).length : 0,
+      },
+    })
+
     return this.inventoryService.exportProducts(body)
   }
 

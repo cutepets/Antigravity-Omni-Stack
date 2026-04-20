@@ -828,7 +828,7 @@ export class InventoryService {
         branchStocks: { include: { branch: true } },
       },
     })
-    if (!product) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m')
+    if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
     return { success: true, data: product }
   }
 
@@ -903,7 +903,7 @@ export class InventoryService {
         stockTransactions: { take: 1 }
       }
     })
-    if (!product) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m')
+    if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
 
     const hasTransactions = product.orderItems.length > 0 || product.receiptItems.length > 0 || product.stockTransactions.length > 0
 
@@ -918,7 +918,7 @@ export class InventoryService {
           barcode: product.barcode ? `${product.barcode}${suffix}` : null
         }
       })
-      // Cáº­p nháº­t cÃ¡c variants náº¿u cÃ³
+      // Cập nhật các variants nếu có
       const variants = await this.db.productVariant.findMany({ where: { productId: id } })
       for (const variant of variants) {
         await this.db.productVariant.update({
@@ -930,17 +930,17 @@ export class InventoryService {
           }
         })
       }
-      return { success: true, message: 'ÄÃ£ áº©n sáº£n pháº©m vÃ o danh sÃ¡ch Ä‘Ã£ xoÃ¡ (vÃ¬ Ä‘Ã£ phÃ¡t sinh giao dá»‹ch)' }
+      return { success: true, message: 'Đã ẩn sản phẩm vào danh sách đã xóa (vì đã phát sinh giao dịch)' }
     } else {
       await this.db.product.delete({ where: { id } })
-      return { success: true, message: 'XÃ³a vÄ©nh viá»…n sáº£n pháº©m thÃ nh cÃ´ng' }
+      return { success: true, message: 'Xóa vĩnh viễn sản phẩm thành công' }
     }
   }
 
   async restoreProduct(id: string) {
     const product = await this.db.product.findUnique({ where: { id } })
-    if (!product) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m')
-    if (!product.deletedAt) return { success: true, message: 'Sáº£n pháº©m Ä‘ang á»Ÿ tráº¡ng thÃ¡i hoáº¡t Ä‘á»™ng' }
+    if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
+    if (!product.deletedAt) return { success: true, message: 'Sản phẩm đang ở trạng thái hoạt động' }
 
     let restoredSku = product.sku
     if (restoredSku && restoredSku.includes('_deleted_')) {
@@ -993,7 +993,7 @@ export class InventoryService {
         data: { deletedAt: null, sku: vRestoredSku || null, barcode: vRestoredBarcode || null }
       })
     }
-    return { success: true, message: 'KhÃ´i phá»¥c sáº£n pháº©m thÃ nh cÃ´ng' }
+    return { success: true, message: 'Khôi phục sản phẩm thành công' }
   }
 
   async batchCreateVariants(productId: string, variants: CreateVariantDto[]) {
@@ -1008,7 +1008,7 @@ export class InventoryService {
 
   async updateVariant(vid: string, dto: Partial<CreateVariantDto>) {
     const variant = await this.db.productVariant.findUnique({ where: { id: vid }, include: { product: true } })
-    if (!variant) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y phiÃªn báº£n sáº£n pháº©m')
+    if (!variant) throw new NotFoundException('Không tìm thấy phiên bản sản phẩm')
     const updated = await this.db.productVariant.update({
       where: { id: vid },
       data: prepareVariantPayload(dto, variant.product?.name) as any,
@@ -1018,16 +1018,16 @@ export class InventoryService {
 
   async removeVariant(vid: string) {
     const variant = await this.db.productVariant.findUnique({ where: { id: vid } })
-    if (!variant) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y phiÃªn báº£n sáº£n pháº©m')
+    if (!variant) throw new NotFoundException('Không tìm thấy phiên bản sản phẩm')
     try {
       await this.db.productVariant.delete({ where: { id: vid } })
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-        throw new BadRequestException('KhÃ´ng thá»ƒ xoÃ¡ phiÃªn báº£n Ä‘Ã£ phÃ¡t sinh giao dá»‹ch')
+        throw new BadRequestException('Không thể xóa phiên bản đã phát sinh giao dịch')
       }
       throw error
     }
-    return { success: true, message: 'XÃ³a phiÃªn báº£n thÃ nh cÃ´ng' }
+    return { success: true, message: 'Xóa phiên bản thành công' }
   }
 
   // â”€â”€â”€ Services â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1061,7 +1061,7 @@ export class InventoryService {
       where: { id },
       include: { variants: true },
     })
-    if (!service) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y dá»‹ch vá»¥')
+    if (!service) throw new NotFoundException('Không tìm thấy dịch vụ')
     return { success: true, data: service }
   }
 
@@ -1079,7 +1079,7 @@ export class InventoryService {
   async removeService(id: string) {
     await this.findServiceById(id)
     await this.db.service.delete({ where: { id } })
-    return { success: true, message: 'XÃ³a dá»‹ch vá»¥ thÃ nh cÃ´ng' }
+    return { success: true, message: 'Xóa dịch vụ thành công' }
   }
 
   async batchCreateServiceVariants(serviceId: string, variants: CreateVariantDto[]) {
@@ -1094,16 +1094,16 @@ export class InventoryService {
 
   async updateServiceVariant(vid: string, dto: Partial<CreateVariantDto>) {
     const variant = await this.db.serviceVariant.findUnique({ where: { id: vid } })
-    if (!variant) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y phiÃªn báº£n dá»‹ch vá»¥')
+    if (!variant) throw new NotFoundException('Không tìm thấy phiên bản dịch vụ')
     const updated = await this.db.serviceVariant.update({ where: { id: vid }, data: dto as any })
     return { success: true, data: updated }
   }
 
   async removeServiceVariant(vid: string) {
     const variant = await this.db.serviceVariant.findUnique({ where: { id: vid } })
-    if (!variant) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y phiÃªn báº£n dá»‹ch vá»¥')
+    if (!variant) throw new NotFoundException('Không tìm thấy phiên bản dịch vụ')
     await this.db.serviceVariant.delete({ where: { id: vid } })
-    return { success: true, message: 'XÃ³a phiÃªn báº£n dá»‹ch vá»¥ thÃ nh cÃ´ng' }
+    return { success: true, message: 'Xóa phiên bản dịch vụ thành công' }
   }
 
   // â”€â”€â”€ Dictionaries (Category, Brand, Unit, PriceBook) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1125,7 +1125,7 @@ export class InventoryService {
 
   async removeCategory(id: string) {
     await this.db.category.delete({ where: { id } })
-    return { success: true, message: 'XÃ³a danh má»¥c thÃ nh cÃ´ng' }
+    return { success: true, message: 'Xóa danh mục thành công' }
   }
 
   async findAllBrands() {
@@ -1145,7 +1145,7 @@ export class InventoryService {
 
   async removeBrand(id: string) {
     await this.db.brand.delete({ where: { id } })
-    return { success: true, message: 'XÃ³a nhÃ£n hiá»‡u thÃ nh cÃ´ng' }
+    return { success: true, message: 'Xóa nhãn hiệu thành công' }
   }
 
   async findAllUnits() {
@@ -1165,7 +1165,7 @@ export class InventoryService {
 
   async removeUnit(id: string) {
     await this.db.unit.delete({ where: { id } })
-    return { success: true, message: 'XÃ³a Ä‘Æ¡n vá»‹ tÃ­nh thÃ nh cÃ´ng' }
+    return { success: true, message: 'Xóa đơn vị tính thành công' }
   }
 
   async findAllPriceBooks() {
@@ -1185,7 +1185,7 @@ export class InventoryService {
 
   async removePriceBook(id: string) {
     await this.db.priceBook.delete({ where: { id } })
-    return { success: true, message: 'XÃ³a báº£ng giÃ¡ thÃ nh cÃ´ng' }
+    return { success: true, message: 'Xóa bảng giá thành công' }
   }
 }
 

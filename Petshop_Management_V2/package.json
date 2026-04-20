@@ -2,7 +2,7 @@
   "name": "petshop-management-v2",
   "private": true,
   "version": "2.0.0",
-  "description": "Petshop Service Management System v2 — Turborepo Monorepo",
+  "description": "Petshop Service Management System v2 - Turborepo Monorepo",
   "scripts": {
     "dev": "turbo run dev",
     "dev:api": "turbo run dev --filter=@petshop/api",

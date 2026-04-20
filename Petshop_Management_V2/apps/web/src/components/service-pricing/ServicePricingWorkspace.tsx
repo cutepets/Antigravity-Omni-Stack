@@ -19,6 +19,7 @@ import {
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { useAuthStore } from '@/stores/auth.store'
 import { cn, formatCurrency } from '@/lib/utils'
+import { formatCurrencyInput, formatIntegerInput, formatWeightInput } from './service-pricing-format'
 
 type PricingMode = 'HOTEL' | 'GROOMING'
 
@@ -116,7 +117,7 @@ const HOTEL_INCLUDED = [
   'Gửi clip bé vào tối hàng ngày qua Zalo.',
 ]
 
-const CAT_SPECIES = SPECIES_OPTIONS[1]?.value ?? 'MÃ¨o'
+const CAT_SPECIES = SPECIES_OPTIONS[1]?.value ?? 'Mèo'
 
 const GROOMING_EXTRA_SERVICES = [
   { name: 'Tắm nấm, bọ <5kg', price: '30k' },
@@ -203,20 +204,6 @@ function buildServicePricingSku(kind: 'HOTEL' | 'SPA', label: string, weightBand
   }
   const prefix = getSpaSkuPrefix(label)
   return `${prefix}${getWeightBandSkuSuffix(weightBandLabel)}`
-}
-
-function formatWeightInput(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) return ''
-  return Number.isInteger(value) ? String(value) : String(value).replace('.', ',')
-}
-
-function formatCurrencyInput(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) return ''
-  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(Math.round(value))
-}
-
-function formatIntegerInput(value: number | null | undefined) {
-  return value === null || value === undefined || Number.isNaN(value) ? '' : String(Math.round(value))
 }
 
 function normalizeCurrencyInput(value: string) {
@@ -392,7 +379,7 @@ function getHotelPreviewWeightBandLabel(
   preview?: HotelPreviewResult,
 ) {
   const snapshot = line.pricingSnapshot as Record<string, unknown> | undefined
-  return String(snapshot?.weightBandLabel ?? preview?.weightBand?.label ?? 'theo cân nặng')
+  return String(snapshot?.weightBandLabel ?? preview?.weightBand?.label ?? 'theo c?n n?ng')
 }
 
 function aggregateHotelPreviewLines(preview: HotelPreviewResult) {
@@ -438,7 +425,7 @@ function aggregateHotelPreviewLines(preview: HotelPreviewResult) {
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map((group) => {
       const sampleLine = preview.chargeLines.find((line) => line.dayType === group.dayType) ?? preview.chargeLines[0]
-      const weightBandLabel = sampleLine ? getHotelPreviewWeightBandLabel(sampleLine, preview) : preview.weightBand?.label ?? 'theo cân nặng'
+      const weightBandLabel = sampleLine ? getHotelPreviewWeightBandLabel(sampleLine, preview) : preview.weightBand?.label ?? 'theo c?n n?ng'
       const label = group.dayType === 'HOLIDAY'
         ? group.holidayNames.length === 1
           ? `Hotel lễ ${group.holidayNames[0]} - ${weightBandLabel}`
@@ -1355,14 +1342,14 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const copySpaServiceToCat = async (serviceKey: string) => {
     if (!ensureCanManagePricing()) return
     if (species === CAT_SPECIES) {
-      toast.error('Äang á»Ÿ báº£ng giÃ¡ mÃ¨o')
+      toast.error('?ang ? b?ng gi? m?o')
       return
     }
 
     const service = spaServiceColumns.find((column) => column.key === serviceKey)
     const packageCode = service?.packageCode.trim()
     if (!packageCode) {
-      toast.error('Cáº§n nháº­p tÃªn dá»‹ch vá»¥ trÆ°á»›c khi sao chÃ©p')
+      toast.error('C?n nh?p t?n d?ch v? tr??c khi sao ch?p')
       return
     }
 
@@ -1383,7 +1370,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     })
 
     if (pricedBands.length === 0) {
-      toast.error(`Dá»‹ch vá»¥ "${packageCode}" chÆ°a cÃ³ giÃ¡ nÃ o Ä‘á»ƒ sao chÃ©p`)
+      toast.error(`D?ch v? "${packageCode}" ch?a c? gi? n?o ?? sao ch?p`)
       return
     }
 
@@ -1453,9 +1440,9 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       })
 
       invalidatePricing()
-      toast.success(`ÄÃ£ sao chÃ©p "${packageCode}" sang báº£ng mÃ¨o`)
+      toast.success(`?? sao ch?p "${packageCode}" sang b?ng m?o`)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || `KhÃ´ng sao chÃ©p Ä‘Æ°á»£c "${packageCode}" sang báº£ng mÃ¨o`)
+      toast.error(error?.response?.data?.message || `Kh?ng sao ch?p ???c "${packageCode}" sang b?ng m?o`)
     } finally {
       setCopyingServiceKey(null)
     }
@@ -1696,7 +1683,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       return false
     })
     if (invalidHotelExtraService) {
-      toast.error('Dá»‹ch vá»¥ khÃ¡c Hotel Ä‘ang cÃ³ dÃ²ng thiáº¿u tÃªn, giÃ¡ hoáº·c khoáº£ng cÃ¢n khÃ´ng há»£p lá»‡')
+      toast.error('D?ch v? kh?c Hotel ?ang c? d?ng thi?u t?n, gi? ho?c kho?ng c?n kh?ng h?p l?')
       return
     }
 
@@ -1709,7 +1696,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
         parseWeightInput(draft.maxWeight),
       )
       if (duplicateHotelExtraSignatures.has(signature)) {
-        toast.error('Dá»‹ch vá»¥ khÃ¡c Hotel Ä‘ang bá»‹ trÃ¹ng tÃªn vÃ  khoáº£ng cÃ¢n')
+        toast.error('D?ch v? kh?c Hotel ?ang b? tr?ng t?n v? kho?ng c?n')
         return
       }
       duplicateHotelExtraSignatures.add(signature)
@@ -2290,7 +2277,7 @@ function HotelExtraServicesPanel({
                     <button
                       type="button"
                       onClick={() => onChange(drafts.filter((_, itemIndex) => itemIndex !== index))}
-                      title="XÃ³a dá»‹ch vá»¥"
+                      title="X?a d?ch v?"
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10"
                     >
                       <X size={14} />

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import type { PetGender } from '@petshop/database'
 import { DatabaseService } from '../../../../database/database.service.js'
 import type { IPetRepository, PetFilter, PetFindResult } from '../../domain/ports/pet.repository.js'
 import { PetEntity } from '../../domain/entities/pet.entity.js'
@@ -27,7 +28,7 @@ export class PrismaPetRepository implements IPetRepository {
 
         const where = {
             ...(species && { species }),
-            ...(gender && { gender: gender as any }),
+            ...(gender && { gender: gender as PetGender }),
             ...(customerId && { customerId }),
             ...(branchIds?.length && { branchId: { in: branchIds } }),
             ...(q && {
@@ -61,7 +62,7 @@ export class PrismaPetRepository implements IPetRepository {
                 name: payload.name,
                 species: payload.species,
                 breed: payload.breed,
-                gender: payload.gender as any ?? undefined,
+                gender: (payload.gender as PetGender) ?? undefined,
                 dateOfBirth: payload.dateOfBirth,
                 weight: payload.weight,
                 color: payload.color,
@@ -85,7 +86,7 @@ export class PrismaPetRepository implements IPetRepository {
                 name: payload.name,
                 species: payload.species,
                 breed: payload.breed,
-                gender: payload.gender as any ?? undefined,
+                gender: (payload.gender as PetGender) ?? undefined,
                 dateOfBirth: payload.dateOfBirth,
                 weight: payload.weight,
                 color: payload.color,

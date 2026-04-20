@@ -51,6 +51,13 @@ type DiskUploadOptions = {
   errorMessage: string
 }
 
+type ValidateUploadedFileOptions = {
+  allowedMimeTypes: Set<string>
+  allowedExtensions: Set<string>
+  maxFileSize: number
+  errorMessage: string
+}
+
 type UploadedFilePathOptions = {
   publicPrefix: string
   rootDir: string
@@ -94,6 +101,29 @@ export function createDiskUploadOptions(options: DiskUploadOptions) {
       },
     }),
     limits: { fileSize: options.maxFileSize },
+  }
+}
+
+export function validateUploadedFile(
+  file: Express.Multer.File | undefined | null,
+  options: ValidateUploadedFileOptions,
+) {
+  if (!file) {
+    throw new BadRequestException('File is required')
+  }
+
+  if (file.size > options.maxFileSize) {
+    throw new BadRequestException(`File size must be less than ${Math.floor(options.maxFileSize / 1024 / 1024)}MB`)
+  }
+
+  const extension = extname(file.originalname).toLowerCase()
+  const mimeType = (file.mimetype || '').toLowerCase()
+  if (!options.allowedMimeTypes.has(mimeType) || !options.allowedExtensions.has(extension)) {
+    throw new BadRequestException(options.errorMessage)
+  }
+
+  if (!file.filename) {
+    throw new BadRequestException('Uploaded file is missing filename metadata')
   }
 }
 

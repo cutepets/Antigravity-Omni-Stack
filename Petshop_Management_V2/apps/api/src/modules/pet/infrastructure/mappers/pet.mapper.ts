@@ -1,4 +1,4 @@
-import type { Pet as PrismaPet } from '@petshop/database'
+import type { Pet as PrismaPet, PetGender } from '@petshop/database'
 import { PetEntity, type PetProps } from '../../domain/entities/pet.entity.js'
 
 /**
@@ -41,7 +41,7 @@ export class PetMapper {
             name: snap.name,
             species: snap.species,
             breed: snap.breed ?? null,
-            gender: snap.gender as any ?? null,
+            gender: (snap.gender as PetGender) ?? null,
             dateOfBirth: snap.dateOfBirth ?? null,
             weight: snap.weight ?? null,
             color: snap.color ?? null,
@@ -61,7 +61,7 @@ export class PetMapper {
             name: snap.name,
             species: snap.species,
             breed: snap.breed ?? null,
-            gender: snap.gender as any ?? null,
+            gender: (snap.gender as PetGender) ?? null,
             dateOfBirth: snap.dateOfBirth ?? null,
             weight: snap.weight ?? null,
             color: snap.color ?? null,

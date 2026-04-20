@@ -7,6 +7,11 @@ import {
   getFinanceTransactionCapability,
   normalizeFinanceTransaction,
 } from './application/finance-transactions.application.js'
+import {
+  createManualFinanceTransaction,
+  removeFinanceTransaction,
+  updateFinanceTransaction,
+} from './application/finance-transaction-mutation.application.js'
 import { runFinanceTransactionQuery } from './application/finance-transaction-query.application.js'
 
 type FinanceTransactionType = 'INCOME' | 'EXPENSE'
@@ -1044,83 +1049,17 @@ export class ReportsService {
     user?: BranchScopedUser,
     requestedBranchId?: string,
   ) {
-    if (!dto.type) throw new BadRequestException('Thiếu loại giao dịch')
-    if (!dto.description?.trim()) throw new BadRequestException('Mô tả giao dịch là bắt buộc')
-    if (!Number.isFinite(Number(dto.amount)) || Number(dto.amount) <= 0) {
-      throw new BadRequestException('Số tiền phải lớn hơn 0')
-    }
-    if (dto.refType && !(MANUAL_REFERENCE_TYPES as readonly string[]).includes(dto.refType)) {
-      throw new BadRequestException('Phiếu tạo thủ công chỉ hỗ trợ refType MANUAL')
-    }
-
-    const txDate = dto.date ? new Date(dto.date) : new Date()
-    if (Number.isNaN(txDate.getTime())) {
-      throw new BadRequestException('Ngày giao dịch không hợp lệ')
-    }
-
-    const manualReference = await this.resolveManualReference({
-      refType: dto.refType,
-      refId: dto.refId,
-      refNumber: dto.refNumber,
+    return createManualFinanceTransaction(
+      this.db,
+      {
+        buildVoucherNumber: (type, issuedAt) => this.buildVoucherNumber(type, issuedAt),
+        normalizeTransaction: (tx) => this.normalizeTransaction(tx),
+      },
+      dto,
+      staffId,
       user,
-    })
-    const paymentAccount = await this.resolvePaymentAccount(dto.paymentMethod, dto.paymentAccountId)
-
-    const writableBranchId = resolveWritableBranchId(user, dto.branchId ?? requestedBranchId)
-    const branch = writableBranchId
-      ? await this.db.branch.findUnique({
-          where: { id: writableBranchId },
-          select: { id: true, name: true },
-        })
-      : null
-
-    if (writableBranchId && !branch) {
-      throw new NotFoundException('Không tìm thấy chi nhánh')
-    }
-
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const voucherNumber = await this.buildVoucherNumber(dto.type, txDate)
-      try {
-        const tx = await this.db.transaction.create({
-          data: {
-            voucherNumber,
-            type: dto.type,
-            amount: Number(dto.amount),
-            description: dto.description.trim(),
-            category: dto.category?.trim() || null,
-            paymentMethod: paymentAccount.paymentMethod ?? null,
-            paymentAccountId: paymentAccount.paymentAccountId,
-            paymentAccountLabel: paymentAccount.paymentAccountLabel,
-            branchId: branch?.id ?? null,
-            branchName: dto.branchName?.trim() || branch?.name || null,
-            payerName: dto.payerName?.trim() || null,
-            payerId: dto.payerId?.trim() || null,
-            refType: manualReference.refType,
-            refId: manualReference.refId,
-            refNumber: manualReference.refNumber,
-            notes: dto.notes?.trim() || null,
-            tags: dto.tags?.trim() || null,
-            attachmentUrl: dto.attachmentUrl?.trim() || null,
-            source: 'MANUAL',
-            isManual: true,
-            staffId,
-            date: txDate,
-          } as any,
-          include: {
-            staff: { select: { id: true, fullName: true } },
-            branch: { select: { id: true, name: true } },
-          },
-        })
-
-        return { success: true, data: this.normalizeTransaction(tx) }
-      } catch (error: any) {
-        if (error?.code !== 'P2002') {
-          throw error
-        }
-      }
-    }
-
-    throw new Error('Không thể tạo số chứng từ duy nhất, vui lòng thử lại')
+      requestedBranchId,
+    )
   }
 
   async updateTransaction(
@@ -1130,122 +1069,28 @@ export class ReportsService {
     user?: BranchScopedUser,
     requestedBranchId?: string,
   ) {
-    const existing = await this.db.transaction.findUnique({ where: { id } as any })
-    if (!existing) {
-      throw new NotFoundException('Không tìm thấy phiếu thu/chi')
-    }
-
-    assertBranchAccess(existing.branchId, user)
-    const capability = this.getTransactionCapability(existing)
-    const changedKeys = Object.entries(dto)
-      .filter(([, value]) => value !== undefined)
-      .map(([key]) => key)
-    const hasRestrictedChange =
-      capability.editScope !== 'FULL' &&
-      changedKeys.some((key) => !(NOTE_ONLY_FIELDS as readonly string[]).includes(key))
-
-    if (hasRestrictedChange) {
-      throw new ForbiddenException(capability.lockReason ?? 'Phiếu này chỉ được cập nhật ghi chú')
-    }
-
-    if (dto.amount !== undefined && (!Number.isFinite(Number(dto.amount)) || Number(dto.amount) <= 0)) {
-      throw new BadRequestException('Số tiền phải lớn hơn 0')
-    }
-
-    let txDate: Date | undefined
-    if (dto.date !== undefined) {
-      txDate = new Date(dto.date)
-      if (Number.isNaN(txDate.getTime())) {
-        throw new BadRequestException('Ngày giao dịch không hợp lệ')
-      }
-    }
-
-    const allowCoreEdit = capability.editScope === 'FULL'
-    const writableBranchId =
-      allowCoreEdit && (dto.branchId !== undefined || requestedBranchId)
-        ? resolveWritableBranchId(user, dto.branchId ?? requestedBranchId)
-        : null
-    const shouldUpdateManualReference =
-      allowCoreEdit && (dto.refType !== undefined || dto.refId !== undefined || dto.refNumber !== undefined)
-
-    const branch = writableBranchId
-      ? await this.db.branch.findUnique({
-          where: { id: writableBranchId },
-          select: { id: true, name: true },
-        })
-      : null
-
-    if (writableBranchId && !branch) {
-      throw new NotFoundException('Không tìm thấy chi nhánh')
-    }
-
-    const manualReference = shouldUpdateManualReference
-      ? await this.resolveManualReference({
-          refType: dto.refType ?? existing.refType ?? 'MANUAL',
-          refId: dto.refId,
-          refNumber: dto.refNumber,
-          user,
-        })
-      : null
-    const shouldUpdatePaymentAccount =
-      allowCoreEdit && (dto.paymentMethod !== undefined || dto.paymentAccountId !== undefined || dto.paymentAccountLabel !== undefined)
-    const paymentAccount = shouldUpdatePaymentAccount
-      ? await this.resolvePaymentAccount(dto.paymentMethod ?? existing.paymentMethod, dto.paymentAccountId)
-      : null
-
-    const updated = await this.db.transaction.update({
-      where: { id } as any,
-      data: {
-        ...(allowCoreEdit && dto.amount !== undefined ? { amount: Number(dto.amount) } : {}),
-        ...(allowCoreEdit && dto.description !== undefined ? { description: dto.description.trim() } : {}),
-        ...(allowCoreEdit && dto.category !== undefined ? { category: dto.category?.trim() || null } : {}),
-        ...(paymentAccount
-          ? {
-              paymentMethod: paymentAccount.paymentMethod ?? null,
-              paymentAccountId: paymentAccount.paymentAccountId,
-              paymentAccountLabel: paymentAccount.paymentAccountLabel,
-            }
-          : {}),
-        ...(allowCoreEdit && (dto.branchId !== undefined || requestedBranchId) ? { branchId: branch?.id ?? null } : {}),
-        ...(allowCoreEdit && (dto.branchId !== undefined || dto.branchName !== undefined || requestedBranchId)
-          ? { branchName: dto.branchName?.trim() || branch?.name || null }
-          : {}),
-        ...(allowCoreEdit && dto.payerName !== undefined ? { payerName: dto.payerName?.trim() || null } : {}),
-        ...(allowCoreEdit && dto.payerId !== undefined ? { payerId: dto.payerId?.trim() || null } : {}),
-        ...(manualReference
-          ? {
-              refType: manualReference.refType,
-              refId: manualReference.refId,
-              refNumber: manualReference.refNumber,
-            }
-          : {}),
-        ...(dto.notes !== undefined ? { notes: dto.notes?.trim() || null } : {}),
-        ...(allowCoreEdit && dto.tags !== undefined ? { tags: dto.tags?.trim() || null } : {}),
-        ...(allowCoreEdit && dto.attachmentUrl !== undefined ? { attachmentUrl: dto.attachmentUrl?.trim() || null } : {}),
-        ...(allowCoreEdit && txDate ? { date: txDate } : {}),
-      } as any,
-      include: {
-        staff: { select: { id: true, fullName: true } },
-        branch: { select: { id: true, name: true } },
+    return updateFinanceTransaction(
+      this.db,
+      {
+        getTransactionCapability: (tx) => this.getTransactionCapability(tx),
+        normalizeTransaction: (tx) => this.normalizeTransaction(tx),
       },
-    })
-
-    return { success: true, data: this.normalizeTransaction(updated) }
+      id,
+      dto,
+      user,
+      requestedBranchId,
+    )
   }
 
   async removeTransaction(id: string, user?: BranchScopedUser) {
-    const existing = await this.db.transaction.findUnique({ where: { id } as any })
-    if (!existing) {
-      throw new NotFoundException('Không tìm thấy phiếu thu/chi')
-    }
-
-    assertBranchAccess(existing.branchId, user)
-    const capability = this.getTransactionCapability(existing)
-    if (!capability.canDelete) {
-      throw new ForbiddenException(capability.lockReason ?? 'Phiếu này không thể xóa')
-    }
-    await this.db.transaction.delete({ where: { id } as any })
-    return { success: true, message: 'Đã xóa phiếu thu/chi thủ công' }
+    return removeFinanceTransaction(
+      this.db,
+      {
+        getTransactionCapability: (tx) => this.getTransactionCapability(tx),
+      },
+      id,
+      user,
+    )
   }
 
   async findTransactionByVoucher(voucherNumber: string, user?: BranchScopedUser) {
