@@ -406,7 +406,7 @@ export class StockCountService {
           countedBy: userId,
           startedAt: new Date(),
           notes: dto.notes ?? picked.notes ?? null,
-        } as any,
+        },
       })
 
       return picked.id
@@ -464,7 +464,7 @@ export class StockCountService {
         countedBy: userId,
         startedAt: shift.startedAt ?? new Date(),
         notes: dto?.notes ?? shift.notes ?? null,
-      } as any,
+      },
     })
 
     return this.getShiftSessionDetail(shiftSessionId)
@@ -497,7 +497,7 @@ export class StockCountService {
           startedAt: shift.startedAt ?? new Date(),
           completedAt: new Date(),
           countedItems: shift.items.length,
-        } as any,
+        },
       })
 
       await this.updateSessionProgress(tx, shift.sessionId)
@@ -545,7 +545,7 @@ export class StockCountService {
           data: {
             countedBy: userId,
             startedAt: item.shiftSession.startedAt ?? new Date(),
-          } as any,
+          },
         })
       }
 
@@ -685,7 +685,7 @@ export class StockCountService {
                 stock: effectiveVariance,
                 reservedStock: 0,
                 minStock: 5,
-              } as any,
+              },
             })
           } else {
             const nextStock = branchStock.stock + effectiveVariance
@@ -722,7 +722,7 @@ export class StockCountService {
                 shift.shift as ShiftKey,
               )}`,
               referenceId: session.id,
-            } as any,
+            },
           })
 
           adjustedItems += 1
@@ -941,7 +941,7 @@ export class StockCountService {
               systemQuantity: item.systemQuantity,
             })),
           },
-        } as any,
+        },
       })
     }
 

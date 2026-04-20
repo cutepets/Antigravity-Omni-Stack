@@ -340,6 +340,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
               setDiscountEditingId={setDiscountEditingId}
               onChangeQuantity={workspace.handleChangeItemQuantity}
               onChangeItemDiscount={workspace.handleChangeItemDiscount}
+              onChangeItemVariant={workspace.handleChangeItemVariant}
               onRemoveItem={workspace.handleRemoveItem}
               onSwapItem={(item: any) => setSwapItemTarget({ id: item.orderItemId ?? item.id, description: item.description, unitPrice: item.unitPrice })}
             />

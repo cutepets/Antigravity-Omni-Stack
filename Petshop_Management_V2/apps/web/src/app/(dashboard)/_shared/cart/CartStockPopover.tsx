@@ -9,8 +9,8 @@ import type { CartStockPopoverProps } from './cart.types'
  * Hiển thị tồn kho theo từng chi nhánh khi hover.
  */
 export function CartStockPopover({ item, currentTrueVariant, activeBranches }: CartStockPopoverProps) {
-    const currentVariantObj = Array.isArray((item as any).variants)
-        ? (item as any).variants.find((v: any) => v.id === (item as any).productVariantId)
+    const currentVariantObj = Array.isArray(item.variants)
+        ? item.variants.find((v) => v.id === item.productVariantId)
         : null
     const headerName = currentVariantObj?.name || item.description
     const headerSku = item.sku || currentVariantObj?.sku || currentTrueVariant?.sku || 'N/A'
@@ -46,8 +46,8 @@ export function CartStockPopover({ item, currentTrueVariant, activeBranches }: C
                             <tbody>
                                 {(() => {
                                     const target = currentTrueVariant ?? item
-                                    const branchStocks = Array.isArray((target as any).branchStocks)
-                                        ? (target as any).branchStocks
+                                    const branchStocks = Array.isArray(target.branchStocks)
+                                        ? target.branchStocks
                                         : []
                                     const isService = item.type !== 'product'
                                     const fallback = isService ? '∞' : '—'
@@ -56,21 +56,21 @@ export function CartStockPopover({ item, currentTrueVariant, activeBranches }: C
                                         <>
                                             <tr className="border-b border-gray-50">
                                                 <td className="text-left py-2.5 font-semibold text-gray-800">Tổng tồn kho</td>
-                                                <td className="px-2 py-2.5">{isService ? fallback : (target as any).stock ?? fallback}</td>
+                                                <td className="px-2 py-2.5">{isService ? fallback : target.stock ?? fallback}</td>
                                                 <td className="px-2 py-2.5 text-[#0089A1] font-bold">
                                                     {isService
                                                         ? fallback
-                                                        : (target as any).availableStock !== undefined
-                                                            ? (target as any).availableStock
-                                                            : (target as any).stock !== undefined && (target as any).stock !== null
-                                                                ? (target as any).stock - ((target as any).trading || (target as any).reserved || 0)
+                                                        : target.availableStock !== undefined
+                                                            ? target.availableStock
+                                                            : target.stock !== undefined && target.stock !== null
+                                                                ? target.stock - (target.trading || target.reserved || 0)
                                                                 : fallback}
                                                 </td>
-                                                <td className="pl-2 py-2.5">{isService ? fallback : (target as any).trading ?? fallback}</td>
+                                                <td className="pl-2 py-2.5">{isService ? fallback : target.trading ?? fallback}</td>
                                             </tr>
-                                            {activeBranches.map((branch: any) => {
+                                            {activeBranches.map((branch) => {
                                                 const branchStock = branchStocks.find(
-                                                    (s: any) => s.branchId === branch.id || s.branch?.id === branch.id,
+                                                    (s: { branchId?: string; branch?: { id: string } }) => s.branchId === branch.id || s.branch?.id === branch.id,
                                                 )
                                                 const stock = branchStock ? branchStock.stock ?? 0 : 0
                                                 const reserved = branchStock ? branchStock.reservedStock ?? 0 : 0

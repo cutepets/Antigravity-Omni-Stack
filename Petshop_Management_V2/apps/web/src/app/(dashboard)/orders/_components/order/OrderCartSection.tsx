@@ -15,6 +15,7 @@ type OrderCartSectionProps = {
     setDiscountEditingId: (id: string | null) => void
     onChangeQuantity: (index: number, value: string) => void
     onChangeItemDiscount: (index: number, value: string) => void
+    onChangeItemVariant?: (index: number, variantId: string) => void
     onRemoveItem: (index: number) => void
     onSwapItem?: (item: any) => void
 }
@@ -34,6 +35,7 @@ export function OrderCartSection({
     setDiscountEditingId,
     onChangeQuantity,
     onChangeItemDiscount,
+    onChangeItemVariant,
     onRemoveItem,
 }: OrderCartSectionProps) {
     // Map draft items to CartItem shape expected by OrderCartItems
@@ -82,14 +84,15 @@ export function OrderCartSection({
                 const idx = findIndex(id)
                 if (idx >= 0) onChangeItemDiscount(idx, String(discount))
             },
-            onUpdateItemVariant: (_id, _variantId) => {
-                // Order variant switching not yet supported — no-op
+            onUpdateItemVariant: (id, variantId) => {
+                const idx = findIndex(id)
+                if (idx >= 0 && onChangeItemVariant) onChangeItemVariant(idx, String(variantId))
             },
             onUpdateItemNotes: (_id, _notes) => {
                 // Order item notes not yet wired — no-op
             },
         }
-    }, [draft.items, onChangeItemDiscount, onChangeQuantity, onRemoveItem])
+    }, [draft.items, onChangeItemDiscount, onChangeQuantity, onChangeItemVariant, onRemoveItem])
 
     if (!isEditing && cartItems.length === 0) {
         return (

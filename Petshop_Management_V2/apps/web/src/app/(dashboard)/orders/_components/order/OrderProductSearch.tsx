@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Eye, EyeOff, ListChecks, Package2, BedDouble, Tag } from 'lucide-react'
 import { PosProductSearch, type PosProductSearchProps } from '@/app/(dashboard)/pos/components/PosProductSearch'
 import { TempProductModal } from '@/app/(dashboard)/_shared/cart/TempProductModal'
+import { HotelQuickPreviewTool } from '@/components/hotel-quick-preview/HotelQuickPreviewTool'
 
 // OrderProductSearch — search bar dùng system design tokens.
 // Thêm toggles: Ẩn hàng hết, Chọn nhiều, Báo giá Hotel, Sản phẩm tạm, Khuyến mãi (placeholder)
@@ -11,14 +12,12 @@ import { TempProductModal } from '@/app/(dashboard)/_shared/cart/TempProductModa
 type OrderProductSearchProps = Omit<PosProductSearchProps, 'inputClassName' | 'containerClassName' | 'panelClassName' | 'resultsVariant'> & {
     /** Callback khi user thêm sản phẩm tạm */
     onAddTempProduct?: (item: { description: string; quantity: number; unitPrice: number }) => void
-    /** Callback khi user bấm nút Báo giá Hotel */
-    onOpenHotelCalc?: () => void
     /** Chỉ hiện các nút action khi isEditing */
     isEditing?: boolean
 }
 
 export function OrderProductSearch(props: OrderProductSearchProps) {
-    const { onAddTempProduct, onOpenHotelCalc, isEditing, ...searchProps } = props
+    const { onAddTempProduct, isEditing, ...searchProps } = props
     const [outOfStockHidden, setOutOfStockHidden] = useState(false)
     const [showTempModal, setShowTempModal] = useState(false)
 

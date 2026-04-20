@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
-import type { PaymentStatus } from '@petshop/database'
+import { Prisma, type PaymentStatus } from '@petshop/database'
 import {
   buildProductVariantName,
   getProductVariantGroupKey,
@@ -429,19 +429,19 @@ function sanitizeSupplierDocuments(value: unknown): SupplierDocument[] | null {
 
   const normalized = value
     .map((document) => {
-      const name = String((document as any)?.name ?? '').trim()
-      const url = String((document as any)?.url ?? '').trim()
+      const name = String(document?.name ?? '').trim()
+      const url = String(document?.url ?? '').trim()
       if (!name || !url) return null
 
-      const remindBeforeDays = Number((document as any)?.remindBeforeDays)
+      const remindBeforeDays = Number(document?.remindBeforeDays)
 
       return {
         name,
-        type: String((document as any)?.type ?? '').trim() || null,
+        type: String(document?.type ?? '').trim() || null,
         url,
-        uploadedAt: String((document as any)?.uploadedAt ?? '').trim() || new Date().toISOString(),
-        expiresAt: String((document as any)?.expiresAt ?? '').trim() || null,
-        notes: String((document as any)?.notes ?? '').trim() || null,
+        uploadedAt: String(document?.uploadedAt ?? '').trim() || new Date().toISOString(),
+        expiresAt: String(document?.expiresAt ?? '').trim() || null,
+        notes: String(document?.notes ?? '').trim() || null,
         remindBeforeDays:
           Number.isFinite(remindBeforeDays) && remindBeforeDays >= 0 ? Math.round(remindBeforeDays) : null,
       } satisfies SupplierDocument
@@ -558,7 +558,7 @@ export class StockService {
     const code = await this.ensureUniqueSupplierCode(supplier.name, undefined, supplier.id)
     await this.db.supplier.update({
       where: { id: supplier.id },
-      data: { code } as any,
+      data: { code },
     })
 
     return {
@@ -650,7 +650,7 @@ export class StockService {
   }
 
   private async createFinanceTransaction(
-    tx: any,
+    tx: Prisma.TransactionClient,
     params: {
       type: 'INCOME' | 'EXPENSE'
       amount: number
@@ -670,11 +670,11 @@ export class StockService {
   ) {
     if (params.amount <= 0) return null
 
-    const branch = params.branchId ? await resolveBranchIdentity(tx as any, params.branchId) : null
+    const branch = params.branchId ? await resolveBranchIdentity(tx, params.branchId) : null
     const issuedAt = params.date ?? new Date()
 
     for (let attempt = 0; attempt < 5; attempt++) {
-      const voucherNumber = await generateFinanceVoucherNumber(tx as any, params.type, issuedAt)
+      const voucherNumber = await generateFinanceVoucherNumber(tx, params.type, issuedAt)
 
       try {
         return await tx.transaction.create({
@@ -696,7 +696,7 @@ export class StockService {
             isManual: false,
             staffId: params.staffId ?? null,
             date: issuedAt,
-          } as any,
+          },
         })
       } catch (error: any) {
         if (error?.code !== 'P2002') {
@@ -709,7 +709,7 @@ export class StockService {
   }
 
   private async adjustBranchStock(
-    tx: any,
+    tx: Prisma.TransactionClient,
     params: {
       branchId?: string | null
       productId: string
@@ -732,7 +732,7 @@ export class StockService {
     const effectiveVariantId = movement.sourceVariantId
     const effectiveQuantityDelta = movement.sourceQuantity
 
-    const branch = await resolveBranchIdentity(tx as any, params.branchId ?? null)
+    const branch = await resolveBranchIdentity(tx, params.branchId ?? null)
     const current = await tx.branchStock.findFirst({
       where: {
         branchId: branch.id,
@@ -750,7 +750,7 @@ export class StockService {
         where: { id: current.id },
         data: {
           stock: { increment: effectiveQuantityDelta },
-        } as any,
+        },
       })
     } else {
       await tx.branchStock.create({
@@ -761,7 +761,7 @@ export class StockService {
           stock: Math.max(0, effectiveQuantityDelta),
           reservedStock: 0,
           minStock: 5,
-        } as any,
+        },
       })
     }
 
@@ -780,13 +780,13 @@ export class StockService {
         reason: params.reason,
         referenceId: params.referenceId ?? null,
         referenceType: params.referenceType ?? null,
-      } as any,
+      },
     })
 
     return branch
   }
 
-  private async recalculateReceiptState(tx: any, receiptId: string) {
+  private async recalculateReceiptState(tx: Prisma.TransactionClient, receiptId: string) {
     const receipt = await tx.stockReceipt.findUnique({
       where: { id: receiptId },
       include: SUPPLIER_RECEIPT_INCLUDE,
@@ -814,7 +814,7 @@ export class StockService {
           snapshot.receiptStatus === 'SHORT_CLOSED'
             ? receipt.shortClosedAt ?? snapshot.completedAt ?? new Date()
             : receipt.shortClosedAt,
-      } as any,
+      },
       include: SUPPLIER_RECEIPT_INCLUDE,
     })
 
@@ -824,7 +824,7 @@ export class StockService {
     }
   }
 
-  private async recalculateSupplierBalance(tx: any, supplierId?: string | null) {
+  private async recalculateSupplierBalance(tx: Prisma.TransactionClient, supplierId?: string | null) {
     if (!supplierId) return
 
     const receipts = await tx.stockReceipt.findMany({
@@ -872,11 +872,11 @@ export class StockService {
       data: {
         debt,
         creditBalance: roundCurrency(paymentCredit + returnCredit),
-      } as any,
+      },
     })
   }
 
-  private async applySupplierPaymentCreditsToReceipt(tx: any, receiptId: string, supplierId: string) {
+  private async applySupplierPaymentCreditsToReceipt(tx: Prisma.TransactionClient, receiptId: string, supplierId: string) {
     const receipt = await tx.stockReceipt.findUnique({
       where: { id: receiptId },
       include: SUPPLIER_RECEIPT_INCLUDE,
@@ -905,14 +905,14 @@ export class StockService {
           paymentId: payment.id,
           receiptId,
           amount: roundCurrency(allocationAmount),
-        } as any,
+        },
       })
       await tx.supplierPayment.update({
         where: { id: payment.id },
         data: {
           appliedAmount: { increment: allocationAmount },
           unappliedAmount: { decrement: allocationAmount },
-        } as any,
+        },
       })
 
       remaining = roundCurrency(remaining - allocationAmount)
@@ -920,7 +920,7 @@ export class StockService {
   }
 
   private async allocatePaymentToReceipts(
-    tx: any,
+    tx: Prisma.TransactionClient,
     paymentId: string,
     supplierId: string,
     amount: number,
@@ -973,7 +973,7 @@ export class StockService {
           paymentId,
           receiptId: receipt.id,
           amount: roundCurrency(receivable),
-        } as any,
+        },
       })
 
       remaining = roundCurrency(remaining - receivable)
@@ -1005,7 +1005,7 @@ export class StockService {
             paymentId,
             receiptId: receipt.id,
             amount: roundCurrency(receivable),
-          } as any,
+          },
         })
 
         remaining = roundCurrency(remaining - receivable)
@@ -1186,7 +1186,7 @@ export class StockService {
 
     if (supplierId) where.supplierId = supplierId
     if (status) {
-      where.OR = [{ status }, { receiptStatus: status }, { paymentStatus: status as any }]
+      where.OR = [{ status }, { receiptStatus: status }, { paymentStatus: status as PaymentStatus }]
     }
     if (search) {
       const searchClause = { contains: search, mode: 'insensitive' }
@@ -1205,13 +1205,13 @@ export class StockService {
 
     const [rows, total] = await Promise.all([
       this.db.stockReceipt.findMany({
-        where: where as any,
+        where: where as Prisma.StockReceiptWhereInput,
         skip,
         take: Number(limit),
         orderBy: { createdAt: 'desc' },
         include: SUPPLIER_RECEIPT_INCLUDE,
       }),
-      this.db.stockReceipt.count({ where: where as any }),
+      this.db.stockReceipt.count({ where: where as Prisma.StockReceiptWhereInput }),
     ])
 
     const mappedRows = await this.attachPaymentTransactionVouchersToMany(
@@ -1285,7 +1285,7 @@ export class StockService {
         items: {
           create: items,
         },
-      } as any,
+      },
       include: SUPPLIER_RECEIPT_INCLUDE,
     })
 
@@ -1381,7 +1381,7 @@ export class StockService {
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             totalPrice: roundCurrency(item.quantity * item.unitPrice),
-          } as any
+          }
 
           if (item.receiptItemId && existingItemMap.has(item.receiptItemId)) {
             await tx.stockReceiptItem.update({
@@ -1393,7 +1393,7 @@ export class StockService {
               data: {
                 receiptId: id,
                 ...data,
-              } as any,
+              },
             })
           }
         }
@@ -1405,7 +1405,7 @@ export class StockService {
           ...(dto.supplierId !== undefined ? { supplierId: dto.supplierId?.trim() || null } : {}),
           ...(dto.branchId !== undefined ? { branchId: dto.branchId?.trim() || null } : {}),
           ...(dto.notes !== undefined ? { notes: dto.notes?.trim() || null } : {}),
-        } as any,
+        },
       })
 
       const next = await this.recalculateReceiptState(tx, id)
@@ -1447,7 +1447,7 @@ export class StockService {
         status: 'CANCELLED',
         receiptStatus: 'CANCELLED',
         cancelledAt: new Date(),
-      } as any,
+      },
       include: SUPPLIER_RECEIPT_INCLUDE,
     })
 
@@ -1489,7 +1489,7 @@ export class StockService {
           paidAt,
           targetReceiptId: preferredReceiptId ?? null,
           targetReceiptNumber: receipt?.receiptNumber ?? null,
-        } as any,
+        },
       })
 
       const transaction = await this.createFinanceTransaction(tx, {
@@ -1526,7 +1526,7 @@ export class StockService {
           transactionId: transaction?.id ?? null,
           appliedAmount: allocationResult.appliedAmount,
           unappliedAmount: allocationResult.unappliedAmount,
-        } as any,
+        },
       })
 
       const touchedReceiptIds = new Set((dto.allocations ?? []).map((item) => item.receiptId))
@@ -1588,7 +1588,7 @@ export class StockService {
           where: { id },
           data: {
             paidAmount: { increment: amount },
-          } as any,
+          },
         })
 
         return this.recalculateReceiptState(tx, id)
@@ -1694,7 +1694,7 @@ export class StockService {
               totalPrice: roundCurrency(quantity * toNumber(receiptItem.unitPrice)),
             })),
           },
-        } as any,
+        },
       })
 
       for (const { receiptItem, quantity } of receiveItems) {
@@ -1702,7 +1702,7 @@ export class StockService {
           where: { id: receiptItem.id },
           data: {
             receivedQuantity: { increment: quantity },
-          } as any,
+          },
         })
         await this.adjustBranchStock(tx, {
           branchId: receive.branchId,
@@ -1766,7 +1766,7 @@ export class StockService {
           where: { id: matched.id },
           data: {
             closedQuantity: { increment: closeQuantity },
-          } as any,
+          },
         })
       }
 
@@ -1775,7 +1775,7 @@ export class StockService {
         data: {
           notes: dto.notes?.trim() || receipt.notes || null,
           shortClosedAt: parseDateInput(dto.closedAt),
-        } as any,
+        },
       })
 
       const next = await this.recalculateReceiptState(tx, id)
@@ -1834,7 +1834,7 @@ export class StockService {
         data: {
           returnNumber: this.createNumber('RT'),
           receiptId: receipt.id,
-          supplierId: receipt.supplierId,
+          supplierId: receipt.supplierId!,
           branchId: receipt.branchId,
           staffId: staffId ?? null,
           status: 'COMPLETED',
@@ -1852,7 +1852,7 @@ export class StockService {
               reason: item.reason,
             })),
           },
-        } as any,
+        },
       })
 
       for (const item of normalizedItems) {
@@ -1860,7 +1860,7 @@ export class StockService {
           where: { id: item.receiptItem.id },
           data: {
             returnedQuantity: { increment: item.quantity },
-          } as any,
+          },
         })
         await this.adjustBranchStock(tx, {
           branchId: receipt.branchId,
@@ -1882,7 +1882,7 @@ export class StockService {
         where: { id: supplierReturn.id },
         data: {
           creditedAmount: newCredit,
-        } as any,
+        },
       })
       await this.recalculateSupplierBalance(tx, receipt.supplierId)
 
@@ -1931,7 +1931,7 @@ export class StockService {
           paymentMethod: dto.paymentMethod?.trim() || 'BANK',
           notes: dto.notes?.trim() || null,
           receivedAt,
-        } as any,
+        },
       })
 
       const transaction = await this.createFinanceTransaction(tx, {
@@ -1953,13 +1953,13 @@ export class StockService {
 
       await tx.supplierReturnRefund.update({
         where: { id: created.id },
-        data: { transactionId: transaction?.id ?? null } as any,
+        data: { transactionId: transaction?.id ?? null },
       })
       await tx.supplierReturn.update({
         where: { id: supplierReturn.id },
         data: {
           refundedAmount: { increment: amount },
-        } as any,
+        },
       })
       await this.recalculateSupplierBalance(tx, supplierReturn.supplierId)
 
@@ -2188,7 +2188,7 @@ export class StockService {
           },
         },
         orderBy: { receive: { receivedAt: 'asc' } },
-      } as any),
+      }),
       this.db.productSalesDaily.findMany({
         where: {
           productId: { in: uniqueProductIds },
@@ -2202,15 +2202,15 @@ export class StockService {
           quantitySold: true,
         },
         orderBy: { date: 'asc' },
-      } as any),
+      }),
     ])
 
     const receivesByEntity = new Map<string, Array<{ receivedAt: Date; quantity: number }>>()
     for (const row of receiveItems) {
-      const key = buildInventoryEntityKey(row.productId, (row as any).productVariantId ?? null)
+      const key = buildInventoryEntityKey(row.productId, row.productVariantId ?? null)
       const values = receivesByEntity.get(key) ?? []
       values.push({
-        receivedAt: new Date((row as any).receive.receivedAt),
+        receivedAt: new Date(row.receive.receivedAt),
         quantity: toInt(row.quantity),
       })
       receivesByEntity.set(key, values)
@@ -2218,7 +2218,7 @@ export class StockService {
 
     const salesByEntity = new Map<string, Array<{ soldAt: Date; quantity: number }>>()
     for (const row of salesRows) {
-      const key = buildInventoryEntityKey(row.productId, (row as any).productVariantId ?? null)
+      const key = buildInventoryEntityKey(row.productId, row.productVariantId ?? null)
       const values = salesByEntity.get(key) ?? []
       values.push({
         soldAt: new Date(row.date),
@@ -2458,7 +2458,7 @@ export class StockService {
         branch: { select: { id: true, name: true } },
         staff: { select: { id: true, fullName: true } },
         sourceProductVariant: { select: { id: true, name: true, sku: true, unitLabel: true, variantLabel: true } },
-      } as any,
+      },
       orderBy: { createdAt: 'desc' },
       take: 300,
     })
@@ -2778,9 +2778,9 @@ export class StockService {
 
     const supplier = await this.db.supplier.create({
       data: {
-        ...(this.sanitizeSupplierPayload(dto) as any),
+        ...(this.sanitizeSupplierPayload(dto)),
         code,
-      },
+      } as Prisma.SupplierUncheckedCreateInput,
     })
 
     return { success: true, data: supplier }
@@ -2802,9 +2802,9 @@ export class StockService {
     const updated = await this.db.supplier.update({
       where: { id },
       data: {
-        ...(this.sanitizeSupplierPayload(dto) as any),
+        ...(this.sanitizeSupplierPayload(dto)),
         ...(nextCode ? { code: nextCode } : {}),
-      } as any,
+      } as Prisma.SupplierUncheckedUpdateInput,
     })
 
     return { success: true, data: updated }

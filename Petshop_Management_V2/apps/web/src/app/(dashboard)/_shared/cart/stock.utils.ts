@@ -90,38 +90,45 @@ export function getSellableQuantity(stockSource: any, branchId?: string): number
 
 // ─── Cart Item Stock State ────────────────────────────────────────────────────
 
+/** A variant-like shape from CartItem.variants. */
+type CartVariant = {
+    id: string
+    conversions?: string | null
+    [key: string]: unknown
+}
+
 export interface CartItemStockState {
-    itemVariants: any[]
-    trueVariants: any[]
-    allConversionVariants: any[]
-    currentVariantObj: any
+    itemVariants: CartVariant[]
+    trueVariants: CartVariant[]
+    allConversionVariants: CartVariant[]
+    currentVariantObj: CartVariant | undefined
     isCurrentConversion: boolean
-    currentTrueVariant: any
-    conversionVariants: any[]
-    stockSource: any
+    currentTrueVariant: CartVariant | null
+    conversionVariants: CartVariant[]
+    stockSource: CartVariant | CartItem
     sellableQty: number | null
     isOverSellableQty: boolean
 }
 
 export function resolveCartItemStockState(
-    item: CartItem & { quantity?: number; variants?: any[] },
+    item: CartItem & { quantity?: number },
     branchId?: string,
 ): CartItemStockState {
-    const itemVariants: any[] = (item as any).variants ?? []
+    const itemVariants: CartVariant[] = (item.variants as CartVariant[] | undefined) ?? []
 
-    const isConversion = (variant: any) => parseConversionRate(variant?.conversions) !== null
+    const isConversion = (variant: CartVariant) => parseConversionRate(variant?.conversions) !== null
 
-    const trueVariants = itemVariants.filter((variant: any) => !isConversion(variant))
+    const trueVariants = itemVariants.filter(v => !isConversion(v))
     const allConversionVariants = itemVariants.filter(isConversion)
-    const currentVariantObj = itemVariants.find((variant: any) => variant.id === (item as any).productVariantId)
+    const currentVariantObj = itemVariants.find(v => v.id === item.productVariantId)
     const isCurrentConversion = currentVariantObj ? isConversion(currentVariantObj) : false
 
-    let currentTrueVariant: any = null
+    let currentTrueVariant: CartVariant | null = null
     if (currentVariantObj) {
         if (isCurrentConversion) {
             currentTrueVariant = trueVariants.find(
-                (variant: any) => matchesVariantGroup(item.description, variant, currentVariantObj),
-            )
+                v => matchesVariantGroup(item.description, v, currentVariantObj),
+            ) ?? null
         } else {
             currentTrueVariant = currentVariantObj
         }
@@ -130,27 +137,26 @@ export function resolveCartItemStockState(
     }
 
     const conversionVariants = currentTrueVariant
-        ? allConversionVariants.filter(
-            (variant: any) => matchesVariantGroup(item.description, variant, currentTrueVariant),
-        )
-        : allConversionVariants.filter(
-            (variant: any) => getEquivalentGroupKeys(item.description, variant).has(BASE_GROUP_KEY),
-        )
+        ? allConversionVariants.filter(v => matchesVariantGroup(item.description, v, currentTrueVariant!))
+        : allConversionVariants.filter(v => getEquivalentGroupKeys(item.description, v).has(BASE_GROUP_KEY))
 
     const stockSource = currentTrueVariant ?? currentVariantObj ?? item
 
     // branchStocks được lưu ở root cart item, không phải trong từng variant.
     // Nếu stockSource (variant) không có branchStocks, fallback về item-level branchStocks.
+    const sourceBranchStocks = Array.isArray((stockSource as CartItem).branchStocks)
+        ? (stockSource as CartItem).branchStocks
+        : undefined
     const effectiveStockSource =
-        Array.isArray((stockSource as any)?.branchStocks) && (stockSource as any).branchStocks.length > 0
+        sourceBranchStocks && sourceBranchStocks.length > 0
             ? stockSource
             : {
                 ...stockSource,
-                branchStocks: (item as any).branchStocks,
-                availableStock: (stockSource as any)?.availableStock ?? (item as any).availableStock,
-                stock: (stockSource as any)?.stock ?? (item as any).stock,
-                trading: (stockSource as any)?.trading ?? (item as any).trading,
-                reserved: (stockSource as any)?.reserved ?? (item as any).reserved,
+                branchStocks: item.branchStocks,
+                availableStock: (stockSource as CartItem).availableStock ?? item.availableStock,
+                stock: (stockSource as CartItem).stock ?? item.stock,
+                trading: (stockSource as CartItem).trading ?? item.trading,
+                reserved: (stockSource as CartItem).reserved ?? item.reserved,
             }
 
     const sourceSellableQty = getSellableQuantity(effectiveStockSource, branchId)

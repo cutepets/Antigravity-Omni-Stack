@@ -22,6 +22,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { petApi } from '@/lib/api/pet.api';
+import type { PetProfile } from '@petshop/shared';
 import { usePetPricingSuggestions } from '@/app/(dashboard)/pos/_hooks/use-pos-queries';
 import { PetFormModal } from '@/app/(dashboard)/pets/_components/pet-form-modal';
 import { QuickVaccinationModal } from './QuickVaccinationModal';
@@ -175,7 +176,7 @@ export function UnifiedPetProfile({
       )
     );
 
-  const pet = petQuery.data as any;
+  const pet = petQuery.data as PetProfile | undefined;
   const pricingSuggestionsQuery = usePetPricingSuggestions(pet);
   const avatarUrl =
     pet?.avatar && !String(pet.avatar).startsWith('data:')
@@ -204,8 +205,8 @@ export function UnifiedPetProfile({
         label: session.sessionCode ?? 'Grooming',
         type: 'SPA',
         date: session.startTime ?? session.createdAt,
-        status: session.status,
-        note: session.notes ?? null,
+        status: session.status ?? undefined,
+        note: session.notes ?? undefined,
       });
     }
 
@@ -215,8 +216,8 @@ export function UnifiedPetProfile({
         label: stay.stayCode ?? 'Hotel',
         type: 'HOTEL',
         date: stay.checkIn,
-        status: stay.status,
-        note: stay.lineType,
+        status: stay.status ?? undefined,
+        note: stay.lineType ?? undefined,
       });
     }
 
@@ -244,7 +245,7 @@ export function UnifiedPetProfile({
 
     try {
       setIsSavingWeight(true);
-      await petApi.addWeightLog(pet.id, {
+      await petApi.addWeightLog(pet!.id, {
         weight: weightToSave,
         notes: updateNote
       });
@@ -266,7 +267,7 @@ export function UnifiedPetProfile({
     }
     try {
       setIsSavingWeight(true);
-      await petApi.addWeightLog(pet.id, { weight: Number(weightValue) });
+      await petApi.addWeightLog(pet!.id, { weight: Number(weightValue) });
       petQuery.refetch();
       setIsEditingWeight(false);
     } catch (error) {
@@ -327,7 +328,7 @@ export function UnifiedPetProfile({
                 <div className="flex items-start gap-5">
                   <div className="shrink-0 rounded-2xl bg-background-secondary text-5xl font-black uppercase text-foreground-muted shadow-inner overflow-hidden">
                     {pet?.avatar ? (
-                      <Image src={avatarUrl} alt={pet.name} className="block rounded-2xl object-cover" width={120} height={120} unoptimized />
+                      <Image src={avatarUrl ?? ''} alt={pet.name ?? 'Pet'} className="block rounded-2xl object-cover" width={120} height={120} unoptimized />
                     ) : (
                       <div className="flex h-[88px] w-[88px] items-center justify-center">
                         <span className="opacity-50">{pet.name?.charAt(0)}</span>
@@ -748,7 +749,7 @@ export function UnifiedPetProfile({
                   {petTimeline.length > 0 ? (
                     <div className="space-y-3">
                       {petTimeline.map((entry: any) => {
-                        const meta = entry.metadata as any ?? {}
+                        const meta = (entry.metadata ?? {})
                         const isInfo = entry.action === 'INFO_UPDATED'
                         const isWeight = entry.action === 'WEIGHT_UPDATED'
                         const isVac = entry.action === 'VACCINATION_ADDED'
@@ -756,8 +757,8 @@ export function UnifiedPetProfile({
                           <div key={entry.id} className="rounded-xl border border-border bg-background-secondary p-4">
                             <div className="flex items-start gap-3">
                               <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isWeight ? 'bg-amber-500/10 text-amber-500'
-                                  : isVac ? 'bg-success/10 text-success'
-                                    : 'bg-primary-500/10 text-primary-500'
+                                : isVac ? 'bg-success/10 text-success'
+                                  : 'bg-primary-500/10 text-primary-500'
                                 }`}>
                                 {isWeight ? <Scale size={14} /> : isVac ? <Syringe size={14} /> : <Pencil size={14} />}
                               </div>
@@ -818,9 +819,9 @@ export function UnifiedPetProfile({
         <PetFormModal
           isOpen={editModalOpen}
           onClose={() => setEditModalOpen(false)}
-          customerId={pet?.customerId || pet?.customer?.id}
+          customerId={(pet?.customerId || pet?.customer?.id) ?? ''}
           customerName={ownerName || pet?.customer?.fullName || 'Khách hàng'}
-          customerPhone={pet?.customer?.phone}
+          customerPhone={pet?.customer?.phone ?? undefined}
           initialData={pet}
           onSaved={() => {
             petQuery.refetch();
@@ -832,7 +833,7 @@ export function UnifiedPetProfile({
       {vacModalOpen && (
         <QuickVaccinationModal
           isOpen={vacModalOpen}
-          petId={pet.id}
+          petId={pet!.id}
           onClose={() => setVacModalOpen(false)}
           onSaved={() => petQuery.refetch()}
         />

@@ -83,10 +83,10 @@ const createProductEntry = (product: any, variant?: any) => {
     : null
 
   // SKUs của conversion variants để tìm kiếm (không hiển thị riêng nhưng searchable)
-  const conversionSkus = (rawVariants as any[])
+  const conversionSkus = rawVariants
     .filter(isConversionVariant)
     .map((v: any) => v.sku)
-    .filter((sku: any): sku is string => Boolean(sku))
+    .filter((sku: unknown): sku is string => Boolean(sku))
 
   return {
     ...product,

@@ -405,7 +405,7 @@ export const usePosStore = create<PosStore>()(
                   // Capture base values if not set yet so we can restore them later
                   const baseSku = c.baseSku ?? c.sku;
                   const baseUnitPrice = c.baseUnitPrice ?? c.unitPrice;
-                  const baseUnit = (c as any).baseUnit ?? c.unit ?? 'cái';
+                  const baseUnit = c.baseUnit ?? c.unit ?? 'cái';
 
                   if (variantId === 'base') {
                     // Reset to base product
@@ -428,7 +428,7 @@ export const usePosStore = create<PosStore>()(
                   if (c.variants) {
                     let variant: any = c.variants.find((v: any) => v.id === variantId);
                     if (!variant) {
-                      for (const v of c.variants as any[]) {
+                      for (const v of c.variants ?? []) {
                         if (v.children) {
                           const child = v.children.find((ch: any) => ch.id === variantId);
                           if (child) {

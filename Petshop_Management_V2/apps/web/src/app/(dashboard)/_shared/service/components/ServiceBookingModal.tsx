@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { hotelApi } from '@/lib/api/hotel.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { useCustomerPets } from '@/app/(dashboard)/_shared/customer/use-customer-pets';
+import type { PetProfile } from '@petshop/shared';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN').format(value) + 'd';
@@ -47,7 +48,7 @@ export function ServiceBookingModal({
   }, [initialPetId, isOpen, service?.id]);
 
   const selectedPetProfile =
-    (pets as any[]).find((pet) => pet.id === selectedPet) ??
+    (pets as PetProfile[]).find((pet) => pet.id === selectedPet) ??
     (service?.petSnapshot?.id === selectedPet ? service.petSnapshot : null);
   const isPetLocked = Boolean(initialPetId);
   const hotelCheckInIso = checkIn ? toHotelIsoString(checkIn, 9) : '';
@@ -152,7 +153,7 @@ export function ServiceBookingModal({
                   onChange={(event) => setSelectedPet(event.target.value)}
                 >
                   <option value="">-- Chon thu cung --</option>
-                  {(pets as any[]).map((pet) => (
+                  {(pets as PetProfile[]).map((pet) => (
                     <option key={pet.id} value={pet.id}>
                       {pet.name} ({pet.species || 'Khong ro'} - {pet.weight ?? '?'}kg)
                     </option>

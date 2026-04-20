@@ -609,6 +609,80 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
             : entry,
         ),
       })),
+    handleChangeItemVariant: (index: number, variantId: string) =>
+      setDraft((current) => ({
+        ...current,
+        items: current.items.map((entry, itemIndex) => {
+          if (itemIndex !== index) return entry;
+
+          if (variantId === 'base') {
+            const baseSku = entry.baseSku ?? entry.sku;
+            const baseUnitPrice = entry.baseUnitPrice ?? entry.unitPrice;
+            const baseUnit = (entry as any).baseUnit ?? entry.unit ?? 'cái';
+            return {
+              ...entry,
+              productVariantId: undefined,
+              variantLabel: undefined,
+              unitLabel: undefined,
+              variantName: undefined,
+              sku: baseSku,
+              unit: baseUnit,
+              unitPrice: baseUnitPrice,
+              baseSku,
+              baseUnitPrice,
+              baseUnit,
+            };
+          }
+
+          if (entry.variants) {
+            let variant: any = entry.variants.find((v: any) => v.id === variantId);
+            if (!variant) {
+              for (const v of entry.variants as any[]) {
+                if (v.children) {
+                  const child = v.children.find((ch: any) => ch.id === variantId);
+                  if (child) {
+                    variant = child;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (variant) {
+              const productName = entry.description ?? '';
+              const normalizedProductName = `${productName}`.trim().toLowerCase();
+              const { variantLabel: rVariantLabel, unitLabel: rUnitLabel } = resolveProductVariantLabels(productName, variant);
+              const variantLabel =
+                rVariantLabel && rVariantLabel.trim().toLowerCase() !== normalizedProductName
+                  ? rVariantLabel
+                  : undefined;
+
+              const unitLabel = rUnitLabel ?? undefined;
+              const variantName = [variantLabel, unitLabel].filter(Boolean).join(' • ') || undefined;
+
+              const baseSku = entry.baseSku ?? entry.sku;
+              const baseUnitPrice = entry.baseUnitPrice ?? entry.unitPrice;
+              const baseUnit = (entry as any).baseUnit ?? entry.unit ?? 'cái';
+
+              return {
+                ...entry,
+                productVariantId: variant.id,
+                variantName,
+                variantLabel,
+                unitLabel,
+                sku: variant.sku ?? baseSku,
+                unitPrice: variant.sellingPrice ?? variant.price ?? baseUnitPrice,
+                unit: unitLabel ?? baseUnit,
+                image: variant.image ?? entry.image,
+                baseSku,
+                baseUnitPrice,
+                baseUnit,
+              };
+            }
+          }
+          return entry;
+        }),
+      })),
     handleRemoveItem: (index: number) =>
       setDraft((current) => {
         setSelectedRowIndex((selectedIndex) => {
