@@ -1,128 +1,168 @@
+'use client'
+
+import type { AuthUser, BaseBranch } from '@petshop/shared'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AuthUser } from '@petshop/shared'
 import { authApi } from '@/lib/api'
-import type { BaseBranch } from '@petshop/shared'
 import { clearAuthSessionCookie, setAuthSessionCookie } from '@/lib/auth-session-cookie'
 
-interface AuthState {
+type AuthState = {
   user: AuthUser | null
-  activeBranchId: string | null
   allowedBranches: BaseBranch[]
-  isAuthenticated: boolean
+  activeBranchId: string | null
+  error: string | null
   isLoading: boolean
   hasHydrated: boolean
-  error: string | null
-
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  fetchMe: () => Promise<void>
+  fetchMe: () => Promise<AuthUser | null>
+  switchBranch: (branchId: string | null | undefined) => void
   clearError: () => void
-  setUser: (user: AuthUser) => void
-  switchBranch: (branchId: string) => void
-  setHasHydrated: (state: boolean) => void
+  setHydrated: (value: boolean) => void
+}
+
+function normalizeAllowedBranches(user: AuthUser | null) {
+  return user?.authorizedBranches ?? []
+}
+
+function resolveActiveBranchId(user: AuthUser | null, currentBranchId?: string | null) {
+  const allowedBranches = normalizeAllowedBranches(user)
+
+  if (currentBranchId && allowedBranches.some((branch) => branch.id === currentBranchId)) {
+    return currentBranchId
+  }
+
+  if (user?.branchId && allowedBranches.some((branch) => branch.id === user.branchId)) {
+    return user.branchId
+  }
+
+  return allowedBranches[0]?.id ?? null
+}
+
+function buildAuthState(user: AuthUser | null, currentBranchId?: string | null) {
+  const allowedBranches = normalizeAllowedBranches(user)
+  return {
+    user,
+    allowedBranches,
+    activeBranchId: resolveActiveBranchId(user, currentBranchId),
+  }
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
-      activeBranchId: null,
       allowedBranches: [],
-      isAuthenticated: false,
+      activeBranchId: null,
+      error: null,
       isLoading: false,
       hasHydrated: false,
-      error: null,
 
-      setHasHydrated: (state) => set({ hasHydrated: state }),
-
-      login: async (username, password) => {
+      async login(username, password) {
         set({ isLoading: true, error: null })
+
         try {
-          const data = await authApi.login(username, password)
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('access_token', data.accessToken)
-            localStorage.setItem('refresh_token', data.refreshToken)
-            setAuthSessionCookie()
-          }
-          const activeBranchId = get().activeBranchId
-          const isAllowed = data.user.authorizedBranches?.find((b: BaseBranch) => b.id === activeBranchId)
-          
-          set({ 
-            user: data.user, 
-            allowedBranches: data.user.authorizedBranches || [],
-            activeBranchId: isAllowed ? activeBranchId : (data.user.branchId || data.user.authorizedBranches?.[0]?.id || null),
-            isAuthenticated: true, 
-            isLoading: false 
+          const response = await authApi.login(username, password)
+          setAuthSessionCookie()
+          set({
+            ...buildAuthState(response.user, get().activeBranchId),
+            isLoading: false,
+            error: null,
+            hasHydrated: true,
           })
-        } catch (err: unknown) {
-          const msg =
-            (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-            'Đăng nhập thất bại'
-          set({ error: msg, isLoading: false, isAuthenticated: false })
-          throw err
-        }
-      },
-
-      logout: async () => {
-        const refreshToken = typeof window !== 'undefined'
-          ? localStorage.getItem('refresh_token')
-          : null
-
-        if (refreshToken) {
-          try {
-            await authApi.logout(refreshToken)
-          } catch {
-            // silent — logout locally regardless
-          }
-        }
-
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('access_token')
-          localStorage.removeItem('refresh_token')
+        } catch (error: any) {
           clearAuthSessionCookie()
+          set({
+            isLoading: false,
+            error: error?.response?.data?.message ?? error?.message ?? 'Đăng nhập thất bại',
+          })
+          throw error
         }
-
-        set({ user: null, activeBranchId: null, allowedBranches: [], isAuthenticated: false })
       },
 
-      fetchMe: async () => {
+      async logout() {
         set({ isLoading: true })
+
+        try {
+          await authApi.logout()
+        } finally {
+          clearAuthSessionCookie()
+          set({
+            user: null,
+            allowedBranches: [],
+            activeBranchId: null,
+            error: null,
+            isLoading: false,
+            hasHydrated: true,
+          })
+        }
+      },
+
+      async fetchMe() {
+        set({ isLoading: true, error: null })
+
         try {
           const user = await authApi.me()
-          const activeBranchId = get().activeBranchId
-          const isAllowed = user.authorizedBranches?.find((b: BaseBranch) => b.id === activeBranchId)
-          
-          set({ 
-            user, 
-            allowedBranches: user.authorizedBranches || [],
-            activeBranchId: isAllowed ? activeBranchId : (user.branchId || user.authorizedBranches?.[0]?.id || null),
-            isAuthenticated: true, 
-            isLoading: false 
+          setAuthSessionCookie()
+          set({
+            ...buildAuthState(user, get().activeBranchId),
+            isLoading: false,
+            error: null,
+            hasHydrated: true,
           })
-        } catch {
-          set({ user: null, activeBranchId: null, allowedBranches: [], isAuthenticated: false, isLoading: false })
+          return user
+        } catch (error: any) {
+          clearAuthSessionCookie()
+          set({
+            user: null,
+            allowedBranches: [],
+            activeBranchId: null,
+            isLoading: false,
+            error: error?.response?.status === 401 ? null : error?.response?.data?.message ?? error?.message ?? null,
+            hasHydrated: true,
+          })
+          return null
         }
       },
 
-      clearError: () => set({ error: null }),
-      setUser: (user) => set({ user, isAuthenticated: true }),
-      switchBranch: (branchId: string) => {
-        set({ activeBranchId: branchId })
-        // You might want to trigger a layout reload or event here.
-      }
+      switchBranch(branchId) {
+        const nextBranchId = branchId ?? null
+        const allowedBranches = get().allowedBranches
+
+        if (nextBranchId && !allowedBranches.some((branch) => branch.id === nextBranchId)) {
+          return
+        }
+
+        set({ activeBranchId: nextBranchId, error: null })
+      },
+
+      clearError() {
+        set({ error: null })
+      },
+
+      setHydrated(value) {
+        set({ hasHydrated: value })
+      },
     }),
     {
-      name: 'petshop-auth',
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true)
-      },
-      partialize: (state) => ({ 
-        user: state.user, 
-        isAuthenticated: state.isAuthenticated,
+      name: 'petshop-auth-store',
+      partialize: (state) => ({
+        user: state.user,
+        allowedBranches: state.allowedBranches,
         activeBranchId: state.activeBranchId,
-        allowedBranches: state.allowedBranches
       }),
+      onRehydrateStorage: () => (state, error) => {
+        if (!state) return
+
+        if (error) {
+          state.setHydrated(true)
+          return
+        }
+
+        const normalized = buildAuthState(state.user, state.activeBranchId)
+        state.switchBranch(normalized.activeBranchId)
+        state.setHydrated(true)
+      },
     },
   ),
 )

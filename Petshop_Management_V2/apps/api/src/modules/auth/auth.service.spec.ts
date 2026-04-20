@@ -1,0 +1,158 @@
+import * as bcrypt from 'bcryptjs'
+import { createHash } from 'crypto'
+import { AuthService } from './auth.service'
+
+describe('AuthService', () => {
+  const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('stores hashed refresh tokens on login', async () => {
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          username: 'admin',
+          fullName: 'Admin',
+          staffCode: 'NV001',
+          branchId: 'branch-1',
+          avatar: null,
+          passwordHash: bcrypt.hashSync('secret', 4),
+          status: 'WORKING',
+          branch: { id: 'branch-1', name: 'Main', address: null, isActive: true },
+          authorizedBranches: [],
+          role: { code: 'ADMIN', permissions: ['MANAGE_STAFF', 'FULL_BRANCH_ACCESS'] },
+        }),
+      },
+      branch: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'branch-1', name: 'Main', address: null, isActive: true },
+        ]),
+      },
+      refreshToken: {
+        create: jest.fn(),
+      },
+    } as any
+
+    const jwt = {
+      sign: jest
+        .fn()
+        .mockReturnValueOnce('access-token-1')
+        .mockReturnValueOnce('refresh-token-1'),
+      decode: jest.fn().mockReturnValue({ exp: 1_900_000_000 }),
+    } as any
+
+    const service = new AuthService(db, jwt)
+
+    const result = await service.login({ username: 'admin', password: 'secret' })
+
+    expect(db.refreshToken.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        token: hashToken('refresh-token-1'),
+        expiresAt: new Date(1_900_000_000 * 1000),
+      }),
+    })
+    expect(jwt.sign).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        permissions: ['MANAGE_STAFF', 'FULL_BRANCH_ACCESS'],
+      }),
+    )
+    expect(result.refreshToken).toBe('refresh-token-1')
+  })
+
+  it('accepts legacy raw refresh tokens and rotates to hashed storage', async () => {
+    const db = {
+      refreshToken: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'token-1',
+          user: {
+            id: 'user-1',
+            username: 'admin',
+            fullName: 'Admin',
+            staffCode: 'NV001',
+            branchId: 'branch-1',
+            avatar: null,
+            branch: { id: 'branch-1', name: 'Main', address: null, isActive: true },
+            authorizedBranches: [],
+            role: { code: 'ADMIN', permissions: ['MANAGE_STAFF', 'FULL_BRANCH_ACCESS'] },
+          },
+        }),
+        deleteMany: jest.fn(),
+        create: jest.fn(),
+      },
+      branch: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'branch-1', name: 'Main', address: null, isActive: true },
+        ]),
+      },
+    } as any
+
+    const jwt = {
+      verify: jest.fn().mockReturnValue({
+        userId: 'user-1',
+        role: 'ADMIN',
+        permissions: [],
+        branchId: 'branch-1',
+        authorizedBranchIds: ['branch-1'],
+      }),
+      sign: jest
+        .fn()
+        .mockReturnValueOnce('new-access-token')
+        .mockReturnValueOnce('new-refresh-token'),
+      decode: jest.fn().mockReturnValue({ exp: 1_900_000_000 }),
+    } as any
+
+    const service = new AuthService(db, jwt)
+
+    const result = await service.refreshTokens('legacy-raw-refresh-token')
+
+    expect(db.refreshToken.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          token: {
+            in: ['legacy-raw-refresh-token', hashToken('legacy-raw-refresh-token')],
+          },
+        }),
+      }),
+    )
+    expect(db.refreshToken.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        token: hashToken('new-refresh-token'),
+        expiresAt: new Date(1_900_000_000 * 1000),
+      }),
+    })
+    expect(jwt.sign).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        permissions: ['MANAGE_STAFF', 'FULL_BRANCH_ACCESS'],
+      }),
+    )
+    expect(result.refreshToken).toBe('new-refresh-token')
+  })
+
+  it('deletes raw and hashed token candidates on logout', async () => {
+    const db = {
+      refreshToken: {
+        deleteMany: jest.fn(),
+      },
+    } as any
+
+    const service = new AuthService(db, {} as any)
+
+    await service.logout('user-1', 'raw-refresh-token')
+
+    expect(db.refreshToken.deleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: 'user-1',
+        token: {
+          in: ['raw-refresh-token', hashToken('raw-refresh-token')],
+        },
+      },
+    })
+  })
+})

@@ -1,9 +1,9 @@
 import {
   Injectable,
   UnauthorizedException,
-  ConflictException,
   NotFoundException,
 } from '@nestjs/common'
+import { createHash } from 'crypto'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
 import { getRolePermissions, resolvePermissions } from '@petshop/auth'
@@ -43,6 +43,32 @@ export class AuthService {
       ...storedPermissions,
       ...getRolePermissions(roleCode as any),
     ])
+  }
+
+  private getJwtPermissions(rolePermissions: unknown): string[] | undefined {
+    const storedPermissions = Array.isArray(rolePermissions)
+      ? rolePermissions
+        .filter((permission): permission is string => typeof permission === 'string')
+        .map((permission) => permission.trim())
+        .filter(Boolean)
+      : []
+
+    return storedPermissions.length > 0 ? [...new Set(storedPermissions)] : undefined
+  }
+
+  private hashRefreshToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex')
+  }
+
+  private getRefreshTokenExpiry(token: string): Date {
+    const decoded = this.jwt.decode(token)
+    if (decoded && typeof decoded === 'object' && typeof (decoded as { exp?: unknown }).exp === 'number') {
+      return new Date((decoded as { exp: number }).exp * 1000)
+    }
+
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 7)
+    return expiresAt
   }
 
   async login(dto: LoginDto): Promise<LoginResponse> {
@@ -89,7 +115,7 @@ export class AuthService {
     const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
       userId: user.id,
       role: combinedRole as JwtPayload['role'],
-      permissions: combinedPermissions,
+      permissions: this.getJwtPermissions((user as any).role?.permissions),
       branchId: user.branchId ?? null,
       authorizedBranchIds: mappedAuthorizedBranches.map((branch) => branch.id),
     }
@@ -100,14 +126,11 @@ export class AuthService {
       expiresIn: (process.env['JWT_REFRESH_EXPIRES_IN'] ?? '7d') as any,
     })
 
-    // Store refresh token in DB
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + 7)
     await this.db.refreshToken.create({
       data: {
         userId: user.id,
-        token: refreshToken,
-        expiresAt,
+        token: this.hashRefreshToken(refreshToken),
+        expiresAt: this.getRefreshTokenExpiry(refreshToken),
       },
     })
 
@@ -137,7 +160,12 @@ export class AuthService {
     }
 
     const stored = await this.db.refreshToken.findFirst({
-      where: { token, expiresAt: { gte: new Date() } },
+      where: {
+        token: {
+          in: [token, this.hashRefreshToken(token)],
+        },
+        expiresAt: { gte: new Date() },
+      },
       include: { 
         user: {
           include: {
@@ -172,7 +200,7 @@ export class AuthService {
     const newPayload: Omit<JwtPayload, 'iat' | 'exp'> = {
       userId: payload.userId,
       role: combinedRole,
-      permissions: combinedPermissions,
+      permissions: this.getJwtPermissions((u.role as any)?.permissions),
       branchId: u.branchId ?? null,
       authorizedBranchIds: mappedAuthorizedBranches.map((branch) => branch.id),
     }
@@ -182,10 +210,12 @@ export class AuthService {
       expiresIn: (process.env['JWT_REFRESH_EXPIRES_IN'] ?? '7d') as any,
     })
 
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + 7)
     await this.db.refreshToken.create({
-      data: { userId: payload.userId, token: newRefresh, expiresAt },
+      data: {
+        userId: payload.userId,
+        token: this.hashRefreshToken(newRefresh),
+        expiresAt: this.getRefreshTokenExpiry(newRefresh),
+      },
     })
 
     const authUser: AuthUser = {
@@ -203,9 +233,21 @@ export class AuthService {
     return { accessToken: newAccess, refreshToken: newRefresh, user: authUser }
   }
 
-  async logout(userId: string, token: string): Promise<void> {
+  async logout(userId: string, token?: string | null): Promise<void> {
+    if (!token) {
+      await this.db.refreshToken.deleteMany({
+        where: { userId },
+      })
+      return
+    }
+
     await this.db.refreshToken.deleteMany({
-      where: { userId, token },
+      where: {
+        userId,
+        token: {
+          in: [token, this.hashRefreshToken(token)],
+        },
+      },
     })
   }
 

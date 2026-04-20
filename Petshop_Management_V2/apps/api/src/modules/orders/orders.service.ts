@@ -3,6 +3,18 @@ import { randomBytes } from 'crypto';
 import { resolvePermissions } from '@petshop/auth';
 import type { JwtPayload } from '@petshop/shared';
 import { DatabaseService } from '../../database/database.service.js';
+import { buildOrderCompletionSettlement } from './application/order-completion.application.js';
+import { applyCreateOrderPostActions } from './application/order-create.application.js';
+import {
+  createOrderFinanceTransaction,
+  recordOrderPayments,
+} from './application/order-finance.application.js';
+import {
+  createOrderTimelineEntry,
+  createStockExportTimelineEntry,
+} from './application/order-timeline.application.js';
+import { buildOrderPaymentUpdate } from './application/order-payment.application.js';
+import { buildCreateOrderDraft } from './application/order-workflow.application.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { UpdateOrderDto, UpdateOrderItemDto } from './dto/update-order.dto.js';
 import { PayOrderDto } from './dto/pay-order.dto.js';
@@ -19,6 +31,16 @@ import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
 import { buildVietQrDataUrl, buildVietQrPayload } from '../../common/utils/vietqr.util.js';
 import { resolveInventoryLedgerMovement } from '../../common/utils/inventory-ledger.util.js';
+import { mapOrderPaymentIntentView } from './mappers/payment-intent.mapper.js';
+import {
+  assertHasPositivePayments,
+  assertOrderCanAcceptPayment,
+  assertOrderCanCancel,
+  assertOrderCanCreatePaymentIntent,
+  assertOrderCanSettle,
+  assertServiceItemsReadyForCompletion,
+  resolveRequestedPaymentIntentAmount,
+} from './policies/order-workflow.policy.js';
 
 type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>;
 
@@ -115,11 +137,11 @@ type OrderPaymentIntentView = {
   } | null;
 };
 
-// â”€â”€â”€ Payment method labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Payment method labels Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const METHOD_LABELS: Record<string, string> = {
   CASH: 'Tiền mặt',
   BANK: 'Chuyển khoản',
-  EWALLET: 'Vi dien tu',
+  EWALLET: 'Ví điện tử',
   MOMO: 'MoMo',
   VNPAY: 'VNPay',
   CARD: 'Thẻ',
@@ -151,11 +173,11 @@ export class OrdersService {
 
     const authorizedBranchIds = this.getAuthorizedBranchIds(user);
     if (!order.branchId || !authorizedBranchIds.includes(order.branchId)) {
-      throw new ForbiddenException('Bạn chỉ được truy cập dữ liệu thuộc chi nhánh được phân quyền');
+      throw new ForbiddenException('Báº¡n chá»‰ Ä‘Æ°á»£c truy cáº­p dá»¯ liá»‡u thuá»™c chi nhÃ¡nh Ä‘Æ°á»£c phÃ¢n quyá»n');
     }
   }
 
-  // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   /** Generate order number: DH202604060001 */
   private async generateOrderNumber(): Promise<string> {
@@ -441,43 +463,7 @@ export class OrdersService {
   }
 
   private mapPaymentIntentView(paymentIntent: any): OrderPaymentIntentView {
-    return {
-      id: paymentIntent.id,
-      code: paymentIntent.code,
-      orderId: paymentIntent.orderId ?? null,
-      paymentMethodId: paymentIntent.paymentMethodId,
-      amount: Number(paymentIntent.amount) || 0,
-      currency: paymentIntent.currency,
-      status: paymentIntent.status,
-      provider: paymentIntent.provider ?? null,
-      transferContent: paymentIntent.transferContent,
-      qrUrl: paymentIntent.qrUrl ?? null,
-      qrPayload: paymentIntent.qrPayload ?? null,
-      expiresAt: paymentIntent.expiresAt ?? null,
-      paidAt: paymentIntent.paidAt ?? null,
-      createdAt: paymentIntent.createdAt,
-      updatedAt: paymentIntent.updatedAt,
-      paymentMethod: {
-        id: paymentIntent.paymentMethod.id,
-        name: paymentIntent.paymentMethod.name,
-        type: paymentIntent.paymentMethod.type,
-        colorKey: paymentIntent.paymentMethod.colorKey ?? null,
-        bankName: paymentIntent.paymentMethod.bankName ?? null,
-        accountNumber: paymentIntent.paymentMethod.accountNumber ?? null,
-        accountHolder: paymentIntent.paymentMethod.accountHolder ?? null,
-        qrTemplate: paymentIntent.paymentMethod.qrTemplate ?? null,
-      },
-      order: paymentIntent.order
-        ? {
-          id: paymentIntent.order.id,
-          orderNumber: paymentIntent.order.orderNumber,
-          total: Number(paymentIntent.order.total) || 0,
-          paidAmount: Number(paymentIntent.order.paidAmount) || 0,
-          remainingAmount: Number(paymentIntent.order.remainingAmount) || 0,
-          customerName: paymentIntent.order.customerName ?? null,
-        }
-        : null,
-    };
+    return mapOrderPaymentIntentView(paymentIntent);
   }
 
   private async generateVoucherNumberFor(
@@ -519,7 +505,7 @@ export class OrdersService {
     return {
       paymentMethod: account.type as string,
       paymentAccountId: account.id as string,
-      paymentAccountLabel: `${account.name} â€¢ ${account.bankName} â€¢ ${account.accountNumber}` as string,
+      paymentAccountLabel: `${account.name} Ã¢â‚¬Â¢ ${account.bankName} Ã¢â‚¬Â¢ ${account.accountNumber}` as string,
     };
   }
 
@@ -571,34 +557,11 @@ export class OrdersService {
       traceParts?: string[];
     },
   ) {
-    if (params.amount <= 0) return null;
-
-    const tags = this.buildServiceTraceTags(params.traceParts ?? []);
-    const notes = this.mergeTransactionNotes(params.note, params.traceParts ?? []);
-
-    return tx.transaction.create({
-      data: {
-        voucherNumber: await this.generateVoucherNumberFor(tx, params.type),
-        type: params.type,
-        amount: params.amount,
-        description: params.description,
-        orderId: params.order.id,
-        paymentMethod: params.paymentMethod ?? null,
-        paymentAccountId: params.paymentAccountId ?? null,
-        paymentAccountLabel: params.paymentAccountLabel ?? null,
-        branchId: params.order.branchId ?? null,
-        refType: 'ORDER',
-        refId: params.order.id,
-        refNumber: params.order.orderNumber,
-        payerId: params.order.customerId ?? null,
-        payerName: params.order.customerName ?? null,
-        notes,
-        tags,
-        source: params.source,
-        isManual: false,
-        staffId: params.staffId ?? null,
-      } as any,
-    });
+    return createOrderFinanceTransaction(tx as any, {
+      generateVoucherNumber: (type) => this.generateVoucherNumberFor(tx, type),
+      buildServiceTraceTags: (parts) => this.buildServiceTraceTags(parts),
+      mergeTransactionNotes: (note, parts) => this.mergeTransactionNotes(note, parts),
+    }, params)
   }
 
   private async applyPaymentsToOrder(
@@ -626,49 +589,33 @@ export class OrdersService {
       staffId?: string | null;
     },
   ) {
-    const paymentsArr = params.payments.filter((payment) => payment.amount > 0);
-    if (paymentsArr.length === 0) {
-      throw new BadRequestException('So tien thanh toan phai lon hon 0');
-    }
-
-    const newPaidThisTime = paymentsArr.reduce((sum, payment) => sum + payment.amount, 0);
-    const totalPaid = params.order.paidAmount + newPaidThisTime;
-    const remaining = this.calculateRemainingAmount(params.order.total, totalPaid);
-    const paymentStatus = this.calculatePaymentStatus(params.order.total, totalPaid);
+    const paymentUpdate = buildOrderPaymentUpdate({
+      order: params.order,
+      payments: params.payments,
+    });
+    const paymentsArr = paymentUpdate.acceptedPayments;
+    const totalPaid = paymentUpdate.totalPaid;
+    const remaining = paymentUpdate.remainingAmount;
+    const paymentStatus = paymentUpdate.paymentStatus;
     const traceParts = this.buildOrderServiceTraceParts(params.order as any);
 
-    for (const payment of paymentsArr) {
-      await tx.orderPayment.create({
-        data: {
-          orderId: params.order.id,
-          method: payment.method,
-          amount: payment.amount,
-          note: payment.note ?? null,
-          paymentAccountId: payment.paymentAccountId ?? null,
-          paymentAccountLabel: payment.paymentAccountLabel ?? null,
-        } as any,
-      });
-
-      await this.createOrderTransaction(tx as any, {
-        order: {
-          id: params.order.id,
-          orderNumber: params.order.orderNumber,
-          branchId: params.order.branchId ?? null,
-          customerId: params.order.customerId ?? null,
-          customerName: params.order.customerName ?? null,
-        },
-        type: 'INCOME',
-        amount: payment.amount,
-        paymentMethod: payment.method,
-        paymentAccountId: payment.paymentAccountId ?? null,
-        paymentAccountLabel: payment.paymentAccountLabel ?? null,
-        description: `Thu bo sung don hang ${params.order.orderNumber} - ${this.getPaymentLabel(payment.method)}`,
-        note: payment.note ?? null,
-        source: 'ORDER_PAYMENT',
-        staffId: params.staffId ?? null,
-        traceParts,
-      });
-    }
+    await recordOrderPayments(tx as any, {
+      generateVoucherNumber: (type) => this.generateVoucherNumberFor(tx, type),
+      buildServiceTraceTags: (parts) => this.buildServiceTraceTags(parts),
+      mergeTransactionNotes: (note, parts) => this.mergeTransactionNotes(note, parts),
+      getPaymentLabel: (method) => this.getPaymentLabel(method),
+    }, {
+      order: {
+        id: params.order.id,
+        orderNumber: params.order.orderNumber,
+        branchId: params.order.branchId ?? null,
+        customerId: params.order.customerId ?? null,
+        customerName: params.order.customerName ?? null,
+      },
+      payments: paymentsArr,
+      staffId: params.staffId ?? null,
+      traceParts,
+    })
 
     await this.expirePendingPaymentIntents(tx as any, { orderId: params.order.id });
 
@@ -1212,6 +1159,7 @@ export class OrdersService {
       type: item.type,
       productId: item.productId ?? null,
       productVariantId: item.productVariantId ?? null,
+      sku: 'sku' in item ? item.sku ?? null : null,
       serviceId: item.serviceId ?? null,
       serviceVariantId: item.serviceVariantId ?? null,
       petId: item.petId ?? null,
@@ -1238,7 +1186,7 @@ export class OrdersService {
       if (params.existingSessionId) {
         const session = await tx.groomingSession.findUnique({ where: { id: params.existingSessionId } });
         if (session && !['PENDING', 'IN_PROGRESS', 'CANCELLED'].includes(session.status)) {
-          throw new BadRequestException(`Phiên spa ${session.sessionCode ?? session.id} đã hoàn thành, không thể bỏ khỏi đơn đang giao dịch.`);
+          throw new BadRequestException(`PhiÃªn spa ${session.sessionCode ?? session.id} Ä‘Ã£ hoÃ n thÃ nh, khÃ´ng thá»ƒ bá» khá»i Ä‘Æ¡n Ä‘ang giao dá»‹ch.`);
         }
         await tx.groomingSession.update({
           where: { id: params.existingSessionId },
@@ -1274,7 +1222,7 @@ export class OrdersService {
     if (params.existingSessionId) {
       const current = await tx.groomingSession.findUnique({ where: { id: params.existingSessionId } });
       if (current && current.status === 'CANCELLED') {
-        throw new BadRequestException(`Phiên spa ${current.sessionCode ?? current.id} đã bị huỷ, không thể cập nhật lại từ POS.`);
+        throw new BadRequestException(`PhiÃªn spa ${current.sessionCode ?? current.id} Ä‘Ã£ bá»‹ huá»·, khÃ´ng thá»ƒ cáº­p nháº­t láº¡i tá»« POS.`);
       }
 
       await tx.groomingSession.update({
@@ -1320,7 +1268,7 @@ export class OrdersService {
       if (params.existingStayId) {
         const stay = await tx.hotelStay.findUnique({ where: { id: params.existingStayId } });
         if (stay && !['BOOKED', 'CANCELLED'].includes(stay.status)) {
-          throw new BadRequestException(`Lượt lưu trú ${stay.stayCode ?? stay.id} đã bắt đầu, không thể bỏ khỏi đơn đang giao dịch.`);
+          throw new BadRequestException(`LÆ°á»£t lÆ°u trÃº ${stay.stayCode ?? stay.id} Ä‘Ã£ báº¯t Ä‘áº§u, khÃ´ng thá»ƒ bá» khá»i Ä‘Æ¡n Ä‘ang giao dá»‹ch.`);
         }
         await tx.hotelStay.update({
           where: { id: params.existingStayId },
@@ -1362,7 +1310,7 @@ export class OrdersService {
     if (params.existingStayId) {
       const current = await tx.hotelStay.findUnique({ where: { id: params.existingStayId } });
       if (current && !['BOOKED', 'CHECKED_IN'].includes(current.status)) {
-        throw new BadRequestException(`Lượt lưu trú ${current.id} đã checkout hoặc huỷ, không thể cập nhật lại từ POS.`);
+        throw new BadRequestException(`LÆ°á»£t lÆ°u trÃº ${current.id} Ä‘Ã£ checkout hoáº·c huá»·, khÃ´ng thá»ƒ cáº­p nháº­t láº¡i tá»« POS.`);
       }
 
       await tx.hotelStay.update({
@@ -1392,6 +1340,142 @@ export class OrdersService {
     return created.id;
   }
 
+  private async syncGroupedHotelStay(
+    tx: DatabaseService,
+    params: {
+      entries: Array<{ item: any; orderItem: any }>;
+      order: { id: string; createdAt: Date };
+      customerId?: string | null;
+      branchId?: string | null;
+    },
+  ) {
+    const sortedGroupItems = [...params.entries].sort((left, right) => {
+      const leftIndex = left.item.hotelDetails?.chargeLineIndex;
+      const rightIndex = right.item.hotelDetails?.chargeLineIndex;
+      return (leftIndex ?? 0) - (rightIndex ?? 0);
+    });
+    const first = sortedGroupItems[0];
+    if (!first?.item.hotelDetails) return [];
+
+    const firstDetails = first.item.hotelDetails;
+    const checkInDate = new Date(firstDetails.checkInDate);
+    const checkOutDate = new Date(firstDetails.checkOutDate);
+    const branch = await resolveBranchIdentity(tx as any, firstDetails.branchId ?? params.branchId ?? null);
+    const stayCode = await this.generateHotelStayCode(tx as any, params.order.createdAt, branch.code);
+    const totalPrice = sortedGroupItems.reduce(
+      (sum, entry) => sum + entry.item.unitPrice * entry.item.quantity - (entry.item.discountItem ?? 0),
+      0,
+    );
+    const totalDays = sortedGroupItems.reduce(
+      (sum, entry) => sum + Number(entry.item.hotelDetails?.chargeQuantityDays ?? entry.item.quantity ?? 0),
+      0,
+    );
+    const chargeLineTypes = sortedGroupItems.map((entry) =>
+      normalizeHotelLineType(entry.item.hotelDetails?.chargeDayType ?? entry.item.hotelDetails?.lineType),
+    );
+    const displayLineType = chargeLineTypes.length > 0 && chargeLineTypes.every((lineType) => lineType === 'HOLIDAY')
+      ? 'HOLIDAY'
+      : 'REGULAR';
+    const chargeLines = sortedGroupItems.map((entry, index) => {
+      const details = entry.item.hotelDetails;
+      const quantityDays = Number(details.chargeQuantityDays ?? entry.item.quantity ?? 0);
+      const unitPrice = Number(details.chargeUnitPrice ?? entry.item.unitPrice ?? 0);
+      const subtotal = Number(
+        details.chargeSubtotal ?? entry.item.unitPrice * entry.item.quantity - (entry.item.discountItem ?? 0),
+      );
+
+      return {
+        label: details.chargeLineLabel ?? entry.item.description,
+        dayType: normalizeHotelLineType(details.chargeDayType ?? details.lineType),
+        quantityDays,
+        unitPrice,
+        subtotal,
+        sortOrder: details.chargeLineIndex ?? index,
+        weightBandId: details.chargeWeightBandId || null,
+        pricingSnapshot: {
+          source: 'POS_HOTEL_CHARGE_LINE',
+          bookingGroupKey: details.bookingGroupKey ?? null,
+          weightBandLabel: details.chargeWeightBandLabel ?? null,
+          orderItemId: entry.orderItem.id,
+        },
+      };
+    });
+    const pricingSnapshot = {
+      source: 'POS_HOTEL_CHARGE_LINES',
+      bookingGroupKey: firstDetails.bookingGroupKey ?? null,
+      chargeLines: chargeLines.map((line) => ({
+        label: line.label,
+        dayType: line.dayType,
+        quantityDays: line.quantityDays,
+        unitPrice: line.unitPrice,
+        subtotal: line.subtotal,
+        weightBandId: line.weightBandId,
+      })),
+    };
+    const breakdownSnapshot = {
+      totalDays,
+      totalPrice,
+      chargeLines: pricingSnapshot.chargeLines,
+    };
+    const pet = await tx.pet.findUnique({ where: { id: firstDetails.petId } });
+
+    const stay = await tx.hotelStay.create({
+      data: {
+        stayCode,
+        petId: firstDetails.petId,
+        petName: pet?.name ?? '',
+        customerId: params.customerId ?? null,
+        branchId: branch.id,
+        cageId: firstDetails.cageId ?? null,
+        checkIn: checkInDate,
+        estimatedCheckOut: checkOutDate,
+        status: 'BOOKED',
+        lineType: displayLineType as any,
+        price: totalPrice,
+        dailyRate: firstDetails.dailyRate ?? (totalDays > 0 ? totalPrice / totalDays : first.item.unitPrice),
+        depositAmount: firstDetails.depositAmount ?? 0,
+        paymentStatus: 'UNPAID',
+        promotion: firstDetails.promotion ?? 0,
+        surcharge: firstDetails.surcharge ?? 0,
+        totalPrice,
+        rateTableId: firstDetails.rateTableId ?? null,
+        notes: firstDetails.notes ?? null,
+        orderId: params.order.id,
+        weightBandId: chargeLines.find((line) => line.weightBandId)?.weightBandId ?? null,
+        pricingSnapshot: pricingSnapshot as any,
+        breakdownSnapshot: breakdownSnapshot as any,
+      } as any,
+    });
+
+    if (chargeLines.length > 0) {
+      await tx.hotelStayChargeLine.createMany({
+        data: chargeLines.map((line) => ({
+          hotelStayId: stay.id,
+          weightBandId: line.weightBandId,
+          label: line.label,
+          dayType: line.dayType as any,
+          quantityDays: line.quantityDays,
+          unitPrice: line.unitPrice,
+          subtotal: line.subtotal,
+          sortOrder: line.sortOrder,
+          pricingSnapshot: line.pricingSnapshot as any,
+        })),
+      });
+    }
+
+    for (const entry of sortedGroupItems) {
+      await tx.orderItem.update({
+        where: { id: entry.orderItem.id },
+        data: {
+          hotelStayId: stay.id,
+          pricingSnapshot: buildHotelOrderItemPricingSnapshot(entry.item) as any,
+        },
+      });
+    }
+
+    return [`HOTEL_STAY:${stay.id}`, `HOTEL_CODE:${stayCode}`];
+  }
+
   private async loadOrderOrThrow(id: string) {
     const order = await this.prisma.order.findFirst({
       where: {
@@ -1418,11 +1502,11 @@ export class OrdersService {
       },
     });
 
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
     return order;
   }
 
-  // â”€â”€â”€ Catalog (POS quick access) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Catalog (POS quick access) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   async getProducts() {
     const products = await this.prisma.product.findMany({
@@ -1469,45 +1553,39 @@ export class OrdersService {
     });
   }
 
-  // â”€â”€â”€ createOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ createOrder Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   // Auto-classify: QUICK (product only) vs SERVICE (has grooming/hotel)
-  // QUICK: deduct stock immediately, status â†’ PAID/PARTIAL
-  // SERVICE: reserve stock, status â†’ PENDING, pay later
+  // QUICK: deduct stock immediately, status Ã¢â€ â€™ PAID/PARTIAL
+  // SERVICE: reserve stock, status Ã¢â€ â€™ PENDING, pay later
   async createOrder(data: CreateOrderDto, staffId: string): Promise<any> {
     const { items, payments = [], discount = 0, shippingFee = 0 } = data;
 
     if (!items || items.length === 0) {
-      throw new BadRequestException('Đơn hàng phải có ít nhất 1 sản phẩm');
+      throw new BadRequestException('ÄÆ¡n hÃ ng pháº£i cÃ³ Ã­t nháº¥t 1 sáº£n pháº©m');
     }
 
     const orderNumber = await this.generateOrderNumber();
 
     // Classify order type
-    const hasService = items.some(
-      (i) => i.groomingDetails || i.hotelDetails || i.type === 'grooming' || i.type === 'hotel',
-    );
-    const orderType = hasService ? 'SERVICE' : 'QUICK';
     const normalizedPayments = await this.normalizePayments(this.prisma as any, payments);
 
-    // â”€â”€ Financial calculations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    let subtotal = 0;
-    for (const item of items) {
-      const lineNet = item.unitPrice * item.quantity - (item.discountItem ?? 0);
-      subtotal += lineNet;
-    }
-    const total = subtotal + shippingFee - discount;
-    const totalPaid = normalizedPayments.reduce((s, p) => s + p.amount, 0);
-
-    // â”€â”€ Payment status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const paymentStatus = this.calculatePaymentStatus(total, totalPaid);
-
-    const orderStatus = orderType === 'QUICK' && paymentStatus === 'PAID' ? 'COMPLETED' : 'PROCESSING';
-
-    // â”€â”€ Database transaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Ã¢â€â‚¬Ã¢â€â‚¬ Financial calculations Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    const {
+      orderType,
+      orderStatus,
+      paymentStatus,
+      subtotal,
+      total,
+      totalPaid,
+      remainingAmount,
+    } = buildCreateOrderDraft({
+      items,
+      payments: normalizedPayments,
+      discount,
+      shippingFee,
+    });
     return this.prisma.$transaction(async (tx) => {
-      const serviceTraceParts: string[] = [];
       const normalizedItems = await this.validateAndNormalizeCreateItems(tx as any, items);
-      const hotelStayGroups = new Map<string, Array<{ item: any; orderItem: any }>>();
 
       // 1. Create order with items and payments
       const order = await tx.order.create({
@@ -1527,25 +1605,10 @@ export class OrdersService {
           shippingFee,
           total,
           paidAmount: totalPaid,
-          remainingAmount: this.calculateRemainingAmount(total, totalPaid),
+          remainingAmount,
           notes: data.notes ?? null,
           items: {
-            create: normalizedItems.map((item) => ({
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              discountItem: item.discountItem ?? 0,
-              vatRate: item.vatRate ?? 0,
-              subtotal: item.unitPrice * item.quantity - (item.discountItem ?? 0),
-              pricingSnapshot: ((buildHotelOrderItemPricingSnapshot(item) ?? buildGroomingOrderItemPricingSnapshot(item)) ?? null) as any,
-              type: item.type,
-              productId: item.productId ?? null,
-              productVariantId: item.productVariantId ?? null,
-              sku: item.sku ?? null,
-              serviceId: item.serviceId ?? null,
-              serviceVariantId: item.serviceVariantId ?? null,
-              petId: item.petId ?? null,
-            })),
+            create: normalizedItems.map((item) => this.buildOrderItemData(item)),
           },
           payments: {
             create: normalizedPayments.map((p) => ({
@@ -1564,312 +1627,144 @@ export class OrdersService {
         },
       });
 
-      // 2. Handle stock & service sessions per item
-      for (let idx = 0; idx < normalizedItems.length; idx++) {
-        const item = normalizedItems[idx]!;
-        const orderItem = order.items[idx]!
+      await applyCreateOrderPostActions(
+        {
+          order: {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            createdAt: order.createdAt,
+            completedAt: order.completedAt,
+            branchId: order.branchId ?? null,
+            items: order.items.map((item) => ({
+              id: item.id,
+              productId: item.productId ?? null,
+              productVariantId: item.productVariantId ?? null,
+              quantity: item.quantity,
+              subtotal: item.subtotal,
+            })),
+          },
+          normalizedItems,
+          orderType,
+          orderStatus,
+          paymentStatus,
+          normalizedPayments,
+          customerId: data.customerId ?? null,
+          branchId: data.branchId ?? null,
+          total,
+          notes: data.notes ?? null,
+          staffId,
+        },
+        {
+          handleQuickProductItem: async ({ item, orderItem, order, branchId, orderStatus, staffId }) => {
+            const product = await tx.product.findUnique({ where: { id: item.productId } });
+            if (!product) throw new BadRequestException(`San pham ${item.productId} khong ton tai`);
 
-        // â”€â”€ Product stock handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if (item.productId) {
-          const product = await tx.product.findUnique({ where: { id: item.productId } });
-          if (!product) throw new BadRequestException(`Sản phẩm ${item.productId} không tồn tại`);
-
-          if (orderType === 'QUICK') {
-            // QUICK: deduct stock immediately + mark item-level export timestamp
             await this.deductProductBranchStock(tx as any, {
-              branchId: data.branchId ?? null,
+              branchId,
               productId: item.productId,
               productVariantId: item.productVariantId ?? null,
               quantity: item.quantity,
               orderId: order.id,
               staffId,
-              reason: `Bán hàng đơn ${order.orderNumber}`,
+              reason: `Ban hang don ${order.orderNumber}`,
             });
-            if (orderStatus === 'COMPLETED' && orderItem) {
+
+            if (orderStatus === 'COMPLETED') {
               await tx.orderItem.update({
                 where: { id: orderItem.id },
                 data: { stockExportedAt: order.completedAt ?? new Date(), stockExportedBy: staffId } as any,
               });
             }
-          }
-          // SERVICE stock reservation handled by BranchStock if needed
-        }
-
-        // â”€â”€ Grooming session creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if (item.groomingDetails && orderItem) {
-          const branch = await resolveBranchIdentity(tx as any, data.branchId ?? null);
-          const session = await tx.groomingSession.create({
-            data: {
-              sessionCode: await this.generateGroomingSessionCode(
-                tx as any,
-                order.createdAt,
-                branch.code,
-              ),
-              petId: item.groomingDetails.petId,
-              petName: '', // Will be filled from pet lookup
-              customerId: data.customerId ?? null,
-              branchId: branch.id,
-              staffId: item.groomingDetails.performerId ?? null,
+          },
+          syncGroomingSession: ({ item, orderItem, order, customerId, branchId }) =>
+            this.syncGroomingSession(tx as any, {
+              orderId: order.id,
+              orderItemId: orderItem.id,
+              customerId,
+              branchId,
               serviceId: item.serviceId ?? null,
+              orderCreatedAt: order.createdAt,
+              item,
+            }),
+          syncHotelStay: ({ item, orderItem, order, customerId, branchId }) =>
+            this.syncHotelStay(tx as any, {
               orderId: order.id,
-              status: 'PENDING',
-              startTime: item.groomingDetails.startTime
-                ? new Date(item.groomingDetails.startTime)
-                : null,
-              notes: item.groomingDetails.notes ?? null,
-              price: item.unitPrice * item.quantity,
-              packageCode: item.groomingDetails.packageCode ?? null,
-              weightAtBooking: item.groomingDetails.weightAtBooking ?? null,
-              weightBandId: item.groomingDetails.weightBandId ?? null,
-              pricingSnapshot: buildGroomingOrderItemPricingSnapshot(item) as any,
-            },
-          });
-
-          // Link groomingSessionId to order item
-          await tx.orderItem.update({
-            where: { id: orderItem.id },
-            data: { groomingSessionId: session.id },
-          });
-
-          // Fill petName
-          const pet = await tx.pet.findUnique({ where: { id: item.groomingDetails.petId } });
-          if (pet) {
-            await tx.groomingSession.update({
-              where: { id: session.id },
-              data: { petName: pet.name },
-            });
-          }
-
-          serviceTraceParts.push(`GROOMING_SESSION:${session.id}`);
-        }
-
-        // â”€â”€ Hotel stay creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if (item.type === 'hotel' && !item.hotelDetails && item.petId) {
-          const checkIn = new Date(order.createdAt);
-          const checkOut = new Date(order.createdAt);
-          checkOut.setDate(checkOut.getDate() + (item.quantity ?? 1));
-
-          item.hotelDetails = {
-            petId: item.petId,
-            checkIn: checkIn.toISOString(),
-            checkOut: checkOut.toISOString(),
-            checkInDate: checkIn.toISOString(),
-            checkOutDate: checkOut.toISOString(),
-            chargeQuantityDays: item.quantity ?? 1,
-            lineType: 'REGULAR',
-          } as any;
-        }
-
-        if (item.hotelDetails && orderItem) {
-          const groupKey = item.hotelDetails.bookingGroupKey ?? orderItem.id;
-          const group = hotelStayGroups.get(groupKey) ?? [];
-          group.push({ item, orderItem });
-          hotelStayGroups.set(groupKey, group);
-        }
-      }
-
-      for (const groupItems of hotelStayGroups.values()) {
-        const sortedGroupItems = [...groupItems].sort((left, right) => {
-          const leftIndex = left.item.hotelDetails?.chargeLineIndex;
-          const rightIndex = right.item.hotelDetails?.chargeLineIndex;
-          return (leftIndex ?? 0) - (rightIndex ?? 0);
-        });
-        const first = sortedGroupItems[0]!;
-        const firstDetails = first.item.hotelDetails;
-        const checkInDate = new Date(firstDetails.checkInDate);
-        const checkOutDate = new Date(firstDetails.checkOutDate);
-        const branch = await resolveBranchIdentity(
-          tx as any,
-          firstDetails.branchId ?? data.branchId ?? null,
-        );
-        const stayCode = await this.generateHotelStayCode(tx as any, order.createdAt, branch.code);
-        const totalPrice = sortedGroupItems.reduce(
-          (sum, entry) => sum + entry.item.unitPrice * entry.item.quantity - (entry.item.discountItem ?? 0),
-          0,
-        );
-        const totalDays = sortedGroupItems.reduce(
-          (sum, entry) => sum + Number(entry.item.hotelDetails?.chargeQuantityDays ?? entry.item.quantity ?? 0),
-          0,
-        );
-        const chargeLineTypes = sortedGroupItems.map((entry) =>
-          normalizeHotelLineType(entry.item.hotelDetails?.chargeDayType ?? entry.item.hotelDetails?.lineType),
-        );
-        const displayLineType = chargeLineTypes.length > 0 && chargeLineTypes.every((lineType) => lineType === 'HOLIDAY')
-          ? 'HOLIDAY'
-          : 'REGULAR';
-        const chargeLines = sortedGroupItems.map((entry, index) => {
-          const details = entry.item.hotelDetails;
-          const quantityDays = Number(details.chargeQuantityDays ?? entry.item.quantity ?? 0);
-          const unitPrice = Number(details.chargeUnitPrice ?? entry.item.unitPrice ?? 0);
-          const subtotal = Number(
-            details.chargeSubtotal ?? entry.item.unitPrice * entry.item.quantity - (entry.item.discountItem ?? 0),
-          );
-
-          return {
-            label: details.chargeLineLabel ?? entry.item.description,
-            dayType: normalizeHotelLineType(details.chargeDayType ?? details.lineType),
-            quantityDays,
-            unitPrice,
-            subtotal,
-            sortOrder: details.chargeLineIndex ?? index,
-            weightBandId: details.chargeWeightBandId || null,
-            pricingSnapshot: {
-              source: 'POS_HOTEL_CHARGE_LINE',
-              bookingGroupKey: details.bookingGroupKey ?? null,
-              weightBandLabel: details.chargeWeightBandLabel ?? null,
-              orderItemId: entry.orderItem.id,
-            },
-          };
-        });
-        const pricingSnapshot = {
-          source: 'POS_HOTEL_CHARGE_LINES',
-          bookingGroupKey: firstDetails.bookingGroupKey ?? null,
-          chargeLines: chargeLines.map((line) => ({
-            label: line.label,
-            dayType: line.dayType,
-            quantityDays: line.quantityDays,
-            unitPrice: line.unitPrice,
-            subtotal: line.subtotal,
-            weightBandId: line.weightBandId,
-          })),
-        };
-        const breakdownSnapshot = {
-          totalDays,
-          totalPrice,
-          chargeLines: pricingSnapshot.chargeLines,
-        };
-        const pet = await tx.pet.findUnique({ where: { id: firstDetails.petId } });
-
-        const stay = await tx.hotelStay.create({
-          data: {
-            stayCode,
-            petId: firstDetails.petId,
-            petName: pet?.name ?? '',
-            customerId: data.customerId ?? null,
-            branchId: branch.id,
-            cageId: firstDetails.cageId ?? null,
-            checkIn: checkInDate,
-            estimatedCheckOut: checkOutDate,
-            status: 'BOOKED',
-            lineType: displayLineType as any,
-            price: totalPrice,
-            dailyRate: firstDetails.dailyRate ?? (totalDays > 0 ? totalPrice / totalDays : first.item.unitPrice),
-            depositAmount: firstDetails.depositAmount ?? 0,
-            paymentStatus: 'UNPAID',
-            promotion: firstDetails.promotion ?? 0,
-            surcharge: firstDetails.surcharge ?? 0,
-            totalPrice,
-            rateTableId: firstDetails.rateTableId ?? null,
-            notes: firstDetails.notes ?? null,
-            orderId: order.id,
-            weightBandId: chargeLines.find((line) => line.weightBandId)?.weightBandId ?? null,
-            pricingSnapshot: pricingSnapshot as any,
-            breakdownSnapshot: breakdownSnapshot as any,
-          } as any,
-        });
-
-        if (chargeLines.length > 0) {
-          await tx.hotelStayChargeLine.createMany({
-            data: chargeLines.map((line) => ({
-              hotelStayId: stay.id,
-              weightBandId: line.weightBandId,
-              label: line.label,
-              dayType: line.dayType as any,
-              quantityDays: line.quantityDays,
-              unitPrice: line.unitPrice,
-              subtotal: line.subtotal,
-              sortOrder: line.sortOrder,
-              pricingSnapshot: line.pricingSnapshot as any,
-            })),
-          });
-        }
-
-        for (const entry of sortedGroupItems) {
-          await tx.orderItem.update({
-            where: { id: entry.orderItem.id },
-            data: {
-              hotelStayId: stay.id,
-              pricingSnapshot: buildHotelOrderItemPricingSnapshot(entry.item) as any,
-            },
-          });
-        }
-
-        serviceTraceParts.push(`HOTEL_STAY:${stay.id}`);
-        serviceTraceParts.push(`HOTEL_CODE:${stayCode}`);
-      }
-
-      // 3. Create income transaction records
-      for (const pay of normalizedPayments) {
-        if (pay.amount <= 0) continue;
-        const traceParts = serviceTraceParts;
-        const label = this.getPaymentLabel(pay.method);
-        await tx.transaction.create({
-          data: {
-            voucherNumber: await this.generateVoucherNumberFor(tx as any, 'INCOME'),
-            type: 'INCOME',
-            amount: pay.amount,
-            description: `Thu từ đơn hàng ${order.orderNumber} - ${label}`,
-            orderId: order.id,
-            paymentMethod: pay.method,
-            paymentAccountId: pay.paymentAccountId ?? null,
-            paymentAccountLabel: pay.paymentAccountLabel ?? null,
-            branchId: data.branchId ?? null,
-            refType: 'ORDER',
-            refId: order.id,
-            refNumber: order.orderNumber,
-            payerId: data.customerId ?? null,
-            payerName: data.customerName,
-            notes: this.mergeTransactionNotes(pay.note ?? data.notes ?? null, traceParts),
-            tags: this.buildServiceTraceTags(traceParts),
-            source: 'ORDER_PAYMENT',
-            isManual: false,
-            staffId,
-          } as any,
-        });
-      }
-
-      // 4. Update customer stats (QUICK + PAID only)
-      // Note: SERVICE orders increment stats inside completeOrder
-      if (data.customerId && orderType === 'QUICK' && paymentStatus === 'PAID') {
-        await this.incrementCustomerStats(tx as any, data.customerId, total);
-      }
-
-      if (orderStatus === 'COMPLETED') {
-        await this.applyCompletedProductSalesDelta(tx as any, {
-          completedAt: order.completedAt ?? order.createdAt,
-          branchId: order.branchId ?? null,
-          items: order.items.map((item) => ({
-            productId: item.productId,
-            productVariantId: item.productVariantId,
-            quantity: item.quantity,
-            subtotal: item.subtotal,
-          })),
-        });
-
-        // Tạo STOCK_EXPORTED timeline entry cho POS QUICK order
-        const physicalItemCount = order.items.filter((i) => i.productId).length;
-        if (physicalItemCount > 0) {
-          const exportedNow = order.completedAt ?? new Date();
-          await tx.orderTimeline.create({
-            data: {
+              orderItemId: orderItem.id,
+              customerId,
+              branchId,
+              orderCreatedAt: order.createdAt,
+              item,
+            }),
+          syncGroupedHotelStay: ({ entries, order, customerId, branchId }) =>
+            this.syncGroupedHotelStay(tx as any, {
+              entries,
+              order,
+              customerId,
+              branchId,
+            }),
+          recordInitialPayments: async ({ order, normalizedPayments, notes, staffId, serviceTraceParts }) => {
+            for (const pay of normalizedPayments) {
+              if (pay.amount <= 0) continue;
+              const label = this.getPaymentLabel(pay.method);
+              await createOrderFinanceTransaction(
+                tx as any,
+                {
+                  getPaymentLabel: (method) => this.getPaymentLabel(method),
+                  buildServiceTraceTags: (parts) => this.buildServiceTraceTags(parts),
+                  mergeTransactionNotes: (note, parts) => this.mergeTransactionNotes(note, parts),
+                  generateVoucherNumber: () => this.generateVoucherNumberFor(tx as any, 'INCOME'),
+                },
+                {
+                  order: {
+                    id: order.id,
+                    orderNumber: order.orderNumber,
+                    branchId: data.branchId ?? null,
+                    customerId: data.customerId ?? null,
+                    customerName: data.customerName,
+                  },
+                  type: 'INCOME',
+                  amount: pay.amount,
+                  paymentMethod: pay.method,
+                  paymentAccountId: pay.paymentAccountId ?? null,
+                  paymentAccountLabel: pay.paymentAccountLabel ?? null,
+                  description: `Thu tu don hang ${order.orderNumber} - ${label}`,
+                  note: pay.note ?? notes ?? null,
+                  source: 'ORDER_PAYMENT',
+                  staffId,
+                  traceParts: serviceTraceParts,
+                },
+              );
+            }
+          },
+          incrementCustomerStats: (customerId, total) => this.incrementCustomerStats(tx as any, customerId, total),
+          applyCompletedProductSalesDelta: ({ order }) =>
+            this.applyCompletedProductSalesDelta(tx as any, {
+              completedAt: order.completedAt ?? order.createdAt,
+              branchId: order.branchId ?? null,
+              items: order.items.map((item) => ({
+                productId: item.productId ?? null,
+                productVariantId: item.productVariantId ?? null,
+                quantity: item.quantity,
+                subtotal: item.subtotal,
+              })),
+            }),
+          createQuickStockExportTimeline: async ({ order, physicalItemCount, staffId }) => {
+            await createStockExportTimelineEntry(tx.orderTimeline as any, {
               orderId: order.id,
-              action: 'STOCK_EXPORTED',
-              note: [
-                `Xuất kho lúc ${exportedNow.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
-                `${physicalItemCount} sản phẩm được trừ kho`,
-              ].join(' · '),
               performedBy: staffId,
-              metadata: { source: 'POS_CREATE', exportedItemCount: physicalItemCount } as any,
-            },
-          });
-        }
-      }
+              occurredAt: order.completedAt ?? new Date(),
+              exportedItemCount: physicalItemCount,
+              metadata: { source: 'POS_CREATE' },
+            });
+          },
+        },
+      );
 
       return order;
     });
   }
 
-  // â”€â”€â”€ payOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ payOrder Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   // Collect additional payment for SERVICE orders (multi-payment support)
   async updateOrder(id: string, data: UpdateOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findFirst({
@@ -1886,19 +1781,19 @@ export class OrdersService {
     });
     if (order) this.assertOrderScope(order, user);
 
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
     id = order.id; // Resolve to internal UUID
 
     if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
-      throw new BadRequestException('Không thể sửa đơn đã hoàn tất hoặc đã huỷ');
+      throw new BadRequestException('KhÃ´ng thá»ƒ sá»­a Ä‘Æ¡n Ä‘Ã£ hoÃ n táº¥t hoáº·c Ä‘Ã£ huá»·');
     }
     if (!data.items?.length) {
-      throw new BadRequestException('Đơn hàng phải có ít nhất 1 sản phẩm hoặc dịch vụ');
+      throw new BadRequestException('ÄÆ¡n hÃ ng pháº£i cÃ³ Ã­t nháº¥t 1 sáº£n pháº©m hoáº·c dá»‹ch vá»¥');
     }
 
     for (const item of data.items) {
       if (item.groomingDetails && item.hotelDetails) {
-        throw new BadRequestException(`Item "${item.description}" không thể vừa là spa vừa là hotel`);
+        throw new BadRequestException(`Item "${item.description}" khÃ´ng thá»ƒ vá»«a lÃ  spa vá»«a lÃ  hotel`);
       }
     }
 
@@ -2116,7 +2011,7 @@ export class OrdersService {
         if (existingStayId) {
           const currentStay = await tx.hotelStay.findUnique({ where: { id: existingStayId } });
           if (currentStay && !['BOOKED', 'CHECKED_IN'].includes(currentStay.status)) {
-            throw new BadRequestException(`Lượt lưu trú ${currentStay.id} đã checkout hoặc hủy, không thể cập nhật lại từ POS.`);
+            throw new BadRequestException(`LÆ°á»£t lÆ°u trÃº ${currentStay.id} Ä‘Ã£ checkout hoáº·c há»§y, khÃ´ng thá»ƒ cáº­p nháº­t láº¡i tá»« POS.`);
           }
         }
 
@@ -2276,30 +2171,8 @@ export class OrdersService {
 
     if (order) this.assertOrderScope(order, user);
     if (!order) throw new NotFoundException('Khong tim thay don hang');
-    if (order.status === 'CANCELLED') {
-      throw new BadRequestException('Khong the tao QR cho don hang da huy');
-    }
-    if (order.paymentStatus === 'PAID' || order.paymentStatus === 'COMPLETED') {
-      throw new BadRequestException('Don hang da duoc thanh toan day du');
-    }
-
-    const remainingAmount = this.calculateRemainingAmount(order.total, order.paidAmount);
-    if (remainingAmount <= 0) {
-      throw new BadRequestException('Don hang khong con so tien de tao QR');
-    }
-
-    const requestedAmount = dto.amount !== undefined ? Number(dto.amount) : remainingAmount;
-    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
-      throw new BadRequestException('So tien tao QR khong hop le');
-    }
-
-    if (!Number.isInteger(requestedAmount)) {
-      throw new BadRequestException('So tien QR phai la so nguyen VND');
-    }
-
-    if (requestedAmount > remainingAmount) {
-      throw new BadRequestException('So tien QR khong duoc vuot qua cong no con lai');
-    }
+    assertOrderCanCreatePaymentIntent(order);
+    const requestedAmount = resolveRequestedPaymentIntentAmount(order, dto.amount);
 
     const paymentMethod = await this.prisma.paymentMethod.findUnique({
       where: { id: dto.paymentMethodId },
@@ -2530,18 +2403,14 @@ export class OrdersService {
       },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    if (order.paymentStatus === 'PAID' || order.paymentStatus === 'COMPLETED') {
-      throw new BadRequestException('Đơn hàng đã thanh toán đầy đủ');
-    }
+    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    assertOrderCanAcceptPayment(order);
 
     const paymentsArr = await this.normalizePayments(
       this.prisma as any,
       dto.payments.filter((p) => p.amount > 0),
     );
-    if (paymentsArr.length === 0) {
-      throw new BadRequestException('Số tiền thanh toán phải lớn hơn 0');
-    }
+    assertHasPositivePayments(paymentsArr);
 
     return this.prisma.$transaction(async (tx) => {
       return this.applyPaymentsToOrder(tx as any, {
@@ -2563,7 +2432,7 @@ export class OrdersService {
     });
   }
 
-  // â”€â”€â”€ completeOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ completeOrder Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   // Finalize SERVICE order: validate sessions, deduct stock, update customer
   async completeOrder(id: string, dto: CompleteOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
@@ -2580,33 +2449,40 @@ export class OrdersService {
     });
     if (order) this.assertOrderScope(order, user);
 
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    if (order.status === 'COMPLETED') throw new BadRequestException('Đơn hàng đã hoàn thành');
+    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    if (order.status === 'COMPLETED') throw new BadRequestException('ÄÆ¡n hÃ ng Ä‘Ã£ hoÃ n thÃ nh');
 
     // Validate service items are complete (unless forceComplete)
     if (!dto.forceComplete) {
-      for (const item of order.items) {
-        if (item.groomingSessionId) {
-          const session = await this.prisma.groomingSession.findUnique({
-            where: { id: item.groomingSessionId },
-          });
-          if (session && !['COMPLETED', 'CANCELLED'].includes(session.status)) {
-            throw new BadRequestException(
-              `Phiên spa ${session.sessionCode ?? session.id} chưa hoàn thành. Vui lòng hoàn thành trước khi kết đơn.`,
-            );
-          }
-        }
-        if (item.hotelStayId) {
-          const stay = await this.prisma.hotelStay.findUnique({
-            where: { id: item.hotelStayId },
-          });
-          if (stay && !['CHECKED_OUT', 'CANCELLED'].includes(stay.status)) {
-            throw new BadRequestException(
-              `Lượt lưu trú ${stay.id} chưa trả pet. Vui lòng checkout trước khi kết đơn.`,
-            );
-          }
-        }
-      }
+      const groomingSessions = (
+        await Promise.all(
+          order.items
+            .filter((item) => item.groomingSessionId)
+            .map((item) =>
+              this.prisma.groomingSession.findUnique({
+                where: { id: item.groomingSessionId! },
+                select: { id: true, status: true, sessionCode: true },
+              }),
+            ),
+        )
+      ).filter(Boolean) as Array<{ id: string; status: string; sessionCode?: string | null }>;
+      const hotelStays = (
+        await Promise.all(
+          order.items
+            .filter((item) => item.hotelStayId)
+            .map((item) =>
+              this.prisma.hotelStay.findUnique({
+                where: { id: item.hotelStayId! },
+                select: { id: true, status: true },
+              }),
+            ),
+        )
+      ).filter(Boolean) as Array<{ id: string; status: string }>;
+      assertServiceItemsReadyForCompletion({
+        forceComplete: dto.forceComplete,
+        groomingSessions,
+        hotelStays,
+      });
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -2614,7 +2490,6 @@ export class OrdersService {
         tx as any,
         (dto.payments ?? []).filter((payment) => payment.amount > 0),
       );
-      const extraPaidAmount = extraPayments.reduce((sum, payment) => sum + payment.amount, 0);
       const traceParts = this.buildOrderServiceTraceParts(order);
 
       const now = new Date();
@@ -2630,7 +2505,7 @@ export class OrdersService {
           quantity: item.quantity,
           orderId: order.id,
           staffId,
-          reason: `Hoàn thành đơn ${order.orderNumber}`,
+          reason: `HoÃ n thÃ nh Ä‘Æ¡n ${order.orderNumber}`,
         });
         // Mark item-level export timestamp
         await tx.orderItem.update({
@@ -2643,18 +2518,42 @@ export class OrdersService {
         exportedProductItems.push(item);
       }
 
-      for (const payment of extraPayments) {
-        await tx.orderPayment.create({
-          data: {
-            orderId: id,
-            method: payment.method,
-            amount: payment.amount,
-            note: payment.note ?? null,
-            paymentAccountId: payment.paymentAccountId ?? null,
-            paymentAccountLabel: payment.paymentAccountLabel ?? null,
-          } as any,
-        });
+      await recordOrderPayments(tx as any, {
+        generateVoucherNumber: (type) => this.generateVoucherNumberFor(tx, type),
+        buildServiceTraceTags: (parts) => this.buildServiceTraceTags(parts),
+        mergeTransactionNotes: (note, parts) => this.mergeTransactionNotes(note, parts),
+        getPaymentLabel: (method) => this.getPaymentLabel(method),
+      }, {
+        order: {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          branchId: order.branchId ?? null,
+          customerId: order.customerId ?? null,
+          customerName: order.customerName,
+        },
+        payments: extraPayments,
+        staffId,
+        traceParts,
+        defaultNote: dto.settlementNote ?? null,
+      })
 
+      await this.expirePendingPaymentIntents(tx as any, { orderId: id });
+
+      const settlement = buildOrderCompletionSettlement({
+        orderTotal: order.total,
+        orderPaidAmount: order.paidAmount,
+        extraPayments,
+        overpaymentAction: dto.overpaymentAction,
+        hasCustomer: Boolean(order.customerId),
+      });
+      let finalPaidAmount = settlement.finalPaidAmount;
+      if (settlement.adjustment?.type === 'REFUND') {
+        const refundPaymentAccount = await this.resolvePaymentAccount(
+          tx as any,
+          dto.refundMethod ?? 'CASH',
+          dto.refundPaymentAccountId,
+        );
+        finalPaidAmount = order.total;
         await this.createOrderTransaction(tx as any, {
           order: {
             id: order.id,
@@ -2663,76 +2562,23 @@ export class OrdersService {
             customerId: order.customerId ?? null,
             customerName: order.customerName,
           },
-          type: 'INCOME',
-          amount: payment.amount,
-          paymentMethod: payment.method,
-          paymentAccountId: payment.paymentAccountId ?? null,
-          paymentAccountLabel: payment.paymentAccountLabel ?? null,
-          description: `Thu bổ sung đơn hàng ${order.orderNumber} - ${this.getPaymentLabel(payment.method)}`,
-          note: payment.note ?? dto.settlementNote ?? null,
-          source: 'ORDER_PAYMENT',
+          type: 'EXPENSE',
+          amount: settlement.adjustment.amount,
+          paymentMethod: refundPaymentAccount.paymentMethod ?? dto.refundMethod ?? 'CASH',
+          paymentAccountId: refundPaymentAccount.paymentAccountId,
+          paymentAccountLabel: dto.refundPaymentAccountLabel?.trim() || refundPaymentAccount.paymentAccountLabel,
+          description: `HoÃ n tiá»n dÆ° Ä‘Æ¡n hÃ ng ${order.orderNumber}`,
+          note: dto.settlementNote ?? null,
+          source: 'ORDER_ADJUSTMENT',
           staffId,
           traceParts,
         });
+      } else if (settlement.adjustment?.type === 'KEEP_CREDIT') {
+        await this.updateCustomerDebt(tx as any, order.customerId, -settlement.adjustment.amount);
       }
+      const paymentStatus = settlement.paymentStatus;
 
-      await this.expirePendingPaymentIntents(tx as any, { orderId: id });
-
-      const grossPaidAmount = order.paidAmount + extraPaidAmount;
-      const overpaidAmount = Math.max(0, grossPaidAmount - order.total);
-      const outstandingAmount = Math.max(0, order.total - grossPaidAmount);
-
-      if (outstandingAmount > 0) {
-        throw new BadRequestException(
-          `Đơn hàng còn thiếu ${outstandingAmount.toLocaleString('vi-VN')} đ. Vui lòng thu đủ trước khi hoàn tất.`,
-        );
-      }
-
-      let finalPaidAmount = grossPaidAmount;
-
-      if (overpaidAmount > 0) {
-        if (dto.overpaymentAction === 'REFUND') {
-          const refundPaymentAccount = await this.resolvePaymentAccount(
-            tx as any,
-            dto.refundMethod ?? 'CASH',
-            dto.refundPaymentAccountId,
-          );
-          finalPaidAmount = order.total;
-          await this.createOrderTransaction(tx as any, {
-            order: {
-              id: order.id,
-              orderNumber: order.orderNumber,
-              branchId: order.branchId ?? null,
-              customerId: order.customerId ?? null,
-              customerName: order.customerName,
-            },
-            type: 'EXPENSE',
-            amount: overpaidAmount,
-            paymentMethod: refundPaymentAccount.paymentMethod ?? dto.refundMethod ?? 'CASH',
-            paymentAccountId: refundPaymentAccount.paymentAccountId,
-            paymentAccountLabel: dto.refundPaymentAccountLabel?.trim() || refundPaymentAccount.paymentAccountLabel,
-            description: `Hoàn tiền dư đơn hàng ${order.orderNumber}`,
-            note: dto.settlementNote ?? null,
-            source: 'ORDER_ADJUSTMENT',
-            staffId,
-            traceParts,
-          });
-        } else if (dto.overpaymentAction === 'KEEP_CREDIT') {
-          if (!order.customerId) {
-            throw new BadRequestException('Không thể giữ tiền dư vào công nợ khi đơn không có khách hàng');
-          }
-
-          await this.updateCustomerDebt(tx as any, order.customerId, -overpaidAmount);
-        } else {
-          throw new BadRequestException(
-            `Đơn hàng đang dư ${overpaidAmount.toLocaleString('vi-VN')} đ. Hãy chọn hoàn tiền hoặc giữ lại công nợ âm.`,
-          );
-        }
-      }
-
-      const paymentStatus = this.calculatePaymentStatus(order.total, Math.min(finalPaidAmount, order.total));
-
-      // Complete order (+ set stockExportedAt nếu có sản phẩm vật lý)
+      // Complete order (+ set stockExportedAt náº¿u cÃ³ sáº£n pháº©m váº­t lÃ½)
       const hasPhysicalItems = exportedProductItems.length > 0;
       const completed = await tx.order.update({
         where: { id },
@@ -2751,26 +2597,17 @@ export class OrdersService {
         },
       });
 
-      // Tạo STOCK_EXPORTED timeline entry cho đơn POS (không đi qua exportStock)
+      // Táº¡o STOCK_EXPORTED timeline entry cho Ä‘Æ¡n POS (khÃ´ng Ä‘i qua exportStock)
       if (hasPhysicalItems) {
         const pendingTempCount = order.items.filter((i) => (i as any).isTemp).length;
-        await tx.orderTimeline.create({
-          data: {
-            orderId: id,
-            action: 'STOCK_EXPORTED',
-            note: [
-              `Xuất kho lúc ${now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
-              `${exportedProductItems.length} sản phẩm được trừ kho`,
-              pendingTempCount > 0 ? `${pendingTempCount} sản phẩm tạm chưa đổi` : null,
-            ].filter(Boolean).join(' · '),
-            performedBy: staffId,
-            metadata: {
-              source: 'POS_COMPLETE',
-              exportedItemCount: exportedProductItems.length,
-              pendingTempCount,
-            } as any,
-          },
-        });
+        await createStockExportTimelineEntry(tx.orderTimeline as any, {
+          orderId: id,
+          performedBy: staffId,
+          occurredAt: now,
+          exportedItemCount: exportedProductItems.length,
+          pendingTempCount,
+          metadata: { source: 'POS_COMPLETE' },
+        })
       }
 
       // Update customer spending
@@ -2791,7 +2628,7 @@ export class OrdersService {
     });
   }
 
-  // â”€â”€â”€ cancelOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ cancelOrder Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   // Cancel order: release reserved stock, cancel sessions
   async cancelOrder(id: string, dto: CancelOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
@@ -2799,8 +2636,8 @@ export class OrdersService {
       include: { items: true },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    if (order.status === 'COMPLETED') throw new BadRequestException('Đơn đã hoàn thành không thể huỷ');
+    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    assertOrderCanCancel(order);
 
     return this.prisma.$transaction(async (tx) => {
       // Cancel grooming sessions
@@ -2839,7 +2676,7 @@ export class OrdersService {
             quantity: item.quantity,
             orderId: order.id,
             staffId,
-            reason: `Hoàn trả do huỷ đơn ${order.orderNumber}`,
+            reason: `HoÃ n tráº£ do huá»· Ä‘Æ¡n ${order.orderNumber}`,
           });
         }
       }
@@ -2849,7 +2686,7 @@ export class OrdersService {
         where: { id },
         data: {
           status: 'CANCELLED' as any,
-          notes: dto.reason ? `[HUỶ] ${dto.reason}` : order.notes,
+          notes: dto.reason ? `[HUá»¶] ${dto.reason}` : order.notes,
         },
         include: { items: true, payments: true },
       });
@@ -2858,21 +2695,21 @@ export class OrdersService {
     });
   }
 
-  // ─── refundOrder ────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ refundOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Refund order: update status to PARTIALLY_REFUNDED or FULLY_REFUNDED
   async refundOrder(id: string, dto: RefundOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
       where: { id },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
 
     return this.prisma.$transaction(async (tx) => {
       const refunded = await tx.order.update({
         where: { id },
         data: {
           status: dto.status as any,
-          notes: dto.reason ? `[HOÀN TIỀN] ${dto.reason}\n${order.notes ?? ''}` : order.notes,
+          notes: dto.reason ? `[HOÃ€N TIá»€N] ${dto.reason}\n${order.notes ?? ''}` : order.notes,
         },
         include: { items: true, payments: true },
       });
@@ -2881,7 +2718,7 @@ export class OrdersService {
     });
   }
 
-  // ─── removeOrderItem ──────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ removeOrderItem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Remove single item from pending/processing order, recalculate totals
   async removeOrderItem(orderId: string, itemId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
@@ -2889,11 +2726,11 @@ export class OrdersService {
       include: { items: true },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    if (order.status === 'COMPLETED') throw new BadRequestException('Không thể sửa đơn đã hoàn thành');
+    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    if (order.status === 'COMPLETED') throw new BadRequestException('KhÃ´ng thá»ƒ sá»­a Ä‘Æ¡n Ä‘Ã£ hoÃ n thÃ nh');
 
     const item = order.items.find((i) => i.id === itemId);
-    if (!item) throw new NotFoundException('Không tìm thấy item trong đơn');
+    if (!item) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y item trong Ä‘Æ¡n');
 
     return this.prisma.$transaction(async (tx) => {
       // Cancel related sessions
@@ -2942,7 +2779,7 @@ export class OrdersService {
     });
   }
 
-  // â”€â”€â”€ findAll (advanced filtering) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ findAll (advanced filtering) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   async findAll(params?: {
     search?: string | undefined;
     paymentStatus?: string | undefined;
@@ -3025,7 +2862,7 @@ export class OrdersService {
     };
   }
 
-  // â”€â”€â”€ findOne â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ findOne Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   async findOne(id: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findFirst({
       where: {
@@ -3051,7 +2888,7 @@ export class OrdersService {
       },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
     const groomingSessionIds = order.items
       .map((item) => item.groomingSessionId)
       .filter((value): value is string => Boolean(value));
@@ -3129,16 +2966,14 @@ export class OrdersService {
     metadata?: Record<string, any>;
   }) {
     const { orderId, action, fromStatus, toStatus, note, performedBy, metadata } = params;
-    return this.prisma.orderTimeline.create({
-      data: {
-        orderId,
-        action: action as any,
-        fromStatus: fromStatus ?? null,
-        toStatus: toStatus ?? null,
-        note: note ?? null,
-        performedBy,
-        metadata: (metadata ?? undefined) as any,
-      },
+    return createOrderTimelineEntry(this.prisma.orderTimeline as any, {
+      orderId,
+      action,
+      fromStatus,
+      toStatus,
+      note,
+      performedBy,
+      metadata,
     });
   }
 
@@ -3208,16 +3043,14 @@ export class OrdersService {
       });
 
       // Create timeline entry
-      await tx.orderTimeline.create({
-        data: {
-          orderId: id,
-          action: 'APPROVED',
-          fromStatus: 'PENDING',
-          toStatus: 'CONFIRMED',
-          note: dto.note ?? null,
-          performedBy: staffId,
-        },
-      });
+      await createOrderTimelineEntry(tx.orderTimeline as any, {
+        orderId: id,
+        action: 'APPROVED',
+        fromStatus: 'PENDING',
+        toStatus: 'CONFIRMED',
+        note: dto.note ?? null,
+        performedBy: staffId,
+      })
     });
 
     return this.findOne(id, user);
@@ -3227,7 +3060,7 @@ export class OrdersService {
   // EXPORT STOCK
   // =============================================================================
 
-  // ─── Private helper: trừ kho và đánh dấu item đã xuất ─────────────────────
+  // â”€â”€â”€ Private helper: trá»« kho vÃ  Ä‘Ã¡nh dáº¥u item Ä‘Ã£ xuáº¥t â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   private async _decrementStockForItem(
     prismaOrTx: any,
     params: {
@@ -3240,13 +3073,13 @@ export class OrdersService {
   ): Promise<void> {
     const { orderItemId, productVariantId, quantity, exportedBy, exportedAt } = params;
 
-    // Trừ tồn kho productVariant
+    // Trá»« tá»“n kho productVariant
     await prismaOrTx.productVariant.update({
       where: { id: productVariantId },
       data: { stockQuantity: { decrement: quantity } },
     });
 
-    // Đánh dấu item đã xuất kho với timestamp
+    // ÄÃ¡nh dáº¥u item Ä‘Ã£ xuáº¥t kho vá»›i timestamp
     await prismaOrTx.orderItem.update({
       where: { id: orderItemId },
       data: {
@@ -3302,7 +3135,7 @@ export class OrdersService {
 
     const now = new Date();
 
-    // Phương án B: Chỉ xuất item thật (isTemp=false) có productVariantId, chưa xuất kho
+    // PhÆ°Æ¡ng Ã¡n B: Chá»‰ xuáº¥t item tháº­t (isTemp=false) cÃ³ productVariantId, chÆ°a xuáº¥t kho
     const exportableItems = order.items.filter(
       (item: any) =>
         item.type === 'product' &&
@@ -3311,7 +3144,7 @@ export class OrdersService {
         !(item as any).stockExportedAt,
     );
 
-    // Cảnh báo: còn item tạm chưa swap (không chặn, cho phép partial export)
+    // Cáº£nh bÃ¡o: cÃ²n item táº¡m chÆ°a swap (khÃ´ng cháº·n, cho phÃ©p partial export)
     const pendingTempCount = order.items.filter(
       (item: any) => item.type === 'product' && (item as any).isTemp,
     ).length;
@@ -3321,7 +3154,7 @@ export class OrdersService {
     const nextStatus = isPaid ? 'COMPLETED' : 'PROCESSING';
 
     await this.prisma.$transaction(async (tx) => {
-      // Trừ kho từng item thật (Phương án B — item-level tracking)
+      // Trá»« kho tá»«ng item tháº­t (PhÆ°Æ¡ng Ã¡n B â€” item-level tracking)
       for (const item of exportableItems) {
         await this._decrementStockForItem(tx, {
           orderItemId: item.id,
@@ -3343,26 +3176,17 @@ export class OrdersService {
       });
 
       // Create timeline entry
-      await tx.orderTimeline.create({
-        data: {
-          orderId: id,
-          action: 'STOCK_EXPORTED',
-          fromStatus: order.status,
-          toStatus: nextStatus,
-          note: [
-            `Xuất kho lúc ${now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
-            `${exportableItems.length} sản phẩm được trừ kho`,
-            pendingTempCount > 0 ? `${pendingTempCount} sản phẩm tạm chưa đổi` : null,
-            dto.note ?? null,
-          ].filter(Boolean).join(' · '),
-          performedBy: staffId,
-          metadata: {
-            hasServiceItems,
-            exportedItemCount: exportableItems.length,
-            pendingTempCount,
-          } as any,
-        },
-      });
+      await createStockExportTimelineEntry(tx.orderTimeline as any, {
+        orderId: id,
+        fromStatus: order.status,
+        toStatus: nextStatus,
+        note: dto.note ?? null,
+        performedBy: staffId,
+        occurredAt: now,
+        exportedItemCount: exportableItems.length,
+        pendingTempCount,
+        metadata: { hasServiceItems },
+      })
     });
 
     return this.findOne(id, user);
@@ -3384,26 +3208,7 @@ export class OrdersService {
     }
 
     this.assertOrderScope(order, user);
-
-    // Check if order can be settled
-    if (order.status !== 'PROCESSING') {
-      throw new BadRequestException(`Cannot settle order with status ${order.status}. Order must be in PROCESSING status.`);
-    }
-
-    const hasServiceItems = order.items.some((item: any) => item.type === 'grooming' || item.type === 'hotel');
-    if (!hasServiceItems) {
-      throw new BadRequestException('Settle is only available for service orders (grooming/hotel).');
-    }
-
-    // Check if stock has been exported
-    if (!order.stockExportedAt) {
-      throw new BadRequestException('Cannot settle order until stock has been exported.');
-    }
-
-    // Check if order is fully paid
-    if (order.paymentStatus !== 'PAID' && order.paymentStatus !== 'COMPLETED') {
-      throw new BadRequestException('Cannot settle order until it is fully paid.');
-    }
+    assertOrderCanSettle(order);
 
     const now = new Date();
 
@@ -3420,24 +3225,22 @@ export class OrdersService {
       });
 
       // Create timeline entry
-      await tx.orderTimeline.create({
-        data: {
-          orderId: id,
-          action: 'SETTLED',
-          fromStatus: 'PROCESSING',
-          toStatus: 'COMPLETED',
-          note: dto.note ?? null,
-          performedBy: staffId,
-        },
-      });
+      await createOrderTimelineEntry(tx.orderTimeline as any, {
+        orderId: id,
+        action: 'SETTLED',
+        fromStatus: 'PROCESSING',
+        toStatus: 'COMPLETED',
+        note: dto.note ?? null,
+        performedBy: staffId,
+      })
     });
 
     return this.findOne(id, user);
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Timeline
-  // ────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async getTimeline(orderId: string) {
     // Support lookup by UUID or orderNumber
     const order = await this.prisma.order.findFirst({
@@ -3461,8 +3264,8 @@ export class OrdersService {
     return timelines;
   }
 
-  // ─── swapTempItem ───────────────────────────────────────────────────────────
-  // Đổi sản phẩm tạm thành sản phẩm thật; giá phải bằng nhau để giữ tổng đơn
+  // â”€â”€â”€ swapTempItem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Äá»•i sáº£n pháº©m táº¡m thÃ nh sáº£n pháº©m tháº­t; giÃ¡ pháº£i báº±ng nhau Ä‘á»ƒ giá»¯ tá»•ng Ä‘Æ¡n
   async swapTempItem(
     orderId: string,
     itemId: string,
@@ -3475,28 +3278,28 @@ export class OrdersService {
       include: { items: true },
     });
     if (order) this.assertOrderScope(order, user);
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    if (order.status === 'CANCELLED') throw new BadRequestException('Đơn hàng đã bị hủy');
+    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    if (order.status === 'CANCELLED') throw new BadRequestException('ÄÆ¡n hÃ ng Ä‘Ã£ bá»‹ há»§y');
 
     const item = order.items.find((i) => i.id === itemId);
-    if (!item) throw new NotFoundException('Không tìm thấy dòng hàng');
+    if (!item) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y dÃ²ng hÃ ng');
     const isTempItem = (item as any).isTemp === true || (item.type === 'product' && !item.productId && !item.productVariantId);
-    if (!isTempItem) throw new BadRequestException('Dòng hàng này không phải sản phẩm tạm');
+    if (!isTempItem) throw new BadRequestException('DÃ²ng hÃ ng nÃ y khÃ´ng pháº£i sáº£n pháº©m táº¡m');
 
-    // Lấy thông tin sản phẩm thật
+    // Láº¥y thÃ´ng tin sáº£n pháº©m tháº­t
     const realVariant = await this.prisma.productVariant.findUnique({
       where: { id: dto.realProductVariantId },
       include: { product: true },
     });
-    if (!realVariant) throw new NotFoundException('Không tìm thấy biến thể sản phẩm');
+    if (!realVariant) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y biáº¿n thá»ƒ sáº£n pháº©m');
     if (realVariant.productId !== dto.realProductId) {
-      throw new BadRequestException('productId và productVariantId không khớp');
+      throw new BadRequestException('productId vÃ  productVariantId khÃ´ng khá»›p');
     }
 
-    // Kiểm tra giá phải bằng
+    // Kiá»ƒm tra giÃ¡ pháº£i báº±ng
     if (Math.abs(realVariant.price - item.unitPrice) > 0.01) {
       throw new BadRequestException(
-        `Giá sản phẩm thật (${realVariant.price.toLocaleString('vi-VN')}đ) phải bằng giá sản phẩm tạm (${item.unitPrice.toLocaleString('vi-VN')}đ)`,
+        `GiÃ¡ sáº£n pháº©m tháº­t (${realVariant.price.toLocaleString('vi-VN')}Ä‘) pháº£i báº±ng giÃ¡ sáº£n pháº©m táº¡m (${item.unitPrice.toLocaleString('vi-VN')}Ä‘)`,
       );
     }
 
@@ -3520,9 +3323,9 @@ export class OrdersService {
 
     const swapAt = new Date();
 
-    // ─── Phương án B: Tự động xuất kho nếu đơn đã được làm nguồn hàng trước ───
-    // Nếu order.stockExportedAt có giá trị → đơn đã xuất kho rồi
-    // → Item vừa swap cần được trừ kho ngay tại thời điểm swap (không phải lúc bán)
+    // â”€â”€â”€ PhÆ°Æ¡ng Ã¡n B: Tá»± Ä‘á»™ng xuáº¥t kho náº¿u Ä‘Æ¡n Ä‘Ã£ Ä‘Æ°á»£c lÃ m nguá»“n hÃ ng trÆ°á»›c â”€â”€â”€
+    // Náº¿u order.stockExportedAt cÃ³ giÃ¡ trá»‹ â†’ Ä‘Æ¡n Ä‘Ã£ xuáº¥t kho rá»“i
+    // â†’ Item vá»«a swap cáº§n Ä‘Æ°á»£c trá»« kho ngay táº¡i thá»i Ä‘iá»ƒm swap (khÃ´ng pháº£i lÃºc bÃ¡n)
     if (order.stockExportedAt) {
       await this._decrementStockForItem(this.prisma, {
         orderItemId: itemId,
@@ -3533,19 +3336,19 @@ export class OrdersService {
       });
     }
 
-    // Timeline: dùng ITEM_SWAPPED thay vì ITEM_ADDED cho đúng semantic
+    // Timeline: dÃ¹ng ITEM_SWAPPED thay vÃ¬ ITEM_ADDED cho Ä‘Ãºng semantic
     await this.createTimelineEntry({
       orderId,
       action: 'ITEM_SWAPPED',
-      note: `Đổi SP tạm "${oldLabel}" → "${newDescription}"` +
-        (order.stockExportedAt ? ` (đã trừ kho ${item.quantity} × ${newDescription})` : ' (chưa xuất kho — sẽ trừ khi xuất)'),
+      note: `Äá»•i SP táº¡m "${oldLabel}" â†’ "${newDescription}"` +
+        (order.stockExportedAt ? ` (Ä‘Ã£ trá»« kho ${item.quantity} Ã— ${newDescription})` : ' (chÆ°a xuáº¥t kho â€” sáº½ trá»« khi xuáº¥t)'),
       performedBy: staffId,
     });
 
     return this.findOne(orderId, user);
   }
 
-  // ─── createReturnRequest ──────────────────────────────────────────────────
+  // â”€â”€â”€ createReturnRequest â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // T\u1ea1o y\u00eau c\u1ea7u \u0111\u1ed5i tr\u1ea3 h\u00e0ng t\u1eeb \u0111\u01a1n \u0111\u00e3 ho\u00e0n th\u00e0nh.
   // - items c\u00f3 action=RETURN: ghi nh\u1eadn tr\u1ea3 h\u00e0ng, t\u00ednh ti\u1ec1n ho\u00e0n
   // - items c\u00f3 action=EXCHANGE: t\u1ea1o \u0111\u01a1n m\u1edbi v\u1edbi credit pre-applied (\u0111\u1ec3 staff th\u00eam s\u1ea3n ph\u1ea9m v\u00e0o)
@@ -3584,11 +3387,11 @@ export class OrdersService {
       }
     }
 
-    // Tính credit = tổng giá trị items được đổi/trả (theo đơn giá)
+    // TÃ­nh credit = tá»•ng giÃ¡ trá»‹ items Ä‘Æ°á»£c Ä‘á»•i/tráº£ (theo Ä‘Æ¡n giÃ¡)
     let totalCredit = 0;
     for (const reqItem of dto.items) {
       const orderItem = orderItemMap.get(reqItem.orderItemId) as any;
-      // Tính credit theo tỷ lệ: (unitPrice - discountItem/qty) * qty_return
+      // TÃ­nh credit theo tá»· lá»‡: (unitPrice - discountItem/qty) * qty_return
       const effectiveUnitPrice =
         orderItem.unitPrice - (orderItem.discountItem ?? 0) / orderItem.quantity;
       totalCredit += Math.max(0, effectiveUnitPrice * reqItem.quantity);
@@ -3609,7 +3412,7 @@ export class OrdersService {
     const now = new Date();
 
     return this.prisma.$transaction(async (tx) => {
-      // 1. Tạo OrderReturnRequest
+      // 1. Táº¡o OrderReturnRequest
       const returnRequest = await (tx as any).orderReturnRequest.create({
         data: {
           orderId,
@@ -3632,14 +3435,14 @@ export class OrdersService {
         include: { items: true },
       });
 
-      // 2. Cập nhật trạng thái đơn gốc
+      // 2. Cáº­p nháº­t tráº¡ng thÃ¡i Ä‘Æ¡n gá»‘c
       const newStatus = returnType === 'FULL' ? 'RETURNED' : 'PARTIALLY_RETURNED';
       await (tx as any).order.update({
         where: { id: orderId },
         data: { status: newStatus, updatedAt: now },
       });
 
-      // 3. Ghi timeline đơn gốc
+      // 3. Ghi timeline Ä‘Æ¡n gá»‘c
       await (tx as any).orderTimeline.create({
         data: {
           orderId,
@@ -3647,7 +3450,7 @@ export class OrdersService {
           fromStatus: 'COMPLETED',
           toStatus: newStatus,
           note: `\u0110\u1ed5i/tr\u1ea3: ${itemSummary}` +
-            (dto.reason ? ` — L\u00fd do: ${dto.reason}` : '') +
+            (dto.reason ? ` â€” L\u00fd do: ${dto.reason}` : '') +
             `. Credit: ${totalCredit.toLocaleString('vi-VN')}\u0111`,
           performedBy: staffId,
           metadata: {
@@ -3661,7 +3464,7 @@ export class OrdersService {
         },
       });
 
-      // 4. Nếu có EXCHANGE: tạo đơn mới với credit pre-applied
+      // 4. Náº¿u cÃ³ EXCHANGE: táº¡o Ä‘Æ¡n má»›i vá»›i credit pre-applied
       let exchangeOrder: any = null;
       if (hasExchange) {
         const exchangeOrderNumber = await this.generateOrderNumber();
@@ -3700,7 +3503,7 @@ export class OrdersService {
           } as any,
         });
 
-        // Tạo payment record cho credit từ đơn cũ
+        // Táº¡o payment record cho credit tá»« Ä‘Æ¡n cÅ©
         if (creditForExchange > 0) {
           await (tx as any).orderPayment.create({
             data: {
@@ -3714,7 +3517,7 @@ export class OrdersService {
             } as any,
           });
 
-          // Tạo timeline entry cho đơn mới
+          // Táº¡o timeline entry cho Ä‘Æ¡n má»›i
           await (tx as any).orderTimeline.create({
             data: {
               orderId: exchangeOrder.id,

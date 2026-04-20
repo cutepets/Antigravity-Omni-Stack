@@ -1,8 +1,13 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common'
 import * as bcrypt from 'bcryptjs'
+import { extname } from 'path'
 import { DatabaseService } from '../../database/database.service.js'
 import type { AuthUser } from '@petshop/shared'
 import type { DocumentType } from '@petshop/database'
+import {
+  DOCUMENT_UPLOAD_EXTENSIONS,
+  DOCUMENT_UPLOAD_MIME_TYPES,
+} from '../../common/utils/upload.util.js'
 
 export interface CreateStaffDto {
   username: string
@@ -229,25 +234,19 @@ export class StaffService {
       throw new BadRequestException('File size must be less than 10MB')
     }
 
-    // Validate file type
-    const allowedMimeTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ]
-    if (!allowedMimeTypes.includes(file.mimetype)) {
+    const extension = extname(file.originalname).toLowerCase()
+    const mimeType = (file.mimetype || '').toLowerCase()
+    if (!DOCUMENT_UPLOAD_MIME_TYPES.has(mimeType) || !DOCUMENT_UPLOAD_EXTENSIONS.has(extension)) {
       throw new BadRequestException(
         'Invalid file type. Only images (JPEG, PNG, WebP) and PDFs are allowed',
       )
     }
 
-    // Generate file URL (for now, store in local uploads directory)
-    // TODO: Integrate with cloud storage (AWS S3, Cloudinary, etc.)
-    const fileName = `${Date.now()}-${file.originalname}`
-    const fileUrl = `/uploads/documents/${userId}/${fileName}`
+    if (!file.filename) {
+      throw new BadRequestException('Uploaded file is missing filename metadata')
+    }
+
+    const fileUrl = `/uploads/documents/${userId}/${file.filename}`
 
     return this.db.employeeDocument.create({
       data: {

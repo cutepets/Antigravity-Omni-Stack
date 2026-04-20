@@ -27,6 +27,7 @@ import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { RequireModule } from '../../common/decorators/require-module.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
+import { IMAGE_UPLOAD_EXTENSIONS } from '../../common/utils/upload.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { FindPetsDto } from './dto/find-pets.dto.js'
 import { CreatePetDto } from './dto/create-pet.dto.js'
@@ -60,7 +61,8 @@ const imageUploadFileFilter = (
   file: Express.Multer.File,
   cb: (error: Error | null, acceptFile: boolean) => void,
 ) => {
-  if (ALLOWED_PET_IMAGE_MIME_TYPES.has(file.mimetype)) {
+  const extension = extname(file.originalname).toLowerCase()
+  if (ALLOWED_PET_IMAGE_MIME_TYPES.has(file.mimetype) && IMAGE_UPLOAD_EXTENSIONS.has(extension)) {
     cb(null, true)
     return
   }

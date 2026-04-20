@@ -73,16 +73,13 @@ export const petApi = {
 
   uploadAvatar: async (id: string, file: File) => {
     const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
 
     const formData = new FormData()
     formData.append('file', file)
 
     const res = await fetch(`${API_URL}/api/pets/${id}/avatar`, {
       method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      credentials: 'include',
       body: formData,
     })
 
@@ -93,16 +90,13 @@ export const petApi = {
 
   uploadVaccinePhoto: async (petId: string, file: File) => {
     const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
 
     const formData = new FormData()
     formData.append('file', file)
 
     const res = await fetch(`${API_URL}/api/pets/${petId}/vaccinations/photo`, {
       method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      credentials: 'include',
       body: formData,
     })
 

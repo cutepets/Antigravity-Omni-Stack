@@ -7,9 +7,7 @@ const PUBLIC_ROUTES = ['/login', '/forgot-password']
 export function middleware(request: NextRequest) {
   try {
     const { pathname } = request.nextUrl
-    const hasSessionCookie =
-      request.cookies.get(AUTH_SESSION_COOKIE)?.value === '1' ||
-      Boolean(request.cookies.get('access_token')?.value)
+    const hasSessionCookie = request.cookies.get(AUTH_SESSION_COOKIE)?.value === '1'
 
     const isPublic = PUBLIC_ROUTES.some((route) => pathname.startsWith(route))
 

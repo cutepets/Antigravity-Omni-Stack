@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -21,10 +22,15 @@ import { randomUUID } from 'crypto'
 import * as fs from 'fs'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import type { Request } from 'express'
+import { extname } from 'path'
 import type { JwtPayload } from '@petshop/shared'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
+import {
+  DOCUMENT_UPLOAD_EXTENSIONS,
+  DOCUMENT_UPLOAD_MIME_TYPES,
+} from '../../common/utils/upload.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import {
   CreateTransactionDto,
@@ -155,6 +161,17 @@ export class ReportsController {
   @ApiOperation({ summary: 'Tải lên ảnh đính kèm phiếu thu chi' })
   @UseInterceptors(
     FileInterceptor('file', {
+      fileFilter: (_req, file, cb) => {
+        const extension = extname(file.originalname).toLowerCase()
+        const mime = (file.mimetype || '').toLowerCase()
+
+        if (!DOCUMENT_UPLOAD_MIME_TYPES.has(mime) || !DOCUMENT_UPLOAD_EXTENSIONS.has(extension)) {
+          cb(new BadRequestException('Loai tep dinh kem khong hop le') as any, false)
+          return
+        }
+
+        cb(null, true)
+      },
       storage: diskStorage({
         destination: (req, file, cb) => {
           const uploadPath = './uploads/finance'
@@ -165,10 +182,11 @@ export class ReportsController {
         },
         filename: (req, file, cb) => {
           const uniqueSuffix = randomUUID()
-          const ext = file.originalname.split('.').pop()
-          cb(null, `${uniqueSuffix}.${ext}`)
+          const extension = extname(file.originalname).toLowerCase()
+          cb(null, `${uniqueSuffix}${extension}`)
         },
       }),
+      limits: { fileSize: 10 * 1024 * 1024 },
     }),
   )
   uploadTransactionAttachment(

@@ -7,6 +7,7 @@ const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
 export const api = axios.create({
   baseURL: `${API_URL}/api`,
   timeout: 15000,
+  withCredentials: true,
   // NOTE: Do NOT set global Content-Type here — FormData requests need multipart
   // with a boundary that axios sets automatically when no Content-Type is forced.
 })
@@ -16,13 +17,9 @@ api.defaults.headers.common['Content-Type'] = 'application/json'
 
 import { useAuthStore } from '@/stores/auth.store'
 
-// Attach access token from localStorage and Branch ID from store
+// Attach Branch ID from store
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`
-    }
     const branchId = useAuthStore.getState().activeBranchId
     const method = (config.method ?? 'get').toLowerCase()
     const requestedBranchScope = (config.headers as any)?.['X-Use-Branch-Scope']
@@ -46,12 +43,12 @@ api.interceptors.request.use((config) => {
 
 // Auto-refresh on 401
 let isRefreshing = false
-let failedQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = []
+let failedQueue: Array<{ resolve: (value?: void | PromiseLike<void>) => void; reject: (err: unknown) => void }> = []
 
-const processQueue = (error: unknown, token: string | null = null) => {
+const processQueue = (error: unknown) => {
   failedQueue.forEach((prom) => {
     if (error) prom.reject(error)
-    else prom.resolve(token!)
+    else prom.resolve()
   })
   failedQueue = []
 }
@@ -62,48 +59,42 @@ api.interceptors.response.use(
     const originalRequest = error.config
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      const requestUrl = String(originalRequest?.url ?? '')
+      if (requestUrl.includes('/auth/login') || requestUrl.includes('/auth/refresh')) {
+        return Promise.reject(error)
+      }
+
       if (isRefreshing) {
-        return new Promise((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
           failedQueue.push({ resolve, reject })
         })
-          .then((token) => {
-            originalRequest.headers['Authorization'] = `Bearer ${token}`
-            return api(originalRequest)
-          })
+          .then(() => api(originalRequest))
           .catch((err) => Promise.reject(err))
       }
 
       originalRequest._retry = true
       isRefreshing = true
 
-      const refreshToken = localStorage.getItem('refresh_token')
-      if (!refreshToken) {
-        isRefreshing = false
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        clearAuthSessionCookie()
-        window.location.href = '/login'
-        return Promise.reject(error)
-      }
-
       try {
-        const { data } = await axios.post<LoginResponse>(
+        await axios.post<LoginResponse>(
           `${API_URL}/api/auth/refresh`,
-          { refreshToken },
+          {},
+          {
+            withCredentials: true,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
         )
-        localStorage.setItem('access_token', data.accessToken)
-        localStorage.setItem('refresh_token', data.refreshToken)
         setAuthSessionCookie()
-        api.defaults.headers.common['Authorization'] = `Bearer ${data.accessToken}`
-        processQueue(null, data.accessToken)
-        originalRequest.headers['Authorization'] = `Bearer ${data.accessToken}`
+        processQueue(null)
         return api(originalRequest)
       } catch (refreshError) {
-        processQueue(refreshError, null)
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
+        processQueue(refreshError)
         clearAuthSessionCookie()
-        window.location.href = '/login'
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login'
+        }
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false
@@ -119,11 +110,11 @@ export const authApi = {
   login: (username: string, password: string) =>
     api.post<LoginResponse>('/auth/login', { username, password }).then((r) => r.data),
 
-  refresh: (refreshToken: string) =>
-    api.post<LoginResponse>('/auth/refresh', { refreshToken }).then((r) => r.data),
+  refresh: () =>
+    api.post<LoginResponse>('/auth/refresh', {}).then((r) => r.data),
 
-  logout: (refreshToken: string) =>
-    api.post('/auth/logout', { refreshToken }).then((r) => r.data),
+  logout: () =>
+    api.post('/auth/logout', {}).then((r) => r.data),
 
   me: () => api.get<AuthUser>('/auth/me').then((r) => r.data),
 }
@@ -158,16 +149,15 @@ export const settingsApi = {
 // Upload — use native fetch to completely bypass axios Content-Type override
 export const uploadApi = {
     uploadImage: async (file: File): Promise<string> => {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
         const formData = new FormData()
         formData.append('image', file)
 
         // Native fetch sets multipart/form-data + boundary automatically when body is FormData
         const res = await fetch(`${API_URL}/api/upload/image`, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 // DO NOT set Content-Type — fetch injects it with the correct boundary
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: formData,
         })
@@ -179,14 +169,13 @@ export const uploadApi = {
         return data.url as string
     },
     uploadFile: async (file: File): Promise<{ url: string; name: string }> => {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
         const formData = new FormData()
         formData.append('file', file)
 
         const res = await fetch(`${API_URL}/api/upload/file`, {
             method: 'POST',
+            credentials: 'include',
             headers: {
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: formData,
         })
@@ -202,13 +191,11 @@ export const uploadApi = {
         }
     },
     deleteFile: async (url: string): Promise<void> => {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-
         const res = await fetch(`${API_URL}/api/upload/file`, {
             method: 'DELETE',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify({ url }),
         })

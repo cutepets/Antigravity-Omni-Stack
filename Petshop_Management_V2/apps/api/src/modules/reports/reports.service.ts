@@ -2,6 +2,12 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js'
 import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js'
 import { DatabaseService } from '../../database/database.service.js'
+import {
+  buildFinanceTransactionWhere,
+  getFinanceTransactionCapability,
+  normalizeFinanceTransaction,
+} from './application/finance-transactions.application.js'
+import { runFinanceTransactionQuery } from './application/finance-transaction-query.application.js'
 
 type FinanceTransactionType = 'INCOME' | 'EXPENSE'
 type FinanceTransactionSource =
@@ -288,115 +294,30 @@ export class ReportsService {
   }
 
   private getTransactionCapability(tx: { isManual?: boolean | null; source?: string | null; createdAt?: Date | string | null }): TransactionCapability {
-    const isManual = tx.isManual ?? tx.source === 'MANUAL'
-    const createdAt = tx.createdAt ? new Date(tx.createdAt) : null
-    const createdAtMs = createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.getTime() : Date.now()
-
-    if (!isManual) {
-      return {
-        editScope: 'NOTES_ONLY',
-        canDelete: false,
-        lockReason: 'Phiếu đồng bộ chỉ được cập nhật ghi chú.',
-      }
-    }
-
-    if (Date.now() - createdAtMs <= MANUAL_FULL_EDIT_WINDOW_MS) {
-      return {
-        editScope: 'FULL',
-        canDelete: true,
-        lockReason: null,
-      }
-    }
-
-    return {
-      editScope: 'NOTES_ONLY',
-      canDelete: false,
-      lockReason: 'Phiếu tự tạo chỉ được sửa hoặc xóa toàn bộ trong 24 giờ đầu. Sau đó chỉ còn sửa ghi chú.',
-    }
+    return getFinanceTransactionCapability(tx, {
+      manualFullEditWindowMs: MANUAL_FULL_EDIT_WINDOW_MS,
+    })
   }
 
   private normalizeTransaction(tx: any) {
-    const capability = this.getTransactionCapability(tx)
-
-    return {
-      id: tx.id,
-      voucherNumber: tx.voucherNumber,
-      type: tx.type,
-      amount: tx.amount,
-      description: tx.description,
-      category: tx.category ?? null,
-      paymentMethod: tx.paymentMethod ?? null,
-      paymentAccountId: tx.paymentAccountId ?? null,
-      paymentAccountLabel: tx.paymentAccountLabel ?? null,
-      branchId: tx.branchId ?? null,
-      branchName: tx.branchName ?? tx.branch?.name ?? null,
-      payerId: tx.payerId ?? null,
-      payerName: tx.payerName ?? null,
-      refType: tx.refType ?? null,
-      refId: tx.refId ?? null,
-      refNumber: tx.refNumber ?? null,
-      notes: tx.notes ?? null,
-      tags: tx.tags ?? null,
-      source: tx.source ?? 'OTHER',
-      isManual: tx.isManual ?? (tx.source === 'MANUAL'),
-      attachmentUrl: tx.attachmentUrl ?? null,
-      editScope: capability.editScope,
-      canDelete: capability.canDelete,
-      lockReason: capability.lockReason,
-      date: tx.date,
-      createdAt: tx.createdAt,
-      updatedAt: tx.updatedAt,
-      createdBy: tx.staff
-        ? {
-            id: tx.staff.id,
-            name: tx.staff.fullName,
-          }
-        : null,
-    }
+    return normalizeFinanceTransaction(tx, {
+      manualFullEditWindowMs: MANUAL_FULL_EDIT_WINDOW_MS,
+    })
   }
 
   private buildTransactionWhere(
     query: FindTransactionsDto,
     options?: { beforeDate?: Date; user?: BranchScopedUser; requestedBranchId?: string | null },
   ) {
-    const where: any = {}
     const branchIdFilter = this.getBranchIdFilter(options?.user, query.branchId ?? options?.requestedBranchId)
-
-    if (query.type && query.type !== 'ALL') where.type = query.type
-    if (query.createdById) where.staffId = query.createdById
-    if (branchIdFilter !== undefined) where.branchId = branchIdFilter
-    if (query.paymentMethod?.trim()) {
-      const normalizedPaymentFilter = query.paymentMethod.trim()
-      const upperPaymentFilter = normalizedPaymentFilter.toUpperCase()
-      if (LEGACY_PAYMENT_METHOD_TYPES.has(upperPaymentFilter)) {
-        where.paymentMethod = upperPaymentFilter
-      } else {
-        where.paymentAccountId = normalizedPaymentFilter
-      }
-    }
-    if (query.source && query.source !== 'ALL') where.source = query.source
-    if (query.refNumber?.trim()) where.refNumber = { contains: query.refNumber.trim(), mode: 'insensitive' }
-    if (query.description?.trim()) where.description = { contains: query.description.trim(), mode: 'insensitive' }
-    if (query.payerName?.trim()) where.payerName = { contains: query.payerName.trim(), mode: 'insensitive' }
-
-    if (options?.beforeDate) {
-      where.date = { lt: options.beforeDate }
-    } else if (query.dateFrom || query.dateTo) {
-      where.date = {}
-      if (query.dateFrom) where.date.gte = startOfDay(query.dateFrom)
-      if (query.dateTo) where.date.lte = endOfDay(query.dateTo)
-    }
-
-    const searchTerms = query.search?.trim().split(/\s+/).filter(Boolean) ?? []
-    if (searchTerms.length > 0) {
-      where.AND = searchTerms.map((term) => ({
-        OR: SEARCHABLE_FIELDS.map((field) => ({
-          [field]: { contains: term, mode: 'insensitive' },
-        })),
-      }))
-    }
-
-    return where
+    return buildFinanceTransactionWhere(query, {
+      branchIdFilter,
+      beforeDate: options?.beforeDate,
+      searchableFields: SEARCHABLE_FIELDS,
+      legacyPaymentMethodTypes: LEGACY_PAYMENT_METHOD_TYPES,
+      startOfDay,
+      endOfDay,
+    })
   }
 
   private resolveDateRange(dateFrom?: string | null, dateTo?: string | null) {
@@ -1089,7 +1010,6 @@ export class ReportsService {
   async findTransactions(query: FindTransactionsDto, user?: BranchScopedUser, requestedBranchId?: string) {
     const page = toPositiveInt(query.page, 1)
     const limit = toPositiveInt(query.limit, 20)
-    const skip = (page - 1) * limit
     const branchIdFilter = this.getBranchIdFilter(user, query.branchId ?? requestedBranchId)
     const where = this.buildTransactionWhere(query, {
       ...(user ? { user } : {}),
@@ -1104,125 +1024,18 @@ export class ReportsService {
       : null
     const includeMeta = toBoolean(query.includeMeta, true)
 
-    const listPromise = Promise.all([
-      this.db.transaction.findMany({
+    return runFinanceTransactionQuery(
+      this.db,
+      { page, limit, includeMeta },
+      {
+        branchIdFilter,
         where,
-        skip,
-        take: limit,
-        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-        include: {
-          staff: { select: { id: true, fullName: true } },
-          branch: { select: { id: true, name: true } },
-        },
-      }),
-      this.db.transaction.count({ where }),
-      this.db.transaction.aggregate({
-        where: { ...where, type: 'INCOME' },
-        _sum: { amount: true },
-      }),
-      this.db.transaction.aggregate({
-        where: { ...where, type: 'EXPENSE' },
-        _sum: { amount: true },
-      }),
-      openingWhere
-        ? this.db.transaction.aggregate({
-            where: { ...openingWhere, type: 'INCOME' },
-            _sum: { amount: true },
-          })
-        : Promise.resolve({ _sum: { amount: 0 } }),
-      openingWhere
-        ? this.db.transaction.aggregate({
-            where: { ...openingWhere, type: 'EXPENSE' },
-            _sum: { amount: true },
-          })
-        : Promise.resolve({ _sum: { amount: 0 } }),
-    ])
-
-    const metaPromise = includeMeta
-      ? Promise.all([
-          this.db.branch.findMany({
-            where: {
-              isActive: true,
-              ...(branchIdFilter !== undefined ? { id: branchIdFilter } : {}),
-            },
-            select: { id: true, name: true },
-            orderBy: { name: 'asc' },
-          }),
-          this.db.user.findMany({
-            where: {
-              transactions: {
-                some: branchIdFilter !== undefined ? { branchId: branchIdFilter } : {},
-              },
-            },
-            select: { id: true, fullName: true },
-            orderBy: { fullName: 'asc' },
-          }),
-          this.db.transaction.findMany({
-            where: {
-              ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
-              OR: [{ paymentAccountId: { not: null } }, { paymentMethod: { not: null } }],
-            },
-            select: {
-              paymentMethod: true,
-              paymentAccountId: true,
-              paymentAccountLabel: true,
-            },
-            orderBy: [{ paymentAccountLabel: 'asc' }, { paymentMethod: 'asc' }],
-          }),
-          this.db.transaction.findMany({
-            where: {
-              ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
-            },
-            select: { source: true },
-            distinct: ['source'],
-          }),
-        ])
-      : Promise.resolve(null)
-
-    const [[rows, total, incomeAgg, expenseAgg, openingIncomeAgg, openingExpenseAgg], metaResult] =
-      await Promise.all([listPromise, metaPromise])
-
-    const openingBalance = (openingIncomeAgg._sum.amount ?? 0) - (openingExpenseAgg._sum.amount ?? 0)
-    const totalIncome = incomeAgg._sum.amount ?? 0
-    const totalExpense = expenseAgg._sum.amount ?? 0
-    const closingBalance = openingBalance + totalIncome - totalExpense
-
-    const data: any = {
-      transactions: rows.map((tx) => this.normalizeTransaction(tx)),
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-      openingBalance,
-      totalIncome,
-      totalExpense,
-      closingBalance,
-    }
-
-    if (metaResult) {
-      const [branches, creators, paymentMethods, sources] = metaResult
-      const paymentMethodOptions = Array.from(
-        paymentMethods.reduce((map, item) => {
-          const value = item.paymentAccountId ?? item.paymentMethod
-          const label = item.paymentAccountLabel ?? item.paymentMethod
-          if (value && label && !map.has(value)) {
-            map.set(value, label)
-          }
-          return map
-        }, new Map<string, string>()),
-      )
-        .map(([value, label]) => ({ value, label }))
-        .sort((left, right) => left.label.localeCompare(right.label, 'vi'))
-
-      data.meta = {
-        branches,
-        paymentMethods: paymentMethodOptions,
-        creators: creators.map((item) => ({ id: item.id, name: item.fullName })),
-        sources: Array.from(new Set([...TRANSACTION_SOURCES, ...sources.map((item) => item.source).filter(Boolean)])).sort(),
-      }
-    }
-
-    return { success: true, data }
+        openingWhere,
+        includeMeta,
+        transactionSources: TRANSACTION_SOURCES,
+        normalizeTransaction: (tx) => this.normalizeTransaction(tx),
+      },
+    )
   }
 
   async createTransaction(

@@ -16,6 +16,11 @@ import { FileInterceptor } from '@nestjs/platform-express'
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import {
+  createDiskUploadOptions,
+  DOCUMENT_UPLOAD_EXTENSIONS,
+  DOCUMENT_UPLOAD_MIME_TYPES,
+} from '../../common/utils/upload.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CreateStaffDto, StaffService, UpdateStaffDto } from './staff.service.js'
 import { UploadDocumentDto } from './dto/document.dto.js'
@@ -59,7 +64,18 @@ export class StaffController {
   }
 
   @Post(':id/documents/upload')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor(
+      'file',
+      createDiskUploadOptions({
+        destination: (req) => `uploads/documents/${req.params['id'] ?? 'unknown'}`,
+        allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
+        allowedExtensions: DOCUMENT_UPLOAD_EXTENSIONS,
+        maxFileSize: 10 * 1024 * 1024,
+        errorMessage: 'Chi chap nhan pdf, doc, docx, xls, xlsx hoac anh',
+      }),
+    ),
+  )
   @Permissions('staff.update')
   @ApiOperation({ summary: 'Tải lên tài liệu cho nhân viên' })
   @ApiConsumes('multipart/form-data')

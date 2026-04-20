@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -15,12 +14,16 @@ import {
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger'
-import { randomUUID } from 'crypto'
-import { unlink } from 'fs/promises'
-import { diskStorage } from 'multer'
-import { extname, resolve } from 'path'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import {
+  createDiskUploadOptions,
+  deleteUploadedFile,
+  DOCUMENT_UPLOAD_EXTENSIONS,
+  DOCUMENT_UPLOAD_MIME_TYPES,
+  IMAGE_UPLOAD_EXTENSIONS,
+  IMAGE_UPLOAD_MIME_TYPES,
+} from '../../common/utils/upload.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard'
 import { PaymentWebhookService } from '../orders/payment-webhook.service.js'
 import {
@@ -40,45 +43,7 @@ import {
   UpdatePrintTemplateDto,
 } from './settings.service'
 
-const ALLOWED_IMAGE_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/svg+xml',
-])
-
-const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg'])
-const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-])
-const ALLOWED_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.webp'])
 const DOCUMENT_UPLOAD_PREFIX = '/uploads/files/'
-const DOCUMENT_UPLOAD_ROOT = resolve(process.cwd(), 'uploads/files')
-
-function resolveDocumentUploadPath(url: string) {
-  const normalizedUrl = String(url ?? '').trim()
-  if (!normalizedUrl.startsWith(DOCUMENT_UPLOAD_PREFIX)) {
-    throw new BadRequestException('Đường dẫn tài liệu không hợp lệ')
-  }
-
-  const fileName = normalizedUrl.slice(DOCUMENT_UPLOAD_PREFIX.length).trim()
-  if (!fileName || fileName.includes('/') || fileName.includes('\\') || fileName.includes('..')) {
-    throw new BadRequestException('Tên file tài liệu không hợp lệ')
-  }
-
-  return {
-    fileName,
-    absolutePath: resolve(DOCUMENT_UPLOAD_ROOT, fileName),
-  }
-}
 
 @ApiTags('Settings')
 @Controller()
@@ -378,27 +343,16 @@ export class SettingsController {
   @ApiOperation({ summary: 'Upload ảnh' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
-    FileInterceptor('image', {
-      fileFilter: (_req, file, cb) => {
-        const ext = extname(file.originalname).toLowerCase()
-        const mime = (file.mimetype || '').toLowerCase()
-
-        if (!ALLOWED_IMAGE_MIME_TYPES.has(mime) || !ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
-          cb(new BadRequestException('Chỉ chấp nhận file ảnh (jpg, png, webp, gif, svg)') as any, false)
-          return
-        }
-
-        cb(null, true)
-      },
-      storage: diskStorage({
-        destination: './uploads/images',
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname)
-          cb(null, `${randomUUID()}${ext}`)
-        },
+    FileInterceptor(
+      'image',
+      createDiskUploadOptions({
+        destination: 'uploads/images',
+        allowedMimeTypes: IMAGE_UPLOAD_MIME_TYPES,
+        allowedExtensions: IMAGE_UPLOAD_EXTENSIONS,
+        maxFileSize: 50 * 1024 * 1024,
+        errorMessage: 'Chỉ chấp nhận file ảnh (jpg, png, webp, gif, svg)',
       }),
-      limits: { fileSize: 50 * 1024 * 1024 },
-    }),
+    ),
   )
   uploadImage(@UploadedFile() file: Express.Multer.File) {
     if (!file) return { success: false, message: 'Không tìm thấy file ảnh' }
@@ -410,27 +364,16 @@ export class SettingsController {
   @ApiOperation({ summary: 'Upload tài liệu' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
-    FileInterceptor('file', {
-      fileFilter: (_req, file, cb) => {
-        const ext = extname(file.originalname).toLowerCase()
-        const mime = (file.mimetype || '').toLowerCase()
-
-        if (!ALLOWED_DOCUMENT_MIME_TYPES.has(mime) || !ALLOWED_DOCUMENT_EXTENSIONS.has(ext)) {
-          cb(new BadRequestException('Chỉ chấp nhận pdf, doc, docx, xls, xlsx hoặc ảnh') as any, false)
-          return
-        }
-
-        cb(null, true)
-      },
-      storage: diskStorage({
-        destination: './uploads/files',
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname)
-          cb(null, `${randomUUID()}${ext}`)
-        },
+    FileInterceptor(
+      'file',
+      createDiskUploadOptions({
+        destination: 'uploads/files',
+        allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
+        allowedExtensions: DOCUMENT_UPLOAD_EXTENSIONS,
+        maxFileSize: 50 * 1024 * 1024,
+        errorMessage: 'Chỉ chấp nhận pdf, doc, docx, xls, xlsx hoặc ảnh',
       }),
-      limits: { fileSize: 50 * 1024 * 1024 },
-    }),
+    ),
   )
   uploadFile(@UploadedFile() file: Express.Multer.File) {
     if (!file) return { success: false, message: 'Không tìm thấy file tài liệu' }
@@ -441,15 +384,10 @@ export class SettingsController {
   @Permissions('settings.app.update', 'supplier.create', 'supplier.update')
   @ApiOperation({ summary: 'Xóa tài liệu đã upload' })
   async deleteFile(@Body('url') url: string) {
-    const { absolutePath } = resolveDocumentUploadPath(url)
-
-    try {
-      await unlink(absolutePath)
-    } catch (error: any) {
-      if (error?.code !== 'ENOENT') {
-        throw new BadRequestException('Không thể xóa file tài liệu')
-      }
-    }
+    await deleteUploadedFile(url, {
+      publicPrefix: DOCUMENT_UPLOAD_PREFIX,
+      rootDir: 'uploads/files',
+    })
 
     return { success: true }
   }
