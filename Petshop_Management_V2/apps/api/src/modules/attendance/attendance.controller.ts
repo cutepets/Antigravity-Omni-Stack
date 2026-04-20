@@ -2,8 +2,11 @@ import { Controller, Get, Post, Body, Param, Query, Patch, Request, UseGuards } 
 import { AttendanceService } from './attendance.service';
 import { ClockInDto, ClockOutDto, ManualAttendanceDto, ReviewAttendanceDto, BulkReviewDto } from './dto/clock.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard.js';
+import { RequireModule } from '../../common/decorators/require-module.decorator.js';
+import { ModuleGuard } from '../../common/guards/module.guard.js';
 
-@UseGuards(JwtGuard)
+@RequireModule('attendance')
+@UseGuards(JwtGuard, ModuleGuard)
 @Controller('attendance')
 export class AttendanceController {
     constructor(private readonly service: AttendanceService) { }

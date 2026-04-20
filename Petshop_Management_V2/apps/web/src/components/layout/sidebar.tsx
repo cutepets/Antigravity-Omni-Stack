@@ -169,6 +169,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/attendance',
         allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
         anyPermissions: ['attendance.read', 'attendance.manage'],
+        moduleKey: 'attendance',
       },
       {
         label: 'Bảng lương',
@@ -176,6 +177,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/payroll',
         allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
         anyPermissions: ['payroll.read', 'payroll.manage'],
+        moduleKey: 'payroll',
       },
       {
         label: 'Thưởng phạt',
@@ -183,6 +185,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/rewards',
         allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
         anyPermissions: ['staff.read'],
+        moduleKey: 'rewards',
       },
     ],
   },

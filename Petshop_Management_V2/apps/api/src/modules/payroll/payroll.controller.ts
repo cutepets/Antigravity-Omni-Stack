@@ -2,8 +2,11 @@ import { Controller, Get, Post, Body, Param, Patch, Request, UseGuards, Query } 
 import { PayrollService } from './payroll.service';
 import { CreatePayrollPeriodDto, CalculatePayrollDto, UpdateSlipDto } from './dto/payroll.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard.js';
+import { RequireModule } from '../../common/decorators/require-module.decorator.js';
+import { ModuleGuard } from '../../common/guards/module.guard.js';
 
-@UseGuards(JwtGuard)
+@RequireModule('payroll')
+@UseGuards(JwtGuard, ModuleGuard)
 @Controller('payroll')
 export class PayrollController {
     constructor(private readonly service: PayrollService) { }

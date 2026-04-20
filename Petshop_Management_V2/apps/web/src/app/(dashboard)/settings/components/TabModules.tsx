@@ -23,6 +23,9 @@ const MODULE_ACCENT: Record<string, { from: string; to: string; ring: string }> 
     pet: { from: 'from-violet-500/20', to: 'to-pink-500/10', ring: 'ring-violet-500/30' },
     hotel: { from: 'from-sky-500/20', to: 'to-blue-500/10', ring: 'ring-sky-500/30' },
     grooming: { from: 'from-emerald-500/20', to: 'to-teal-500/10', ring: 'ring-emerald-500/30' },
+    attendance: { from: 'from-amber-500/20', to: 'to-yellow-500/10', ring: 'ring-amber-500/30' },
+    payroll: { from: 'from-green-500/20', to: 'to-emerald-500/10', ring: 'ring-green-500/30' },
+    rewards: { from: 'from-rose-500/20', to: 'to-orange-500/10', ring: 'ring-rose-500/30' },
 }
 
 function ModuleCard({

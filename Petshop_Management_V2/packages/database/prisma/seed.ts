@@ -1364,6 +1364,9 @@ async function main() {
     { key: 'pet', displayName: 'Quản lý Thú cưng', description: 'Hồ sơ thú cưng, lịch sử sức khỏe, tiêm phòng', isActive: true, icon: '🐾', sortOrder: 1 },
     { key: 'hotel', displayName: 'Hotel Thú cưng', description: 'Dịch vụ lưu trú ngắn và dài hạn cho thú cưng', isActive: true, icon: '🏨', sortOrder: 2 },
     { key: 'grooming', displayName: 'Grooming & Spa', description: 'Dịch vụ làm đẹp, tắm sấy và chăm sóc lông', isActive: true, icon: '✂️', sortOrder: 3 },
+    { key: 'attendance', displayName: 'Chấm công', description: 'Quản lý chấm công, ca làm việc và xét duyệt giờ công', isActive: true, icon: '⏱️', sortOrder: 4 },
+    { key: 'payroll', displayName: 'Bảng lương', description: 'Tính lương, duyệt kỳ lương và xuất phiếu lương nhân viên', isActive: true, icon: '💰', sortOrder: 5 },
+    { key: 'rewards', displayName: 'Thưởng phạt', description: 'Quản lý thưởng, phạt và các khoản điều chỉnh lương', isActive: true, icon: '🎁', sortOrder: 6 },
   ]
   for (const seed of moduleSeeds) {
     await prisma.moduleConfig.upsert({
@@ -1385,7 +1388,7 @@ async function main() {
   console.log('✓ Receipts:     30')
   console.log('✓ Orders:       50')
   console.log('✓ Transactions: 50+ (Auto + 10 Manual)')
-  console.log('✓ Modules:       3 (pet, hotel, grooming)')
+  console.log('✓ Modules:       6 (pet, hotel, grooming, attendance, payroll, rewards)')
 }
 
 main()
