@@ -1,2 +1,2 @@
-export * from './prisma.service.js'
+export * from './prisma.service'
 export * from '@prisma/client'

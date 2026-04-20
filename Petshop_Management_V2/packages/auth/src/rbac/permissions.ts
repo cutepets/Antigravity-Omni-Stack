@@ -3,7 +3,7 @@ import {
   ALL_PERMISSION_CODES,
   LEGACY_PERMISSION_ALIASES,
   expandPermissionCodes,
-} from './permission-catalog.js'
+} from './permission-catalog'
 
 export type Permission = string
 

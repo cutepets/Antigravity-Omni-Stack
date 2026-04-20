@@ -203,13 +203,6 @@ export class OrdersController {
     return this.ordersService.findOne(id, req.user)
   }
 
-  @Get(':id/timeline')
-  @Permissions('order.read.all', 'order.read.assigned')
-  getTimeline(@Param('id') id: string): Promise<any> {
-    return this.ordersService.getTimeline(id)
-  }
-
-
   @Post(':id/export-stock')
   @Permissions('order.export_stock')
   exportStock(

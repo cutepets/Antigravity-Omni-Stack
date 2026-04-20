@@ -1,2 +1,2 @@
-export * from './env.schema.js'
-export * from './app.config.js'
+export * from './env.schema'
+export * from './app.config'
