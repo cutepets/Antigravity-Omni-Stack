@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -87,7 +88,7 @@ export class SettingsController {
   constructor(
     private readonly settingsService: SettingsService,
     private readonly paymentWebhookService: PaymentWebhookService,
-  ) {}
+  ) { }
 
   @Get('settings/configs')
   @Permissions('settings.app.read')
@@ -451,5 +452,24 @@ export class SettingsController {
     }
 
     return { success: true }
+  }
+
+  // ─── Module Config ──────────────────────────────────────────────────────────
+
+  @Get('settings/modules')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Lấy danh sách module' })
+  async getModules() {
+    return this.settingsService.getModules()
+  }
+
+  @Patch('settings/modules/:key')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Bật/tắt module' })
+  async toggleModule(
+    @Param('key') key: string,
+    @Body('isActive') isActive: boolean,
+  ) {
+    return this.settingsService.toggleModule(key, isActive)
   }
 }

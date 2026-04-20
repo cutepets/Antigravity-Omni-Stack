@@ -137,7 +137,7 @@ export function PosCartRow({
                                             const newTrueVariant = displayTrueVariants.find((variant: any) => variant.id === newTrueVariantId);
                                             if (newTrueVariant && allConversionVariants) {
                                                 const currentConversionLabel = normalizeLabel(getVariantOptionText(item.description, currentVariantObj));
-                                                const newTrueVariantLabel = normalizeLabel(newTrueVariant.variantLabel);
+                                                const newTrueVariantLabel = normalizeLabel(newTrueVariant.variantLabel as string | null | undefined);
                                                 const matchingConversion = allConversionVariants.find((conversion: any) =>
                                                     normalizeLabel(getVariantOptionText(item.description, conversion)) === currentConversionLabel &&
                                                     normalizeLabel(conversion.variantLabel) === newTrueVariantLabel,

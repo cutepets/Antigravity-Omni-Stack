@@ -1624,4 +1624,39 @@ export class SettingsService {
     ])
     return { success: true, data: { todayCount, totalCount } }
   }
+
+  // ─── Module Config ──────────────────────────────────────────────────────────
+
+  async getModules() {
+    const db = this.db as any
+    const modules = await db.moduleConfig.findMany({
+      orderBy: { sortOrder: 'asc' },
+    })
+    return { success: true, data: modules }
+  }
+
+  async toggleModule(key: string, isActive: boolean) {
+    const db = this.db as any
+    const module = await db.moduleConfig.findUnique({ where: { key } })
+    if (!module) throw new NotFoundException(`Module "${key}" không tồn tại`)
+    if (module.isCore) throw new BadRequestException(`Module "${key}" là module cốt lõi, không thể tắt`)
+
+    const updated = await db.moduleConfig.update({
+      where: { key },
+      data: { isActive },
+    })
+    return { success: true, data: updated }
+  }
+
+  async isModuleActive(key: string): Promise<boolean> {
+    const db = this.db as any
+    const module = await db.moduleConfig.findUnique({
+      where: { key },
+      select: { isActive: true, isCore: true },
+    })
+    // Module không tồn tại trong DB → coi như chưa cài, cho phép access
+    if (!module) return true
+    if (module.isCore) return true
+    return Boolean(module.isActive)
+  }
 }

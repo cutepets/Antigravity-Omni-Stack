@@ -2243,3 +2243,24 @@ enum SlipStatus {
   DRAFT
   FINALIZED
 }
+
+// =============================================================================
+// MODULE CONFIG — Quản lý bật/tắt module phụ (pet, hotel, grooming...)
+// =============================================================================
+
+model ModuleConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique  // "pet" | "hotel" | "grooming" | ...
+  displayName String
+  description String?
+  isActive    Boolean  @default(true)
+  isCore      Boolean  @default(false)  // core modules cannot be toggled off
+  version     String   @default("1.0.0")
+  icon        String?  // emoji hoặc icon name
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("module_configs")
+}

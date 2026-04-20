@@ -93,51 +93,51 @@ const productSeeds = [
 
 const customerSeeds = [
   // --- VIP tier (6 khách) ---
-  { name: 'Trần Minh Anh',   phone: '0901111001', tier: 'PLATINUM', group: 'VIP',   debt: 0 },
-  { name: 'Lê Thị Bảo Châu', phone: '0901111002', tier: 'PLATINUM', group: 'VIP',   debt: 0 },
-  { name: 'Nguyễn Hoàng Nam', phone: '0901111003', tier: 'PLATINUM', group: 'VIP',   debt: 350000 },
-  { name: 'Phạm Gia Hân',    phone: '0901111004', tier: 'PLATINUM', group: 'VIP',   debt: 0 },
-  { name: 'Đoàn Thanh Vỹ',   phone: '0901111005', tier: 'PLATINUM', group: 'VIP',   debt: 0 },
-  { name: 'Võ Quốc Huy',     phone: '0901111006', tier: 'PLATINUM', group: 'VIP',   debt: 0 },
+  { name: 'Trần Minh Anh', phone: '0901111001', tier: 'PLATINUM', group: 'VIP', debt: 0 },
+  { name: 'Lê Thị Bảo Châu', phone: '0901111002', tier: 'PLATINUM', group: 'VIP', debt: 0 },
+  { name: 'Nguyễn Hoàng Nam', phone: '0901111003', tier: 'PLATINUM', group: 'VIP', debt: 350000 },
+  { name: 'Phạm Gia Hân', phone: '0901111004', tier: 'PLATINUM', group: 'VIP', debt: 0 },
+  { name: 'Đoàn Thanh Vỹ', phone: '0901111005', tier: 'PLATINUM', group: 'VIP', debt: 0 },
+  { name: 'Võ Quốc Huy', phone: '0901111006', tier: 'PLATINUM', group: 'VIP', debt: 0 },
 
   // --- GOLD tier / Spa Care (10 khách) ---
-  { name: 'Nguyễn Kim Anh',  phone: '0901111007', tier: 'GOLD', group: 'SPA', debt: 0 },
-  { name: 'Đặng Phương Linh',phone: '0901111008', tier: 'GOLD', group: 'SPA', debt: 180000 },
-  { name: 'Bùi Tuấn Kiệt',  phone: '0901111009', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Nguyễn Kim Anh', phone: '0901111007', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Đặng Phương Linh', phone: '0901111008', tier: 'GOLD', group: 'SPA', debt: 180000 },
+  { name: 'Bùi Tuấn Kiệt', phone: '0901111009', tier: 'GOLD', group: 'SPA', debt: 0 },
   { name: 'Cao Mỹ Duyên KH', phone: '0901111010', tier: 'GOLD', group: 'SPA', debt: 0 },
-  { name: 'Ngô Đức Long',    phone: '0901111011', tier: 'GOLD', group: 'SPA', debt: 0 },
-  { name: 'Vũ Thanh Mai',    phone: '0901111012', tier: 'GOLD', group: 'SPA', debt: 0 },
-  { name: 'Lý Cẩm Tú',      phone: '0901111013', tier: 'GOLD', group: 'SPA', debt: 0 },
-  { name: 'Huỳnh Đăng Duy',  phone: '0901111014', tier: 'GOLD', group: 'SPA', debt: 225000 },
-  { name: 'Phan Hoài Phúc',  phone: '0901111015', tier: 'GOLD', group: 'SPA', debt: 0 },
-  { name: 'Lê Khánh Chi',    phone: '0901111016', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Ngô Đức Long', phone: '0901111011', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Vũ Thanh Mai', phone: '0901111012', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Lý Cẩm Tú', phone: '0901111013', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Huỳnh Đăng Duy', phone: '0901111014', tier: 'GOLD', group: 'SPA', debt: 225000 },
+  { name: 'Phan Hoài Phúc', phone: '0901111015', tier: 'GOLD', group: 'SPA', debt: 0 },
+  { name: 'Lê Khánh Chi', phone: '0901111016', tier: 'GOLD', group: 'SPA', debt: 0 },
 
   // --- GOLD tier / Hotel Care (8 khách) ---
-  { name: 'Trương Gia Bảo',  phone: '0901111017', tier: 'GOLD',   group: 'HOTEL', debt: 0 },
-  { name: 'Phạm Tấn Tài',    phone: '0901111018', tier: 'GOLD',   group: 'HOTEL', debt: 0 },
-  { name: 'Dương Thu Hà',    phone: '0901111019', tier: 'GOLD',   group: 'HOTEL', debt: 0 },
-  { name: 'Lâm Nhã Uyên KH', phone: '0901111020', tier: 'GOLD',   group: 'HOTEL', debt: 120000 },
-  { name: 'Châu Mạnh Cường', phone: '0901111021', tier: 'GOLD',   group: 'HOTEL', debt: 0 },
-  { name: 'Tôn Nhật Hà',     phone: '0901111022', tier: 'SILVER', group: 'HOTEL', debt: 0 },
-  { name: 'Ngô Bảo Trâm',    phone: '0901111023', tier: 'SILVER', group: 'HOTEL', debt: 0 },
-  { name: 'Đinh Phú Cường',  phone: '0901111024', tier: 'SILVER', group: 'HOTEL', debt: 0 },
+  { name: 'Trương Gia Bảo', phone: '0901111017', tier: 'GOLD', group: 'HOTEL', debt: 0 },
+  { name: 'Phạm Tấn Tài', phone: '0901111018', tier: 'GOLD', group: 'HOTEL', debt: 0 },
+  { name: 'Dương Thu Hà', phone: '0901111019', tier: 'GOLD', group: 'HOTEL', debt: 0 },
+  { name: 'Lâm Nhã Uyên KH', phone: '0901111020', tier: 'GOLD', group: 'HOTEL', debt: 120000 },
+  { name: 'Châu Mạnh Cường', phone: '0901111021', tier: 'GOLD', group: 'HOTEL', debt: 0 },
+  { name: 'Tôn Nhật Hà', phone: '0901111022', tier: 'SILVER', group: 'HOTEL', debt: 0 },
+  { name: 'Ngô Bảo Trâm', phone: '0901111023', tier: 'SILVER', group: 'HOTEL', debt: 0 },
+  { name: 'Đinh Phú Cường', phone: '0901111024', tier: 'SILVER', group: 'HOTEL', debt: 0 },
 
   // --- SILVER/BRONZE / Thành viên thường (16 khách) ---
-  { name: 'Hoàng Thị Lan',   phone: '0901111025', tier: 'SILVER', group: 'LOYAL', debt: 0 },
-  { name: 'Đỗ Văn Minh',     phone: '0901111026', tier: 'SILVER', group: 'LOYAL', debt: 0 },
-  { name: 'Bạch Thị Ngọc',   phone: '0901111027', tier: 'SILVER', group: 'LOYAL', debt: 75000 },
-  { name: 'Trịnh Hoài Nam',  phone: '0901111028', tier: 'SILVER', group: 'LOYAL', debt: 0 },
-  { name: 'Lưu Thị Hương',   phone: '0901111029', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
-  { name: 'Hà Văn Tùng',     phone: '0901111030', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
-  { name: 'Kiều Thị Thảo',   phone: '0901111031', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Hoàng Thị Lan', phone: '0901111025', tier: 'SILVER', group: 'LOYAL', debt: 0 },
+  { name: 'Đỗ Văn Minh', phone: '0901111026', tier: 'SILVER', group: 'LOYAL', debt: 0 },
+  { name: 'Bạch Thị Ngọc', phone: '0901111027', tier: 'SILVER', group: 'LOYAL', debt: 75000 },
+  { name: 'Trịnh Hoài Nam', phone: '0901111028', tier: 'SILVER', group: 'LOYAL', debt: 0 },
+  { name: 'Lưu Thị Hương', phone: '0901111029', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Hà Văn Tùng', phone: '0901111030', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Kiều Thị Thảo', phone: '0901111031', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
   { name: 'Vương Minh Hiếu', phone: '0901111032', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
-  { name: 'Quách Thị Ngân',  phone: '0901111033', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
-  { name: 'Tạ Văn Đức',      phone: '0901111034', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
-  { name: 'Mã Thị Liên',     phone: '0901111035', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
-  { name: 'Sơn Thị Thúy',    phone: '0901111036', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
-  { name: 'Dư Văn Hải',      phone: '0901111037', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
-  { name: 'Vòng Thị Kiều',   phone: '0901111038', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
-  { name: 'Ân Thị Ngọc',     phone: '0901111039', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Quách Thị Ngân', phone: '0901111033', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Tạ Văn Đức', phone: '0901111034', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Mã Thị Liên', phone: '0901111035', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Sơn Thị Thúy', phone: '0901111036', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Dư Văn Hải', phone: '0901111037', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Vòng Thị Kiều', phone: '0901111038', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
+  { name: 'Ân Thị Ngọc', phone: '0901111039', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
   { name: 'Khương Văn Bình', phone: '0901111040', tier: 'BRONZE', group: 'LOYAL', debt: 0 },
 ] as const
 
@@ -334,11 +334,11 @@ async function main() {
   ] as const
 
   const userMap = new Map<string, any>()
-  for (let i=0; i<userSeeds.length; i++) {
+  for (let i = 0; i < userSeeds.length; i++) {
     const seed = userSeeds[i]!
     const payload = {
       username: seed.username,
-      staffCode: `NV${String(i+1).padStart(5, '0')}`,
+      staffCode: `NV${String(i + 1).padStart(5, '0')}`,
       passwordHash: seed.roleCode.includes('ADMIN') ? hashes.admin : hashes.staff,
       fullName: seed.fullName,
       legacyRole: 'STAFF' as any,
@@ -551,7 +551,7 @@ async function main() {
     const seed = customerSeeds[index]!
     const code = sequentialCode('KH', index + 1)
     const email = `${seed.name.toLowerCase().replace(/\s+/g, '.')}@petcare.local`
-    
+
     // Convert Vietnamese to lowercase no diacritics for realistic email (simple version)
     const cleanEmail = email.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D")
 
@@ -587,7 +587,7 @@ async function main() {
     const species = index % 5 < 3 ? 'Chó' : 'Mèo' // 30 dogs, 20 cats
     const breed = species === 'Chó' ? dogBreeds[index % dogBreeds.length]! : catBreeds[index % catBreeds.length]!
     const hasChip = index % 3 === 0
-    
+
     const pet = await prisma.pet.create({
       data: {
         petCode: code,
@@ -597,7 +597,7 @@ async function main() {
         gender: index % 2 === 0 ? 'MALE' : 'FEMALE',
         weight: species === 'Chó' ? 2.5 + (index % 30) : 2.5 + (index % 5),
         color: index % 4 === 0 ? 'Kem trắng' : index % 4 === 1 ? 'Socola nâu' : index % 4 === 2 ? 'Xám xanh' : 'Vàng cam',
-        microchipId: hasChip ? `CHIP${String(index+1).padStart(5, '0')}` : null,
+        microchipId: hasChip ? `CHIP${String(index + 1).padStart(5, '0')}` : null,
         allergies: allergiesOptions[index % allergiesOptions.length],
         temperament: temperaments[index % temperaments.length],
         customerId: customerMap.get(customerCode).id,
@@ -606,7 +606,7 @@ async function main() {
       } as any,
     })
     petMap.set(code, pet)
-    
+
     // Add health records
     await prisma.petWeightLog.createMany({
       data: [
@@ -614,7 +614,7 @@ async function main() {
         { petId: pet.id, weight: pet.weight!, date: addDays(NOW, -30), notes: 'Tăng cân đều' },
       ] as any[]
     })
-    
+
     await prisma.petVaccination.create({
       data: {
         petId: pet.id,
@@ -623,7 +623,7 @@ async function main() {
         nextDueDate: addDays(NOW, 180),
       } as any
     })
-    
+
     if (customerInfo.tier === 'PLATINUM' || customerInfo.tier === 'GOLD') {
       await prisma.petHealthNote.create({
         data: {
@@ -696,11 +696,11 @@ async function main() {
     const rxDate = addDays(NOW, -(30 - index))
     const status = rxStatuses[index]!
     const supplier = supplierMap.get(`SUP${(index % 6) + 1}`)!
-    
+
     let dbStatus = 'DRAFT'
     let receiveStatus = 'UNRECEIVED'
     let paymentStatus = 'UNPAID'
-    
+
     if (status === 'FULLY_PAID') { dbStatus = 'COMPLETED'; receiveStatus = 'FULLY_RECEIVED'; paymentStatus = 'PAID' }
     if (status === 'FULLY_PARTIAL') { dbStatus = 'COMPLETED'; receiveStatus = 'FULLY_RECEIVED'; paymentStatus = 'PARTIAL' }
     if (status === 'PARTIAL_RECEIVED') { dbStatus = 'PARTIAL'; receiveStatus = 'PARTIAL'; paymentStatus = 'UNPAID' }
@@ -727,7 +727,7 @@ async function main() {
     // Receipt items
     const pv1 = await prisma.productVariant.findFirst({ where: { sku: productSeeds[index % 50]![0] } })
     const pv2 = await prisma.productVariant.findFirst({ where: { sku: productSeeds[(index + 1) % 50]![0] } })
-    
+
     if (pv1 && pv2) {
       const ri1 = await prisma.stockReceiptItem.create({
         data: { receiptId: rx.id, productId: pv1.productId, productVariantId: pv1.id, quantity: 100, unitPrice: pv1.costPrice || 0, totalPrice: (pv1.costPrice || 0) * 100 } as any
@@ -735,7 +735,7 @@ async function main() {
       const ri2 = await prisma.stockReceiptItem.create({
         data: { receiptId: rx.id, productId: pv2.productId, productVariantId: pv2.id, quantity: 100, unitPrice: pv2.costPrice || 0, totalPrice: (pv2.costPrice || 0) * 100 } as any
       })
-      
+
       // Stock Receive
       if (receiveStatus !== 'UNRECEIVED') {
         const sr = await prisma.stockReceiptReceive.create({
@@ -749,7 +749,7 @@ async function main() {
             receivedAt: setTime(rxDate, 14),
           } as any
         })
-        
+
         await prisma.stockReceiptReceiveItem.create({
           data: { receiveId: sr.id, receiptItemId: ri1.id, productId: pv1.productId, productVariantId: pv1.id, quantity: 100, unitPrice: pv1.costPrice || 0, totalPrice: (pv1.costPrice || 0) * 100 } as any
         })
@@ -758,7 +758,7 @@ async function main() {
             data: { receiveId: sr.id, receiptItemId: ri2.id, productId: pv2.productId, productVariantId: pv2.id, quantity: 100, unitPrice: pv2.costPrice || 0, totalPrice: (pv2.costPrice || 0) * 100 } as any
           })
         }
-        
+
         // Stock Transactions
         const branchStock1 = await prisma.branchStock.findFirst({ where: { branchId: branchMap.get('MAIN').id, productId: pv1.productId } })
         if (branchStock1) {
@@ -775,7 +775,7 @@ async function main() {
           await prisma.branchStock.update({ where: { id: branchStock1.id }, data: { stock: { increment: 100 } } })
         }
       }
-      
+
       // Payment
       if (paymentStatus !== 'UNPAID') {
         const payAmount = paymentStatus === 'PAID' ? 5000000 : 2500000
@@ -792,7 +792,7 @@ async function main() {
             createdAt: setTime(rxDate, 15)
           } as any
         })
-        
+
         await prisma.supplierPaymentAllocation.create({
           data: { paymentId: py.id, receiptId: rx.id, amount: payAmount, createdAt: setTime(rxDate, 15) } as any
         })
@@ -806,10 +806,10 @@ async function main() {
     const oDate = addDays(NOW, -(50 - index))
     const code = orderNumber(oDate, index + 1)
     const orderType = index < 20 ? 'RETAIL' : index < 36 ? 'GROOMING' : 'HOTEL'
-    
+
     let oStatus = 'COMPLETED'
     let pStatus = 'PAID'
-    
+
     // Distribution: 35 COMPLETED/PAID, 8 COMPLETED/PARTIAL, 4 PENDING, 3 CANCELLED
     if (index >= 35 && index < 43) pStatus = 'PARTIAL'
     if (index >= 43 && index < 47) { oStatus = 'PENDING'; pStatus = 'UNPAID' }
@@ -857,7 +857,7 @@ async function main() {
             quantity: 1, unitPrice: groomSvc.price, subtotal: groomSvc.price, type: 'SERVICE'
           } as any
         })
-        
+
         await prisma.groomingSession.create({
           data: {
             sessionCode: groomingCode(oDate, 'MAIN', index + 1),
@@ -888,7 +888,7 @@ async function main() {
             quantity: 2, unitPrice: hotelSvc.price, subtotal: hotelSvc.price * 2, type: 'SERVICE'
           } as any
         })
-        
+
       }
     }
 
@@ -901,7 +901,7 @@ async function main() {
           createdAt: setTime(oDate, 10)
         } as any
       })
-      
+
       await prisma.transaction.create({
         data: {
           voucherNumber: voucher('INCOME', setTime(oDate, 10), index + 1),
@@ -940,189 +940,189 @@ async function main() {
     }
     note: string
   }> = [
-    {
-      branchCode: 'MAIN',
-      cageName: 'A02',
-      petCode: 'PET000011',
-      createdBy: 'hotel01',
-      status: 'BOOKED',
-      startAt: setTime(addDays(NOW, 1), 9),
-      expectedAt: setTime(addDays(NOW, 3), 11),
-      createdAt: setTime(NOW, 8, 15),
-      surcharge: 20000,
-      note: 'Demo đơn đặt lịch chi nhánh chính',
-    },
-    {
-      branchCode: 'MAIN',
-      cageName: 'A03',
-      petCode: 'PET000012',
-      createdBy: 'hotel01',
-      status: 'CHECKED_IN',
-      startAt: setTime(NOW, 8),
-      expectedAt: setTime(addDays(NOW, 1), 10),
-      checkedInAt: setTime(NOW, 8, 5),
-      createdAt: setTime(NOW, 7, 45),
-      surcharge: 35000,
-      linkedOrder: {
-        status: 'PROCESSING',
-        paymentStatus: 'PARTIAL',
-        paidAmount: 120000,
+      {
+        branchCode: 'MAIN',
+        cageName: 'A02',
+        petCode: 'PET000011',
+        createdBy: 'hotel01',
+        status: 'BOOKED',
+        startAt: setTime(addDays(NOW, 1), 9),
+        expectedAt: setTime(addDays(NOW, 3), 11),
+        createdAt: setTime(NOW, 8, 15),
+        surcharge: 20000,
+        note: 'Demo đơn đặt lịch chi nhánh chính',
       },
-      note: 'Demo thú cưng đang trông giữ',
-    },
-    {
-      branchCode: 'MAIN',
-      cageName: 'A04',
-      petCode: 'PET000013',
-      createdBy: 'hotel01',
-      status: 'CHECKED_OUT',
-      startAt: setTime(addDays(NOW, -1), 9),
-      expectedAt: setTime(NOW, 10),
-      checkedInAt: setTime(addDays(NOW, -1), 9, 10),
-      checkOutAt: setTime(NOW, 10, 30),
-      createdAt: setTime(addDays(NOW, -1), 8, 40),
-      surcharge: 15000,
-      linkedOrder: {
-        status: 'COMPLETED',
-        paymentStatus: 'PAID',
+      {
+        branchCode: 'MAIN',
+        cageName: 'A03',
+        petCode: 'PET000012',
+        createdBy: 'hotel01',
+        status: 'CHECKED_IN',
+        startAt: setTime(NOW, 8),
+        expectedAt: setTime(addDays(NOW, 1), 10),
+        checkedInAt: setTime(NOW, 8, 5),
+        createdAt: setTime(NOW, 7, 45),
+        surcharge: 35000,
+        linkedOrder: {
+          status: 'PROCESSING',
+          paymentStatus: 'PARTIAL',
+          paidAmount: 120000,
+        },
+        note: 'Demo thú cưng đang trông giữ',
       },
-      note: 'Demo đơn đã trả hôm nay',
-    },
-    {
-      branchCode: 'MAIN',
-      cageName: null,
-      petCode: 'PET000014',
-      createdBy: 'hotel01',
-      status: 'CANCELLED',
-      startAt: setTime(addDays(NOW, 1), 8),
-      expectedAt: setTime(addDays(NOW, 2), 10),
-      cancelledAt: setTime(NOW, 9, 20),
-      createdAt: setTime(NOW, 8, 50),
-      surcharge: 0,
-      note: 'Demo đơn hủy trong ngày',
-    },
-    {
-      branchCode: 'BT',
-      cageName: 'B01',
-      petCode: 'PET000015',
-      createdBy: 'hotel02',
-      status: 'BOOKED',
-      startAt: setTime(addDays(NOW, 1), 9),
-      expectedAt: setTime(addDays(NOW, 2), 11),
-      createdAt: setTime(NOW, 8, 10),
-      surcharge: 10000,
-      linkedOrder: {
-        status: 'PENDING',
-        paymentStatus: 'UNPAID',
+      {
+        branchCode: 'MAIN',
+        cageName: 'A04',
+        petCode: 'PET000013',
+        createdBy: 'hotel01',
+        status: 'CHECKED_OUT',
+        startAt: setTime(addDays(NOW, -1), 9),
+        expectedAt: setTime(NOW, 10),
+        checkedInAt: setTime(addDays(NOW, -1), 9, 10),
+        checkOutAt: setTime(NOW, 10, 30),
+        createdAt: setTime(addDays(NOW, -1), 8, 40),
+        surcharge: 15000,
+        linkedOrder: {
+          status: 'COMPLETED',
+          paymentStatus: 'PAID',
+        },
+        note: 'Demo đơn đã trả hôm nay',
       },
-      note: 'Demo đặt lịch chi nhánh Bình Thạnh',
-    },
-    {
-      branchCode: 'BT',
-      cageName: 'B02',
-      petCode: 'PET000016',
-      createdBy: 'hotel02',
-      status: 'CHECKED_IN',
-      startAt: setTime(NOW, 7, 30),
-      expectedAt: setTime(addDays(NOW, 2), 10),
-      checkedInAt: setTime(NOW, 7, 40),
-      createdAt: setTime(NOW, 7, 5),
-      surcharge: 45000,
-      note: 'Demo đang trông giữ chi nhánh Bình Thạnh',
-    },
-    {
-      branchCode: 'BT',
-      cageName: 'B03',
-      petCode: 'PET000017',
-      createdBy: 'hotel02',
-      status: 'CHECKED_OUT',
-      startAt: setTime(addDays(NOW, -2), 10),
-      expectedAt: setTime(NOW, 11),
-      checkedInAt: setTime(addDays(NOW, -2), 10, 5),
-      checkOutAt: setTime(NOW, 11, 5),
-      createdAt: setTime(addDays(NOW, -2), 9, 40),
-      surcharge: 0,
-      linkedOrder: {
-        status: 'COMPLETED',
-        paymentStatus: 'COMPLETED',
+      {
+        branchCode: 'MAIN',
+        cageName: null,
+        petCode: 'PET000014',
+        createdBy: 'hotel01',
+        status: 'CANCELLED',
+        startAt: setTime(addDays(NOW, 1), 8),
+        expectedAt: setTime(addDays(NOW, 2), 10),
+        cancelledAt: setTime(NOW, 9, 20),
+        createdAt: setTime(NOW, 8, 50),
+        surcharge: 0,
+        note: 'Demo đơn hủy trong ngày',
       },
-      note: 'Demo đã trả trong ngày chi nhánh Bình Thạnh',
-    },
-    {
-      branchCode: 'BT',
-      cageName: null,
-      petCode: 'PET000018',
-      createdBy: 'hotel02',
-      status: 'CANCELLED',
-      startAt: setTime(addDays(NOW, 2), 9),
-      expectedAt: setTime(addDays(NOW, 4), 10),
-      cancelledAt: setTime(NOW, 11, 10),
-      createdAt: setTime(NOW, 10, 15),
-      surcharge: 0,
-      note: 'Demo hủy chi nhánh Bình Thạnh',
-    },
-    {
-      branchCode: 'Q7',
-      cageName: 'C01',
-      petCode: 'PET000019',
-      createdBy: 'hotel03',
-      status: 'BOOKED',
-      startAt: setTime(addDays(NOW, 1), 10),
-      expectedAt: setTime(addDays(NOW, 3), 11),
-      createdAt: setTime(NOW, 9, 10),
-      surcharge: 25000,
-      note: 'Demo đặt lịch chi nhánh Quận 7',
-    },
-    {
-      branchCode: 'Q7',
-      cageName: 'C02',
-      petCode: 'PET000020',
-      createdBy: 'hotel03',
-      status: 'CHECKED_IN',
-      startAt: setTime(NOW, 9),
-      expectedAt: setTime(addDays(NOW, 1), 9),
-      checkedInAt: setTime(NOW, 9, 15),
-      createdAt: setTime(NOW, 8, 30),
-      surcharge: 30000,
-      linkedOrder: {
-        status: 'PROCESSING',
-        paymentStatus: 'PARTIAL',
-        paidAmount: 90000,
+      {
+        branchCode: 'BT',
+        cageName: 'B01',
+        petCode: 'PET000015',
+        createdBy: 'hotel02',
+        status: 'BOOKED',
+        startAt: setTime(addDays(NOW, 1), 9),
+        expectedAt: setTime(addDays(NOW, 2), 11),
+        createdAt: setTime(NOW, 8, 10),
+        surcharge: 10000,
+        linkedOrder: {
+          status: 'PENDING',
+          paymentStatus: 'UNPAID',
+        },
+        note: 'Demo đặt lịch chi nhánh Bình Thạnh',
       },
-      note: 'Demo đang trông giữ chi nhánh Quận 7',
-    },
-    {
-      branchCode: 'Q7',
-      cageName: 'C03',
-      petCode: 'PET000021',
-      createdBy: 'hotel03',
-      status: 'CHECKED_OUT',
-      startAt: setTime(addDays(NOW, -1), 8),
-      expectedAt: setTime(NOW, 14),
-      checkedInAt: setTime(addDays(NOW, -1), 8, 20),
-      checkOutAt: setTime(NOW, 14, 5),
-      createdAt: setTime(addDays(NOW, -1), 7, 40),
-      surcharge: 0,
-      linkedOrder: {
-        status: 'COMPLETED',
-        paymentStatus: 'PAID',
+      {
+        branchCode: 'BT',
+        cageName: 'B02',
+        petCode: 'PET000016',
+        createdBy: 'hotel02',
+        status: 'CHECKED_IN',
+        startAt: setTime(NOW, 7, 30),
+        expectedAt: setTime(addDays(NOW, 2), 10),
+        checkedInAt: setTime(NOW, 7, 40),
+        createdAt: setTime(NOW, 7, 5),
+        surcharge: 45000,
+        note: 'Demo đang trông giữ chi nhánh Bình Thạnh',
       },
-      note: 'Demo đã trả hôm nay chi nhánh Quận 7',
-    },
-    {
-      branchCode: 'Q7',
-      cageName: null,
-      petCode: 'PET000022',
-      createdBy: 'hotel03',
-      status: 'CANCELLED',
-      startAt: setTime(addDays(NOW, 2), 8),
-      expectedAt: setTime(addDays(NOW, 5), 10),
-      cancelledAt: setTime(NOW, 15, 15),
-      createdAt: setTime(NOW, 14, 10),
-      surcharge: 0,
-      note: 'Demo hủy trong ngày chi nhánh Quận 7',
-    },
-  ]
+      {
+        branchCode: 'BT',
+        cageName: 'B03',
+        petCode: 'PET000017',
+        createdBy: 'hotel02',
+        status: 'CHECKED_OUT',
+        startAt: setTime(addDays(NOW, -2), 10),
+        expectedAt: setTime(NOW, 11),
+        checkedInAt: setTime(addDays(NOW, -2), 10, 5),
+        checkOutAt: setTime(NOW, 11, 5),
+        createdAt: setTime(addDays(NOW, -2), 9, 40),
+        surcharge: 0,
+        linkedOrder: {
+          status: 'COMPLETED',
+          paymentStatus: 'COMPLETED',
+        },
+        note: 'Demo đã trả trong ngày chi nhánh Bình Thạnh',
+      },
+      {
+        branchCode: 'BT',
+        cageName: null,
+        petCode: 'PET000018',
+        createdBy: 'hotel02',
+        status: 'CANCELLED',
+        startAt: setTime(addDays(NOW, 2), 9),
+        expectedAt: setTime(addDays(NOW, 4), 10),
+        cancelledAt: setTime(NOW, 11, 10),
+        createdAt: setTime(NOW, 10, 15),
+        surcharge: 0,
+        note: 'Demo hủy chi nhánh Bình Thạnh',
+      },
+      {
+        branchCode: 'Q7',
+        cageName: 'C01',
+        petCode: 'PET000019',
+        createdBy: 'hotel03',
+        status: 'BOOKED',
+        startAt: setTime(addDays(NOW, 1), 10),
+        expectedAt: setTime(addDays(NOW, 3), 11),
+        createdAt: setTime(NOW, 9, 10),
+        surcharge: 25000,
+        note: 'Demo đặt lịch chi nhánh Quận 7',
+      },
+      {
+        branchCode: 'Q7',
+        cageName: 'C02',
+        petCode: 'PET000020',
+        createdBy: 'hotel03',
+        status: 'CHECKED_IN',
+        startAt: setTime(NOW, 9),
+        expectedAt: setTime(addDays(NOW, 1), 9),
+        checkedInAt: setTime(NOW, 9, 15),
+        createdAt: setTime(NOW, 8, 30),
+        surcharge: 30000,
+        linkedOrder: {
+          status: 'PROCESSING',
+          paymentStatus: 'PARTIAL',
+          paidAmount: 90000,
+        },
+        note: 'Demo đang trông giữ chi nhánh Quận 7',
+      },
+      {
+        branchCode: 'Q7',
+        cageName: 'C03',
+        petCode: 'PET000021',
+        createdBy: 'hotel03',
+        status: 'CHECKED_OUT',
+        startAt: setTime(addDays(NOW, -1), 8),
+        expectedAt: setTime(NOW, 14),
+        checkedInAt: setTime(addDays(NOW, -1), 8, 20),
+        checkOutAt: setTime(NOW, 14, 5),
+        createdAt: setTime(addDays(NOW, -1), 7, 40),
+        surcharge: 0,
+        linkedOrder: {
+          status: 'COMPLETED',
+          paymentStatus: 'PAID',
+        },
+        note: 'Demo đã trả hôm nay chi nhánh Quận 7',
+      },
+      {
+        branchCode: 'Q7',
+        cageName: null,
+        petCode: 'PET000022',
+        createdBy: 'hotel03',
+        status: 'CANCELLED',
+        startAt: setTime(addDays(NOW, 2), 8),
+        expectedAt: setTime(addDays(NOW, 5), 10),
+        cancelledAt: setTime(NOW, 15, 15),
+        createdAt: setTime(NOW, 14, 10),
+        surcharge: 0,
+        note: 'Demo hủy trong ngày chi nhánh Quận 7',
+      },
+    ]
 
   for (const [index, seed] of hotelDemoSeeds.entries()) {
     const pet = petMap.get(seed.petCode)
@@ -1329,11 +1329,11 @@ async function main() {
     const tDate = addDays(NOW, -index)
     const isIncome = index === 0 || index === 1 || index === 8
     const type = isIncome ? 'INCOME' : 'EXPENSE'
-    
+
     let desc = ''
     let cat = ''
     let amt = 0
-    
+
     if (index === 0) { desc = 'Thu tiền thuê tủ trưng bày'; cat = 'Phụ thu'; amt = 2500000 }
     else if (index === 1) { desc = 'Thu đặt cọc sự kiện'; cat = 'Khác'; amt = 5000000 }
     else if (index === 2) { desc = 'Chi phí điện tháng 4'; cat = 'Vận hành'; amt = 3200000 }
@@ -1344,7 +1344,7 @@ async function main() {
     else if (index === 7) { desc = 'Chi mua ghế ngồi chờ'; cat = 'Tài sản'; amt = 3500000 }
     else if (index === 8) { desc = 'Thu hoa hồng đại lý'; cat = 'Phụ thu'; amt = 1800000 }
     else { desc = 'Chi phí quảng cáo Facebook'; cat = 'Marketing'; amt = 2000000 }
-    
+
     await prisma.transaction.create({
       data: {
         voucherNumber: voucher(type as any, tDate, 100 + index),
@@ -1356,6 +1356,20 @@ async function main() {
         description: desc,
         createdAt: tDate,
       } as any
+    })
+  }
+
+  // Seed module configs — bật/tắt module phụ
+  const moduleSeeds = [
+    { key: 'pet', displayName: 'Quản lý Thú cưng', description: 'Hồ sơ thú cưng, lịch sử sức khỏe, tiêm phòng', isActive: true, icon: '🐾', sortOrder: 1 },
+    { key: 'hotel', displayName: 'Hotel Thú cưng', description: 'Dịch vụ lưu trú ngắn và dài hạn cho thú cưng', isActive: true, icon: '🏨', sortOrder: 2 },
+    { key: 'grooming', displayName: 'Grooming & Spa', description: 'Dịch vụ làm đẹp, tắm sấy và chăm sóc lông', isActive: true, icon: '✂️', sortOrder: 3 },
+  ]
+  for (const seed of moduleSeeds) {
+    await prisma.moduleConfig.upsert({
+      where: { key: seed.key },
+      update: { displayName: seed.displayName, description: seed.description, icon: seed.icon, sortOrder: seed.sortOrder },
+      create: { ...seed, isCore: false, version: '1.0.0' } as any,
     })
   }
 
@@ -1371,6 +1385,7 @@ async function main() {
   console.log('✓ Receipts:     30')
   console.log('✓ Orders:       50')
   console.log('✓ Transactions: 50+ (Auto + 10 Manual)')
+  console.log('✓ Modules:       3 (pet, hotel, grooming)')
 }
 
 main()

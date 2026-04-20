@@ -32,6 +32,7 @@ import { api } from '@/lib/api'
 import { useAuthorization, type StaffRole } from '@/hooks/useAuthorization'
 import { useAuthStore } from '@/stores/auth.store'
 import { useThemeStore } from '@/stores/theme.store'
+import { useModuleConfig } from '@/hooks/useModuleConfig'
 
 type NavItem = {
   label: string
@@ -39,6 +40,8 @@ type NavItem = {
   icon: React.ComponentType<{ size?: number; className?: string }>
   allowedRoles?: StaffRole[]
   anyPermissions?: string[]
+  /** If set, item is hidden when the module is disabled */
+  moduleKey?: string
 }
 
 type NavGroup = {
@@ -84,12 +87,14 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Scissors,
         href: '/grooming',
         anyPermissions: ['grooming.read', 'grooming.create', 'grooming.update'],
+        moduleKey: 'grooming',
       },
       {
         label: 'Pet Hotel',
         icon: Hotel,
         href: '/hotel',
         anyPermissions: ['hotel.read', 'hotel.create', 'hotel.update', 'hotel.checkin', 'hotel.checkout'],
+        moduleKey: 'hotel',
       },
       {
         label: 'Sổ quỹ',
@@ -145,12 +150,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: PawPrint,
         href: '/pets',
         anyPermissions: ['pet.read', 'pet.create', 'pet.update'],
-      },
-      {
-        label: 'Nhà cung cấp',
-        icon: Truck,
-        href: '/inventory/suppliers',
-        anyPermissions: ['supplier.read', 'supplier.create', 'supplier.update', 'stock_receipt.read'],
+        moduleKey: 'pet',
       },
     ],
   },
@@ -211,6 +211,7 @@ export function Sidebar() {
   const { hasRole, hasAnyPermission, roleCode } = useAuthorization()
   const { user, logout } = useAuthStore()
   const { isSidebarOpen } = useThemeStore()
+  const { isModuleActive } = useModuleConfig()
 
   const { data: config } = useQuery({
     queryKey: ['settings', 'configs'],
@@ -226,6 +227,9 @@ export function Sidebar() {
   })
 
   const canAccessItem = (item: NavItem) => {
+    // Module gate: hide item if module is disabled
+    if (item.moduleKey && !isModuleActive(item.moduleKey)) return false
+
     const hasRoleCheck = item.allowedRoles?.length ? hasRole(item.allowedRoles) : false;
     const hasPermCheck = item.anyPermissions?.length ? hasAnyPermission(item.anyPermissions) : false;
 

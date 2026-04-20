@@ -12,12 +12,14 @@ import { HotelQuickPreviewTool } from '@/components/hotel-quick-preview/HotelQui
 type OrderProductSearchProps = Omit<PosProductSearchProps, 'inputClassName' | 'containerClassName' | 'panelClassName' | 'resultsVariant'> & {
     /** Callback khi user thêm sản phẩm tạm */
     onAddTempProduct?: (item: { description: string; quantity: number; unitPrice: number }) => void
+    /** Callback mở hotel calculator */
+    onOpenHotelCalc?: () => void
     /** Chỉ hiện các nút action khi isEditing */
     isEditing?: boolean
 }
 
 export function OrderProductSearch(props: OrderProductSearchProps) {
-    const { onAddTempProduct, isEditing, ...searchProps } = props
+    const { onAddTempProduct, isEditing, onOpenHotelCalc, ...searchProps } = props
     const [outOfStockHidden, setOutOfStockHidden] = useState(false)
     const [showTempModal, setShowTempModal] = useState(false)
 

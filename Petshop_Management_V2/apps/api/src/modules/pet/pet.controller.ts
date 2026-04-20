@@ -15,6 +15,7 @@ import {
   ParseFilePipe,
   MaxFileSizeValidator,
 } from '@nestjs/common'
+import { CommandBus, QueryBus } from '@nestjs/cqrs'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { diskStorage } from 'multer'
 import { randomUUID } from 'crypto'
@@ -23,6 +24,7 @@ import * as fs from 'fs'
 import type { Request } from 'express'
 import type { JwtPayload } from '@petshop/shared'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
+import { RequireModule } from '../../common/decorators/require-module.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
@@ -31,8 +33,15 @@ import { CreatePetDto } from './dto/create-pet.dto.js'
 import { UpdatePetDto } from './dto/update-pet.dto.js'
 import { AddVaccinationDto } from './dto/add-vaccination.dto.js'
 import { AddWeightLogDto } from './dto/add-weight-log.dto.js'
-import { PetService } from './pet.service.js'
 import { SyncAttributeDto } from './dto/sync-attribute.dto.js'
+import { PetService } from './pet.service.js'
+// CQRS Commands
+import { CreatePetCommand } from './application/commands/create-pet/create-pet.command.js'
+import { UpdatePetCommand } from './application/commands/update-pet/update-pet.command.js'
+import { DeletePetCommand } from './application/commands/delete-pet/delete-pet.command.js'
+// CQRS Queries
+import { FindPetQuery } from './application/queries/find-pet/find-pet.query.js'
+import { FindPetsQuery } from './application/queries/find-pets/find-pets.query.js'
 
 interface AuthenticatedRequest extends Request {
   user?: JwtPayload
@@ -59,39 +68,75 @@ const imageUploadFileFilter = (
   cb(new BadRequestException(`Định dạng ảnh không hợp lệ: ${file.mimetype}`), false)
 }
 
+@RequireModule('pet')
 @Controller('pets')
 @UseGuards(JwtGuard, PermissionsGuard)
 export class PetController {
-  constructor(private readonly petService: PetService) { }
+  constructor(
+    private readonly commandBus: CommandBus,
+    private readonly queryBus: QueryBus,
+    // PetService retained for special endpoints not yet migrated to CQRS
+    private readonly petService: PetService,
+  ) { }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Core CRUD — dispatched via CommandBus / QueryBus (Phase 2 complete)
+  // ─────────────────────────────────────────────────────────────────────────────
 
   @Post()
   @Permissions('pet.create')
   create(@Body() createPetDto: CreatePetDto, @Req() req: AuthenticatedRequest) {
-    return this.petService.create(createPetDto, req.user, getRequestedBranchId(req))
-  }
-
-  @Get(':id/active-services')
-  @Permissions('pet.read')
-  async getActivePetServices(@Param('id') petId: string) {
-    return this.petService.getActivePetServices(petId);
+    return this.commandBus.execute(
+      new CreatePetCommand(createPetDto, req.user!, getRequestedBranchId(req)),
+    )
   }
 
   @Get()
   @Permissions('pet.read')
   findAll(@Query() query: FindPetsDto, @Req() req: AuthenticatedRequest) {
-    return this.petService.findAll(query, req.user)
+    return this.queryBus.execute(
+      new FindPetsQuery(
+        {
+          q: query.q,
+          species: query.species,
+          gender: query.gender,
+          customerId: query.customerId,
+          page: query.page,
+          limit: query.limit,
+        },
+        req.user,
+      ),
+    )
   }
 
   @Get(':id')
   @Permissions('pet.read')
-  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.petService.findOne(id, req.user)
+  findOne(@Param('id') id: string, @Req() _req: AuthenticatedRequest) {
+    return this.queryBus.execute(new FindPetQuery(id))
   }
 
   @Put(':id')
   @Permissions('pet.update')
   update(@Param('id') id: string, @Body() updatePetDto: UpdatePetDto, @Req() req: AuthenticatedRequest) {
-    return this.petService.update(id, updatePetDto, req.user, getRequestedBranchId(req))
+    return this.commandBus.execute(
+      new UpdatePetCommand(id, updatePetDto, req.user!, getRequestedBranchId(req)),
+    )
+  }
+
+  @Delete(':id')
+  @Permissions('pet.delete')
+  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.commandBus.execute(new DeletePetCommand(id, req.user!))
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Special endpoints — still delegated to PetService (pending own CQRS handlers)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @Get(':id/active-services')
+  @Permissions('pet.read')
+  async getActivePetServices(@Param('id') petId: string) {
+    return this.petService.getActivePetServices(petId)
   }
 
   @Post(':id/weight')
@@ -179,12 +224,6 @@ export class PetController {
   ) {
     const photoUrl = `/uploads/vaccines/${file.filename}`
     return { photoUrl }
-  }
-
-  @Delete(':id')
-  @Permissions('pet.delete')
-  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.petService.remove(id, req.user)
   }
 
   @Post('sync-attribute')

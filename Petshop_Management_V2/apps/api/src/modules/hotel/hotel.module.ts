@@ -1,11 +1,20 @@
-import { Module } from '@nestjs/common';
-import { HotelService } from './hotel.service';
-import { HotelController } from './hotel.controller';
-import { DatabaseModule } from '../../database/database.module';
+import { Module } from '@nestjs/common'
+import { CqrsModule } from '@nestjs/cqrs'
+import { DatabaseModule } from '../../database/database.module.js'
+import { ModuleGuard } from '../../common/guards/module.guard.js'
+import { HotelController } from './hotel.controller.js'
+import { HotelService } from './hotel.service.js'
+import { CommandHandlers, QueryHandlers } from './application/index.js'
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [CqrsModule, DatabaseModule],
   controllers: [HotelController],
-  providers: [HotelService],
+  providers: [
+    HotelService,
+    ModuleGuard,
+    ...CommandHandlers,
+    ...QueryHandlers,
+  ],
+  exports: [HotelService],
 })
-export class HotelModule {}
+export class HotelModule { }

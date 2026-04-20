@@ -215,7 +215,7 @@ function OrderCartRow({
                                                     const newTrueV = displayTrueVariants.find((v: any) => v.id === newId)
                                                     if (newTrueV && allConversionVariants) {
                                                         const curConvLabel = normalizeLabel(getVariantOptionText(item.description, currentVariantObj))
-                                                        const newTrueLabel = normalizeLabel(newTrueV.variantLabel)
+                                                        const newTrueLabel = normalizeLabel(newTrueV.variantLabel as string | null | undefined)
                                                         const match = allConversionVariants.find((cv: any) =>
                                                             normalizeLabel(getVariantOptionText(item.description, cv)) === curConvLabel &&
                                                             normalizeLabel(cv.variantLabel) === newTrueLabel

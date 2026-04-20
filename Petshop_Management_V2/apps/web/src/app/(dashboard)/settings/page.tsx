@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRightLeft, Bell, Check, CheckCircle2, History, MapPin, Moon, Palette, Printer, Save, Settings, Store, Zap } from 'lucide-react'
+import { ArrowRightLeft, Bell, Check, CheckCircle2, History, MapPin, Moon, Package, Palette, Printer, Save, Settings, Store, Zap } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { cn } from '@/lib/utils'
@@ -16,6 +16,7 @@ import { TabGeneral } from './components/TabGeneral'
 import { TabHistory } from './components/TabHistory'
 import { TabNotifications } from './components/TabNotifications'
 import { TabPrintTemplates } from './components/TabPrintTemplates'
+import { TabModules } from './components/TabModules'
 
 
 type SettingsTabConfig = {
@@ -23,6 +24,7 @@ type SettingsTabConfig = {
   label: string
   icon: React.ComponentType<{ size?: number; className?: string }>
   anyPermissions?: string[]
+  superAdminOnly?: boolean
 }
 
 const THEME_COLORS = [
@@ -56,6 +58,7 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
   { id: 'theme', label: 'Giao diện', icon: Palette },
   { id: 'notifications', label: 'Thông báo', icon: Bell, anyPermissions: ['settings.app.read', 'settings.app.update'] },
   { id: 'history', label: 'Lịch sử thao tác', icon: History, anyPermissions: ['settings.audit_log.read'] },
+  { id: 'modules', label: 'Module', icon: Package, superAdminOnly: true },
 ]
 
 export default function SettingsPage() {
@@ -69,10 +72,11 @@ export default function SettingsPage() {
   const visibleTabs = useMemo(
     () =>
       SETTINGS_TABS.filter((tab) => {
+        if (tab.superAdminOnly) return hasRole(['SUPER_ADMIN'])
         if (!tab.anyPermissions || tab.anyPermissions.length === 0) return true
         return hasAnyPermission(tab.anyPermissions)
       }),
-    [hasAnyPermission],
+    [hasAnyPermission, hasRole],
   )
 
   useEffect(() => {
@@ -111,6 +115,8 @@ export default function SettingsPage() {
         return <TabNotifications />
       case 'history':
         return <TabHistory />
+      case 'modules':
+        return <TabModules />
       case 'theme':
       default:
         return <ThemeTabComponent />
