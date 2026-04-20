@@ -157,7 +157,7 @@ export function PetList() {
     gcTime: 30 * 60 * 1000,
   })
 
-  const rawPets = data?.data ?? []
+  const rawPets = useMemo(() => data?.data ?? [], [data?.data])
   const meta = data?.meta
 
   const sortedPets = useMemo(() => {

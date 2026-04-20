@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { buildProductVariantName, resolveProductVariantLabels } from '@petshop/shared'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -310,7 +310,7 @@ export function ReportsWorkspace() {
   }, [activeTab, dateFrom, dateTo, isCustomRange, presetRange, resolvedBranchId])
   const detailHref = (path: string) => `${path}?${detailQueryString}`
 
-  const replaceSearchParams = (updates: Record<string, string | null>) => {
+  const replaceSearchParams = useCallback((updates: Record<string, string | null>) => {
     const nextParams = new URLSearchParams(searchParams.toString())
     Object.entries(updates).forEach(([key, value]) => {
       if (value) {
@@ -325,7 +325,7 @@ export function ReportsWorkspace() {
     if (nextQuery !== currentQuery) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false })
     }
-  }
+  }, [pathname, router, searchParams])
 
   useEffect(() => {
     if (isAuthLoading) return
@@ -364,7 +364,7 @@ export function ReportsWorkspace() {
         branchId: expectedBranchId,
       })
     }
-  }, [activeTab, canAccessReports, dateFrom, dateTo, isAuthLoading, isCustomRange, presetRange, resolvedBranchId, searchParams])
+  }, [activeTab, canAccessReports, dateFrom, dateTo, isAuthLoading, isCustomRange, presetRange, replaceSearchParams, resolvedBranchId, searchParams])
 
   const [dashboardQuery, revenueQuery, customersQuery, productsQuery, serviceRevenueQuery, cashbookQuery, suppliersQuery, inventoryQuery, customerDebtQuery] = useQueries({
     queries: [
@@ -431,15 +431,18 @@ export function ReportsWorkspace() {
   })
 
   const metrics = dashboardQuery.data
-  const revenuePoints = revenueQuery.data ?? []
-  const topCustomers = customersQuery.data ?? []
+  const revenuePoints = useMemo(() => revenueQuery.data ?? [], [revenueQuery.data])
+  const topCustomers = useMemo(() => customersQuery.data ?? [], [customersQuery.data])
   const topProducts = productsQuery.data ?? []
   const serviceRevenue = (serviceRevenueQuery.data as ServiceRevenueReport | undefined) ?? undefined
   const cashbookSummary = cashbookQuery.data
   const supplierAnalytics = (suppliersQuery.data as SupplierAnalyticsResponse | undefined) ?? undefined
-  const inventorySuggestions = (inventoryQuery.data as LowStockSuggestion[] | undefined) ?? []
+  const inventorySuggestions = useMemo(
+    () => (inventoryQuery.data as LowStockSuggestion[] | undefined) ?? [],
+    [inventoryQuery.data],
+  )
   const debtSummary = (customerDebtQuery.data as ReportsDebtSummary | undefined) ?? undefined
-  const customerDebtRows = debtSummary?.customers ?? []
+  const customerDebtRows = useMemo(() => debtSummary?.customers ?? [], [debtSummary?.customers])
   const currentBranchName =
     allowedBranches.find((branch) => branch.id === resolvedBranchId)?.name ??
     'Chi nhánh đang chọn'

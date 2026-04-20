@@ -1,7 +1,7 @@
 'use client'
 import Image from 'next/image';
 
-import { use, useEffect, useState, useRef, KeyboardEvent } from 'react'
+import { use, useEffect, useMemo, useState, useRef, KeyboardEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { buildProductVariantName, resolveProductVariantLabels } from '@petshop/shared'
 import {
@@ -62,7 +62,7 @@ export default function ShiftCountingPage({ params }: { params: Promise<{ shiftI
   })
 
   const shift = (shiftResponse as any)?.data ?? null
-  const items = shift?.items ?? []
+  const items = useMemo(() => shift?.items ?? [], [shift?.items])
   const branch = shift?.session?.branch ?? null
 
   useEffect(() => {

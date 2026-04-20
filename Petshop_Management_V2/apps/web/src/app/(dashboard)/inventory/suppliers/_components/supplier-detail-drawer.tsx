@@ -276,7 +276,10 @@ export function SupplierDetailDrawer({
   const supplierDebt = Math.max(0, Number(stats.totalDebt ?? supplier?.debt ?? supplierPreview?.stats?.totalDebt ?? supplierPreview?.debt ?? 0))
   const evaluation = supplier?.evaluation ?? {}
   const receipts = Array.isArray(supplier?.recentReceipts) ? supplier.recentReceipts : []
-  const products = Array.isArray(supplier?.products) ? supplier.products : []
+  const products = useMemo(
+    () => (Array.isArray(supplier?.products) ? supplier.products : []),
+    [supplier?.products],
+  )
   const filteredProducts = useMemo(() => {
     const query = normalizeText(productSearch)
     if (!query) return products

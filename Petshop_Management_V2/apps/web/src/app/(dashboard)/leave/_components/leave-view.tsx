@@ -104,7 +104,7 @@ export function LeaveView() {
         onError: () => toast.error('Lỗi khi xử lý đơn nghỉ phép'),
     })
 
-    const rawRecords = listData?.data ?? []
+    const rawRecords = useMemo(() => listData?.data ?? [], [listData?.data])
     const total = listData?.total ?? 0
     const totalPages = listData?.totalPages ?? 1
 

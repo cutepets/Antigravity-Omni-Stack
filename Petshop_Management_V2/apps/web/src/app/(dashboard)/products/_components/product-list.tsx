@@ -299,7 +299,7 @@ export function ProductList() {
     queryFn: () => inventoryApi.getCategories(),
   })
 
-  const rawProducts = (data as any)?.data ?? []
+  const rawProducts = useMemo(() => (data as any)?.data ?? [], [data])
   const total = (data as any)?.total ?? 0
   const totalPages = (data as any)?.totalPages ?? 1
 

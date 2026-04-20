@@ -78,7 +78,7 @@ export function BankTransactionsTab({ canManagePayment }: Props) {
     },
   })
 
-  const records = bankTransactionsQuery.data ?? []
+  const records = useMemo(() => bankTransactionsQuery.data ?? [], [bankTransactionsQuery.data])
   const summary = useMemo(
     () => ({
       total: records.length,

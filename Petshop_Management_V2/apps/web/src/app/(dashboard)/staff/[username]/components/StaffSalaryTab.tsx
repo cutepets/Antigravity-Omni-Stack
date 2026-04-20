@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   Loader2,
   AlertCircle,
@@ -32,7 +32,7 @@ export function StaffSalaryTab({ userId, staffName }: StaffSalaryTabProps) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
 
-  const loadSalary = async () => {
+  const loadSalary = useCallback(async () => {
     try {
       setLoading(true)
       const data = await staffApi.getSalary(userId, selectedMonth, selectedYear)
@@ -43,11 +43,11 @@ export function StaffSalaryTab({ userId, staffName }: StaffSalaryTabProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedMonth, selectedYear, userId])
 
   useEffect(() => {
     void loadSalary()
-  }, [userId, selectedMonth, selectedYear])
+  }, [loadSalary])
 
   const handlePrevMonth = () => {
     if (selectedMonth === 1) {

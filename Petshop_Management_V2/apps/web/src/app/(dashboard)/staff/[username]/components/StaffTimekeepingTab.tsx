@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   Loader2,
   AlertCircle,
@@ -32,7 +32,7 @@ export function StaffTimekeepingTab({ userId }: StaffTimekeepingTabProps) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
 
-  const loadAttendance = async () => {
+  const loadAttendance = useCallback(async () => {
     try {
       setLoading(true)
       const data = await staffApi.getAttendance(userId, selectedMonth, selectedYear)
@@ -43,11 +43,11 @@ export function StaffTimekeepingTab({ userId }: StaffTimekeepingTabProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedMonth, selectedYear, userId])
 
   useEffect(() => {
     void loadAttendance()
-  }, [userId, selectedMonth, selectedYear])
+  }, [loadAttendance])
 
   const handlePrevMonth = () => {
     if (selectedMonth === 1) {

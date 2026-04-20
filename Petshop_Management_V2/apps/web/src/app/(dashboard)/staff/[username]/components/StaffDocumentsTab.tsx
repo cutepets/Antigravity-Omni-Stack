@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Loader2, AlertCircle } from 'lucide-react'
 import {
   EmployeeDocument,
@@ -23,7 +23,7 @@ export function StaffDocumentsTab({ userId }: StaffDocumentsTabProps) {
   const [uploadingTypes, setUploadingTypes] = useState<Set<DocumentType>>(new Set())
   const [previewDoc, setPreviewDoc] = useState<EmployeeDocument | null>(null)
 
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async () => {
     try {
       setLoading(true)
       const data = await staffApi.getDocuments(userId)
@@ -34,11 +34,11 @@ export function StaffDocumentsTab({ userId }: StaffDocumentsTabProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [userId])
 
   useEffect(() => {
     void loadDocuments()
-  }, [userId])
+  }, [loadDocuments])
 
   const handleUpload = async (file: File, type: DocumentType) => {
     // Validate file size (10MB)

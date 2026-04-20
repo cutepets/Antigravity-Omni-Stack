@@ -631,7 +631,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
           },
         ]
         : [],
-    [creatorDisplayName, currentReceiptPaidAmount, hasAnyPayment, isFullyPaid, latestPaymentAllocation?.payment?.staff?.fullName, paymentTimelineEntries.length, receipt, totalAppliedPaymentAmount],
+    [creatorDisplayName, currentReceiptPaidAmount, hasAnyPayment, isFullyPaid, latestPaymentAllocation?.payment?.staff?.fullName, latestPaymentAllocation?.payment?.transactionVoucherNumber, paymentTimelineEntries.length, receipt, totalAppliedPaymentAmount],
   )
 
   const receiveHistoryEntries = useMemo<ReceiptTimelineEntry[]>(

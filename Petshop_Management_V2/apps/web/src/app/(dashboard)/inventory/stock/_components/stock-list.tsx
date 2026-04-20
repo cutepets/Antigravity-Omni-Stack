@@ -168,7 +168,10 @@ export function StockList() {
       }),
   })
 
-  const rows = Array.isArray((data as any)?.data) ? ((data as any).data as StockRow[]) : []
+  const rows = useMemo(
+    () => (Array.isArray((data as any)?.data) ? ((data as any).data as StockRow[]) : []),
+    [data],
+  )
   const totalPages = (data as any)?.totalPages ?? 1
   const total = (data as any)?.total ?? rows.length
 

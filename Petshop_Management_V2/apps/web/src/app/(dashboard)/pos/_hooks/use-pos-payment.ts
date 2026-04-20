@@ -182,7 +182,7 @@ export function usePosPayment() {
       }
       setIsPaymentMenuOpen(false);
     },
-    [cartTotal, paymentMethods, store],
+    [cartTotal, store],
   );
 
   const handleMultiPaymentConfirm = useCallback(
@@ -538,6 +538,7 @@ export function usePosPayment() {
       preferredPaymentMethod,
       store,
       clearQrIntent,
+      setShowQrPaymentModal,
     ],
   );
 
