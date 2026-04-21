@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Query,
   Req,
@@ -68,7 +69,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly googleAuthService: GoogleAuthService,
-  ) {}
+  ) { }
 
   private getCookieOptions(maxAge: number, httpOnly: boolean): CookieOptions {
     return {
@@ -334,5 +335,31 @@ export class AuthController {
   @ApiOperation({ summary: 'Lay thong tin nguoi dung hien tai' })
   getMe(@Req() req: AuthenticatedRequest) {
     return this.authService.getMe(req.user.userId)
+  }
+
+  @Patch('preferences')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Luu cai dat POS ca nhan' })
+  async updatePreferences(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: Record<string, unknown>,
+  ) {
+    await this.authService.updatePosPreferences(req.user.userId, body)
+    return { success: true }
+  }
+
+  @Patch('default-branch')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Luu chi nhanh mac dinh POS' })
+  async updateDefaultBranch(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { branchId: string | null },
+  ) {
+    await this.authService.updateDefaultBranch(req.user.userId, body.branchId ?? null)
+    return { success: true }
   }
 }

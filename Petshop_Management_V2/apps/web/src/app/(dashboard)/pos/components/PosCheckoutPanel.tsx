@@ -81,20 +81,20 @@ export function PosCheckoutPanel({
   return (
     <>
       <div className="order-4 lg:col-start-2 lg:row-start-2 bg-surface lg:border-l border-border z-20 flex-1 flex flex-col p-4 overflow-y-auto">
-        <div className="mt-auto flex flex-col gap-4">
-          <div className="flex justify-between items-center py-1">
+        <div className="mt-auto flex flex-col gap-1">
+          <div className="flex justify-between items-center py-0.5">
             <span className="text-[15px] font-medium text-foreground-muted">Tổng tiền ({cartCount} SP)</span>
             <span className="text-[15px] font-bold text-foreground">{moneyRaw(rawSubtotal)}</span>
           </div>
 
           {totalItemDiscount > 0 ? (
-            <div className="flex justify-between items-center py-1 text-[15px] text-amber-600">
+            <div className="flex justify-between items-center py-0.5 text-[15px] text-amber-600">
               <span>Chiết khấu SP</span>
               <span className="font-semibold">-{moneyRaw(totalItemDiscount)}</span>
             </div>
           ) : null}
 
-          <div className="flex justify-between items-center py-1 border-b border-dashed border-border pb-3">
+          <div className="flex justify-between items-center py-0.5 border-b border-dashed border-border pb-2">
             <span className="text-[15px] text-primary-600 cursor-pointer hover:underline decoration-dashed decoration-primary-400 underline-offset-4">
               Chiết khấu đơn (F6)
             </span>
@@ -110,12 +110,12 @@ export function PosCheckoutPanel({
             </div>
           </div>
 
-          <div className="flex justify-between items-center py-1">
+          <div className="flex justify-between items-center py-0.5">
             <span className="text-[15px] font-medium text-foreground-muted">VAT (0%)</span>
             <span className="text-[15px] font-semibold text-foreground">0</span>
           </div>
 
-          <div className="flex justify-between items-center py-1">
+          <div className="flex justify-between items-center py-0.5">
             <span className="text-[14px] sm:text-[15px] font-bold text-foreground">KHÁCH PHẢI TRẢ</span>
             <span className="text-[18px] sm:text-[20px] font-bold text-red-600">{moneyRaw(cartTotal)}</span>
           </div>
@@ -225,8 +225,10 @@ export function PosCheckoutPanel({
                                     </div>
                                     {isPointsMethod && (
                                       <span className="pl-[18px] text-[10.5px] text-foreground-muted mt-0.5">
-                                        Hiện có: {(activeTab.customerPoints ?? 0).toLocaleString('vi-VN')} điểm
-                                        {hasInsufficientPoints ? ' · Không đủ điểm' : ''}
+                                        {(activeTab.customerPoints ?? 0).toLocaleString('vi-VN')} điểm
+                                        {' · '}
+                                        Tối đa {new Intl.NumberFormat('vi-VN').format(maxPointsAmount)}đ
+                                        {hasInsufficientPoints ? ' · Không đủ' : ''}
                                       </span>
                                     )}
                                   </div>

@@ -3,10 +3,12 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePosStore } from '@/stores/pos.store';
+import { usePosPreferencesSync } from './_hooks/use-pos-preferences-sync';
 
 export function PosLayoutClient({ children }: { children: React.ReactNode }) {
     const { activeBranchId, allowedBranches } = useAuthStore();
     const posTheme = usePosStore((s) => s.posTheme);
+    usePosPreferencesSync();
 
     useEffect(() => {
         const branch = allowedBranches.find((b: any) => b.id === activeBranchId) ?? allowedBranches[0];

@@ -55,6 +55,23 @@ export interface BaseBranch {
   isActive: boolean
 }
 
+export interface PosPreferences {
+  defaultBranchId?: string | null
+  outOfStockHidden?: boolean
+  autoFocusSearch?: boolean
+  barcodeMode?: boolean
+  soundEnabled?: boolean
+  zoomLevel?: number
+  defaultPayment?: string | null
+  roundingEnabled?: boolean
+  roundingUnit?: number
+  printerIp?: string | null
+  paperSize?: string | null
+  autoPrint?: boolean
+  autoPrintQR?: boolean
+  posTheme?: string | null
+}
+
 export interface AuthUser {
   id: string
   username: string
@@ -62,6 +79,8 @@ export interface AuthUser {
   role: StaffRole | string
   staffCode: string
   branchId?: string | null
+  defaultBranchId?: string | null
+  posPreferences?: PosPreferences | null
   avatar?: string | null
   authorizedBranches: BaseBranch[]
   permissions?: string[]

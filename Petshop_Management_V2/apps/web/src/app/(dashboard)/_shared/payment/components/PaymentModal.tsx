@@ -259,6 +259,18 @@ export function PaymentModal({
                       placeholder={index === 0 ? new Intl.NumberFormat('vi-VN').format(cartTotal) : 'Nhập số tiền'}
                       className="w-full rounded-xl border border-border bg-background-secondary/60 px-4 py-2.5 text-right text-[15px] font-semibold text-foreground outline-none transition-colors focus:border-primary-500"
                     />
+                    {row.method?.type === 'POINTS' && customerPoints > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const maxAmount = customerPoints * loyaltyPointValue
+                          updateRow(row.key, { amount: maxAmount.toString() }, index === 0)
+                        }}
+                        className="mt-1 text-xs text-primary-500 hover:underline text-right w-full"
+                      >
+                        Tối đa: {new Intl.NumberFormat('vi-VN').format(customerPoints * loyaltyPointValue)}đ ({customerPoints} điểm)
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-end">

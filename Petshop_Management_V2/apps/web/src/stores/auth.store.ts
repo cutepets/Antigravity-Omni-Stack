@@ -1,9 +1,9 @@
 'use client'
 
-import type { AuthUser, BaseBranch } from '@petshop/shared'
+import type { AuthUser, BaseBranch, PosPreferences } from '@petshop/shared'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { authApi } from '@/lib/api'
+import { api, authApi } from '@/lib/api'
 import { clearAuthSessionCookie, setAuthSessionCookie } from '@/lib/auth-session-cookie'
 
 type AuthState = {
@@ -16,7 +16,8 @@ type AuthState = {
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   fetchMe: () => Promise<AuthUser | null>
-  switchBranch: (branchId: string | null | undefined) => void
+  switchBranch: (branchId: string | null | undefined, persist?: boolean) => void
+  updatePosPreferences: (prefs: Partial<PosPreferences>) => Promise<void>
   clearError: () => void
   setHydrated: (value: boolean) => void
 }
@@ -28,12 +29,10 @@ function normalizeAllowedBranches(user: AuthUser | null) {
 function resolveActiveBranchId(user: AuthUser | null, currentBranchId?: string | null) {
   const allowedBranches = normalizeAllowedBranches(user)
 
-  if (currentBranchId && allowedBranches.some((branch) => branch.id === currentBranchId)) {
-    return currentBranchId
-  }
-
-  if (user?.branchId && allowedBranches.some((branch) => branch.id === user.branchId)) {
-    return user.branchId
+  // Ưu tiên: currentBranchId > defaultBranchId từ DB > branchId gốc > branch đầu tiên
+  const candidates = [currentBranchId, user?.defaultBranchId, user?.branchId]
+  for (const id of candidates) {
+    if (id && allowedBranches.some((branch) => branch.id === id)) return id
   }
 
   return allowedBranches[0]?.id ?? null
@@ -64,8 +63,9 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await authApi.login(username, password)
           setAuthSessionCookie()
+          // Ưu tiên defaultBranchId từ DB khi login
           set({
-            ...buildAuthState(response.user, get().activeBranchId),
+            ...buildAuthState(response.user, response.user.defaultBranchId ?? get().activeBranchId),
             isLoading: false,
             error: null,
             hasHydrated: true,
@@ -104,8 +104,9 @@ export const useAuthStore = create<AuthState>()(
         try {
           const user = await authApi.me()
           setAuthSessionCookie()
+          // Ưu tiên defaultBranchId từ DB, fallback sang activeBranchId hiện tại
           set({
-            ...buildAuthState(user, get().activeBranchId),
+            ...buildAuthState(user, user.defaultBranchId ?? get().activeBranchId),
             isLoading: false,
             error: null,
             hasHydrated: true,
@@ -116,7 +117,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: null,
             allowedBranches: [],
-            activeBranchId: null,
+            // Giữ lại activeBranchId đã chọn thay vì reset null
             isLoading: false,
             error: error?.response?.status === 401 ? null : error?.response?.data?.message ?? error?.message ?? null,
             hasHydrated: true,
@@ -125,7 +126,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      switchBranch(branchId) {
+      switchBranch(branchId, persistToDB = true) {
         const nextBranchId = branchId ?? null
         const allowedBranches = get().allowedBranches
 
@@ -134,6 +135,26 @@ export const useAuthStore = create<AuthState>()(
         }
 
         set({ activeBranchId: nextBranchId, error: null })
+
+        // Lưu lên DB nền (fire & forget)
+        if (persistToDB) {
+          api.patch('/auth/default-branch', { branchId: nextBranchId }).catch(() => {
+            // Không block UI nếu lưu DB thất bại
+          })
+        }
+      },
+
+      async updatePosPreferences(prefs) {
+        try {
+          await api.patch('/auth/preferences', prefs)
+          // Cập nhật local user object
+          const user = get().user
+          if (user) {
+            set({ user: { ...user, posPreferences: { ...user.posPreferences, ...prefs } } })
+          }
+        } catch {
+          // Không block UI
+        }
       },
 
       clearError() {
@@ -160,7 +181,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         const normalized = buildAuthState(state.user, state.activeBranchId)
-        state.switchBranch(normalized.activeBranchId)
+        state.switchBranch(normalized.activeBranchId, false) // false = không gọi API khi rehydrate
         state.setHydrated(true)
       },
     },

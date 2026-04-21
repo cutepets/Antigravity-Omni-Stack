@@ -93,6 +93,8 @@ model User {
   baseSalary            Float?
   spaCommissionRate     Float?
   branchId              String?
+  defaultBranchId       String?   // Chi nhánh mặc định khi dùng POS
+  posPreferences        Json?     // Cài đặt POS cá nhân (sound, zoom, printer, theme...)
   joinDate              DateTime?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
@@ -1302,6 +1304,7 @@ enum PaymentMethodType {
   BANK
   EWALLET
   CARD
+  POINTS
 }
 
 enum PaymentMethodColorKey {

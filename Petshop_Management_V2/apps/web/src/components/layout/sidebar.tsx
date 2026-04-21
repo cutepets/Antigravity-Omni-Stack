@@ -227,7 +227,8 @@ export function Sidebar() {
         return null
       }
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 60 * 1000, // 30 phút
+    gcTime: 60 * 60 * 1000,   // 1 giờ giữ cache khi unmount
   })
 
   const canAccessItem = (item: NavItem) => {

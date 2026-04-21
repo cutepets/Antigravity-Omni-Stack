@@ -270,23 +270,25 @@ function PosPageContent() {
         </div>
 
         {/* Right: Actions */}
-        <div className="hidden lg:flex items-center gap-3 shrink-0 py-1.5">
-          <div className="flex items-center gap-2 px-2 border-r border-white/20">
+        <div className="hidden lg:flex items-center gap-2 shrink-0 py-1.5 min-w-0">
+          {/* Info: truncatable section */}
+          <div className="flex items-center gap-2 px-2 border-r border-white/20 min-w-0 overflow-hidden">
             {customerPricing?.priceBookName ? (
-              <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-sm font-semibold text-white tracking-wide shadow-sm">
+              <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-sm font-semibold text-white tracking-wide shadow-sm shrink-0 max-w-[140px] truncate">
                 {customerPricing.priceBookName}
               </span>
             ) : null}
             {(customerPricing?.discountRate ?? 0) > 0 ? (
-              <span className="inline-flex items-center rounded-full bg-amber-300/20 px-2.5 py-1 text-xs font-semibold text-amber-100">
+              <span className="inline-flex items-center rounded-full bg-amber-300/20 px-2.5 py-1 text-xs font-semibold text-amber-100 shrink-0">
                 CK: {customerPricing?.discountRate}%
               </span>
             ) : null}
-            <span className="text-sm font-medium">{authUser?.fullName ?? 'Nhân viên'}</span>
-            <PosBranchSelect />
+            <span className="text-sm font-medium truncate min-w-0 max-w-[120px]">{authUser?.fullName ?? 'Nhân viên'}</span>
+            <div className="shrink-0"><PosBranchSelect /></div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          {/* Action buttons: never shrink */}
+          <div className="flex items-center gap-1.5 shrink-0">
             <button className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Toàn màn hình" onClick={() => {
               if (!document.fullscreenElement) document.documentElement.requestFullscreen();
               else document.exitFullscreen();

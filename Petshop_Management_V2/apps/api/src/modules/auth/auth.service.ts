@@ -16,7 +16,7 @@ export class AuthService {
   constructor(
     private readonly db: DatabaseService,
     private readonly jwt: JwtService,
-  ) {}
+  ) { }
 
   private getRefreshSecret(): string {
     const secret = process.env['JWT_REFRESH_SECRET']
@@ -77,6 +77,8 @@ export class AuthService {
     fullName: string
     staffCode: string
     branchId: string | null
+    defaultBranchId?: string | null
+    posPreferences?: unknown
     avatar: string | null
     googleId?: string | null
     googleEmail?: string | null
@@ -134,6 +136,8 @@ export class AuthService {
       role: combinedRole as AuthUser['role'],
       staffCode: user.staffCode,
       branchId: user.branchId ?? null,
+      defaultBranchId: user.defaultBranchId ?? null,
+      posPreferences: (user.posPreferences as any) ?? null,
       avatar: user.avatar ?? null,
       authorizedBranches: mappedAuthorizedBranches,
       permissions: combinedPermissions,
@@ -153,6 +157,8 @@ export class AuthService {
         fullName: true,
         staffCode: true,
         branchId: true,
+        defaultBranchId: true,
+        posPreferences: true,
         avatar: true,
         googleId: true,
         googleEmail: true,
@@ -179,6 +185,8 @@ export class AuthService {
         fullName: true,
         staffCode: true,
         branchId: true,
+        defaultBranchId: true,
+        posPreferences: true,
         avatar: true,
         googleId: true,
         googleEmail: true,
@@ -209,8 +217,8 @@ export class AuthService {
     let mappedAuthorizedBranches = this.mapAuthorizedBranches(user as any)
 
     if (combinedPermissions.includes('FULL_BRANCH_ACCESS') || combinedRole === 'SUPER_ADMIN' || combinedRole === 'ADMIN') {
-       const allBranches = await this.db.branch.findMany({ where: { isActive: true }, select: { id: true, name: true, address: true, isActive: true } })
-       mappedAuthorizedBranches = allBranches as any[]
+      const allBranches = await this.db.branch.findMany({ where: { isActive: true }, select: { id: true, name: true, address: true, isActive: true } })
+      mappedAuthorizedBranches = allBranches as any[]
     }
 
     const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
@@ -242,6 +250,8 @@ export class AuthService {
       role: combinedRole as AuthUser['role'],
       staffCode: user.staffCode,
       branchId: user.branchId ?? null,
+      defaultBranchId: (user as any).defaultBranchId ?? null,
+      posPreferences: (user as any).posPreferences ?? null,
       avatar: user.avatar ?? null,
       authorizedBranches: mappedAuthorizedBranches,
       permissions: combinedPermissions,
@@ -269,14 +279,14 @@ export class AuthService {
         },
         expiresAt: { gte: new Date() },
       },
-      include: { 
+      include: {
         user: {
           include: {
             role: true,
             branch: { select: { id: true, name: true, address: true, isActive: true } },
             authorizedBranches: { select: { id: true, name: true, address: true, isActive: true } },
           }
-        } 
+        }
       },
     })
 
@@ -329,6 +339,8 @@ export class AuthService {
       permissions: combinedPermissions,
       staffCode: u.staffCode,
       branchId: u.branchId ?? null,
+      defaultBranchId: (u as any).defaultBranchId ?? null,
+      posPreferences: (u as any).posPreferences ?? null,
       avatar: u.avatar ?? null,
       authorizedBranches: mappedAuthorizedBranches,
       googleLinked: Boolean((u as any).googleId),
@@ -366,6 +378,8 @@ export class AuthService {
         role: true,
         staffCode: true,
         branchId: true,
+        defaultBranchId: true,
+        posPreferences: true,
         avatar: true,
         googleId: true,
         googleEmail: true,
@@ -387,6 +401,8 @@ export class AuthService {
       permissions: combinedPermissions,
       staffCode: user.staffCode,
       branchId: user.branchId ?? null,
+      defaultBranchId: (user as any).defaultBranchId ?? null,
+      posPreferences: (user as any).posPreferences ?? null,
       avatar: user.avatar ?? null,
       googleLinked: Boolean((user as any).googleId),
       googleEmail: (user as any).googleEmail ?? null,
@@ -396,5 +412,22 @@ export class AuthService {
         ).values()
       ).filter(b => b.isActive)
     }
+  }
+
+  async updatePosPreferences(userId: string, preferences: Partial<Record<string, unknown>>): Promise<void> {
+    const user = await this.db.user.findUnique({ where: { id: userId }, select: { posPreferences: true } })
+    const existing = (user?.posPreferences as Record<string, unknown>) ?? {}
+    const merged = { ...existing, ...preferences }
+    await this.db.user.update({
+      where: { id: userId },
+      data: { posPreferences: merged as any },
+    })
+  }
+
+  async updateDefaultBranch(userId: string, branchId: string | null): Promise<void> {
+    await this.db.user.update({
+      where: { id: userId },
+      data: { defaultBranchId: branchId },
+    })
   }
 }

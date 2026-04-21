@@ -397,6 +397,13 @@ async function main() {
     } as any,
   })
 
+  // Seed phương thức thanh toán điểm tích lũy
+  await (prisma as any).paymentMethod.upsert({
+    where: { code: 'POINTS' },
+    update: { name: 'Điểm tích lũy', type: 'POINTS', isSystem: true, isActive: true, isDefault: false, sortOrder: 99, colorKey: 'violet' },
+    create: { code: 'POINTS', name: 'Điểm tích lũy', type: 'POINTS', isSystem: true, isActive: true, isDefault: false, sortOrder: 99, colorKey: 'violet' },
+  })
+
   const hashes = {
     admin: await bcrypt.hash('Admin@123', 12),
     staff: await bcrypt.hash('Staff@123', 12),
