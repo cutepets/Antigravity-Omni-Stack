@@ -54,6 +54,19 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
+CREATE TABLE IF NOT EXISTS "price_books" (
+  "id" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "channel" TEXT NOT NULL,
+  "branchIds" TEXT,
+  "isDefault" BOOLEAN NOT NULL DEFAULT false,
+  "isActive" BOOLEAN NOT NULL DEFAULT true,
+  "sortOrder" INTEGER NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "price_books_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'REFUNDED');
 
