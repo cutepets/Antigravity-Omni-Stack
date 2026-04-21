@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { mkdirSync } from 'fs'
 import { unlink } from 'fs/promises'
-import { diskStorage } from 'multer'
+import { diskStorage, memoryStorage } from 'multer'
 import { extname, relative, resolve, sep } from 'path'
 import type { Request } from 'express'
 
@@ -100,6 +100,24 @@ export function createDiskUploadOptions(options: DiskUploadOptions) {
         cb(null, `${randomUUID()}${ext}`)
       },
     }),
+    limits: { fileSize: options.maxFileSize },
+  }
+}
+
+export function createMemoryUploadOptions(options: DiskUploadOptions) {
+  return {
+    fileFilter: (req: Request, file: Express.Multer.File, cb: (error: Error | null, acceptFile: boolean) => void) => {
+      const ext = extname(file.originalname).toLowerCase()
+      const mime = (file.mimetype || '').toLowerCase()
+
+      if (!options.allowedMimeTypes.has(mime) || !options.allowedExtensions.has(ext)) {
+        cb(new BadRequestException(options.errorMessage), false)
+        return
+      }
+
+      cb(null, true)
+    },
+    storage: memoryStorage(),
     limits: { fileSize: options.maxFileSize },
   }
 }

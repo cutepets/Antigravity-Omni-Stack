@@ -1,7 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { StorageProviderKind } from '@prisma/client'
 import { DatabaseService } from '../../database/database.service.js'
 import { createHash, randomBytes, randomUUID } from 'crypto'
 import { isValidBranchCode, normalizeBranchCode, suggestBranchCodeFromName } from '@petshop/shared'
+import { encryptSecret } from '../../common/utils/secret-box.util.js'
 
 export interface CreateBranchDto {
   code?: string
@@ -29,6 +31,19 @@ export interface UpdateConfigDto {
   loyaltyPointExpiryMonths?: number
   loyaltyTierRetentionMonths?: number
   loyaltyTierRules?: string
+  storageProvider?: StorageProviderKind
+  googleAuthEnabled?: boolean
+  googleAuthClientId?: string
+  googleAuthClientSecret?: string | null
+  googleAuthAllowedDomain?: string | null
+  googleDriveEnabled?: boolean
+  googleDriveServiceAccountJson?: string | null
+  googleDriveClientEmail?: string | null
+  googleDriveSharedDriveId?: string | null
+  googleDriveRootFolderId?: string | null
+  googleDriveImageFolderId?: string | null
+  googleDriveDocumentFolderId?: string | null
+  googleDriveBackupFolderId?: string | null
   petBreedsV2?: string
   petTemperaments?: string
   petVaccineOpts?: string
@@ -851,10 +866,79 @@ export class SettingsService {
 
   // ─── System Configs ───────────────────────────────────────────────────────
 
+  private sanitizeSystemConfig(config: Record<string, any> | null | undefined) {
+    if (!config) {
+      return {}
+    }
+
+    const {
+      googleAuthClientSecretEnc: _googleAuthClientSecretEnc,
+      googleDriveServiceAccountEnc: _googleDriveServiceAccountEnc,
+      ...rest
+    } = config
+
+    return {
+      ...rest,
+      storageProvider: rest.storageProvider ?? StorageProviderKind.LOCAL,
+      googleAuthEnabled: rest.googleAuthEnabled ?? false,
+      googleDriveEnabled: rest.googleDriveEnabled ?? false,
+      googleAuthClientSecretConfigured: Boolean(config.googleAuthClientSecretEnc),
+      googleDriveServiceAccountConfigured: Boolean(config.googleDriveServiceAccountEnc),
+    }
+  }
+
+  private parseJsonField(value: string | undefined): string | null {
+    if (value === undefined) return undefined as any
+    if (!value) return null
+    try {
+      JSON.parse(value)
+      return value
+    } catch {
+      throw new BadRequestException('Du lieu JSON khong hop le')
+    }
+  }
+
+  private normalizeStorageProvider(value: StorageProviderKind | undefined) {
+    if (value === undefined) return undefined
+    if (!Object.values(StorageProviderKind).includes(value)) {
+      throw new BadRequestException('Storage provider khong hop le')
+    }
+    return value
+  }
+
+  private normalizeServiceAccountJson(value: string | null | undefined) {
+    if (value === undefined) {
+      return undefined
+    }
+
+    if (value === null || value.trim() === '') {
+      return null
+    }
+
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      throw new BadRequestException('Google Drive service account JSON khong hop le')
+    }
+
+    const clientEmail = String(parsed['client_email'] ?? '').trim()
+    const privateKey = String(parsed['private_key'] ?? '').trim()
+
+    if (!clientEmail || !privateKey) {
+      throw new BadRequestException('Google Drive service account JSON thieu client_email hoac private_key')
+    }
+
+    return {
+      encrypted: encryptSecret(value),
+      clientEmail,
+    }
+  }
+
   async getConfigs() {
     try {
       const config = await (this.db as any).systemConfig.findFirst({})
-      return { success: true, data: config ?? {} }
+      return { success: true, data: this.sanitizeSystemConfig(config) }
     } catch {
       return { success: true, data: {} }
     }
@@ -864,17 +948,6 @@ export class SettingsService {
     const existing = await (this.db as any).systemConfig.findFirst({
       select: { id: true },
     })
-
-    const parseJsonField = (value: string | undefined): string | null => {
-      if (value === undefined) return undefined as any
-      if (!value) return null
-      try {
-        JSON.parse(value)
-        return value
-      } catch {
-        throw new BadRequestException('Du lieu JSON khong hop le')
-      }
-    }
 
     const data: any = {}
     if (dto.shopName !== undefined) data.shopName = dto.shopName
@@ -891,21 +964,42 @@ export class SettingsService {
     if (dto.loyaltyPointExpiryMonths !== undefined) data.loyaltyPointExpiryMonths = dto.loyaltyPointExpiryMonths
     if (dto.loyaltyTierRetentionMonths !== undefined) data.loyaltyTierRetentionMonths = dto.loyaltyTierRetentionMonths
     if (dto.loyaltyTierRules !== undefined) data.loyaltyTierRules = dto.loyaltyTierRules
-    if (dto.petBreedsV2 !== undefined) data.petBreedsV2 = parseJsonField(dto.petBreedsV2)
-    if (dto.petTemperaments !== undefined) data.petTemperaments = parseJsonField(dto.petTemperaments)
-    if (dto.petVaccineOpts !== undefined) data.petVaccineOpts = parseJsonField(dto.petVaccineOpts)
+    if (dto.storageProvider !== undefined) data.storageProvider = this.normalizeStorageProvider(dto.storageProvider)
+    if (dto.googleAuthEnabled !== undefined) data.googleAuthEnabled = Boolean(dto.googleAuthEnabled)
+    if (dto.googleAuthClientId !== undefined) data.googleAuthClientId = dto.googleAuthClientId?.trim() || null
+    if (dto.googleAuthAllowedDomain !== undefined) data.googleAuthAllowedDomain = dto.googleAuthAllowedDomain?.trim() || null
+    if (dto.googleAuthClientSecret !== undefined) {
+      data.googleAuthClientSecretEnc = dto.googleAuthClientSecret ? encryptSecret(dto.googleAuthClientSecret) : null
+    }
+    if (dto.googleDriveEnabled !== undefined) data.googleDriveEnabled = Boolean(dto.googleDriveEnabled)
+    if (dto.googleDriveClientEmail !== undefined) data.googleDriveClientEmail = dto.googleDriveClientEmail?.trim() || null
+    if (dto.googleDriveSharedDriveId !== undefined) data.googleDriveSharedDriveId = dto.googleDriveSharedDriveId?.trim() || null
+    if (dto.googleDriveRootFolderId !== undefined) data.googleDriveRootFolderId = dto.googleDriveRootFolderId?.trim() || null
+    if (dto.googleDriveImageFolderId !== undefined) data.googleDriveImageFolderId = dto.googleDriveImageFolderId?.trim() || null
+    if (dto.googleDriveDocumentFolderId !== undefined) data.googleDriveDocumentFolderId = dto.googleDriveDocumentFolderId?.trim() || null
+    if (dto.googleDriveBackupFolderId !== undefined) data.googleDriveBackupFolderId = dto.googleDriveBackupFolderId?.trim() || null
+    if (dto.googleDriveServiceAccountJson !== undefined) {
+      const normalizedServiceAccount = this.normalizeServiceAccountJson(dto.googleDriveServiceAccountJson)
+      data.googleDriveServiceAccountEnc = normalizedServiceAccount?.encrypted ?? null
+      if (normalizedServiceAccount?.clientEmail) {
+        data.googleDriveClientEmail = normalizedServiceAccount.clientEmail
+      }
+    }
+    if (dto.petBreedsV2 !== undefined) data.petBreedsV2 = this.parseJsonField(dto.petBreedsV2)
+    if (dto.petTemperaments !== undefined) data.petTemperaments = this.parseJsonField(dto.petTemperaments)
+    if (dto.petVaccineOpts !== undefined) data.petVaccineOpts = this.parseJsonField(dto.petVaccineOpts)
 
     if (existing) {
       const updated = await (this.db as any).systemConfig.update({
         where: { id: existing.id },
         data,
       })
-      return { success: true, data: updated }
+      return { success: true, data: this.sanitizeSystemConfig(updated) }
     } else {
       const created = await (this.db as any).systemConfig.create({
         data,
       })
-      return { success: true, data: created }
+      return { success: true, data: this.sanitizeSystemConfig(created) }
     }
   }
 

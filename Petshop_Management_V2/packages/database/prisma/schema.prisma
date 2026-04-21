@@ -69,6 +69,9 @@ model User {
   staffCode             String                 @unique
   username              String                 @unique
   passwordHash          String
+  googleId              String?                @unique
+  googleEmail           String?
+  googleAvatar          String?
   fullName              String
   legacyRole            StaffRole              @default(STAFF) @map("role")
   roleId                String?
@@ -96,6 +99,7 @@ model User {
   hotelCreatedStays     HotelStay[]
   orders                Order[]
   refreshTokens         RefreshToken[]
+  storedAssets          StoredAsset[]
   shiftSessions         ShiftSession[]
   cashVaultEntries      CashVaultEntry[]     @relation("CashVaultEntryPerformedBy")
   stockReceiptReceives  StockReceiptReceive[]
@@ -1669,12 +1673,49 @@ model SystemConfig {
   loyaltyTierRetentionMonths Int?
   loyaltyTierRules           String?
   allowMultiPayment          Boolean  @default(true)
+  storageProvider            StorageProviderKind @default(LOCAL)
+  googleAuthEnabled          Boolean  @default(false)
+  googleAuthClientId         String?
+  googleAuthClientSecretEnc  String?
+  googleAuthAllowedDomain    String?
+  googleDriveEnabled         Boolean  @default(false)
+  googleDriveClientEmail     String?
+  googleDriveSharedDriveId   String?
+  googleDriveRootFolderId    String?
+  googleDriveImageFolderId   String?
+  googleDriveDocumentFolderId String?
+  googleDriveBackupFolderId  String?
+  googleDriveServiceAccountEnc String?
   petBreedsV2                String?
   petTemperaments            String?
   petVaccineOpts             String?
   hotelExtraServices         String?
 
   @@map("system_configs")
+}
+
+model StoredAsset {
+  id           String              @id @default(cuid())
+  provider     StorageProviderKind
+  category     String
+  originalName String
+  mimeType     String
+  size         Int
+  extension    String?
+  storageKey   String?
+  url          String
+  previewUrl   String?
+  googleFileId String?
+  uploadedById String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  deletedAt    DateTime?
+  uploadedBy   User?               @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([provider, category])
+  @@index([uploadedById])
+  @@index([googleFileId])
+  @@map("stored_assets")
 }
 
 model Category {
@@ -1824,6 +1865,11 @@ enum CustomerTier {
   GOLD
   PLATINUM
   DIAMOND
+}
+
+enum StorageProviderKind {
+  LOCAL
+  GOOGLE_DRIVE
 }
 
 enum TransactionType {

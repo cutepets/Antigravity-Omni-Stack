@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,40 +8,41 @@ import {
   Put,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
   UseInterceptors,
-  UploadedFile,
-  ParseFilePipe,
-  MaxFileSizeValidator,
 } from '@nestjs/common'
 import { CommandBus, QueryBus } from '@nestjs/cqrs'
 import { FileInterceptor } from '@nestjs/platform-express'
-import { diskStorage } from 'multer'
-import { randomUUID } from 'crypto'
-import { extname } from 'path'
-import * as fs from 'fs'
 import type { Request } from 'express'
 import type { JwtPayload } from '@petshop/shared'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { RequireModule } from '../../common/decorators/require-module.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
-import { IMAGE_UPLOAD_EXTENSIONS } from '../../common/utils/upload.util.js'
+import {
+  createDiskUploadOptions,
+  deleteUploadedFile,
+  IMAGE_UPLOAD_EXTENSIONS,
+  validateUploadedFile,
+} from '../../common/utils/upload.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
-import { FindPetsDto } from './dto/find-pets.dto.js'
-import { CreatePetDto } from './dto/create-pet.dto.js'
-import { UpdatePetDto } from './dto/update-pet.dto.js'
-import { AddVaccinationDto } from './dto/add-vaccination.dto.js'
-import { AddWeightLogDto } from './dto/add-weight-log.dto.js'
-import { SyncAttributeDto } from './dto/sync-attribute.dto.js'
-import { PetService } from './pet.service.js'
-// CQRS Commands
+import { AddVaccinationCommand } from './application/commands/add-vaccination/add-vaccination.command.js'
+import { AddWeightLogCommand } from './application/commands/add-weight-log/add-weight-log.command.js'
 import { CreatePetCommand } from './application/commands/create-pet/create-pet.command.js'
-import { UpdatePetCommand } from './application/commands/update-pet/update-pet.command.js'
 import { DeletePetCommand } from './application/commands/delete-pet/delete-pet.command.js'
-// CQRS Queries
+import { SyncPetAttributeCommand } from './application/commands/sync-pet-attribute/sync-pet-attribute.command.js'
+import { UpdatePetAvatarCommand } from './application/commands/update-pet-avatar/update-pet-avatar.command.js'
+import { UpdatePetCommand } from './application/commands/update-pet/update-pet.command.js'
 import { FindPetQuery } from './application/queries/find-pet/find-pet.query.js'
 import { FindPetsQuery } from './application/queries/find-pets/find-pets.query.js'
+import { GetActivePetServicesQuery } from './application/queries/get-active-pet-services/get-active-pet-services.query.js'
+import { AddVaccinationDto } from './dto/add-vaccination.dto.js'
+import { AddWeightLogDto } from './dto/add-weight-log.dto.js'
+import { CreatePetDto } from './dto/create-pet.dto.js'
+import { FindPetsDto } from './dto/find-pets.dto.js'
+import { SyncAttributeDto } from './dto/sync-attribute.dto.js'
+import { UpdatePetDto } from './dto/update-pet.dto.js'
 
 interface AuthenticatedRequest extends Request {
   user?: JwtPayload
@@ -56,18 +56,11 @@ const ALLOWED_PET_IMAGE_MIME_TYPES = new Set([
   'image/webp',
 ])
 
-const imageUploadFileFilter = (
-  _req: Request,
-  file: Express.Multer.File,
-  cb: (error: Error | null, acceptFile: boolean) => void,
-) => {
-  const extension = extname(file.originalname).toLowerCase()
-  if (ALLOWED_PET_IMAGE_MIME_TYPES.has(file.mimetype) && IMAGE_UPLOAD_EXTENSIONS.has(extension)) {
-    cb(null, true)
-    return
-  }
-
-  cb(new BadRequestException(`Định dạng ảnh không hợp lệ: ${file.mimetype}`), false)
+const petImageUploadValidation = {
+  allowedMimeTypes: ALLOWED_PET_IMAGE_MIME_TYPES,
+  allowedExtensions: IMAGE_UPLOAD_EXTENSIONS,
+  maxFileSize: MAX_IMAGE_UPLOAD_SIZE,
+  errorMessage: 'Định dạng ảnh không hợp lệ',
 }
 
 @RequireModule('pet')
@@ -77,13 +70,7 @@ export class PetController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-    // PetService retained for special endpoints not yet migrated to CQRS
-    private readonly petService: PetService,
-  ) { }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Core CRUD — dispatched via CommandBus / QueryBus (Phase 2 complete)
-  // ─────────────────────────────────────────────────────────────────────────────
+  ) {}
 
   @Post()
   @Permissions('pet.create')
@@ -113,8 +100,8 @@ export class PetController {
 
   @Get(':id')
   @Permissions('pet.read')
-  findOne(@Param('id') id: string, @Req() _req: AuthenticatedRequest) {
-    return this.queryBus.execute(new FindPetQuery(id))
+  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.queryBus.execute(new FindPetQuery(id, req.user))
   }
 
   @Put(':id')
@@ -131,99 +118,72 @@ export class PetController {
     return this.commandBus.execute(new DeletePetCommand(id, req.user!))
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Special endpoints — still delegated to PetService (pending own CQRS handlers)
-  // ─────────────────────────────────────────────────────────────────────────────
-
   @Get(':id/active-services')
   @Permissions('pet.read')
-  async getActivePetServices(@Param('id') petId: string) {
-    return this.petService.getActivePetServices(petId)
+  getActivePetServices(@Param('id') petId: string, @Req() req: AuthenticatedRequest) {
+    return this.queryBus.execute(new GetActivePetServicesQuery(petId, req.user))
   }
 
   @Post(':id/weight')
   @Permissions('pet.update')
   addWeightLog(@Param('id') id: string, @Body() addWeightLogDto: AddWeightLogDto, @Req() req: AuthenticatedRequest) {
-    return this.petService.addWeightLog(id, addWeightLogDto, req.user)
+    return this.commandBus.execute(new AddWeightLogCommand(id, addWeightLogDto, req.user))
   }
 
   @Post(':id/vaccinations')
   @Permissions('pet.update')
   addVaccination(@Param('id') id: string, @Body() addVaccinationDto: AddVaccinationDto, @Req() req: AuthenticatedRequest) {
-    return this.petService.addVaccination(id, addVaccinationDto, req.user)
+    return this.commandBus.execute(new AddVaccinationCommand(id, addVaccinationDto, req.user))
   }
 
   @Post(':id/avatar')
   @Permissions('pet.update')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const uploadPath = './uploads/pets'
-          if (!fs.existsSync(uploadPath)) {
-            fs.mkdirSync(uploadPath, { recursive: true })
-          }
-          cb(null, uploadPath)
-        },
-        filename: (req, file, cb) => {
-          const uniqueSuffix = randomUUID()
-          const ext = extname(file.originalname)
-          cb(null, `${uniqueSuffix}${ext}`)
-        },
+      ...createDiskUploadOptions({
+        destination: './uploads/pets',
+        ...petImageUploadValidation,
       }),
-      fileFilter: imageUploadFileFilter,
-      limits: { fileSize: MAX_IMAGE_UPLOAD_SIZE },
     }),
   )
-  uploadAvatar(
+  async uploadAvatar(
     @Param('id') id: string,
     @Req() req: AuthenticatedRequest,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: MAX_IMAGE_UPLOAD_SIZE }),
-        ],
-      }),
-    )
-    file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
   ) {
+    validateUploadedFile(file, petImageUploadValidation)
     const avatarUrl = `/uploads/pets/${file.filename}`
-    return this.petService.updateAvatar(id, avatarUrl, req.user)
+
+    try {
+      return await this.commandBus.execute(new UpdatePetAvatarCommand(id, avatarUrl, req.user))
+    } catch (error) {
+      try {
+        await deleteUploadedFile(avatarUrl, {
+          publicPrefix: '/uploads/pets/',
+          rootDir: './uploads/pets',
+        })
+      } catch {
+        // Preserve the original domain error when cleanup fails.
+      }
+      throw error
+    }
   }
 
   @Post(':id/vaccinations/photo')
   @Permissions('pet.update')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const uploadPath = './uploads/vaccines'
-          if (!fs.existsSync(uploadPath)) {
-            fs.mkdirSync(uploadPath, { recursive: true })
-          }
-          cb(null, uploadPath)
-        },
-        filename: (req, file, cb) => {
-          const uniqueSuffix = randomUUID()
-          const ext = extname(file.originalname)
-          cb(null, `${uniqueSuffix}${ext}`)
-        },
+      ...createDiskUploadOptions({
+        destination: './uploads/vaccines',
+        ...petImageUploadValidation,
       }),
-      fileFilter: imageUploadFileFilter,
-      limits: { fileSize: MAX_IMAGE_UPLOAD_SIZE },
     }),
   )
   uploadVaccinePhoto(
-    @Param('id') id: string,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: MAX_IMAGE_UPLOAD_SIZE }),
-        ],
-      }),
-    )
-    file: Express.Multer.File,
+    @Param('id') _id: string,
+    @UploadedFile() file: Express.Multer.File,
   ) {
+    validateUploadedFile(file, petImageUploadValidation)
     const photoUrl = `/uploads/vaccines/${file.filename}`
     return { photoUrl }
   }
@@ -231,6 +191,6 @@ export class PetController {
   @Post('sync-attribute')
   @Permissions('settings.app.update')
   syncAttribute(@Body() syncDto: SyncAttributeDto, @Req() req: AuthenticatedRequest) {
-    return this.petService.syncAttribute(syncDto, req.user)
+    return this.commandBus.execute(new SyncPetAttributeCommand(syncDto, req.user))
   }
 }

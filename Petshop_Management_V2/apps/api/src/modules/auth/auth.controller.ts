@@ -1,28 +1,32 @@
 import {
-  Controller,
-  Post,
-  Get,
   Body,
-  Req,
-  Res,
+  Controller,
+  Get,
   HttpCode,
   HttpStatus,
-  UseGuards,
+  Post,
+  Query,
+  Req,
+  Res,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common'
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
+import { randomUUID } from 'crypto'
 import type { CookieOptions, Request, Response } from 'express'
 import type { JwtPayload, LoginResponse } from '@petshop/shared'
 import { AuthService } from './auth.service.js'
-import { JwtGuard } from './guards/jwt.guard.js'
-import { LoginDto } from './dto/login.dto.js'
 import { RefreshTokenDto } from './dto/refresh.dto.js'
+import { LoginDto } from './dto/login.dto.js'
+import { JwtGuard } from './guards/jwt.guard.js'
+import { GoogleAuthService } from './google-auth.service.js'
 
 interface AuthenticatedRequest extends Request {
   user: JwtPayload
 }
 
 const AUTH_SESSION_COOKIE = 'petshop_auth'
+const GOOGLE_AUTH_STATE_COOKIE = 'petshop_google_state'
 
 function getCookieValue(req: Request, name: string): string | null {
   const rawCookie = req.headers.cookie
@@ -53,10 +57,18 @@ function parseDurationToMs(value: string, fallbackMs: number): number {
   return amount * (multipliers[unit] ?? 1)
 }
 
+type GoogleStatePayload = {
+  nonce: string
+  redirect: string
+}
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly googleAuthService: GoogleAuthService,
+  ) {}
 
   private getCookieOptions(maxAge: number, httpOnly: boolean): CookieOptions {
     return {
@@ -65,6 +77,14 @@ export class AuthController {
       secure: process.env['NODE_ENV'] === 'production',
       path: '/',
       maxAge,
+    }
+  }
+
+  private getClearCookieOptions() {
+    return {
+      sameSite: 'lax' as const,
+      secure: process.env['NODE_ENV'] === 'production',
+      path: '/',
     }
   }
 
@@ -78,15 +98,55 @@ export class AuthController {
   }
 
   private clearAuthCookies(res: Response) {
-    const options = {
-      sameSite: 'lax' as const,
-      secure: process.env['NODE_ENV'] === 'production',
-      path: '/',
-    }
-
+    const options = this.getClearCookieOptions()
     res.clearCookie('access_token', options)
     res.clearCookie('refresh_token', options)
     res.clearCookie(AUTH_SESSION_COOKIE, options)
+  }
+
+  private sanitizeRedirectPath(redirect: string | undefined) {
+    const normalized = String(redirect ?? '/dashboard').trim()
+    if (!normalized.startsWith('/') || normalized.startsWith('//')) {
+      return '/dashboard'
+    }
+    return normalized
+  }
+
+  private encodeGoogleState(payload: GoogleStatePayload) {
+    return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+  }
+
+  private decodeGoogleState(rawState: string | undefined): GoogleStatePayload {
+    if (!rawState) {
+      throw new UnauthorizedException('Google state khong hop le')
+    }
+
+    try {
+      const parsed = JSON.parse(Buffer.from(rawState, 'base64url').toString('utf8')) as Partial<GoogleStatePayload>
+      const nonce = String(parsed.nonce ?? '').trim()
+      const redirect = this.sanitizeRedirectPath(parsed.redirect)
+
+      if (!nonce) {
+        throw new Error('missing nonce')
+      }
+
+      return {
+        nonce,
+        redirect,
+      }
+    } catch {
+      throw new UnauthorizedException('Google state khong hop le')
+    }
+  }
+
+  private buildGoogleFailureRedirect(message: string) {
+    const baseUrl = this.googleAuthService.getWebAppBaseUrl()
+    const query = new URLSearchParams({
+      error: 'google_auth_failed',
+      message,
+    })
+
+    return `${baseUrl}/login?${query.toString()}`
   }
 
   @Post('login')
@@ -98,6 +158,59 @@ export class AuthController {
     const auth = await this.authService.login(dto)
     this.setAuthCookies(res, auth)
     return auth
+  }
+
+  @Get('google')
+  @ApiOperation({ summary: 'Bat dau dang nhap bang Google' })
+  async googleLogin(
+    @Query('redirect') redirect: string | undefined,
+    @Res() res: Response,
+  ) {
+    const nonce = randomUUID()
+    const state = this.encodeGoogleState({
+      nonce,
+      redirect: this.sanitizeRedirectPath(redirect),
+    })
+    res.cookie(GOOGLE_AUTH_STATE_COOKIE, nonce, this.getCookieOptions(10 * 60_000, true))
+
+    const url = await this.googleAuthService.createAuthorizationUrl(state)
+    return res.redirect(url)
+  }
+
+  @Get('google/callback')
+  @ApiOperation({ summary: 'Google callback de tao session browser' })
+  async googleCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const clearOptions = this.getClearCookieOptions()
+    const statePayload = this.decodeGoogleState(state)
+    const expectedNonce = getCookieValue(req, GOOGLE_AUTH_STATE_COOKIE)
+
+    res.clearCookie(GOOGLE_AUTH_STATE_COOKIE, clearOptions)
+
+    if (!expectedNonce || expectedNonce !== statePayload.nonce) {
+      return res.redirect(this.buildGoogleFailureRedirect('Google state mismatch'))
+    }
+
+    if (!code) {
+      return res.redirect(this.buildGoogleFailureRedirect('Google login missing code'))
+    }
+
+    try {
+      const auth = await this.googleAuthService.loginWithAuthorizationCode(code)
+      this.setAuthCookies(res, auth)
+      return res.redirect(`${this.googleAuthService.getWebAppBaseUrl()}${statePayload.redirect}`)
+    } catch (error: any) {
+      this.clearAuthCookies(res)
+      return res.redirect(
+        this.buildGoogleFailureRedirect(
+          error?.message ? String(error.message) : 'Google login failed',
+        ),
+      )
+    }
   }
 
   @Post('refresh')

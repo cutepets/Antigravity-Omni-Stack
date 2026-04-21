@@ -8,6 +8,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -17,16 +18,19 @@ import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagg
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import {
-  createDiskUploadOptions,
+  createMemoryUploadOptions,
   deleteUploadedFile,
   DOCUMENT_UPLOAD_EXTENSIONS,
   DOCUMENT_UPLOAD_MIME_TYPES,
   IMAGE_UPLOAD_EXTENSIONS,
   IMAGE_UPLOAD_MIME_TYPES,
+  validateUploadedFile,
 } from '../../common/utils/upload.util.js'
+import type { Request } from 'express'
 import { JwtGuard } from '../auth/guards/jwt.guard'
 import { PaymentWebhookService } from '../orders/payment-webhook.service.js'
 import { QueueService } from '../queue/queue.service'
+import { StorageService } from '../storage/storage.service.js'
 import {
   CreateBranchDto,
   CreateBankTransferAccountDto,
@@ -55,6 +59,7 @@ export class SettingsController {
     private readonly settingsService: SettingsService,
     private readonly paymentWebhookService: PaymentWebhookService,
     private readonly queueService: QueueService,
+    private readonly storageService: StorageService,
   ) { }
 
   @Get('settings/configs')
@@ -69,6 +74,13 @@ export class SettingsController {
   @ApiOperation({ summary: 'Cập nhật cấu hình hệ thống' })
   updateConfigs(@Body() dto: UpdateConfigDto) {
     return this.settingsService.updateConfigs(dto)
+  }
+
+  @Post('settings/google-drive/test')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Kiem tra ket noi Google Drive dung chung' })
+  testGoogleDriveConnection() {
+    return this.storageService.testGoogleDriveConnection()
   }
 
   @Get('settings/print-templates')
@@ -347,7 +359,7 @@ export class SettingsController {
   @UseInterceptors(
     FileInterceptor(
       'image',
-      createDiskUploadOptions({
+      createMemoryUploadOptions({
         destination: 'uploads/images',
         allowedMimeTypes: IMAGE_UPLOAD_MIME_TYPES,
         allowedExtensions: IMAGE_UPLOAD_EXTENSIONS,
@@ -356,9 +368,27 @@ export class SettingsController {
       }),
     ),
   )
-  uploadImage(@UploadedFile() file: Express.Multer.File) {
+  async uploadImage(@UploadedFile() file: Express.Multer.File, @Req() req: Request & { user?: { userId?: string } }) {
     if (!file) return { success: false, message: 'Không tìm thấy file ảnh' }
-    return { success: true, url: `/uploads/images/${file.filename}` }
+    validateUploadedFile(file, {
+      allowedMimeTypes: IMAGE_UPLOAD_MIME_TYPES,
+      allowedExtensions: IMAGE_UPLOAD_EXTENSIONS,
+      maxFileSize: 50 * 1024 * 1024,
+      errorMessage: 'Chi chap nhan file anh (jpg, png, webp, gif, svg)',
+    })
+
+    const asset = await this.storageService.uploadAsset({
+      category: 'image',
+      uploadedById: req.user?.userId ?? null,
+      file: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        buffer: file.buffer,
+      },
+    })
+
+    return { success: true, url: asset.url }
   }
 
   @Post('upload/file')
@@ -368,7 +398,7 @@ export class SettingsController {
   @UseInterceptors(
     FileInterceptor(
       'file',
-      createDiskUploadOptions({
+      createMemoryUploadOptions({
         destination: 'uploads/files',
         allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
         allowedExtensions: DOCUMENT_UPLOAD_EXTENSIONS,
@@ -377,9 +407,27 @@ export class SettingsController {
       }),
     ),
   )
-  uploadFile(@UploadedFile() file: Express.Multer.File) {
+  async uploadFile(@UploadedFile() file: Express.Multer.File, @Req() req: Request & { user?: { userId?: string } }) {
     if (!file) return { success: false, message: 'Không tìm thấy file tài liệu' }
-    return { success: true, url: `/uploads/files/${file.filename}`, name: file.originalname }
+    validateUploadedFile(file, {
+      allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
+      allowedExtensions: DOCUMENT_UPLOAD_EXTENSIONS,
+      maxFileSize: 50 * 1024 * 1024,
+      errorMessage: 'Chi chap nhan pdf, doc, docx, xls, xlsx hoac anh',
+    })
+
+    const asset = await this.storageService.uploadAsset({
+      category: 'document',
+      uploadedById: req.user?.userId ?? null,
+      file: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        buffer: file.buffer,
+      },
+    })
+
+    return { success: true, url: asset.url, name: file.originalname }
   }
 
   @Delete('upload/file')
@@ -391,10 +439,13 @@ export class SettingsController {
       reason: 'settings.upload.delete',
     })
 
-    await deleteUploadedFile(url, {
-      publicPrefix: DOCUMENT_UPLOAD_PREFIX,
-      rootDir: 'uploads/files',
-    })
+    const deletedAsset = await this.storageService.deleteAssetByUrl({ url })
+    if (!deletedAsset) {
+      await deleteUploadedFile(url, {
+        publicPrefix: DOCUMENT_UPLOAD_PREFIX,
+        rootDir: 'uploads/files',
+      })
+    }
 
     return { success: true }
   }

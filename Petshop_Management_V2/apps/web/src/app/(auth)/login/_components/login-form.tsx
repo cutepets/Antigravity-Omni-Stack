@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useAuthStore } from '@/stores/auth.store'
-import { animate, motion } from 'framer-motion'
+import type { CSSProperties } from 'react'
+import { useMemo, useState, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { API_URL } from '@/lib/api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
+import { useAuthStore } from '@/stores/auth.store'
 
 export function LoginForm() {
   const [username, setUsername] = useState('')
@@ -13,24 +15,38 @@ export function LoginForm() {
   const [isPending, startTransition] = useTransition()
 
   const { login, error, clearError, isLoading } = useAuthStore()
-  const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') ?? '/dashboard'
+  const googleError = searchParams.get('error')
+  const googleMessage = searchParams.get('message')
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const externalError = useMemo(() => {
+    if (googleError !== 'google_auth_failed') {
+      return null
+    }
+    return googleMessage || 'Dang nhap Google that bai'
+  }, [googleError, googleMessage])
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
     clearError()
 
     try {
       await login(username, password)
-      toast.success(`Chào mừng trở lại! 👋`)
+      toast.success('Dang nhap thanh cong')
       window.location.href = redirect
     } catch {
-      // error is set in store
+      // store handles the error message
     }
   }
 
+  const handleGoogleLogin = () => {
+    const target = `${API_URL}/api/auth/google?redirect=${encodeURIComponent(redirect)}`
+    window.location.href = target
+  }
+
   const loading = isPending || isLoading
+  const visibleError = error || externalError
 
   return (
     <motion.div
@@ -45,7 +61,6 @@ export function LoginForm() {
         padding: 40,
       }}
     >
-      {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <motion.div
           whileHover={{ scale: 1.05, rotate: 5 }}
@@ -66,15 +81,14 @@ export function LoginForm() {
           🐾
         </motion.div>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--color-foreground-base)', marginBottom: 6, letterSpacing: '-0.02em' }}>
-          Đăng nhập
+          Dang nhap
         </h1>
         <p style={{ color: 'var(--color-foreground-muted)', fontSize: 15 }}>
-          Nhập thông tin truy cập hệ thống quản lý
+          Dang nhap bang tai khoan noi bo hoac Google.
         </p>
       </div>
 
-      {/* Error alert */}
-      {error && (
+      {visibleError && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -90,94 +104,70 @@ export function LoginForm() {
           }}
           role="alert"
         >
-          <span style={{ fontSize: 16 }}>⚠️</span>
-          <span style={{ color: 'var(--color-error)', fontSize: 14, fontWeight: 500 }}>{error}</span>
+          <span style={{ fontSize: 16 }}>!</span>
+          <span style={{ color: 'var(--color-error)', fontSize: 14, fontWeight: 500 }}>{visibleError}</span>
         </motion.div>
       )}
 
+      <button
+        type="button"
+        onClick={handleGoogleLogin}
+        disabled={loading}
+        className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm font-semibold text-foreground-base transition-colors hover:bg-background-elevated disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span className="text-base">G</span>
+        Dang nhap voi Google
+      </button>
+
+      <div className="mb-4 flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-foreground-muted">
+        <span className="h-px flex-1 bg-border/50" />
+        <span>Noi bo</span>
+        <span className="h-px flex-1 bg-border/50" />
+      </div>
+
       <form onSubmit={handleSubmit} noValidate>
-        {/* Username */}
         <div style={{ marginBottom: 20 }}>
           <label
             htmlFor="username"
             style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-foreground-secondary)', marginBottom: 8 }}
           >
-            Tên đăng nhập
+            Ten dang nhap
           </label>
           <input
             id="username"
             type="text"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Nhập tên đăng nhập"
+            onChange={(event) => setUsername(event.target.value)}
+            placeholder="Nhap ten dang nhap"
             autoComplete="username"
             required
             disabled={loading}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              border: '1.5px solid var(--color-border)',
-              borderRadius: 12,
-              fontSize: 15,
-              outline: 'none',
-              transition: 'all 0.2s',
-              color: 'var(--color-foreground-base)',
-              background: loading ? 'var(--color-background-tertiary)' : 'var(--color-background-base)',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.02) inset'
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = 'var(--color-primary-500)';
-              e.target.style.boxShadow = '0 0 0 4px color-mix(in srgb, var(--color-primary-500) 15%, transparent)';
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = 'var(--color-border)';
-              e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02) inset';
-            }}
+            style={inputStyle(loading)}
           />
         </div>
 
-        {/* Password */}
         <div style={{ marginBottom: 32 }}>
           <label
             htmlFor="password"
             style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-foreground-secondary)', marginBottom: 8 }}
           >
-            Mật khẩu
+            Mat khau
           </label>
           <div style={{ position: 'relative' }}>
             <input
               id="password"
               type={showPassword ? 'text' : 'password'}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Nhập mật khẩu"
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Nhap mat khau"
               autoComplete="current-password"
               required
               disabled={loading}
-              style={{
-                width: '100%',
-                padding: '12px 48px 12px 16px',
-                border: '1.5px solid var(--color-border)',
-                borderRadius: 12,
-                fontSize: 15,
-                outline: 'none',
-                transition: 'all 0.2s',
-                color: 'var(--color-foreground-base)',
-                background: loading ? 'var(--color-background-tertiary)' : 'var(--color-background-base)',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.02) inset'
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = 'var(--color-primary-500)';
-                e.target.style.boxShadow = '0 0 0 4px color-mix(in srgb, var(--color-primary-500) 15%, transparent)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = 'var(--color-border)';
-                e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02) inset';
-              }}
+              style={{ ...inputStyle(loading), padding: '12px 48px 12px 16px' }}
             />
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
+              onClick={() => setShowPassword((current) => !current)}
               style={{
                 position: 'absolute',
                 right: 14,
@@ -190,22 +180,17 @@ export function LoginForm() {
                 fontSize: 16,
                 lineHeight: 1,
                 padding: 4,
-                transition: 'color 0.2s'
               }}
-              aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-              onMouseOver={(e) => e.currentTarget.style.color = 'var(--color-foreground-base)'}
-              onMouseOut={(e) => e.currentTarget.style.color = 'var(--color-foreground-muted)'}
+              aria-label={showPassword ? 'An mat khau' : 'Hien mat khau'}
             >
               {showPassword ? '🙈' : '👁️'}
             </button>
           </div>
         </div>
 
-        {/* Submit */}
         <button
           type="submit"
           disabled={loading || !username || !password}
-          id="login-submit-btn"
           className={(!username || !password || loading) ? '' : 'liquid-button'}
           style={{
             width: '100%',
@@ -238,15 +223,14 @@ export function LoginForm() {
                 }}
                 className="animate-spin"
               />
-              Đang đăng nhập...
+              Dang dang nhap...
             </>
           ) : (
-            'Đăng nhập hệ thống →'
+            'Dang nhap he thong'
           )}
         </button>
       </form>
 
-      {/* Dev hint */}
       {process.env.NODE_ENV === 'development' && (
         <div
           style={{
@@ -273,3 +257,17 @@ export function LoginForm() {
   )
 }
 
+function inputStyle(loading: boolean): CSSProperties {
+  return {
+    width: '100%',
+    padding: '12px 16px',
+    border: '1.5px solid var(--color-border)',
+    borderRadius: 12,
+    fontSize: 15,
+    outline: 'none',
+    transition: 'all 0.2s',
+    color: 'var(--color-foreground-base)',
+    background: loading ? 'var(--color-background-tertiary)' : 'var(--color-background-base)',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.02) inset',
+  }
+}

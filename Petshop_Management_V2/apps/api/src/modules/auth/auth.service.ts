@@ -71,6 +71,99 @@ export class AuthService {
     return expiresAt
   }
 
+  private async issueSessionForUser(user: {
+    id: string
+    username: string
+    fullName: string
+    staffCode: string
+    branchId: string | null
+    avatar: string | null
+    status?: string
+    branch?: { id: string; name: string; address: string | null; isActive: boolean } | null
+    authorizedBranches?: Array<{ id: string; name: string; address: string | null; isActive: boolean }>
+    role?: { code?: string | null; permissions?: unknown } | null
+  }): Promise<LoginResponse> {
+    if (user.status === 'LEAVING' || user.status === 'RESIGNED' || user.status === 'QUIT') {
+      throw new UnauthorizedException('Tai khoan da bi vo hieu hoa')
+    }
+
+    const combinedRole = user.role?.code ?? ''
+    const combinedPermissions = this.resolveRolePermissions(combinedRole, user.role?.permissions)
+    let mappedAuthorizedBranches = this.mapAuthorizedBranches(user as any)
+
+    if (
+      combinedPermissions.includes('FULL_BRANCH_ACCESS') ||
+      combinedRole === 'SUPER_ADMIN' ||
+      combinedRole === 'ADMIN'
+    ) {
+      const allBranches = await this.db.branch.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, address: true, isActive: true },
+      })
+      mappedAuthorizedBranches = allBranches as any[]
+    }
+
+    const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
+      userId: user.id,
+      role: combinedRole as JwtPayload['role'],
+      permissions: this.getJwtPermissions(user.role?.permissions),
+      branchId: user.branchId ?? null,
+      authorizedBranchIds: mappedAuthorizedBranches.map((branch) => branch.id),
+    }
+
+    const accessToken = this.jwt.sign(payload as Record<string, any>)
+    const refreshToken = this.jwt.sign(payload as Record<string, any>, {
+      secret: this.getRefreshSecret(),
+      expiresIn: (process.env['JWT_REFRESH_EXPIRES_IN'] ?? '7d') as any,
+    })
+
+    await this.db.refreshToken.create({
+      data: {
+        userId: user.id,
+        token: this.hashRefreshToken(refreshToken),
+        expiresAt: this.getRefreshTokenExpiry(refreshToken),
+      },
+    })
+
+    const authUser: AuthUser = {
+      id: user.id,
+      username: user.username,
+      fullName: user.fullName,
+      role: combinedRole as AuthUser['role'],
+      staffCode: user.staffCode,
+      branchId: user.branchId ?? null,
+      avatar: user.avatar ?? null,
+      authorizedBranches: mappedAuthorizedBranches,
+      permissions: combinedPermissions,
+    }
+
+    return { accessToken, refreshToken, user: authUser }
+  }
+
+  async createSessionForUserId(userId: string): Promise<LoginResponse> {
+    const user = await this.db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        fullName: true,
+        staffCode: true,
+        branchId: true,
+        avatar: true,
+        status: true,
+        branch: { select: { id: true, name: true, address: true, isActive: true } },
+        authorizedBranches: { select: { id: true, name: true, address: true, isActive: true } },
+        role: true,
+      },
+    })
+
+    if (!user) {
+      throw new UnauthorizedException('Khong tim thay nguoi dung dang nhap Google')
+    }
+
+    return this.issueSessionForUser(user as any)
+  }
+
   async login(dto: LoginDto): Promise<LoginResponse> {
     const user = await this.db.user.findFirst({
       where: { username: dto.username },

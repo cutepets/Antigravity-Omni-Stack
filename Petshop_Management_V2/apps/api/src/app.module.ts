@@ -22,6 +22,7 @@ import { LeaveModule } from './modules/leave/leave.module.js'
 import { PayrollModule } from './modules/payroll/payroll.module.js'
 import { HealthController } from './health.controller.js'
 import { QueueModule } from './modules/queue/queue.module.js'
+import { StorageModule } from './modules/storage/storage.module.js'
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { QueueModule } from './modules/queue/queue.module.js'
 
     // Core modules
     QueueModule,
+    StorageModule,
     AuthModule,
     UsersModule,
     RolesModule,

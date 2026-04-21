@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
 import { AuthController } from './auth.controller.js'
 import { AuthService } from './auth.service.js'
+import { GoogleAuthService } from './google-auth.service.js'
 import { JwtStrategy } from './strategies/jwt.strategy.js'
 import { TokenCleanupService } from './token-cleanup.service.js'
 import { DatabaseModule } from '../../database/database.module.js'
@@ -20,8 +21,7 @@ if (!jwtSecret) {
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, TokenCleanupService],
+  providers: [AuthService, GoogleAuthService, JwtStrategy, TokenCleanupService],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}
-
