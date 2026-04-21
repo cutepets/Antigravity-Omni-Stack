@@ -18,6 +18,7 @@ export interface UploadStoredAssetInput {
   scope?: StorageUploadScope | null
   uploadedById?: string | null
   visibility?: StorageVisibility
+  providerOverride?: StorageProviderKind
 }
 
 export interface DeleteStoredAssetInput {

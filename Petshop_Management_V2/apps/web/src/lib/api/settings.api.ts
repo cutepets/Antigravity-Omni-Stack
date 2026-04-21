@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { API_URL, api } from '@/lib/api'
 
 export type CashbookCategory = {
   id: string
@@ -23,12 +23,13 @@ export type BankTransferAccount = {
   updatedAt: string
 }
 
-export type PaymentMethodType = 'CASH' | 'BANK' | 'EWALLET' | 'CARD'
+export type PaymentMethodType = 'CASH' | 'BANK' | 'EWALLET' | 'CARD' | 'POINTS'
 export type PaymentMethodColorKey = 'emerald' | 'sky' | 'amber' | 'orange' | 'violet' | 'rose' | 'cyan' | 'slate'
 export type PaymentQrProvider = 'VIETQR'
 
 export type PaymentOptions = {
   allowMultiPayment: boolean
+  loyaltyPointValue?: number
 }
 
 export type PaymentWebhookSecret = {
@@ -151,7 +152,171 @@ export type PrintTemplate = {
   updatedAt: string
 }
 
+export type BackupCatalogEntry = {
+  moduleId: string
+  label: string
+  moduleVersion: number
+  dependencies: string[]
+  requiredBy: string[]
+  keepsFileRefs: boolean
+  supportedImportVersions: number[]
+}
+
+export type BackupInspectModuleResult = BackupCatalogEntry & {
+  fileModuleVersion: number
+  recordCounts: Record<string, number>
+  compatible: boolean
+  compatibilityReason: string | null
+}
+
+export type BackupInspectResult = {
+  manifest: {
+    appId: string
+    appVersion: string
+    formatName: string
+    formatVersion: number
+    createdAt: string
+    createdBy: string | null
+    schemaFingerprint: string
+    selectedModules: string[]
+    excludedBinaryContent: true
+    keepsFileRefs: true
+    containsSecrets: boolean
+    modules: Array<{
+      moduleId: string
+      label: string
+      moduleVersion: number
+      dependencies: string[]
+      recordCounts: Record<string, number>
+    }>
+  }
+  modules: BackupInspectModuleResult[]
+  warnings: string[]
+}
+
+export type BackupRestoreResult = {
+  strategy: 'replace_selected'
+  schemaMatched: boolean
+  restoredModules: string[]
+  warnings: string[]
+}
+
+export type BackupExportPayload = {
+  modules: string[]
+  destination: 'download' | 'google_drive'
+  password: string
+}
+
+export type BackupExportResult =
+  | {
+      kind: 'download'
+      fileName: string
+      blob: Blob
+      manifest: BackupInspectResult['manifest'] | null
+    }
+  | {
+      kind: 'google_drive'
+      data: {
+        fileName: string
+        size: number
+        asset: {
+          id: string
+          url: string
+          originalName: string
+        }
+        manifest: BackupInspectResult['manifest']
+      }
+    }
+
+function parseFileNameFromDisposition(disposition: string | null) {
+  if (!disposition) return null
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1])
+  }
+
+  const plainMatch = disposition.match(/filename="?([^"]+)"?/i)
+  if (plainMatch?.[1]) {
+    return plainMatch[1]
+  }
+
+  return null
+}
+
+async function parseErrorResponse(response: Response) {
+  const payload = await response.json().catch(() => ({}))
+  const message =
+    (payload as { message?: string }).message ||
+    (payload as { error?: string }).error ||
+    `HTTP ${response.status}`
+
+  throw new Error(message)
+}
+
 export const settingsApi = {
+  getBackupCatalog: async (): Promise<BackupCatalogEntry[]> => {
+    const { data } = await api.get('/settings/backups/catalog')
+    return data.data ?? []
+  },
+
+  exportBackup: async (payload: BackupExportPayload): Promise<BackupExportResult> => {
+    const response = await fetch(`${API_URL}/api/settings/backups/export`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      await parseErrorResponse(response)
+    }
+
+    const contentType = response.headers.get('content-type') ?? ''
+    if (contentType.includes('application/json')) {
+      const data = await response.json()
+      return {
+        kind: 'google_drive',
+        data: data.data,
+      }
+    }
+
+    return {
+      kind: 'download',
+      fileName:
+        parseFileNameFromDisposition(response.headers.get('content-disposition')) ??
+        'backup.appbak',
+      blob: await response.blob(),
+      manifest: null,
+    }
+  },
+
+  inspectBackup: async (file: File, password: string): Promise<BackupInspectResult> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('password', password)
+
+    const { data } = await api.post('/settings/backups/inspect', formData)
+    return data.data as BackupInspectResult
+  },
+
+  restoreBackup: async (payload: {
+    file: File
+    password: string
+    modules: string[]
+    strategy?: 'replace_selected'
+  }): Promise<BackupRestoreResult> => {
+    const formData = new FormData()
+    formData.append('file', payload.file)
+    formData.append('password', payload.password)
+    formData.append('modules', JSON.stringify(payload.modules))
+    formData.append('strategy', payload.strategy ?? 'replace_selected')
+
+    const { data } = await api.post('/settings/backups/restore', formData)
+    return data.data as BackupRestoreResult
+  },
+
   getPrintTemplates: async (): Promise<PrintTemplate[]> => {
     const { data } = await api.get('/settings/print-templates')
     return data.data ?? []

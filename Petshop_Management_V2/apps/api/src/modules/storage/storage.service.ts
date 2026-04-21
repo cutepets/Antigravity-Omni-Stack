@@ -90,8 +90,19 @@ export class StorageService {
   async uploadAsset(input: UploadStoredAssetInput) {
     const config = await this.getSystemConfig()
     const useGoogleDrive =
-      config?.storageProvider === StorageProviderKind.GOOGLE_DRIVE &&
-      config?.googleDriveEnabled === true
+      input.providerOverride === StorageProviderKind.GOOGLE_DRIVE
+        ? true
+        : input.providerOverride === StorageProviderKind.LOCAL
+          ? false
+          : config?.storageProvider === StorageProviderKind.GOOGLE_DRIVE &&
+            config?.googleDriveEnabled === true
+
+    if (
+      input.providerOverride === StorageProviderKind.GOOGLE_DRIVE &&
+      config?.googleDriveEnabled !== true
+    ) {
+      throw new BadRequestException('Google Drive chua duoc bat trong cau hinh he thong')
+    }
 
     const stored = useGoogleDrive
       ? await this.storeInGoogleDrive(input)

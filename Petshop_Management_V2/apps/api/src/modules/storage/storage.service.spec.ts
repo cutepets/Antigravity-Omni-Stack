@@ -120,4 +120,53 @@ describe('StorageService', () => {
       },
     })
   })
+
+  it('allows backup uploads to force Google Drive even when the default provider is local', async () => {
+    const db = {
+      systemConfig: {
+        findFirst: jest.fn().mockResolvedValue({
+          storageProvider: StorageProviderKind.LOCAL,
+          googleDriveEnabled: true,
+        }),
+      },
+      storedAsset: {
+        create: jest.fn().mockResolvedValue({
+          id: 'asset-3',
+          url: 'http://localhost:3001/api/storage/assets/asset-3/content',
+        }),
+      },
+    } as any
+
+    const service = new StorageService(db, {} as any)
+    const storeInGoogleDriveSpy = jest
+      .spyOn(service as any, 'storeInGoogleDrive')
+      .mockResolvedValue({
+        provider: StorageProviderKind.GOOGLE_DRIVE,
+        storageKey: 'storage/backup/backup.appbak',
+        googleFileId: 'drive-backup-1',
+        previewUrl: null,
+      })
+
+    await service.uploadAsset({
+      category: 'backup',
+      providerOverride: StorageProviderKind.GOOGLE_DRIVE,
+      uploadedById: 'user-1',
+      file: {
+        originalName: 'backup.appbak',
+        mimeType: 'application/octet-stream',
+        size: 321,
+        buffer: Buffer.from('archive'),
+      },
+    })
+
+    expect(storeInGoogleDriveSpy).toHaveBeenCalled()
+    expect(db.storedAsset.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          category: 'backup',
+          provider: StorageProviderKind.GOOGLE_DRIVE,
+        }),
+      }),
+    )
+  })
 })

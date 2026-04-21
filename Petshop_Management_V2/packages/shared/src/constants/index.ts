@@ -53,3 +53,4 @@ export const SERVICE_TYPE_LABELS: Record<string, string> = {
 export const LOW_STOCK_THRESHOLD_DEFAULT = 5
 
 export const LOYALTY_POINTS_RATE = 0.01 // 1% of order total = points
+export const POINTS_REDEMPTION_RATE = 1 // 1 point = 1 VND

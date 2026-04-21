@@ -26,6 +26,7 @@ import {
   generateGroomingSessionCode as formatGroomingSessionCode,
   generateHotelStayCode as formatHotelStayCode,
   generateOrderNumber as formatOrderNumber,
+  POINTS_REDEMPTION_RATE,
 } from '@petshop/shared';
 import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js';
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
@@ -137,7 +138,7 @@ type OrderPaymentIntentView = {
   } | null;
 };
 
-  // Payment method labels
+// Payment method labels
 const METHOD_LABELS: Record<string, string> = {
   CASH: 'Tiền mặt',
   BANK: 'Chuyển khoản',
@@ -598,6 +599,29 @@ export class OrdersService {
     const remaining = paymentUpdate.remainingAmount;
     const paymentStatus = paymentUpdate.paymentStatus;
     const traceParts = this.buildOrderServiceTraceParts(params.order as any);
+
+    const pointPaymentTotal = paymentsArr.filter((p) => p.method === 'POINTS').reduce((sum, p) => sum + p.amount, 0);
+    if (pointPaymentTotal > 0) {
+      if (!params.order.customerId) {
+        throw new BadRequestException('Phải khách hàng để thanh toán bằng điểm');
+      }
+      const customer = await (tx as any).customer.findUnique({
+        where: { id: params.order.customerId },
+      });
+      const sysConfig = await (tx as any).systemConfig.findFirst({ select: { loyaltyPointValue: true } });
+      const pointRedemptionRate = Number(sysConfig?.loyaltyPointValue ?? 1) || 1;
+      const pointsToDeduct = Math.ceil(pointPaymentTotal / pointRedemptionRate);
+      if (!customer || customer.points < pointsToDeduct) {
+        throw new BadRequestException('Khách hàng không đủ điểm để thanh toán');
+      }
+      await (tx as any).customer.update({
+        where: { id: customer.id },
+        data: {
+          points: { decrement: pointsToDeduct },
+          pointsUsed: { increment: pointsToDeduct },
+        },
+      });
+    }
 
     await recordOrderPayments(tx as any, {
       generateVoucherNumber: (type) => this.generateVoucherNumberFor(tx, type),
@@ -1703,37 +1727,79 @@ export class OrdersService {
               branchId,
             }),
           recordInitialPayments: async ({ order, normalizedPayments, notes, staffId, serviceTraceParts }) => {
+            const pointPaymentTotal = normalizedPayments.filter((p) => p.method === 'POINTS').reduce((sum, p) => sum + p.amount, 0);
+            if (pointPaymentTotal > 0) {
+              if (!data.customerId) {
+                throw new BadRequestException('Phải thiết lập khách hàng để thanh toán bằng điểm');
+              }
+              const customer = await (tx as any).customer.findUnique({
+                where: { id: data.customerId },
+              });
+              const sysConfig = await (tx as any).systemConfig.findFirst({ select: { loyaltyPointValue: true } });
+              const pointRedemptionRate = Number(sysConfig?.loyaltyPointValue ?? 1) || 1;
+              const pointsToDeduct = Math.ceil(pointPaymentTotal / pointRedemptionRate);
+              if (!customer || customer.points < pointsToDeduct) {
+                throw new BadRequestException('Khách hàng không đủ điểm để thanh toán');
+              }
+              await (tx as any).customer.update({
+                where: { id: customer.id },
+                data: {
+                  points: { decrement: pointsToDeduct },
+                  pointsUsed: { increment: pointsToDeduct },
+                },
+              });
+            }
+
             for (const pay of normalizedPayments) {
               if (pay.amount <= 0) continue;
-              const label = this.getPaymentLabel(pay.method);
-              await createOrderFinanceTransaction(
-                tx as any,
-                {
-                  getPaymentLabel: (method) => this.getPaymentLabel(method),
-                  buildServiceTraceTags: (parts) => this.buildServiceTraceTags(parts),
-                  mergeTransactionNotes: (note, parts) => this.mergeTransactionNotes(note, parts),
-                  generateVoucherNumber: () => this.generateVoucherNumberFor(tx as any, 'INCOME'),
-                },
-                {
-                  order: {
-                    id: order.id,
-                    orderNumber: order.orderNumber,
-                    branchId: data.branchId ?? null,
-                    customerId: data.customerId ?? null,
-                    customerName: data.customerName,
+
+              if (pay.method !== 'POINTS') {
+                const label = this.getPaymentLabel(pay.method);
+                await createOrderFinanceTransaction(
+                  tx as any,
+                  {
+                    getPaymentLabel: (method) => this.getPaymentLabel(method),
+                    buildServiceTraceTags: (parts) => this.buildServiceTraceTags(parts),
+                    mergeTransactionNotes: (note, parts) => this.mergeTransactionNotes(note, parts),
+                    generateVoucherNumber: () => this.generateVoucherNumberFor(tx as any, 'INCOME'),
                   },
-                  type: 'INCOME',
-                  amount: pay.amount,
-                  paymentMethod: pay.method,
-                  paymentAccountId: pay.paymentAccountId ?? null,
-                  paymentAccountLabel: pay.paymentAccountLabel ?? null,
-                  description: `Thu tu don hang ${order.orderNumber} - ${label}`,
-                  note: pay.note ?? notes ?? null,
-                  source: 'ORDER_PAYMENT',
-                  staffId,
-                  traceParts: serviceTraceParts,
-                },
-              );
+                  {
+                    order: {
+                      id: order.id,
+                      orderNumber: order.orderNumber,
+                      branchId: data.branchId ?? null,
+                      customerId: data.customerId ?? null,
+                      customerName: data.customerName,
+                    },
+                    type: 'INCOME',
+                    amount: pay.amount,
+                    paymentMethod: pay.method,
+                    paymentAccountId: pay.paymentAccountId ?? null,
+                    paymentAccountLabel: pay.paymentAccountLabel ?? null,
+                    description: `Thu tu don hang ${order.orderNumber} - ${label}`,
+                    note: pay.note ?? notes ?? null,
+                    source: 'ORDER_PAYMENT',
+                    staffId,
+                    traceParts: serviceTraceParts,
+                  },
+                );
+              }
+
+              // Since QUICK orders bypass recordOrderPayments entirely right now in this codebase,
+              // we must manually record the OrderPayment history entry for POINTS
+              // (and for other methods as well if we wanted full consistency, but we keep existing behavior)
+              if (pay.method === 'POINTS') {
+                await (tx as any).orderPayment.create({
+                  data: {
+                    orderId: order.id,
+                    method: pay.method,
+                    amount: pay.amount,
+                    note: pay.note ?? notes ?? null,
+                    paymentAccountId: pay.paymentAccountId ?? null,
+                    paymentAccountLabel: pay.paymentAccountLabel ?? null,
+                  },
+                });
+              }
             }
           },
           incrementCustomerStats: (customerId, total) => this.incrementCustomerStats(tx as any, customerId, total),

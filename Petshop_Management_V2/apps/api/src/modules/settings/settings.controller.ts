@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,6 +9,7 @@ import {
   Post,
   Put,
   Query,
+  Res,
   Req,
   UploadedFile,
   UseGuards,
@@ -15,6 +17,7 @@ import {
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { memoryStorage } from 'multer'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import {
@@ -26,11 +29,19 @@ import {
   IMAGE_UPLOAD_MIME_TYPES,
   validateUploadedFile,
 } from '../../common/utils/upload.util.js'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 import { JwtGuard } from '../auth/guards/jwt.guard'
 import { PaymentWebhookService } from '../orders/payment-webhook.service.js'
 import { QueueService } from '../queue/queue.service'
 import { StorageService } from '../storage/storage.service.js'
+import { BackupService } from './backup/backup.service.js'
+import {
+  APP_BACKUP_EXTENSION,
+  APP_BACKUP_MIME_TYPE,
+  CreateBackupDto,
+  InspectBackupDto,
+  RestoreBackupDto,
+} from './backup/backup.types.js'
 import {
   CreateBranchDto,
   CreateBankTransferAccountDto,
@@ -60,7 +71,30 @@ export class SettingsController {
     private readonly paymentWebhookService: PaymentWebhookService,
     private readonly queueService: QueueService,
     private readonly storageService: StorageService,
+    private readonly backupService: BackupService,
   ) { }
+
+  private parseBackupModules(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value.flatMap((entry) => this.parseBackupModules(entry))
+    }
+
+    const raw = String(value ?? '').trim()
+    if (!raw) {
+      return []
+    }
+
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed.map((entry) => String(entry ?? '').trim()).filter(Boolean)
+      }
+    } catch {
+      // Ignore JSON parse failures and fall back to comma-separated values.
+    }
+
+    return raw.split(',').map((entry) => entry.trim()).filter(Boolean)
+  }
 
   @Get('settings/configs')
   @Permissions('settings.app.read')
@@ -81,6 +115,95 @@ export class SettingsController {
   @ApiOperation({ summary: 'Kiem tra ket noi Google Drive dung chung' })
   testGoogleDriveConnection() {
     return this.storageService.testGoogleDriveConnection()
+  }
+
+  @Get('settings/backups/catalog')
+  @Permissions('settings.app.read')
+  @ApiOperation({ summary: 'Lay danh sach module backup hien co' })
+  getBackupCatalog() {
+    return this.backupService.getCatalog()
+  }
+
+  @Post('settings/backups/export')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Tao backup mot-file dang .appbak' })
+  async exportBackup(
+    @Body() dto: CreateBackupDto,
+    @Req() req: Request & { user?: { userId?: string } },
+    @Res() res: Response,
+  ) {
+    const result = await this.backupService.exportBackup(dto, req.user?.userId ?? null)
+
+    if (result.kind === 'download') {
+      res.setHeader('Content-Type', APP_BACKUP_MIME_TYPE)
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`,
+      )
+      res.setHeader('Content-Length', String(result.buffer.length))
+      res.send(result.buffer)
+      return
+    }
+
+    res.json({
+      success: true,
+      data: result.data,
+    })
+  }
+
+  @Post('settings/backups/inspect')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Doc thong tin file backup .appbak' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 100 * 1024 * 1024 },
+    }),
+  )
+  inspectBackup(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: InspectBackupDto,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Khong tim thay file backup')
+    }
+
+    if (!String(file.originalname ?? '').toLowerCase().endsWith(APP_BACKUP_EXTENSION)) {
+      throw new BadRequestException('Chi chap nhan file backup .appbak')
+    }
+
+    return this.backupService.inspectBackup(file.buffer, dto.password)
+  }
+
+  @Post('settings/backups/restore')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Khoi phuc du lieu tu file backup .appbak' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 100 * 1024 * 1024 },
+    }),
+  )
+  restoreBackup(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: RestoreBackupDto,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Khong tim thay file backup')
+    }
+
+    if (!String(file.originalname ?? '').toLowerCase().endsWith(APP_BACKUP_EXTENSION)) {
+      throw new BadRequestException('Chi chap nhan file backup .appbak')
+    }
+
+    return this.backupService.restoreBackup(
+      file.buffer,
+      dto.password,
+      this.parseBackupModules(dto.modules),
+      dto.strategy ?? 'replace_selected',
+    )
   }
 
   @Get('settings/print-templates')

@@ -6,6 +6,7 @@ import type { PaymentMethod } from '@/lib/api/settings.api';
 import { getPaymentMethodColorClasses } from '@/lib/payment-methods';
 import { money, moneyRaw } from '@/app/(dashboard)/_shared/payment/payment.utils';
 import { Check, ChevronDown } from 'lucide-react';
+import { POINTS_REDEMPTION_RATE } from '@petshop/shared';
 
 type PosCheckoutPanelProps = {
   activeTab: OrderTab;
@@ -15,6 +16,7 @@ type PosCheckoutPanelProps = {
   paymentMethods: PaymentMethod[];
   visiblePaymentMethods: PaymentMethod[];
   allowMultiPayment: boolean;
+  loyaltyPointValue?: number;
   tabPayments: PaymentEntry[];
   isMultiPaymentSummary: boolean;
   currentSinglePaymentMethod: PaymentMethod | null;
@@ -45,6 +47,7 @@ export function PosCheckoutPanel({
   paymentMethods,
   visiblePaymentMethods,
   allowMultiPayment,
+  loyaltyPointValue = POINTS_REDEMPTION_RATE,
   tabPayments,
   isMultiPaymentSummary,
   currentSinglePaymentMethod,
@@ -197,19 +200,35 @@ export function PosCheckoutPanel({
                           <div className="max-h-72 overflow-y-auto p-1.5 space-y-0.5">
                             {visiblePaymentMethods.map((method) => {
                               const colorClasses = getPaymentMethodColorClasses(method.type, method.colorKey);
+                              const isPointsMethod = method.type === 'POINTS';
+                              const maxPointsAmount = (activeTab.customerPoints ?? 0) * loyaltyPointValue;
+                              const hasInsufficientPoints = isPointsMethod && maxPointsAmount < cartTotal;
+
                               return (
                                 <button
                                   key={method.id}
                                   type="button"
+                                  disabled={hasInsufficientPoints}
                                   onClick={() => onSelectSinglePaymentMethod(method)}
-                                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors hover:bg-surface-hover"
+                                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${hasInsufficientPoints
+                                    ? 'opacity-50 cursor-not-allowed'
+                                    : 'hover:bg-surface-hover'
+                                    }`}
                                 >
-                                  <div className="flex items-center gap-2 overflow-hidden min-w-0">
-                                    <span className={`inline-flex shrink-0 h-2.5 w-2.5 rounded-full ${colorClasses.accent}`} />
-                                    <span className="truncate text-[13.5px] font-semibold text-foreground">{method.name}</span>
-                                    <span className="shrink-0 ml-1 rounded bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium text-foreground-muted">
-                                      {method.type}
-                                    </span>
+                                  <div className="flex flex-col min-w-0">
+                                    <div className="flex items-center gap-2 overflow-hidden min-w-0">
+                                      <span className={`inline-flex shrink-0 h-2.5 w-2.5 rounded-full ${colorClasses.accent}`} />
+                                      <span className="truncate text-[13.5px] font-semibold text-foreground">{method.name}</span>
+                                      <span className="shrink-0 ml-1 rounded bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium text-foreground-muted">
+                                        {method.type}
+                                      </span>
+                                    </div>
+                                    {isPointsMethod && (
+                                      <span className="pl-[18px] text-[10.5px] text-foreground-muted mt-0.5">
+                                        Hiện có: {(activeTab.customerPoints ?? 0).toLocaleString('vi-VN')} điểm
+                                        {hasInsufficientPoints ? ' · Không đủ điểm' : ''}
+                                      </span>
+                                    )}
                                   </div>
                                   {currentSinglePaymentMethod?.id === method.id ? (
                                     <span className="text-primary-600 shrink-0 ml-2 block">
@@ -283,12 +302,12 @@ export function PosCheckoutPanel({
             </span>
             <span
               className={`text-[15px] font-bold ${isMultiPaymentSummary
-                  ? multiPaymentTotal >= cartTotal
-                    ? 'text-emerald-600'
-                    : 'text-rose-500'
-                  : returnMoney > 0
-                    ? 'text-foreground'
-                    : 'text-foreground-muted'
+                ? multiPaymentTotal >= cartTotal
+                  ? 'text-emerald-600'
+                  : 'text-rose-500'
+                : returnMoney > 0
+                  ? 'text-foreground'
+                  : 'text-foreground-muted'
                 }`}
             >
               {isMultiPaymentSummary

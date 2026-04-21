@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Banknote, CreditCard, Landmark, Plus, Smartphone, Trash2, X } from 'lucide-react'
 import { getPaymentMethodColorClasses, PAYMENT_METHOD_TYPE_LABELS } from '@/lib/payment-methods'
+import { POINTS_REDEMPTION_RATE } from '@petshop/shared'
 import type { PaymentMethod } from '@/lib/api/settings.api'
 
 type MultiPaymentDraft = {
@@ -22,6 +23,7 @@ export interface PaymentModalProps {
   isOpen: boolean
   onClose: () => void
   cartTotal: number
+  customerPoints?: number
   paymentMethods: PaymentMethod[]
   initialPayments: MultiPaymentDraft[]
   minimumMethods?: number
@@ -30,6 +32,8 @@ export interface PaymentModalProps {
   onConfirm: (payload: { payments: MultiPaymentDraft[] }) => void
   /** Gọi khi hình thức đầu tiên là BANK/EWALLET — để trigger QR modal */
   onRequestQr?: (paymentAccountId: string, amount: number) => void
+  /** Tỷ lệ quy đổi: 1 điểm = N VND */
+  loyaltyPointValue?: number
 }
 
 const ROW_LIMIT = 3
@@ -60,12 +64,14 @@ export function PaymentModal({
   isOpen,
   onClose,
   cartTotal,
+  customerPoints = 0,
   paymentMethods,
   initialPayments,
   minimumMethods = 1,
   title = 'Thanh toán nhiều hình thức',
   onConfirm,
   onRequestQr,
+  loyaltyPointValue = POINTS_REDEMPTION_RATE,
 }: PaymentModalProps) {
   const [rows, setRows] = useState<MultiPaymentRowState[]>([])
   const [isPrimaryManual, setIsPrimaryManual] = useState(false)
@@ -237,13 +243,19 @@ export function PaymentModal({
                       type="text"
                       inputMode="numeric"
                       value={formatMoneyInput(row.amount)}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        let valStr = event.target.value.replace(/\D/g, '')
+                        if (row.method?.type === 'POINTS') {
+                          const maxPointsAmount = customerPoints * loyaltyPointValue
+                          const val = Math.min(Number(valStr), maxPointsAmount)
+                          valStr = val > 0 ? val.toString() : ''
+                        }
                         updateRow(
                           row.key,
-                          { amount: event.target.value.replace(/\D/g, '') },
+                          { amount: valStr },
                           index === 0,
                         )
-                      }
+                      }}
                       placeholder={index === 0 ? new Intl.NumberFormat('vi-VN').format(cartTotal) : 'Nhập số tiền'}
                       className="w-full rounded-xl border border-border bg-background-secondary/60 px-4 py-2.5 text-right text-[15px] font-semibold text-foreground outline-none transition-colors focus:border-primary-500"
                     />

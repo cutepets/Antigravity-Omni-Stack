@@ -88,6 +88,7 @@ export interface OrderTab {
   title: string
   customerId?: string
   customerName: string
+  customerPoints?: number
   customerPricing?: CustomerPricingProfile | null
   productSearch: string
   cart: CartItem[]

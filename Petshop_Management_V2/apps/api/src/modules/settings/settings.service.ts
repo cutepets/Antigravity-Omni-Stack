@@ -1091,12 +1091,13 @@ export class SettingsService {
   async getPaymentOptions() {
     try {
       const config = await (this.db as any).systemConfig.findFirst({
-        select: { allowMultiPayment: true },
+        select: { allowMultiPayment: true, loyaltyPointValue: true },
       })
       return {
         success: true,
         data: {
           allowMultiPayment: config?.allowMultiPayment ?? true,
+          loyaltyPointValue: Number(config?.loyaltyPointValue ?? 1) || 1,
         },
       }
     } catch {
@@ -1104,6 +1105,7 @@ export class SettingsService {
         success: true,
         data: {
           allowMultiPayment: true,
+          loyaltyPointValue: 1,
         },
       }
     }

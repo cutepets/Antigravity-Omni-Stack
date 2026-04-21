@@ -3,13 +3,30 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRightLeft, Bell, Check, CheckCircle2, History, MapPin, Moon, Package, Palette, Printer, Save, Settings, Store, Zap } from 'lucide-react'
+import {
+  ArrowRightLeft,
+  Bell,
+  Check,
+  CheckCircle2,
+  Database,
+  History,
+  MapPin,
+  Moon,
+  Package,
+  Palette,
+  Printer,
+  Save,
+  Settings,
+  Store,
+  Zap,
+} from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { cn } from '@/lib/utils'
 import { ThemeTogglePremium } from '@/components/ui/dark-mode-button'
 import { useThemeStore } from '@/stores/theme.store'
 import { useAnimationStore, type AnimConfig } from '@/stores/animation.store'
+import { TabBackup } from './components/TabBackup'
 import { TabPayments } from './components/TabPayments'
 import { TabBranches } from './components/TabBranches'
 import { TabGeneral } from './components/TabGeneral'
@@ -17,7 +34,6 @@ import { TabHistory } from './components/TabHistory'
 import { TabNotifications } from './components/TabNotifications'
 import { TabPrintTemplates } from './components/TabPrintTemplates'
 import { TabModules } from './components/TabModules'
-
 
 type SettingsTabConfig = {
   id: string
@@ -28,13 +44,13 @@ type SettingsTabConfig = {
 }
 
 const THEME_COLORS = [
-  { label: 'Xanh lá (Mặc định)', value: '#10b981' },
-  { label: 'Xanh dương', value: '#3b82f6' },
-  { label: 'Tím', value: '#8b5cf6' },
-  { label: 'Hồng', value: '#ec4899' },
+  { label: 'Xanh la (Mac dinh)', value: '#10b981' },
+  { label: 'Xanh duong', value: '#3b82f6' },
+  { label: 'Tim', value: '#8b5cf6' },
+  { label: 'Hong', value: '#ec4899' },
   { label: 'Cam', value: '#f97316' },
-  { label: 'Đỏ', value: '#ef4444' },
-  { label: 'Vàng', value: '#eab308' },
+  { label: 'Do', value: '#ef4444' },
+  { label: 'Vang', value: '#eab308' },
   { label: 'Xanh cyan', value: '#06b6d4' },
 ]
 
@@ -51,13 +67,49 @@ const SETTINGS_PAGE_PERMISSIONS = [
 ]
 
 const SETTINGS_TABS: SettingsTabConfig[] = [
-  { id: 'general', label: 'Cửa hàng', icon: Store, anyPermissions: ['settings.app.read', 'settings.app.update'] },
-  { id: 'branches', label: 'Chi nhánh', icon: MapPin, anyPermissions: ['branch.read', 'branch.create', 'branch.update', 'branch.delete'] },
-  { id: 'payments', label: 'Thanh toán', icon: ArrowRightLeft, anyPermissions: ['settings.payment.manage'] },
-  { id: 'print-templates', label: 'Mẫu in', icon: Printer, anyPermissions: ['settings.template.manage'] },
-  { id: 'theme', label: 'Giao diện', icon: Palette },
-  { id: 'notifications', label: 'Thông báo', icon: Bell, anyPermissions: ['settings.app.read', 'settings.app.update'] },
-  { id: 'history', label: 'Lịch sử thao tác', icon: History, anyPermissions: ['settings.audit_log.read'] },
+  {
+    id: 'general',
+    label: 'Cua hang',
+    icon: Store,
+    anyPermissions: ['settings.app.read', 'settings.app.update'],
+  },
+  {
+    id: 'branches',
+    label: 'Chi nhanh',
+    icon: MapPin,
+    anyPermissions: ['branch.read', 'branch.create', 'branch.update', 'branch.delete'],
+  },
+  {
+    id: 'payments',
+    label: 'Thanh toan',
+    icon: ArrowRightLeft,
+    anyPermissions: ['settings.payment.manage'],
+  },
+  {
+    id: 'print-templates',
+    label: 'Mau in',
+    icon: Printer,
+    anyPermissions: ['settings.template.manage'],
+  },
+  {
+    id: 'backup',
+    label: 'Backup',
+    icon: Database,
+    superAdminOnly: true,
+  },
+  { id: 'theme', label: 'Giao dien', icon: Palette },
+  {
+    id: 'notifications',
+    label: 'Thong bao',
+    icon: Bell,
+    anyPermissions: ['settings.app.read', 'settings.app.update'],
+  },
+  {
+    id: 'history',
+    label: 'Lich su thao tac',
+    icon: History,
+    anyPermissions: ['settings.audit_log.read'],
+  },
   { id: 'modules', label: 'Module', icon: Package, superAdminOnly: true },
 ]
 
@@ -67,7 +119,9 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<string>('general')
   const pageTransition = useAnimationStore((state) => state.pageTransition)
 
-  const canAccessSettings = hasAnyPermission(SETTINGS_PAGE_PERMISSIONS) || hasRole(['SUPER_ADMIN', 'ADMIN'])
+  const canAccessSettings =
+    hasAnyPermission(SETTINGS_PAGE_PERMISSIONS) ||
+    hasRole(['SUPER_ADMIN', 'ADMIN'])
 
   const visibleTabs = useMemo(
     () =>
@@ -93,11 +147,19 @@ export default function SettingsPage() {
   }, [activeTab, canAccessSettings, isLoading, router, visibleTabs])
 
   if (isLoading) {
-    return <div className="flex h-64 items-center justify-center text-gray-400">Đang kiểm tra quyền truy cập...</div>
+    return (
+      <div className="flex h-64 items-center justify-center text-gray-400">
+        Dang kiem tra quyen truy cap...
+      </div>
+    )
   }
 
   if (!canAccessSettings) {
-    return <div className="flex h-64 items-center justify-center text-gray-400">Đang chuyển hướng...</div>
+    return (
+      <div className="flex h-64 items-center justify-center text-gray-400">
+        Dang chuyen huong...
+      </div>
+    )
   }
 
   const renderActiveTab = () => {
@@ -110,8 +172,9 @@ export default function SettingsPage() {
         return <TabBranches />
       case 'print-templates':
         return <TabPrintTemplates />
+      case 'backup':
+        return <TabBackup />
       case 'notifications':
-
         return <TabNotifications />
       case 'history':
         return <TabHistory />
@@ -130,9 +193,11 @@ export default function SettingsPage() {
           <Settings size={26} />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground-base">Cài đặt hệ thống</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground-base">
+            Cai dat he thong
+          </h1>
           <p className="mt-0.5 text-sm text-foreground-secondary">
-            Quản lý cấu hình chung, giao diện và thông báo hệ thống
+            Quan ly cau hinh chung, giao dien va thong bao he thong
           </p>
         </div>
       </div>
@@ -159,7 +224,12 @@ export default function SettingsPage() {
                     <Icon size={18} className={isActive ? 'text-white' : 'opacity-70'} />
                     <span>{tab.label}</span>
                   </div>
-                  {isActive ? <motion.div layoutId="active-indicator" className="ml-auto h-1.5 w-1.5 rounded-full bg-white" /> : null}
+                  {isActive ? (
+                    <motion.div
+                      layoutId="active-indicator"
+                      className="ml-auto h-1.5 w-1.5 rounded-full bg-white"
+                    />
+                  ) : null}
                 </button>
               )
             })}
@@ -173,7 +243,10 @@ export default function SettingsPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: (pageTransition?.enabled ? (pageTransition.durationMs ?? 200) : 0) / 1000 }}
+              transition={{
+                duration:
+                  (pageTransition?.enabled ? (pageTransition.durationMs ?? 200) : 0) / 1000,
+              }}
             >
               {renderActiveTab()}
             </motion.div>
@@ -200,21 +273,18 @@ function ThemeTabComponent() {
 
   return (
     <div className="relative z-0 h-full w-full">
-
-      <div
-        className={cn(
-          'relative h-full w-full overflow-hidden rounded-3xl p-8 transition-all duration-700 border border-border/60 bg-background-secondary shadow-sm'
-        )}
-      >
+      <div className="relative h-full w-full overflow-hidden rounded-3xl border border-border/60 bg-background-secondary p-8 shadow-sm transition-all duration-700">
         <div className="mb-8 flex items-center justify-between border-b border-border/50 pb-6">
           <div className="flex items-center gap-3">
             <div className="text-primary-500">
               <Palette size={24} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-foreground-base">Giao diện & Trải nghiệm</h2>
+              <h2 className="text-lg font-bold text-foreground-base">
+                Giao dien va trai nghiem
+              </h2>
               <p className="mt-1 text-sm text-foreground-muted">
-                Cá nhân hóa màu sắc và chế độ hiển thị hệ thống.
+                Ca nhan hoa mau sac va che do hien thi he thong.
               </p>
             </div>
           </div>
@@ -224,18 +294,18 @@ function ThemeTabComponent() {
           <div>
             <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-foreground-base">
               <Moon size={16} className="text-primary-500" />
-              Chế độ nền
+              Che do nen
             </h3>
             <div className="flex items-center gap-6 rounded-2xl border border-border/40 bg-black/5 p-5">
               <ThemeTogglePremium />
               <div>
                 <p className="flex items-center gap-2 text-sm font-bold tracking-wide text-foreground-base">
-                  {theme === 'dark' ? '🌙 Chế độ tối' : '☀️ Chế độ sáng'}
+                  {theme === 'dark' ? 'Trang thai toi' : 'Trang thai sang'}
                 </p>
                 <p className="mt-1 text-sm text-foreground-muted">
                   {theme === 'dark'
-                    ? 'Deep space: bảo vệ mắt khi làm việc ban đêm'
-                    : 'Clean white: trực quan và tươi sáng ban ngày'}
+                    ? 'Giam choi mat khi lam viec buoi toi'
+                    : 'Bo cuc sang ro de quan sat nhanh'}
                 </p>
               </div>
             </div>
@@ -244,7 +314,7 @@ function ThemeTabComponent() {
           <div>
             <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-foreground-base">
               <Palette size={16} className="text-primary-500" />
-              Màu chủ đạo
+              Mau chu dao
             </h3>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {THEME_COLORS.map((color) => (
@@ -258,46 +328,52 @@ function ThemeTabComponent() {
                       : 'border-border/50 bg-background-elevated hover:bg-black/5',
                   )}
                 >
-                  <div className="h-5 w-5 rounded-full border border-black/10 shadow-inner" style={{ background: color.value }} />
-                  <span className="truncate text-[13px] text-foreground-base">{color.label}</span>
-                  {primaryColor === color.value ? <Check size={16} className="ml-auto text-primary-500" /> : null}
+                  <div
+                    className="h-5 w-5 rounded-full border border-black/10 shadow-inner"
+                    style={{ background: color.value }}
+                  />
+                  <span className="truncate text-[13px] text-foreground-base">
+                    {color.label}
+                  </span>
+                  {primaryColor === color.value ? (
+                    <Check size={16} className="ml-auto text-primary-500" />
+                  ) : null}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* ── Animation Settings Section ── */}
           <div>
             <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-foreground-base">
               <Zap size={16} className="text-primary-500" />
-              Hiệu ứng & Hoạt ảnh
+              Hieu ung va hoat anh
             </h3>
             <p className="mb-4 text-xs text-foreground-muted">
-              Bật / tắt từng hiệu ứng. Khi bật, nhập số mili giây để điều chỉnh tốc độ.
+              Bat tat tung hieu ung. Khi bat, nhap so mili giay de dieu chinh toc do.
             </p>
 
             <div className="space-y-3">
               <AnimRow
-                label="Chuyển trang / tab"
-                description="fadeIn, slideIn khi chuyển nội dung trang và tab"
+                label="Chuyen trang / tab"
+                description="Fade va slide khi doi noi dung trang va tab"
                 config={pageTransition}
                 onChange={(patch: Partial<AnimConfig>) => setAnim('pageTransition', patch)}
               />
               <AnimRow
-                label="Mở modal / drawer"
-                description="zoom-in, slide khi mở hộp thoại, ngăn kéo"
+                label="Mo modal / drawer"
+                description="Zoom va slide khi mo hop thoai hoac ngan keo"
                 config={modalAnimation}
                 onChange={(patch: Partial<AnimConfig>) => setAnim('modalAnimation', patch)}
               />
               <AnimRow
-                label="Hover & micro-animation"
-                description="transition-colors, scale trên nút, hàng bảng"
+                label="Hover va micro-animation"
+                description="Transition tren nut va hang du lieu"
                 config={hoverEffect}
                 onChange={(patch: Partial<AnimConfig>) => setAnim('hoverEffect', patch)}
               />
               <AnimRow
-                label="Chuyển giao diện sáng/tối"
-                description="transition body background khi đổi dark/light mode"
+                label="Chuyen sang / toi"
+                description="Transition body background khi doi che do"
                 config={themeTransition}
                 onChange={(patch: Partial<AnimConfig>) => setAnim('themeTransition', patch)}
               />
@@ -313,12 +389,12 @@ function ThemeTabComponent() {
               {savedConfig ? (
                 <>
                   <CheckCircle2 size={18} />
-                  Đã lưu thành công
+                  Da luu thanh cong
                 </>
               ) : (
                 <>
                   <Save size={18} />
-                  Lưu cài đặt
+                  Luu cai dat
                 </>
               )}
             </button>
@@ -357,7 +433,7 @@ function AnimRow({
               : 'bg-background-elevated text-foreground-muted',
           )}
         >
-          {config.enabled ? 'Bật' : 'Tắt'}
+          {config.enabled ? 'Bat' : 'Tat'}
         </button>
         <label className="flex items-center gap-2 text-xs text-foreground-muted">
           <span>ms</span>
@@ -366,7 +442,9 @@ function AnimRow({
             min={0}
             step={50}
             value={config.durationMs}
-            onChange={(event) => onChange({ durationMs: Number(event.target.value) || 0 })}
+            onChange={(event) =>
+              onChange({ durationMs: Number(event.target.value) || 0 })
+            }
             disabled={!config.enabled}
             className="h-9 w-24 rounded-xl border border-border/50 bg-background-secondary px-3 text-sm text-foreground-base outline-none disabled:opacity-50"
           />

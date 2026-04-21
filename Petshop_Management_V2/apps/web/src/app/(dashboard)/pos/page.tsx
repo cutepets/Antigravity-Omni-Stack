@@ -81,6 +81,7 @@ function PosPageContent() {
     paymentMethods,
     visiblePaymentMethods,
     allowMultiPayment,
+    loyaltyPointValue,
     tabPayments,
     isMultiPaymentSummary,
     currentSinglePaymentMethod,
@@ -423,6 +424,7 @@ function PosPageContent() {
           paymentMethods={paymentMethods}
           visiblePaymentMethods={visiblePaymentMethods}
           allowMultiPayment={allowMultiPayment}
+          loyaltyPointValue={loyaltyPointValue}
           tabPayments={tabPayments}
           isMultiPaymentSummary={isMultiPaymentSummary}
           currentSinglePaymentMethod={currentSinglePaymentMethod}
@@ -483,6 +485,8 @@ function PosPageContent() {
         cartTotal={cartTotal}
         paymentMethods={visiblePaymentMethods}
         initialPayments={activeTab?.payments ?? []}
+        customerPoints={activeTab?.customerPoints}
+        loyaltyPointValue={loyaltyPointValue}
         minimumMethods={2}
         onConfirm={handleMultiPaymentConfirm}
       />

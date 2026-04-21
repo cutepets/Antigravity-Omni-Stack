@@ -44,6 +44,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'sy
   // When callbacks provided, store values won't be used for customer mutations
   const setCustomer = usePosStore((state) => state.setCustomer);
   const setCustomerPricing = usePosStore((state) => state.setCustomerPricing);
+  const setCustomerPoints = usePosStore((state) => state.setCustomerPoints);
   const activeTab = useActiveTab();
 
   // Customer ID/name resolved from callbacks (Order mode) or store (POS mode)
@@ -129,6 +130,7 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'sy
     if (callbacks) return;
     if (!customerId) {
       setCustomerPricing(null);
+      setCustomerPoints(0);
       return;
     }
     if (!customerDetail) return;
@@ -141,7 +143,8 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'sy
       priceBookName: customerDetail.group?.priceBook?.name ?? customerDetail.group?.pricePolicy,
       discountRate: Number(customerDetail.group?.discount ?? 0),
     });
-  }, [callbacks, customerDetail, customerId, setCustomerPricing]);
+    setCustomerPoints(customerDetail.points || 0);
+  }, [callbacks, customerDetail, customerId, setCustomerPricing, setCustomerPoints]);
 
   if (!callbacks && !activeTab) return null;
 

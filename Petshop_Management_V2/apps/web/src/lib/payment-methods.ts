@@ -5,6 +5,7 @@ export const PAYMENT_METHOD_TYPE_LABELS: Record<PaymentMethodType, string> = {
   BANK: 'Chuyen khoan',
   EWALLET: 'Vi dien tu',
   CARD: 'Quet the',
+  POINTS: 'Diem tich luy',
 }
 
 export const PAYMENT_METHOD_TYPE_OPTIONS: Array<{ value: PaymentMethodType; label: string }> = [
@@ -40,6 +41,7 @@ const DEFAULT_PAYMENT_METHOD_COLORS: Record<PaymentMethodType, PaymentMethodColo
   BANK: 'sky',
   EWALLET: 'orange',
   CARD: 'violet',
+  POINTS: 'amber',
 }
 
 const PAYMENT_METHOD_COLOR_CLASS_MAP: Record<

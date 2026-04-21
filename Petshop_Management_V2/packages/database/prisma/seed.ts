@@ -171,6 +171,9 @@ const productSeeds = [
   ['MED006', 'Xịt kháng khuẩn vết thương 100ml', 'Thuốc', 'Vetcare', 'chai', 145000, 105000, 'Chó & Mèo', 'SAT_B', 'SUP4'],
 ] as const
 
+// points mỗi tier: PLATINUM=500đ, GOLD=200đ, SILVER=80đ, BRONZE=20đ (rate 100vnd/điểm)
+const tierPoints: Record<string, number> = { PLATINUM: 500, GOLD: 200, SILVER: 80, BRONZE: 20 }
+
 const customerSeeds = [
   // --- VIP tier (6 khách) ---
   { name: 'Trần Minh Anh', phone: '0901111001', tier: 'PLATINUM', group: 'VIP', debt: 0 },
@@ -724,7 +727,7 @@ async function main() {
         email: cleanEmail,
         address: `${12 + index * 3} ${streets[index % streets.length]}`,
         tier: seed.tier as any,
-        points: 0,
+        points: tierPoints[seed.tier] ?? 0,
         pointsUsed: index % 5 === 0 ? 40 : 0,
         groupId: groupMap.get(seed.group).id,
         notes: `Demo customer ${code}`,

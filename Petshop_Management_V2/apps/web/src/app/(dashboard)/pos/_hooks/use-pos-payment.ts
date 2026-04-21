@@ -110,14 +110,15 @@ export function usePosPayment() {
   }, [activeTab?.payments, paymentMethods, store.defaultPayment, visiblePaymentMethods]);
 
   const allowMultiPayment = Boolean(paymentOptions?.allowMultiPayment);
+  const loyaltyPointValue = Number(paymentOptions?.loyaltyPointValue ?? 1) || 1;
   const tabPayments = activeTab?.payments ?? [];
   const isMultiPaymentSummary = tabPayments.length > 1;
   const selectedSinglePayment = tabPayments.length === 1 ? tabPayments[0] : null;
   const currentSinglePaymentMethod =
     selectedSinglePayment?.paymentAccountId
       ? visiblePaymentMethods.find((method) => method.id === selectedSinglePayment.paymentAccountId) ??
-        paymentMethods.find((method) => method.id === selectedSinglePayment.paymentAccountId) ??
-        preferredPaymentMethod
+      paymentMethods.find((method) => method.id === selectedSinglePayment.paymentAccountId) ??
+      preferredPaymentMethod
       : preferredPaymentMethod;
   const currentSinglePaymentType = currentSinglePaymentMethod?.type ?? selectedSinglePayment?.method ?? 'CASH';
   const currentSinglePaymentAmount =
@@ -240,35 +241,35 @@ export function usePosPayment() {
           type: ci.type,
           groomingDetails: ci.groomingDetails
             ? {
-                petId: ci.groomingDetails.petId,
-                performerId: ci.groomingDetails.performerId,
-                startTime: ci.groomingDetails.startTime,
-                notes: ci.groomingDetails.notes,
-                packageCode: ci.groomingDetails.packageCode,
-                weightAtBooking: ci.groomingDetails.weightAtBooking,
-                weightBandId: ci.groomingDetails.weightBandId,
-                weightBandLabel: ci.groomingDetails.weightBandLabel,
-                pricingPrice: ci.groomingDetails.pricingPrice,
-                pricingSnapshot: ci.groomingDetails.pricingSnapshot,
-              }
+              petId: ci.groomingDetails.petId,
+              performerId: ci.groomingDetails.performerId,
+              startTime: ci.groomingDetails.startTime,
+              notes: ci.groomingDetails.notes,
+              packageCode: ci.groomingDetails.packageCode,
+              weightAtBooking: ci.groomingDetails.weightAtBooking,
+              weightBandId: ci.groomingDetails.weightBandId,
+              weightBandLabel: ci.groomingDetails.weightBandLabel,
+              pricingPrice: ci.groomingDetails.pricingPrice,
+              pricingSnapshot: ci.groomingDetails.pricingSnapshot,
+            }
             : undefined,
           hotelDetails: ci.hotelDetails
             ? {
-                petId: ci.hotelDetails.petId,
-                checkInDate: ci.hotelDetails.checkIn,
-                checkOutDate: ci.hotelDetails.checkOut,
-                branchId: activeTab.branchId,
-                lineType: ci.hotelDetails.lineType,
-                bookingGroupKey: ci.hotelDetails.bookingGroupKey,
-                chargeLineIndex: ci.hotelDetails.chargeLineIndex,
-                chargeLineLabel: ci.hotelDetails.chargeLineLabel,
-                chargeDayType: ci.hotelDetails.chargeDayType,
-                chargeQuantityDays: ci.hotelDetails.chargeQuantityDays,
-                chargeUnitPrice: ci.hotelDetails.chargeUnitPrice,
-                chargeSubtotal: ci.hotelDetails.chargeSubtotal,
-                chargeWeightBandId: ci.hotelDetails.chargeWeightBandId ?? undefined,
-                chargeWeightBandLabel: ci.hotelDetails.chargeWeightBandLabel ?? undefined,
-              }
+              petId: ci.hotelDetails.petId,
+              checkInDate: ci.hotelDetails.checkIn,
+              checkOutDate: ci.hotelDetails.checkOut,
+              branchId: activeTab.branchId,
+              lineType: ci.hotelDetails.lineType,
+              bookingGroupKey: ci.hotelDetails.bookingGroupKey,
+              chargeLineIndex: ci.hotelDetails.chargeLineIndex,
+              chargeLineLabel: ci.hotelDetails.chargeLineLabel,
+              chargeDayType: ci.hotelDetails.chargeDayType,
+              chargeQuantityDays: ci.hotelDetails.chargeQuantityDays,
+              chargeUnitPrice: ci.hotelDetails.chargeUnitPrice,
+              chargeSubtotal: ci.hotelDetails.chargeSubtotal,
+              chargeWeightBandId: ci.hotelDetails.chargeWeightBandId ?? undefined,
+              chargeWeightBandLabel: ci.hotelDetails.chargeWeightBandLabel ?? undefined,
+            }
             : undefined,
           isTemp: (ci as any).isTemp || undefined,
           tempLabel: (ci as any).tempLabel || undefined,
@@ -395,16 +396,16 @@ export function usePosPayment() {
           ? []
           : activeTab.payments.length > 0
             ? activeTab.payments.map((payment, index) => ({
-                ...payment,
-                amount: activeTab.payments.length === 1 && index === 0 ? cartTotal : payment.amount,
-              }))
+              ...payment,
+              amount: activeTab.payments.length === 1 && index === 0 ? cartTotal : payment.amount,
+            }))
             : preferredPaymentMethod
               ? ([{
-                  method: preferredPaymentMethod.type,
-                  amount: cartTotal,
-                  paymentAccountId: preferredPaymentMethod.id,
-                  paymentAccountLabel: preferredPaymentMethod.name,
-                }] as PaymentEntry[])
+                method: preferredPaymentMethod.type,
+                amount: cartTotal,
+                paymentAccountId: preferredPaymentMethod.id,
+                paymentAccountLabel: preferredPaymentMethod.name,
+              }] as PaymentEntry[])
               : [];
 
       if (paymentMethod !== 'UNPAID' && effectivePayments.length === 0) {
@@ -442,12 +443,12 @@ export function usePosPayment() {
         paymentMethod === 'UNPAID'
           ? undefined
           : effectivePayments.map((payment) => ({
-              method: payment.method,
-              amount: Number(payment.amount) || 0,
-              note: payment.note,
-              paymentAccountId: payment.paymentAccountId,
-              paymentAccountLabel: payment.paymentAccountLabel,
-            }));
+            method: payment.method,
+            amount: Number(payment.amount) || 0,
+            note: payment.note,
+            paymentAccountId: payment.paymentAccountId,
+            paymentAccountLabel: payment.paymentAccountLabel,
+          }));
       const checkoutPaymentTotal = checkoutPayments?.reduce((sum, payment) => sum + payment.amount, 0) ?? 0;
       const payload = buildCheckoutPayload(checkoutPayments, overrideNote);
       if (!payload) return;
@@ -482,12 +483,12 @@ export function usePosPayment() {
                 activeTab.linkedOrderId,
                 shouldRefund
                   ? {
-                      payments: checkoutPayments ?? [],
-                      overpaymentAction: 'REFUND',
-                      refundMethod: checkoutPayments?.[0]?.method ?? paymentMethod,
-                      refundPaymentAccountId: checkoutPayments?.[0]?.paymentAccountId,
-                      refundPaymentAccountLabel: checkoutPayments?.[0]?.paymentAccountLabel,
-                    }
+                    payments: checkoutPayments ?? [],
+                    overpaymentAction: 'REFUND',
+                    refundMethod: checkoutPayments?.[0]?.method ?? paymentMethod,
+                    refundPaymentAccountId: checkoutPayments?.[0]?.paymentAccountId,
+                    refundPaymentAccountLabel: checkoutPayments?.[0]?.paymentAccountLabel,
+                  }
                   : { payments: checkoutPayments ?? [], overpaymentAction: 'KEEP_CREDIT' },
               );
             } else {
@@ -495,8 +496,8 @@ export function usePosPayment() {
                 activeTab.linkedOrderId,
                 outstanding > 0
                   ? {
-                      payments: checkoutPayments ?? [],
-                    }
+                    payments: checkoutPayments ?? [],
+                  }
                   : {},
               );
             }
@@ -563,6 +564,7 @@ export function usePosPayment() {
     paymentMethods,
     visiblePaymentMethods,
     allowMultiPayment,
+    loyaltyPointValue,
     tabPayments,
     isMultiPaymentSummary,
     currentSinglePaymentMethod,

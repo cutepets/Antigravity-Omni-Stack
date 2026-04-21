@@ -111,18 +111,21 @@ export async function recordOrderPayments(
       },
     })
 
-    await createOrderFinanceTransaction(tx, deps, {
-      order: params.order,
-      type: 'INCOME',
-      amount: payment.amount,
-      paymentMethod: payment.method,
-      paymentAccountId: payment.paymentAccountId ?? null,
-      paymentAccountLabel: payment.paymentAccountLabel ?? null,
-      description: `Thu bổ sung đơn hàng ${params.order.orderNumber} - ${deps.getPaymentLabel?.(payment.method) ?? payment.method}`,
-      note: payment.note ?? params.defaultNote ?? null,
-      source: 'ORDER_PAYMENT',
-      staffId: params.staffId ?? null,
-      traceParts,
-    })
+    // Do not create real finance (income/cash) transaction for POINTS redemption
+    if (payment.method !== 'POINTS') {
+      await createOrderFinanceTransaction(tx, deps, {
+        order: params.order,
+        type: 'INCOME',
+        amount: payment.amount,
+        paymentMethod: payment.method,
+        paymentAccountId: payment.paymentAccountId ?? null,
+        paymentAccountLabel: payment.paymentAccountLabel ?? null,
+        description: `Thu bổ sung đơn hàng ${params.order.orderNumber} - ${deps.getPaymentLabel?.(payment.method) ?? payment.method}`,
+        note: payment.note ?? params.defaultNote ?? null,
+        source: 'ORDER_PAYMENT',
+        staffId: params.staffId ?? null,
+        traceParts,
+      })
+    }
   }
 }

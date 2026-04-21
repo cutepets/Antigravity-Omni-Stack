@@ -20,6 +20,7 @@ const createNewTab = (id?: string, tabNumber?: number): OrderTab => ({
   title: tabNumber != null ? `Đơn ${tabNumber}` : 'Đơn mới',
   customerId: undefined,
   customerName: 'Khách lẻ',
+  customerPoints: 0,
   customerPricing: null,
   productSearch: '',
   cart: [],
@@ -161,6 +162,7 @@ interface PosStore {
   // ── Customer Actions ─────────────────────────────────────────
   setCustomer: (id: string | undefined, name: string, pricing?: CustomerPricingProfile | null) => void;
   setCustomerPricing: (pricing?: CustomerPricingProfile | null) => void;
+  setCustomerPoints: (points: number) => void;
   togglePet: (petId: string) => void;
   setActivePets: (petIds: string[]) => void;
 
@@ -519,6 +521,13 @@ export const usePosStore = create<PosStore>()(
                 cart: repriceCartByCustomer(tab.cart, customerPricing),
               };
             }),
+          ),
+
+        setCustomerPoints: (points) =>
+          set((s) =>
+            updateActiveTab(s, () => ({
+              customerPoints: points,
+            })),
           ),
 
         togglePet: (petId) =>
