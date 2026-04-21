@@ -1,3 +1,20 @@
+-- Ensure legacy tables and columns exist for shadow DB replay
+CREATE TABLE IF NOT EXISTS "branch_stocks" (
+  "id" TEXT NOT NULL,
+  "branchId" TEXT NOT NULL,
+  "productId" TEXT NOT NULL,
+  "productVariantId" TEXT,
+  "stock" INTEGER NOT NULL DEFAULT 0,
+  "reservedStock" INTEGER NOT NULL DEFAULT 0,
+  "minStock" INTEGER NOT NULL DEFAULT 5,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "branch_stocks_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "product_variants" ADD COLUMN IF NOT EXISTS "conversions" TEXT;
+ALTER TABLE "product_variants" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+
 DO $$
 BEGIN
   IF NOT EXISTS (

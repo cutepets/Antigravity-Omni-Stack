@@ -276,8 +276,20 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { code: 'report.cashbook', label: 'Sổ quỹ' },
     ],
   },
-  {
-    key: 'branch',
+    {
+      key: 'equipment',
+      label: 'Trang thiết bị',
+      permissions: [
+        { code: 'equipment.read', label: 'Xem thiết bị' },
+        { code: 'equipment.create', label: 'Tạo thiết bị' },
+        { code: 'equipment.update', label: 'Sửa thiết bị' },
+        { code: 'equipment.archive', label: 'Lưu trữ thiết bị' },
+        { code: 'equipment.scan', label: 'Quét mã thiết bị' },
+        { code: 'equipment.config', label: 'Cấu hình thiết bị' },
+      ],
+    },
+    {
+      key: 'branch',
     label: 'Chi nhánh',
     permissions: [
       { code: 'branch.read', label: 'Xem chi nhánh' },
@@ -445,6 +457,7 @@ export const LEGACY_PERMISSION_ALIASES: Record<string, string[]> = {
   ],
   MANAGE_MEDICAL_RECORDS: ['medical_record.read', 'medical_record.create', 'medical_record.update', 'medical_record.delete'],
   MANAGE_APPOINTMENTS: ['grooming.read', 'grooming.create', 'grooming.update', 'hotel.read', 'hotel.create', 'hotel.update'],
+  MANAGE_EQUIPMENT: ['equipment.read', 'equipment.create', 'equipment.update', 'equipment.archive', 'equipment.scan', 'equipment.config'],
   VIEW_FINANCIAL_REPORTS: ['report.sales', 'report.inventory', 'report.purchase', 'report.profit', 'report.customer', 'report.debt', 'report.cashbook'],
   FULL_BRANCH_ACCESS: ['branch.access.all'],
 }
@@ -475,4 +488,3 @@ export function expandPermissionCodes(codes: string[]): string[] {
 
   return [...resolved]
 }
-

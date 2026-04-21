@@ -60,6 +60,8 @@ model Branch {
   leaveRequests         LeaveRequest[]
   payrollPeriods        PayrollPeriod[]
   stockTransactions     StockTransaction[]
+  equipments            Equipment[]
+  equipmentLocationPresets EquipmentLocationPreset[]
 
   @@map("branches")
 }
@@ -129,6 +131,9 @@ model User {
   approvedPayrolls        PayrollPeriod[]        @relation("PayrollApprover")
   faceEmbeddings          FaceEmbedding[]
   stockTransactions       StockTransaction[]
+  createdEquipments       Equipment[]            @relation("EquipmentCreatedBy")
+  updatedEquipments       Equipment[]            @relation("EquipmentUpdatedBy")
+  equipmentHistoryEntries EquipmentHistory[]     @relation("EquipmentHistoryActor")
   
   assignedGroomingSessions GroomingSession[]    @relation("GroomingAssignedStaff")
 
@@ -1655,6 +1660,95 @@ model ActivityLog {
   @@map("activity_logs")
 }
 
+model EquipmentCategory {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String?
+  isActive    Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  equipments  Equipment[]
+
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("equipment_categories")
+}
+
+model EquipmentLocationPreset {
+  id          String      @id @default(cuid())
+  branchId    String
+  name        String
+  description String?
+  isActive    Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  branch      Branch      @relation(fields: [branchId], references: [id])
+  equipments  Equipment[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("equipment_location_presets")
+}
+
+model Equipment {
+  id               String                  @id @default(cuid())
+  code             String                  @unique
+  name             String
+  model            String?
+  status           EquipmentStatus         @default(IN_USE)
+  imageUrl         String?
+  serialNumber     String?
+  purchaseDate     DateTime?
+  inServiceDate    DateTime?
+  warrantyUntil    DateTime?
+  purchaseValue    Float?
+  branchId         String
+  categoryId       String?
+  locationPresetId String?
+  holderName       String?
+  note             String?
+  createdById      String?
+  updatedById      String?
+  archivedAt       DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  branch           Branch                  @relation(fields: [branchId], references: [id])
+  category         EquipmentCategory?      @relation(fields: [categoryId], references: [id])
+  locationPreset   EquipmentLocationPreset? @relation(fields: [locationPresetId], references: [id])
+  createdBy        User?                   @relation("EquipmentCreatedBy", fields: [createdById], references: [id])
+  updatedBy        User?                   @relation("EquipmentUpdatedBy", fields: [updatedById], references: [id])
+  history          EquipmentHistory[]
+
+  @@index([branchId])
+  @@index([categoryId])
+  @@index([locationPresetId])
+  @@index([status])
+  @@index([archivedAt])
+  @@index([warrantyUntil])
+  @@map("equipments")
+}
+
+model EquipmentHistory {
+  id          String    @id @default(cuid())
+  equipmentId String
+  action      String
+  summary     String
+  diffJson    Json?
+  actorId     String?
+  createdAt   DateTime  @default(now())
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  actor       User?     @relation("EquipmentHistoryActor", fields: [actorId], references: [id])
+
+  @@index([equipmentId, createdAt])
+  @@index([actorId])
+  @@index([action])
+  @@map("equipment_histories")
+}
+
 model SystemConfig {
   id                         String   @id @default(cuid())
   shopName                   String?
@@ -1870,6 +1964,14 @@ enum CustomerTier {
 enum StorageProviderKind {
   LOCAL
   GOOGLE_DRIVE
+}
+
+enum EquipmentStatus {
+  IN_USE
+  STANDBY
+  MAINTENANCE
+  BROKEN
+  LIQUIDATED
 }
 
 enum TransactionType {

@@ -1,8 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
-import { DatabaseService } from '../../database/database.service.js'
 import { google } from 'googleapis'
+import { DatabaseService } from '../../database/database.service.js'
 import { decryptSecret } from '../../common/utils/secret-box.util.js'
-import type { GoogleDriveConnectionCheck, StorageUploadCategory, UploadStorageFileInput } from './storage.types.js'
+import type {
+  GoogleDriveConnectionCheck,
+  StorageUploadCategory,
+  StorageUploadScope,
+  UploadStorageFileInput,
+} from './storage.types.js'
 
 type GoogleDriveRuntimeConfig = {
   clientEmail: string
@@ -41,21 +46,21 @@ export class GoogleDriveStorageProvider {
       ''
 
     if (!serviceAccountJson) {
-      throw new BadRequestException('Google Drive service account chưa được cấu hình')
+      throw new BadRequestException('Google Drive service account chua duoc cau hinh')
     }
 
     let parsed: Record<string, unknown>
     try {
       parsed = JSON.parse(serviceAccountJson)
     } catch {
-      throw new BadRequestException('Google Drive service account JSON không hợp lệ')
+      throw new BadRequestException('Google Drive service account JSON khong hop le')
     }
 
     const clientEmail = String(parsed['client_email'] ?? config?.googleDriveClientEmail ?? '').trim()
     const privateKey = String(parsed['private_key'] ?? '').trim()
 
     if (!clientEmail || !privateKey) {
-      throw new BadRequestException('Google Drive service account thiếu client_email hoặc private_key')
+      throw new BadRequestException('Google Drive service account thieu client_email hoac private_key')
     }
 
     return {
@@ -94,12 +99,18 @@ export class GoogleDriveStorageProvider {
   async uploadFile(input: {
     file: UploadStorageFileInput
     category: StorageUploadCategory
+    scope?: StorageUploadScope | null
   }) {
     const { drive, config } = await this.createDriveClient()
-    const folderId = this.resolveFolderId(config, input.category)
-    if (!folderId) {
-      throw new BadRequestException('Google Drive folder cho danh mục này chưa được cấu hình')
+    const baseFolderId = this.resolveFolderId(config, input.category)
+    if (!baseFolderId) {
+      throw new BadRequestException('Google Drive folder cho danh muc nay chua duoc cau hinh')
     }
+
+    const folderId =
+      input.category === 'image' && input.scope
+        ? await this.findOrCreateChildFolder(drive, baseFolderId, input.scope, config.sharedDriveId)
+        : baseFolderId
 
     const created = await drive.files.create({
       supportsAllDrives: true,
@@ -116,7 +127,7 @@ export class GoogleDriveStorageProvider {
 
     const fileId = created.data.id
     if (!fileId) {
-      throw new BadRequestException('Google Drive không trả về fileId sau khi upload')
+      throw new BadRequestException('Google Drive khong tra ve fileId sau khi upload')
     }
 
     return {
@@ -125,6 +136,54 @@ export class GoogleDriveStorageProvider {
       mimeType: created.data.mimeType ?? input.file.mimeType,
       size: Number(created.data.size ?? input.file.size),
     }
+  }
+
+  private async findOrCreateChildFolder(
+    drive: ReturnType<typeof google.drive>,
+    parentId: string,
+    folderName: StorageUploadScope,
+    sharedDriveId: string | null,
+  ) {
+    const escapedFolderName = folderName.replace(/'/g, "\\'")
+    const listed = await drive.files.list({
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      ...(sharedDriveId
+        ? {
+            corpora: 'drive',
+            driveId: sharedDriveId,
+          }
+        : {}),
+      q: [
+        `'${parentId}' in parents`,
+        `name = '${escapedFolderName}'`,
+        `mimeType = 'application/vnd.google-apps.folder'`,
+        'trashed = false',
+      ].join(' and '),
+      pageSize: 1,
+      fields: 'files(id,name)',
+    })
+
+    const existingId = listed.data.files?.[0]?.id
+    if (existingId) {
+      return existingId
+    }
+
+    const created = await drive.files.create({
+      supportsAllDrives: true,
+      requestBody: {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentId],
+      },
+      fields: 'id',
+    })
+
+    if (!created.data.id) {
+      throw new BadRequestException(`Khong the tao thu muc Google Drive cho scope "${folderName}"`)
+    }
+
+    return created.data.id
   }
 
   async deleteFile(fileId: string | null | undefined) {

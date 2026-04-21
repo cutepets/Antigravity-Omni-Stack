@@ -1,3 +1,6 @@
+-- Ensure legacy column exists for shadow DB replay (column may not exist in fresh schema)
+ALTER TABLE "product_variants" ADD COLUMN IF NOT EXISTS "conversions" TEXT;
+
 ALTER TABLE "product_variants"
 ADD COLUMN IF NOT EXISTS "variantLabel" TEXT,
 ADD COLUMN IF NOT EXISTS "unitLabel" TEXT;

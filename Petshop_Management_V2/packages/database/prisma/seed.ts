@@ -17,6 +17,86 @@ const roleSeeds = [
   { code: 'STAFF', name: 'Nhân viên vận hành', isSystem: false, permissions: ['MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'stock_count.read', 'stock_count.count'] },
 ] as const
 
+const equipmentCategorySeeds = [
+  { key: 'LAPTOP', name: 'Laptop', sortOrder: 1 },
+  { key: 'DESKTOP', name: 'Desktop', sortOrder: 2 },
+  { key: 'PRINTER', name: 'Máy in', sortOrder: 3 },
+  { key: 'SCANNER', name: 'Máy quét', sortOrder: 4 },
+  { key: 'POS', name: 'POS', sortOrder: 5 },
+  { key: 'CAMERA', name: 'Camera', sortOrder: 6 },
+  { key: 'ROUTER', name: 'Router', sortOrder: 7 },
+  { key: 'OTHER', name: 'Khác', sortOrder: 8 },
+] as const
+
+const equipmentLocationPresetSeeds = [
+  { branchCode: 'MAIN', name: 'Quầy thu ngân', sortOrder: 1 },
+  { branchCode: 'MAIN', name: 'Văn phòng', sortOrder: 2 },
+  { branchCode: 'MAIN', name: 'Kho', sortOrder: 3 },
+  { branchCode: 'BT', name: 'Quầy thu ngân', sortOrder: 1 },
+  { branchCode: 'BT', name: 'Phòng spa', sortOrder: 2 },
+  { branchCode: 'BT', name: 'Kho', sortOrder: 3 },
+  { branchCode: 'Q7', name: 'Quầy thu ngân', sortOrder: 1 },
+  { branchCode: 'Q7', name: 'Phòng hotel', sortOrder: 2 },
+  { branchCode: 'Q7', name: 'Kỹ thuật', sortOrder: 3 },
+] as const
+
+const equipmentSeeds = [
+  {
+    code: 'TB0001',
+    name: 'MacBook Pro 14',
+    model: 'A2918',
+    categoryKey: 'LAPTOP',
+    status: 'IN_USE',
+    branchCode: 'MAIN',
+    locationName: 'Văn phòng',
+    holderName: 'Lê Quốc Bảo',
+    serialNumber: 'MBP-2026-0001',
+    purchaseDate: new Date('2025-12-10T09:00:00+07:00'),
+    inServiceDate: new Date('2025-12-12T09:00:00+07:00'),
+    warrantyUntil: new Date('2026-12-10T09:00:00+07:00'),
+    purchaseValue: 42990000,
+    createdByUsername: 'admin',
+    updatedByUsername: 'manager',
+    note: 'Máy quản lý dùng để cập nhật thiết bị bằng QR.',
+  },
+  {
+    code: 'TB0002',
+    name: 'Máy in hóa đơn Epson TM-T82',
+    model: 'TM-T82III',
+    categoryKey: 'PRINTER',
+    status: 'IN_USE',
+    branchCode: 'MAIN',
+    locationName: 'Quầy thu ngân',
+    holderName: 'Đặng Thị Thu',
+    serialNumber: 'EPS-2026-0042',
+    purchaseDate: new Date('2025-11-02T09:00:00+07:00'),
+    inServiceDate: new Date('2025-11-03T09:00:00+07:00'),
+    warrantyUntil: new Date('2026-11-02T09:00:00+07:00'),
+    purchaseValue: 6250000,
+    createdByUsername: 'admin',
+    updatedByUsername: 'cashier01',
+    note: 'Máy in bill POS chi nhánh chính.',
+  },
+  {
+    code: 'TB0003',
+    name: 'Router MikroTik RB4011',
+    model: 'RB4011iGS+RM',
+    categoryKey: 'ROUTER',
+    status: 'MAINTENANCE',
+    branchCode: 'Q7',
+    locationName: 'Kỹ thuật',
+    holderName: 'Võ Minh Khoa',
+    serialNumber: 'MKT-2026-0011',
+    purchaseDate: new Date('2025-10-18T09:00:00+07:00'),
+    inServiceDate: new Date('2025-10-19T09:00:00+07:00'),
+    warrantyUntil: new Date('2026-10-18T09:00:00+07:00'),
+    purchaseValue: 7990000,
+    createdByUsername: 'manager_q7',
+    updatedByUsername: 'manager_q7',
+    note: 'Đang bảo trì do thay đổi cấu hình mạng.',
+  },
+] as const
+
 const customerGroups = [
   { key: 'VIP', name: 'Thân thiết VIP', color: '#f59e0b', discount: 10, pricePolicy: 'Giá VIP', isDefault: false },
   { key: 'LOYAL', name: 'Thành viên', color: '#22c55e', discount: 5, pricePolicy: 'Giá thành viên', isDefault: true },
@@ -218,6 +298,10 @@ async function main() {
 
   await prisma.$transaction([
     prisma.transaction.deleteMany(),
+    prisma.equipmentHistory.deleteMany(),
+    prisma.equipment.deleteMany(),
+    prisma.equipmentLocationPreset.deleteMany(),
+    prisma.equipmentCategory.deleteMany(),
     prisma.activityLog.deleteMany(),
     prisma.orderPayment.deleteMany(),
     prisma.orderItem.deleteMany(),
@@ -351,6 +435,83 @@ async function main() {
 
     const user = await prisma.user.create({ data: payload as any })
     userMap.set(seed.username, user)
+  }
+
+  const equipmentCategoryMap = new Map<string, any>()
+  for (const seed of equipmentCategorySeeds) {
+    const category = await prisma.equipmentCategory.create({
+      data: {
+        name: seed.name,
+        description: `${seed.name} equipment category`,
+        sortOrder: seed.sortOrder,
+        isActive: true,
+      } as any,
+    })
+    equipmentCategoryMap.set(seed.key, category)
+  }
+
+  const equipmentLocationMap = new Map<string, any>()
+  for (const seed of equipmentLocationPresetSeeds) {
+    const branch = branchMap.get(seed.branchCode)
+    if (!branch) continue
+
+    const locationPreset = await prisma.equipmentLocationPreset.create({
+      data: {
+        branchId: branch.id,
+        name: seed.name,
+        description: `${seed.name} preset`,
+        sortOrder: seed.sortOrder,
+        isActive: true,
+      } as any,
+    })
+    equipmentLocationMap.set(`${seed.branchCode}:${seed.name}`, locationPreset)
+  }
+
+  for (const seed of equipmentSeeds) {
+    const branch = branchMap.get(seed.branchCode)
+    const category = equipmentCategoryMap.get(seed.categoryKey)
+    const locationPreset = equipmentLocationMap.get(`${seed.branchCode}:${seed.locationName}`)
+    const createdBy = userMap.get(seed.createdByUsername) ?? null
+    const updatedBy = userMap.get(seed.updatedByUsername) ?? createdBy
+
+    if (!branch || !category) continue
+
+    const equipment = await prisma.equipment.create({
+      data: {
+        code: seed.code,
+        name: seed.name,
+        model: seed.model,
+        categoryId: category.id,
+        status: seed.status as any,
+        serialNumber: seed.serialNumber,
+        purchaseDate: seed.purchaseDate,
+        inServiceDate: seed.inServiceDate,
+        warrantyUntil: seed.warrantyUntil,
+        purchaseValue: seed.purchaseValue,
+        branchId: branch.id,
+        locationPresetId: locationPreset?.id ?? null,
+        holderName: seed.holderName,
+        note: seed.note,
+        createdById: createdBy?.id ?? null,
+        updatedById: updatedBy?.id ?? createdBy?.id ?? null,
+      } as any,
+    })
+
+    await prisma.equipmentHistory.create({
+      data: {
+        equipmentId: equipment.id,
+        action: 'CREATED',
+        summary: `Tạo thiết bị ${seed.code}`,
+        diffJson: {
+          after: {
+            code: seed.code,
+            status: seed.status,
+            branchCode: seed.branchCode,
+          },
+        },
+        actorId: createdBy?.id ?? null,
+      } as any,
+    })
   }
 
   await prisma.category.createMany({ data: ['Thức ăn', 'Vệ sinh', 'Phụ kiện', 'Chăm sóc', 'Thuốc'].map((name) => ({ name, description: `${name} standard demo category` })) as any[] })
@@ -1367,6 +1528,7 @@ async function main() {
     { key: 'attendance', displayName: 'Chấm công', description: 'Quản lý chấm công, ca làm việc và xét duyệt giờ công', isActive: true, icon: '⏱️', sortOrder: 4 },
     { key: 'payroll', displayName: 'Bảng lương', description: 'Tính lương, duyệt kỳ lương và xuất phiếu lương nhân viên', isActive: true, icon: '💰', sortOrder: 5 },
     { key: 'rewards', displayName: 'Thưởng phạt', description: 'Quản lý thưởng, phạt và các khoản điều chỉnh lương', isActive: true, icon: '🎁', sortOrder: 6 },
+    { key: 'equipment', displayName: 'Trang thiết bị', description: 'Quản lý trang thiết bị, quét QR và lịch sử cập nhật', isActive: true, icon: '🖥️', sortOrder: 7 },
   ]
   for (const seed of moduleSeeds) {
     await prisma.moduleConfig.upsert({

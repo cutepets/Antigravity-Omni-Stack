@@ -3,6 +3,7 @@ import type { StorageProviderKind, StoredAsset } from '@prisma/client'
 
 export type StorageUploadCategory = 'image' | 'document' | 'backup'
 export type StorageVisibility = 'private' | 'public'
+export type StorageUploadScope = 'products' | 'staff' | 'equipment'
 
 export interface UploadStorageFileInput {
   originalName: string
@@ -14,6 +15,7 @@ export interface UploadStorageFileInput {
 export interface UploadStoredAssetInput {
   file: UploadStorageFileInput
   category: StorageUploadCategory
+  scope?: StorageUploadScope | null
   uploadedById?: string | null
   visibility?: StorageVisibility
 }

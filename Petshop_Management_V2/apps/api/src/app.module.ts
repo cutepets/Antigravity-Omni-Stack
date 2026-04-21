@@ -20,6 +20,7 @@ import { ScheduleModule } from './modules/schedule/schedule.module.js'
 import { AttendanceModule } from './modules/attendance/attendance.module.js'
 import { LeaveModule } from './modules/leave/leave.module.js'
 import { PayrollModule } from './modules/payroll/payroll.module.js'
+import { EquipmentModule } from './modules/equipment/equipment.module.js'
 import { HealthController } from './health.controller.js'
 import { QueueModule } from './modules/queue/queue.module.js'
 import { StorageModule } from './modules/storage/storage.module.js'
@@ -60,6 +61,7 @@ import { StorageModule } from './modules/storage/storage.module.js'
     AttendanceModule,
     LeaveModule,
     PayrollModule,
+    EquipmentModule,
   ],
   controllers: [HealthController],
 })

@@ -1,3 +1,59 @@
+-- Bootstrap enums that were added to schema after initial migration chain started.
+-- Using DO $$ ... EXCEPTION WHEN duplicate_object THEN null; END $$; for idempotency.
+
+DO $$ BEGIN
+  CREATE TYPE "OrderAction" AS ENUM (
+    'CREATED', 'APPROVED', 'PAYMENT_ADDED', 'PAID', 'STOCK_EXPORTED',
+    'COMPLETED', 'CANCELLED', 'REFUNDED', 'NOTE_UPDATED',
+    'ITEM_ADDED', 'ITEM_REMOVED', 'ITEM_SWAPPED', 'DISCOUNT_APPLIED', 'SETTLED'
+  );
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "ShiftType" AS ENUM ('MORNING', 'AFTERNOON', 'FULL_DAY', 'CUSTOM');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "ClockMethod" AS ENUM ('FACE_RECOGNITION', 'MANUAL', 'QR_CODE', 'OVERRIDE');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "AttendanceStatus" AS ENUM (
+    'AUTO_APPROVED', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ABSENT', 'ON_LEAVE'
+  );
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "LeaveType" AS ENUM (
+    'ANNUAL', 'SICK', 'PERSONAL', 'UNPAID', 'COMPENSATORY', 'MATERNITY'
+  );
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "LeaveStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "PayrollStatus" AS ENUM ('DRAFT', 'CALCULATED', 'APPROVED', 'PAID', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "SlipStatus" AS ENUM ('DRAFT', 'FINALIZED');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "DocumentType" AS ENUM ('INVOICE', 'RECEIPT', 'DELIVERY_NOTE', 'OTHER');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
 -- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'REFUNDED');
 

@@ -1,3 +1,39 @@
+-- Create enums required by stock count tables
+DO $$ BEGIN
+  CREATE TYPE "StockCountSessionStatus" AS ENUM (
+    'DRAFT',
+    'SUBMITTED',
+    'APPROVED',
+    'REJECTED'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "StockCountShift" AS ENUM (
+    'MON_A', 'MON_B', 'MON_C', 'MON_D',
+    'TUE_A', 'TUE_B', 'TUE_C', 'TUE_D',
+    'WED_A', 'WED_B', 'WED_C', 'WED_D',
+    'THU_A', 'THU_B', 'THU_C', 'THU_D',
+    'FRI_A', 'FRI_B', 'FRI_C', 'FRI_D',
+    'SAT_A', 'SAT_B', 'SAT_C', 'SAT_D'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "StockCountCategory" AS ENUM (
+    'PRODUCT',
+    'SERVICE',
+    'RAW_MATERIAL',
+    'PACKAGING'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
 CREATE TABLE IF NOT EXISTS "stock_count_sessions" (
   "id" TEXT NOT NULL,
   "branchId" TEXT NOT NULL,

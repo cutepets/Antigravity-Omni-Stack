@@ -50,13 +50,18 @@ export class StorageService {
     return resolve(process.cwd(), 'uploads', storageKey)
   }
 
+  private buildStorageKey(input: UploadStoredAssetInput, fileName: string) {
+    const scopeSegment = input.scope?.trim() ? `${input.scope.trim()}/` : ''
+    return `storage/${input.category}/${scopeSegment}${fileName}`
+  }
+
   private async storeLocally(input: UploadStoredAssetInput) {
     const extension = extname(input.file.originalName).toLowerCase()
     const fileName = `${randomUUID()}${extension}`
-    const storageKey = `storage/${input.category}/${fileName}`
+    const storageKey = this.buildStorageKey(input, fileName)
     const absolutePath = this.resolveLocalAbsolutePath(storageKey)
 
-    await mkdir(resolve(process.cwd(), 'uploads', 'storage', input.category), { recursive: true })
+    await mkdir(resolve(absolutePath, '..'), { recursive: true })
     await writeFile(absolutePath, input.file.buffer)
 
     return {
@@ -71,11 +76,12 @@ export class StorageService {
     const uploaded = await this.googleDriveStorageProvider.uploadFile({
       file: input.file,
       category: input.category,
+      scope: input.scope ?? null,
     })
 
     return {
       provider: StorageProviderKind.GOOGLE_DRIVE,
-      storageKey: uploaded.name,
+      storageKey: this.buildStorageKey(input, uploaded.name),
       googleFileId: uploaded.fileId,
       previewUrl: null,
     }
