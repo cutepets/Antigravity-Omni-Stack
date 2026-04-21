@@ -147,4 +147,127 @@ describe('EquipmentService', () => {
     expect(result.success).toBe(true)
     expect(db.$transaction).toHaveBeenCalled()
   })
+
+  it('writes equipment history and activity log when updating equipment', async () => {
+    db.equipment.findUnique.mockResolvedValue({
+      id: 'equipment-1',
+      code: 'TB0001',
+      name: 'MacBook Pro',
+      branchId: 'branch-1',
+      categoryId: 'category-1',
+      locationPresetId: 'location-1',
+      status: 'IN_USE',
+      imageUrl: null,
+      serialNumber: 'OLD-SERIAL',
+      purchaseDate: null,
+      inServiceDate: null,
+      warrantyUntil: null,
+      purchaseValue: 42000000,
+      holderName: 'Nguyễn Văn A',
+      note: null,
+      archivedAt: null,
+    })
+    db.equipmentLocationPreset.findUnique.mockResolvedValue({
+      id: 'location-1',
+      branchId: 'branch-1',
+      isActive: true,
+      name: 'Văn phòng',
+    })
+
+    const updateMock = jest.fn().mockResolvedValue({
+      id: 'equipment-1',
+      code: 'TB0001',
+      name: 'MacBook Pro 14',
+      branchId: 'branch-1',
+      status: 'MAINTENANCE',
+    })
+    const historyCreateMock = jest.fn().mockResolvedValue({ id: 'history-2' })
+    const activityCreateMock = jest.fn().mockResolvedValue({ id: 'activity-2' })
+
+    db.$transaction.mockImplementation(async (callback: (tx: any) => Promise<any>) =>
+      callback({
+        equipment: {
+          update: updateMock,
+        },
+        equipmentHistory: {
+          create: historyCreateMock,
+        },
+        activityLog: {
+          create: activityCreateMock,
+        },
+      }),
+    )
+
+    const result = await service.updateEquipment(
+      'equipment-1',
+      {
+        name: 'MacBook Pro 14',
+        status: 'MAINTENANCE',
+        holderName: 'Nguyễn Văn B',
+      },
+      makeActor(),
+    )
+
+    expect(result.success).toBe(true)
+    expect(updateMock).toHaveBeenCalled()
+    expect(historyCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'UPDATED',
+        }),
+      }),
+    )
+    expect(activityCreateMock).toHaveBeenCalled()
+  })
+
+  it('writes equipment history and activity log when archiving equipment', async () => {
+    db.equipment.findUnique.mockResolvedValue({
+      id: 'equipment-1',
+      code: 'TB0001',
+      name: 'MacBook Pro',
+      branchId: 'branch-1',
+      archivedAt: null,
+    })
+
+    const archiveDate = new Date('2026-04-21T10:00:00.000Z')
+    const updateMock = jest.fn().mockResolvedValue({
+      id: 'equipment-1',
+      code: 'TB0001',
+      name: 'MacBook Pro',
+      branchId: 'branch-1',
+      archivedAt: archiveDate,
+    })
+    const historyCreateMock = jest.fn().mockResolvedValue({ id: 'history-3' })
+    const activityCreateMock = jest.fn().mockResolvedValue({ id: 'activity-3' })
+
+    db.$transaction.mockImplementation(async (callback: (tx: any) => Promise<any>) =>
+      callback({
+        equipment: {
+          update: updateMock,
+        },
+        equipmentHistory: {
+          create: historyCreateMock,
+        },
+        activityLog: {
+          create: activityCreateMock,
+        },
+      }),
+    )
+
+    const result = await service.archiveEquipment(
+      'equipment-1',
+      makeActor({ permissions: ['equipment.archive', 'equipment.read', 'equipment.update'] }),
+    )
+
+    expect(result.success).toBe(true)
+    expect(updateMock).toHaveBeenCalled()
+    expect(historyCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'ARCHIVED',
+        }),
+      }),
+    )
+    expect(activityCreateMock).toHaveBeenCalled()
+  })
 })

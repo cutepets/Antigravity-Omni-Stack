@@ -6,14 +6,13 @@ describe('GoogleAuthService', () => {
     jest.restoreAllMocks()
   })
 
-  it('links a single matching email and creates a session', async () => {
+  it('creates a session when the Google account is already linked', async () => {
     const db = {
       systemConfig: {
         findFirst: jest.fn(),
       },
       user: {
-        findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue([{ id: 'user-1', googleId: null }]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'user-1' }),
         update: jest.fn(),
       },
     } as any
@@ -34,7 +33,6 @@ describe('GoogleAuthService', () => {
     expect(db.user.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
       data: {
-        googleId: 'google-1',
         googleEmail: 'admin@example.com',
         googleAvatar: 'https://avatar.test/a.png',
       },
@@ -43,14 +41,13 @@ describe('GoogleAuthService', () => {
     expect(result.accessToken).toBe('a')
   })
 
-  it('rejects when the Google email matches multiple users', async () => {
+  it('rejects login when the Google account has not been linked yet', async () => {
     const db = {
       systemConfig: {
         findFirst: jest.fn(),
       },
       user: {
         findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue([{ id: 'user-1' }, { id: 'user-2' }]),
         update: jest.fn(),
       },
     } as any
@@ -64,5 +61,115 @@ describe('GoogleAuthService', () => {
 
     await expect(service.loginWithAuthorizationCode('code')).rejects.toBeInstanceOf(UnauthorizedException)
     expect(db.user.update).not.toHaveBeenCalled()
+  })
+
+  it('links the current logged-in user to Google', async () => {
+    const db = {
+      systemConfig: {
+        findFirst: jest.fn(),
+      },
+      user: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          googleId: 'google-1',
+          googleEmail: 'admin@example.com',
+          googleAvatar: 'https://avatar.test/a.png',
+        }),
+      },
+    } as any
+
+    const service = new GoogleAuthService(db, { createSessionForUserId: jest.fn() } as any)
+    jest.spyOn(service as any, 'resolveGoogleUserFromCode').mockResolvedValue({
+      googleId: 'google-1',
+      email: 'admin@example.com',
+      avatar: 'https://avatar.test/a.png',
+    })
+
+    const result = await service.linkUserWithAuthorizationCode('user-1', 'code')
+
+    expect(db.user.findFirst).toHaveBeenCalledWith({
+      where: {
+        googleId: 'google-1',
+        NOT: {
+          id: 'user-1',
+        },
+      },
+      select: {
+        id: true,
+      },
+    })
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: {
+        googleId: 'google-1',
+        googleEmail: 'admin@example.com',
+        googleAvatar: 'https://avatar.test/a.png',
+      },
+      select: {
+        id: true,
+        googleId: true,
+        googleEmail: true,
+        googleAvatar: true,
+      },
+    })
+    expect(result).toEqual({
+      id: 'user-1',
+      googleId: 'google-1',
+      googleEmail: 'admin@example.com',
+      googleAvatar: 'https://avatar.test/a.png',
+    })
+  })
+
+  it('rejects link when the Google account belongs to another user', async () => {
+    const db = {
+      systemConfig: {
+        findFirst: jest.fn(),
+      },
+      user: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'user-2' }),
+        update: jest.fn(),
+      },
+    } as any
+
+    const service = new GoogleAuthService(db, { createSessionForUserId: jest.fn() } as any)
+    jest.spyOn(service as any, 'resolveGoogleUserFromCode').mockResolvedValue({
+      googleId: 'google-1',
+      email: 'admin@example.com',
+      avatar: null,
+    })
+
+    await expect(service.linkUserWithAuthorizationCode('user-1', 'code')).rejects.toBeInstanceOf(UnauthorizedException)
+    expect(db.user.update).not.toHaveBeenCalled()
+  })
+
+  it('returns public config for login page and settings guidance', async () => {
+    const db = {
+      systemConfig: {
+        findFirst: jest.fn().mockResolvedValue({
+          googleAuthEnabled: true,
+          googleAuthClientId: 'google-client-id',
+          googleAuthClientSecretEnc: null,
+          googleAuthAllowedDomain: 'example.com',
+        }),
+      },
+    } as any
+
+    const service = new GoogleAuthService(db, {} as any)
+    jest.spyOn(service as any, 'getApiBaseUrl').mockReturnValue('http://localhost:3001')
+    jest.spyOn(service, 'getWebAppBaseUrl').mockReturnValue('http://localhost:3000')
+    const decryptSpy = jest.spyOn(require('../../common/utils/secret-box.util.js'), 'decryptSecret').mockReturnValue('client-secret')
+
+    const result = await service.getPublicConfig()
+
+    expect(decryptSpy).toHaveBeenCalled()
+    expect(result).toEqual({
+      enabled: true,
+      configured: true,
+      allowedDomain: 'example.com',
+      apiBaseUrl: 'http://localhost:3001',
+      webAppBaseUrl: 'http://localhost:3000',
+      callbackUrl: 'http://localhost:3001/api/auth/google/callback',
+    })
   })
 })

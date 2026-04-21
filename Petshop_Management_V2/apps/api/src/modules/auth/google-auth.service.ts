@@ -12,6 +12,21 @@ type GoogleAuthRuntimeConfig = {
   redirectUri: string
 }
 
+export type GoogleAuthPublicConfig = {
+  enabled: boolean
+  configured: boolean
+  allowedDomain: string | null
+  apiBaseUrl: string
+  webAppBaseUrl: string
+  callbackUrl: string
+}
+
+type ResolvedGoogleUser = {
+  googleId: string
+  email: string
+  avatar: string | null
+}
+
 @Injectable()
 export class GoogleAuthService {
   constructor(
@@ -101,17 +116,51 @@ export class GoogleAuthService {
     }
   }
 
+  async getPublicConfig(): Promise<GoogleAuthPublicConfig> {
+    const systemConfig = await this.db.systemConfig.findFirst({
+      select: {
+        googleAuthEnabled: true,
+        googleAuthClientId: true,
+        googleAuthClientSecretEnc: true,
+        googleAuthAllowedDomain: true,
+      },
+    })
+
+    const enabled =
+      systemConfig?.googleAuthEnabled ??
+      (process.env['GOOGLE_AUTH_ENABLED'] ?? '').trim().toLowerCase() === 'true'
+    const clientId =
+      systemConfig?.googleAuthClientId?.trim() ||
+      process.env['GOOGLE_AUTH_CLIENT_ID'] ||
+      ''
+    const clientSecretConfigured = Boolean(
+      decryptSecret(systemConfig?.googleAuthClientSecretEnc) ||
+      process.env['GOOGLE_AUTH_CLIENT_SECRET'],
+    )
+
+    return {
+      enabled,
+      configured: enabled && Boolean(clientId) && clientSecretConfigured,
+      allowedDomain:
+        systemConfig?.googleAuthAllowedDomain?.trim() ||
+        process.env['GOOGLE_AUTH_ALLOWED_DOMAIN'] ||
+        null,
+      apiBaseUrl: this.getApiBaseUrl(),
+      webAppBaseUrl: this.getWebAppBaseUrl(),
+      callbackUrl: `${this.getApiBaseUrl()}/api/auth/google/callback`,
+    }
+  }
+
   async createAuthorizationUrl(state: string) {
     const { client } = await this.createOAuthClient()
     return client.generateAuthUrl({
-      access_type: 'offline',
-      prompt: 'consent',
       scope: ['openid', 'email', 'profile'],
+      prompt: 'select_account',
       state,
     })
   }
 
-  private async resolveGoogleUserFromCode(code: string) {
+  private async resolveGoogleUserFromCode(code: string): Promise<ResolvedGoogleUser> {
     const { client, config } = await this.createOAuthClient()
     const { tokens } = await client.getToken(code)
     client.setCredentials(tokens)
@@ -148,54 +197,57 @@ export class GoogleAuthService {
   async loginWithAuthorizationCode(code: string) {
     const profile = await this.resolveGoogleUserFromCode(code)
 
-    let user = await this.db.user.findFirst({
+    const user = await this.db.user.findFirst({
       where: { googleId: profile.googleId },
       select: { id: true },
     })
 
     if (!user) {
-      const matches = await this.db.user.findMany({
-        where: {
-          email: {
-            equals: profile.email,
-            mode: 'insensitive',
-          },
-        },
-        select: { id: true, googleId: true },
-      })
-
-      if (matches.length !== 1) {
-        throw new UnauthorizedException('Tai khoan Google chua duoc lien ket voi nhan vien hop le')
-      }
-
-      const matchedUser = matches[0]
-      if (!matchedUser) {
-        throw new UnauthorizedException('Tai khoan Google chua duoc lien ket voi nhan vien hop le')
-      }
-
-      user = matchedUser
-      await this.db.user.update({
-        where: { id: user.id },
-        data: {
-          googleId: profile.googleId,
-          googleEmail: profile.email,
-          googleAvatar: profile.avatar,
-        },
-      })
-    } else {
-      await this.db.user.update({
-        where: { id: user.id },
-        data: {
-          googleEmail: profile.email,
-          googleAvatar: profile.avatar,
-        },
-      })
+      throw new UnauthorizedException('Tai khoan Google chua duoc lien ket voi nguoi dung nay')
     }
 
-    if (!user) {
-      throw new UnauthorizedException('Khong the tao session dang nhap Google')
-    }
+    await this.db.user.update({
+      where: { id: user.id },
+      data: {
+        googleEmail: profile.email,
+        googleAvatar: profile.avatar,
+      },
+    })
 
     return this.authService.createSessionForUserId(user.id)
+  }
+
+  async linkUserWithAuthorizationCode(userId: string, code: string) {
+    const profile = await this.resolveGoogleUserFromCode(code)
+    const existingUser = await this.db.user.findFirst({
+      where: {
+        googleId: profile.googleId,
+        NOT: {
+          id: userId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    })
+
+    if (existingUser) {
+      throw new UnauthorizedException('Tai khoan Google da duoc lien ket voi nguoi dung khac')
+    }
+
+    return this.db.user.update({
+      where: { id: userId },
+      data: {
+        googleId: profile.googleId,
+        googleEmail: profile.email,
+        googleAvatar: profile.avatar,
+      },
+      select: {
+        id: true,
+        googleId: true,
+        googleEmail: true,
+        googleAvatar: true,
+      },
+    })
   }
 }

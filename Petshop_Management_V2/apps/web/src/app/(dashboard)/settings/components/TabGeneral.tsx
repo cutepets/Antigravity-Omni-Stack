@@ -30,6 +30,15 @@ type SettingsFormData = {
   googleDriveBackupFolderId: string
 }
 
+type GoogleAuthStatus = {
+  enabled: boolean
+  configured: boolean
+  allowedDomain: string | null
+  apiBaseUrl: string
+  webAppBaseUrl: string
+  callbackUrl: string
+}
+
 const DEFAULT_FORM: SettingsFormData = {
   shopName: '',
   shopPhone: '',
@@ -69,6 +78,14 @@ export function TabGeneral() {
       return response.data?.data ?? {}
     },
     retry: 1,
+    staleTime: 5 * 60 * 1000,
+  })
+  const googleAuthStatusQuery = useQuery({
+    queryKey: ['auth', 'google-status'],
+    queryFn: async () => {
+      const response = await api.get('/auth/google/status')
+      return (response.data?.data ?? null) as GoogleAuthStatus | null
+    },
     staleTime: 5 * 60 * 1000,
   })
 
@@ -356,6 +373,32 @@ export function TabGeneral() {
                 className={inputClassName}
               />
             </Field>
+            <Field label="Authorized JavaScript origin" className="md:col-span-2">
+              <input
+                value={googleAuthStatusQuery.data?.webAppBaseUrl || ''}
+                disabled
+                className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
+              />
+            </Field>
+            <Field label="Authorized redirect URI" className="md:col-span-2">
+              <input
+                value={googleAuthStatusQuery.data?.callbackUrl || ''}
+                disabled
+                className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
+              />
+            </Field>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-border/50 bg-background-base p-4 text-xs text-foreground-muted">
+            <p className="font-semibold text-foreground-base">Huong dan Google Cloud</p>
+            <p className="mt-2">1. Tao OAuth Client ID loai Web application.</p>
+            <p className="mt-1">2. Add JavaScript origin va redirect URI dung nhu 2 o ben tren.</p>
+            <p className="mt-1">3. Scope chi can: openid, email, profile.</p>
+            {googleAuthStatusQuery.data?.allowedDomain ? (
+              <p className="mt-1">4. App dang gioi han domain: {googleAuthStatusQuery.data.allowedDomain}.</p>
+            ) : (
+              <p className="mt-1">4. Neu muon gioi han email cong ty, dien Allowed domain.</p>
+            )}
           </div>
         </section>
 

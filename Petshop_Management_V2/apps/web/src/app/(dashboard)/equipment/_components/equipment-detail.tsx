@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Archive } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -8,6 +9,7 @@ import { toast } from 'sonner'
 import { PageContent, PageHeader } from '@/components/layout/PageLayout'
 import { settingsApi } from '@/lib/api'
 import { equipmentApi, type EquipmentStatus } from '@/lib/equipment'
+import { useEquipmentAccess } from './use-equipment-access'
 
 type DetailForm = {
   name: string
@@ -54,33 +56,54 @@ function emptyForm(): DetailForm {
 }
 
 export function EquipmentDetail({ code }: { code: string }) {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const [form, setForm] = useState<DetailForm>(emptyForm())
+  const {
+    allowedBranches,
+    isLoading: isAuthLoading,
+    canRead,
+    canUpdate,
+    canArchive,
+    canReadBranches,
+    canAccessDetail,
+  } = useEquipmentAccess()
 
   const detailQuery = useQuery({
     queryKey: ['equipment-detail', code],
     queryFn: () => equipmentApi.getByCode(code),
+    enabled: canAccessDetail,
   })
 
   const branchesQuery = useQuery({
-    queryKey: ['branches'],
-    queryFn: settingsApi.getBranches,
+    queryKey: ['branches', canReadBranches ? 'settings' : 'auth'],
+    queryFn: () =>
+      canReadBranches
+        ? settingsApi.getBranches()
+        : allowedBranches.map((branch) => ({
+            id: branch.id,
+            code: '',
+            name: branch.name,
+          })),
+    enabled: canAccessDetail,
   })
 
   const categoriesQuery = useQuery({
     queryKey: ['equipment-categories'],
     queryFn: equipmentApi.getCategories,
+    enabled: canAccessDetail,
   })
 
   const locationsQuery = useQuery({
     queryKey: ['equipment-locations', form.branchId || 'all'],
     queryFn: () => equipmentApi.getLocations(form.branchId || undefined),
+    enabled: canAccessDetail,
   })
 
   const historyQuery = useQuery({
     queryKey: ['equipment-history', detailQuery.data?.id],
     queryFn: () => equipmentApi.getHistory(detailQuery.data!.id),
-    enabled: Boolean(detailQuery.data?.id),
+    enabled: canAccessDetail && Boolean(detailQuery.data?.id),
   })
 
   useEffect(() => {
@@ -102,6 +125,12 @@ export function EquipmentDetail({ code }: { code: string }) {
       imageUrl: detailQuery.data.imageUrl || '',
     })
   }, [detailQuery.data])
+
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (canAccessDetail) return
+    router.replace('/dashboard')
+  }, [canAccessDetail, isAuthLoading, router])
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -164,8 +193,23 @@ export function EquipmentDetail({ code }: { code: string }) {
     }
   }
 
+  if (isAuthLoading) {
+    return <PageContent>Đang kiểm tra quyền truy cập...</PageContent>
+  }
+
+  if (!canAccessDetail) {
+    return <PageContent>Đang chuyển hướng...</PageContent>
+  }
+
   if (detailQuery.isLoading) {
     return <PageContent>Đang tải thông tin thiết bị...</PageContent>
+  }
+
+  if (detailQuery.isError) {
+    const status = (detailQuery.error as any)?.response?.status
+    if (status === 403) {
+      return <PageContent>Bạn không có quyền xem chi tiết thiết bị này.</PageContent>
+    }
   }
 
   if (!detailQuery.data) {
@@ -176,7 +220,11 @@ export function EquipmentDetail({ code }: { code: string }) {
     <>
       <PageHeader
         title={`${detailQuery.data.code} · ${detailQuery.data.name}`}
-        description="Cập nhật thông tin, vị trí, bảo hành và theo dõi lịch sử thay đổi."
+        description={
+          canUpdate
+            ? 'Cập nhật thông tin, vị trí, bảo hành và theo dõi lịch sử thay đổi.'
+            : 'Xem thông tin, vị trí, bảo hành và lịch sử thay đổi của thiết bị.'
+        }
         actions={
           <div className="flex gap-3">
             <Link
@@ -186,17 +234,19 @@ export function EquipmentDetail({ code }: { code: string }) {
               <ArrowLeft size={16} />
               Quay lại
             </Link>
-            <button
-              type="button"
-              onClick={() => {
-                if (!window.confirm(`Lưu trữ thiết bị ${detailQuery.data?.code}?`)) return
-                archiveMutation.mutate()
-              }}
-              className="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 px-4 py-2 text-sm text-rose-300"
-            >
-              <Archive size={16} />
-              Lưu trữ
-            </button>
+            {canArchive ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm(`Lưu trữ thiết bị ${detailQuery.data?.code}?`)) return
+                  archiveMutation.mutate()
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 px-4 py-2 text-sm text-rose-300"
+              >
+                <Archive size={16} />
+                Lưu trữ
+              </button>
+            ) : null}
           </div>
         }
       />
@@ -210,6 +260,7 @@ export function EquipmentDetail({ code }: { code: string }) {
             }}
             className="space-y-4"
           >
+            <fieldset disabled={!canUpdate} className="space-y-4 disabled:cursor-not-allowed disabled:opacity-70">
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="Tên thiết bị">
                 <input
@@ -366,13 +417,16 @@ export function EquipmentDetail({ code }: { code: string }) {
               />
             </Field>
 
-            <button
-              type="submit"
-              disabled={updateMutation.isPending}
-              className="rounded-xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {updateMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
-            </button>
+            {canUpdate ? (
+              <button
+                type="submit"
+                disabled={updateMutation.isPending}
+                className="rounded-xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {updateMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
+              </button>
+            ) : null}
+            </fieldset>
           </form>
         </PageContent>
 

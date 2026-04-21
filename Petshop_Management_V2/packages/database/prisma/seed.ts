@@ -11,9 +11,9 @@ const branchSeeds = [
 ] as const
 
 const roleSeeds = [
-  { code: 'SUPER_ADMIN', name: 'Chủ cửa hàng', isSystem: true, permissions: ['MANAGE_STAFF', 'MANAGE_USERS', 'MANAGE_ROLES', 'MANAGE_BRANCHES', 'MANAGE_SETTINGS', 'MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS', 'FULL_BRANCH_ACCESS', 'stock_count.create', 'stock_count.read', 'stock_count.update', 'stock_count.count', 'stock_count.approve'] },
-  { code: 'ADMIN', name: 'Quản trị viên', isSystem: true, permissions: ['MANAGE_STAFF', 'MANAGE_BRANCHES', 'MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS', 'stock_count.create', 'stock_count.read', 'stock_count.update', 'stock_count.count', 'stock_count.approve'] },
-  { code: 'MANAGER', name: 'Cửa hàng trưởng', isSystem: false, permissions: ['MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS', 'stock_count.create', 'stock_count.read', 'stock_count.update', 'stock_count.count', 'stock_count.approve'] },
+  { code: 'SUPER_ADMIN', name: 'Chủ cửa hàng', isSystem: true, permissions: ['MANAGE_STAFF', 'MANAGE_USERS', 'MANAGE_ROLES', 'MANAGE_BRANCHES', 'MANAGE_SETTINGS', 'MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS', 'FULL_BRANCH_ACCESS', 'stock_count.create', 'stock_count.read', 'stock_count.update', 'stock_count.count', 'stock_count.approve', 'equipment.read', 'equipment.create', 'equipment.update', 'equipment.archive', 'equipment.scan', 'equipment.config'] },
+  { code: 'ADMIN', name: 'Quản trị viên', isSystem: true, permissions: ['MANAGE_STAFF', 'MANAGE_BRANCHES', 'MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS', 'stock_count.create', 'stock_count.read', 'stock_count.update', 'stock_count.count', 'stock_count.approve', 'equipment.read', 'equipment.create', 'equipment.update', 'equipment.archive', 'equipment.scan', 'equipment.config'] },
+  { code: 'MANAGER', name: 'Cửa hàng trưởng', isSystem: false, permissions: ['MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS', 'stock_count.create', 'stock_count.read', 'stock_count.update', 'stock_count.count', 'stock_count.approve', 'equipment.read', 'equipment.create', 'equipment.update', 'equipment.archive', 'equipment.scan', 'equipment.config'] },
   { code: 'STAFF', name: 'Nhân viên vận hành', isSystem: false, permissions: ['MANAGE_PETS', 'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'stock_count.read', 'stock_count.count'] },
 ] as const
 
@@ -1550,7 +1550,8 @@ async function main() {
   console.log('✓ Receipts:     30')
   console.log('✓ Orders:       50')
   console.log('✓ Transactions: 50+ (Auto + 10 Manual)')
-  console.log('✓ Modules:       6 (pet, hotel, grooming, attendance, payroll, rewards)')
+  console.log('✓ Equipment:    3')
+  console.log('✓ Modules:       7 (pet, hotel, grooming, attendance, payroll, rewards, equipment)')
 }
 
 main()

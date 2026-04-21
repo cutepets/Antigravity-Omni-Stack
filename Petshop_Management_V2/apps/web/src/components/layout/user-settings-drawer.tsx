@@ -1,170 +1,296 @@
 'use client'
-import Image from 'next/image';
 
-import { motion, AnimatePresence } from 'framer-motion'
-import { useAuthStore } from '@/stores/auth.store'
-import { useTheme } from 'next-themes'
-import { X, LogOut, Edit2, Shield, Settings, Monitor, Moon, Sun } from 'lucide-react'
+import Image from 'next/image'
+import { useQuery } from '@tanstack/react-query'
+import { AnimatePresence, motion } from 'framer-motion'
 import { createPortal } from 'react-dom'
-import { useState, useEffect } from 'react'
-
+import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
+import { Edit2, Link2, LogOut, Monitor, Moon, Settings, Shield, Sun, X } from 'lucide-react'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
+import { API_URL } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth.store'
 
 interface UserSettingsDrawerProps {
   isOpen: boolean
   onClose: () => void
 }
 
-export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps) {
-  const { user, logout, allowedBranches, activeBranchId } = useAuthStore()
-  const { theme, setTheme } = useTheme()
+type GoogleAuthStatus = {
+  enabled: boolean
+  configured: boolean
+  allowedDomain: string | null
+}
 
-  const currentBranch = allowedBranches.find(b => b.id === activeBranchId)
+export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps) {
+  const { user, logout, allowedBranches, activeBranchId, fetchMe } = useAuthStore()
+  const { theme, setTheme } = useTheme()
+  const currentBranch = allowedBranches.find((branch) => branch.id === activeBranchId)
   const [mounted, setMounted] = useState(false)
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false)
+
+  const googleStatusQuery = useQuery({
+    queryKey: ['auth', 'google-status', 'drawer'],
+    queryFn: async () => {
+      const response = await fetch(`${API_URL}/api/auth/google/status`, {
+        credentials: 'include',
+      })
+      const payload = await response.json()
+      return (payload?.data ?? {
+        enabled: false,
+        configured: false,
+        allowedDomain: null,
+      }) as GoogleAuthStatus
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+    enabled: mounted,
+  })
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
+  useEffect(() => {
+    if (!isOpen) return
+    void fetchMe()
+  }, [fetchMe, isOpen])
+
+  useEffect(() => {
+    if (!mounted) return
+
+    const currentUrl = new URL(window.location.href)
+    const googleLinkStatus = currentUrl.searchParams.get('google_link')
+    if (!googleLinkStatus) return
+
+    const message = currentUrl.searchParams.get('message')
+
+    if (googleLinkStatus === 'success') {
+      void fetchMe()
+      toast.success('Lien ket Google thanh cong')
+    } else {
+      toast.error(message || 'Lien ket Google that bai')
+    }
+
+    currentUrl.searchParams.delete('google_link')
+    currentUrl.searchParams.delete('message')
+    window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`)
+  }, [fetchMe, mounted])
+
   if (!user || !mounted) return null
+
+  const googleStatus = googleStatusQuery.data
+  const canUseGoogleLink = Boolean(googleStatus?.enabled && googleStatus?.configured)
+
+  const handleGoogleLink = () => {
+    const current = new URL(window.location.href)
+    current.searchParams.delete('google_link')
+    current.searchParams.delete('message')
+    const redirect = `${current.pathname}${current.search}` || '/dashboard'
+
+    setIsConnectingGoogle(true)
+    window.location.href = `${API_URL}/api/auth/google/link?redirect=${encodeURIComponent(redirect)}`
+  }
 
   return createPortal(
     <AnimatePresence>
-      {isOpen && (
+      {isOpen ? (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50"
+            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
           />
 
-          {/* Drawer */}
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-full w-[360px] glass-panel border-l border-white/10 z-50 overflow-y-auto flex flex-col"
+            className="fixed right-0 top-0 z-50 flex h-full w-[360px] flex-col overflow-y-auto border-l border-white/10 glass-panel"
             style={{ boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.4)' }}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-white/5">
+            <div className="flex items-center justify-between border-b border-white/5 p-5">
               <div className="flex items-center gap-2 text-primary-400">
-                <Settings className="w-5 h-5" />
-                <h2 className="font-semibold text-lg text-foreground-base">Cài đặt tài khoản</h2>
+                <Settings className="h-5 w-5" />
+                <h2 className="text-lg font-semibold text-foreground-base">Cai dat tai khoan</h2>
               </div>
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-full hover:bg-white/10 text-foreground-muted transition-colors"
+                className="rounded-full p-1.5 text-foreground-muted transition-colors hover:bg-white/10"
               >
-                <X className="w-5 h-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="p-5 flex-1 space-y-6">
-              {/* Profile Card */}
-              <div className="relative p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-4 group">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-bold text-xl shadow-[0_4px_12px_color-mix(in_srgb,var(--color-primary-500)_40%,transparent)] overflow-hidden">
+            <div className="flex-1 space-y-6 p-5">
+              <div className="group relative flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 text-xl font-bold text-white shadow-[0_4px_12px_color-mix(in_srgb,var(--color-primary-500)_40%,transparent)]">
                   {user.avatar ? (
-                    <Image src={user.avatar} alt={user.fullName} className="w-full h-full object-cover" width={400} height={400} unoptimized />
+                    <Image
+                      src={user.avatar}
+                      alt={user.fullName}
+                      className="h-full w-full object-cover"
+                      width={400}
+                      height={400}
+                      unoptimized
+                    />
                   ) : (
                     user.fullName[0]?.toUpperCase()
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-base text-foreground-base truncate">{user.fullName}</h3>
-                  <p className="text-sm text-foreground-muted truncate">@{user.username}</p>
-                  <p className="text-xs text-primary-400 mt-0.5">{currentBranch?.name || 'Chưa chọn nhánh'}</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate text-base font-bold text-foreground-base">{user.fullName}</h3>
+                  <p className="truncate text-sm text-foreground-muted">@{user.username}</p>
+                  <p className="mt-0.5 text-xs text-primary-400">{currentBranch?.name || 'Chua chon nhanh'}</p>
                 </div>
                 <button
                   onClick={() => {
                     onClose()
                     window.location.href = `/staff/${user.username}`
                   }}
-                  title="Chỉnh sửa tài khoản"
-                  className="absolute top-4 right-4 p-1.5 rounded-lg text-foreground-muted hover:text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-white/10"
+                  title="Chinh sua tai khoan"
+                  className="absolute right-4 top-4 rounded-lg p-1.5 text-foreground-muted opacity-0 transition-all hover:bg-white/10 hover:text-white group-hover:opacity-100"
                 >
-                  <Edit2 className="w-4 h-4" />
+                  <Edit2 className="h-4 w-4" />
                 </button>
               </div>
 
-              {/* Security */}
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-black/20 border border-white/5">
+              <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/20 p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-orange-500/10 text-orange-400">
-                    <Shield className="w-4 h-4" />
+                  <div className="rounded-lg bg-orange-500/10 p-2 text-orange-400">
+                    <Shield className="h-4 w-4" />
                   </div>
-                  <span className="font-medium text-sm text-foreground-base">Bảo mật tài khoản</span>
+                  <span className="text-sm font-medium text-foreground-base">Bao mat tai khoan</span>
                 </div>
-                <button className="text-sm text-primary-400 hover:text-primary-300 font-medium transition-colors">
-                  Đổi mật khẩu
+                <button className="text-sm font-medium text-primary-400 transition-colors hover:text-primary-300">
+                  Doi mat khau
                 </button>
               </div>
 
-              {/* Theme Toggle */}
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-black/20 border border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-                    <Monitor className="w-4 h-4" />
+              <div className="space-y-3 rounded-2xl border border-white/5 bg-black/20 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-sky-500/10 p-2 text-sky-400">
+                      <Link2 className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground-base">Google login</p>
+                      <p className="text-xs text-foreground-muted">
+                        {user.googleLinked
+                          ? user.googleEmail || 'Tai khoan Google da duoc lien ket'
+                          : 'Lien ket de dang nhap bang Google o nhung lan sau'}
+                      </p>
+                    </div>
                   </div>
-                  <span className="font-medium text-sm text-foreground-base">Giao diện</span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                      user.googleLinked
+                        ? 'bg-emerald-500/10 text-emerald-300'
+                        : 'bg-white/10 text-foreground-muted'
+                    }`}
+                  >
+                    {user.googleLinked ? 'Da lien ket' : 'Chua lien ket'}
+                  </span>
                 </div>
-                <div className="flex items-center bg-background rounded-full p-1 border border-white/10">
+
+                {googleStatusQuery.isLoading ? (
+                  <div className="rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm text-foreground-muted">
+                    Dang tai trang thai Google...
+                  </div>
+                ) : canUseGoogleLink ? (
+                  <>
+                    {googleStatus?.allowedDomain ? (
+                      <p className="text-xs text-foreground-muted">
+                        Domain duoc phep: <span className="font-medium text-foreground-base">{googleStatus.allowedDomain}</span>
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={handleGoogleLink}
+                      disabled={isConnectingGoogle}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm font-semibold text-foreground-base transition-colors hover:bg-background-elevated disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <span className="text-base">G</span>
+                      {isConnectingGoogle
+                        ? 'Dang chuyen sang Google...'
+                        : user.googleLinked
+                          ? 'Ket noi lai Google'
+                          : 'Ket noi Google'}
+                    </button>
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm text-foreground-muted">
+                    Google login hien chua san sang. Lien he admin de hoan tat cau hinh OAuth.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/20 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400">
+                    <Monitor className="h-4 w-4" />
+                  </div>
+                  <span className="text-sm font-medium text-foreground-base">Giao dien</span>
+                </div>
+                <div className="flex items-center rounded-full border border-white/10 bg-background p-1">
                   <button
                     onClick={() => setTheme('light')}
-                    className={`p-1.5 rounded-full flex items-center justify-center transition-all ${theme === 'light' ? 'bg-white/10 text-primary-400' : 'text-foreground-muted hover:text-white'}`}
+                    className={`flex items-center justify-center rounded-full p-1.5 transition-all ${
+                      theme === 'light' ? 'bg-white/10 text-primary-400' : 'text-foreground-muted hover:text-white'
+                    }`}
                   >
-                    <Sun className="w-3.5 h-3.5" />
+                    <Sun className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => setTheme('dark')}
-                    className={`p-1.5 rounded-full flex items-center justify-center transition-all ${theme === 'dark' ? 'bg-white/10 text-primary-400' : 'text-foreground-muted hover:text-white'}`}
+                    className={`flex items-center justify-center rounded-full p-1.5 transition-all ${
+                      theme === 'dark' ? 'bg-white/10 text-primary-400' : 'text-foreground-muted hover:text-white'
+                    }`}
                   >
-                    <Moon className="w-3.5 h-3.5" />
+                    <Moon className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
 
-              {/* System Info */}
-              <div className="p-4 rounded-2xl bg-black/20 border border-white/5 space-y-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <Monitor className="w-4 h-4 text-primary-400" />
-                  <span className="font-medium text-sm text-foreground-base">Thông tin hệ thống</span>
+              <div className="space-y-3 rounded-2xl border border-white/5 bg-black/20 p-4">
+                <div className="mb-1 flex items-center gap-2">
+                  <Monitor className="h-4 w-4 text-primary-400" />
+                  <span className="text-sm font-medium text-foreground-base">Thong tin he thong</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-foreground-muted">Phiên bản:</span>
-                  <span className="text-foreground-base font-medium">1.0.0-beta</span>
+                  <span className="text-foreground-muted">Phien ban:</span>
+                  <span className="font-medium text-foreground-base">1.0.0-beta</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-foreground-muted">Chi nhánh:</span>
-                  <span className="text-foreground-base font-medium">{currentBranch?.name || 'N/A'}</span>
+                  <span className="text-foreground-muted">Chi nhanh:</span>
+                  <span className="font-medium text-foreground-base">{currentBranch?.name || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-foreground-muted">Vai trò:</span>
-                  <span className="text-foreground-base font-medium">{user.role}</span>
+                  <span className="text-foreground-muted">Vai tro:</span>
+                  <span className="font-medium text-foreground-base">{user.role}</span>
                 </div>
               </div>
             </div>
 
-            {/* Footer / Logout */}
-            <div className="p-5 border-t border-white/5 mt-auto bg-black/20">
+            <div className="mt-auto border-t border-white/5 bg-black/20 p-5">
               <button
                 onClick={async () => {
                   onClose()
                   await logout()
                   window.location.href = '/login'
                 }}
-                className="w-full py-3 rounded-xl border border-error/30 text-error hover:bg-error/10 hover:border-error/50 transition-all flex items-center justify-center gap-2 font-medium"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-error/30 py-3 font-medium text-error transition-all hover:border-error/50 hover:bg-error/10"
               >
-                <LogOut className="w-4 h-4" />
-                Đăng xuất
+                <LogOut className="h-4 w-4" />
+                Dang xuat
               </button>
             </div>
           </motion.div>
         </>
-      )}
+      ) : null}
     </AnimatePresence>,
-    document.body
+    document.body,
   )
 }

@@ -155,4 +155,41 @@ describe('AuthService', () => {
       },
     })
   })
+
+  it('returns google link status in getMe', async () => {
+    const db = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          username: 'admin',
+          fullName: 'Admin',
+          staffCode: 'NV001',
+          branchId: 'branch-1',
+          avatar: null,
+          googleId: 'google-1',
+          googleEmail: 'admin@example.com',
+          branch: { id: 'branch-1', name: 'Main', address: null, isActive: true },
+          authorizedBranches: [],
+          role: { code: 'ADMIN', permissions: ['MANAGE_STAFF'] },
+        }),
+      },
+    } as any
+
+    const service = new AuthService(db, {} as any)
+
+    const result = await service.getMe('user-1')
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 'user-1',
+      username: 'admin',
+      fullName: 'Admin',
+      role: 'ADMIN',
+      staffCode: 'NV001',
+      branchId: 'branch-1',
+      avatar: null,
+      authorizedBranches: [{ id: 'branch-1', name: 'Main', address: null, isActive: true }],
+      googleLinked: true,
+      googleEmail: 'admin@example.com',
+    }))
+  })
 })

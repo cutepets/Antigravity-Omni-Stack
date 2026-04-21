@@ -3,10 +3,18 @@
 import type { CSSProperties } from 'react'
 import { useMemo, useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { API_URL } from '@/lib/api'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { useAuthStore } from '@/stores/auth.store'
+
+type GoogleAuthStatus = {
+  enabled: boolean
+  configured: boolean
+  allowedDomain: string | null
+  callbackUrl: string
+}
 
 export function LoginForm() {
   const [username, setUsername] = useState('')
@@ -19,6 +27,23 @@ export function LoginForm() {
   const redirect = searchParams.get('redirect') ?? '/dashboard'
   const googleError = searchParams.get('error')
   const googleMessage = searchParams.get('message')
+  const googleStatusQuery = useQuery({
+    queryKey: ['auth', 'google-status'],
+    queryFn: async () => {
+      const response = await fetch(`${API_URL}/api/auth/google/status`, {
+        credentials: 'include',
+      })
+      const payload = await response.json()
+      return (payload?.data ?? {
+        enabled: false,
+        configured: false,
+        allowedDomain: null,
+        callbackUrl: '',
+      }) as GoogleAuthStatus
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  })
 
   const externalError = useMemo(() => {
     if (googleError !== 'google_auth_failed') {
@@ -46,6 +71,8 @@ export function LoginForm() {
   }
 
   const loading = isPending || isLoading
+  const googleStatus = googleStatusQuery.data
+  const canUseGoogleLogin = Boolean(googleStatus?.enabled && googleStatus?.configured)
   const visibleError = error || externalError
 
   return (
@@ -109,15 +136,32 @@ export function LoginForm() {
         </motion.div>
       )}
 
-      <button
-        type="button"
-        onClick={handleGoogleLogin}
-        disabled={loading}
-        className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm font-semibold text-foreground-base transition-colors hover:bg-background-elevated disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <span className="text-base">G</span>
-        Dang nhap voi Google
-      </button>
+      {googleStatusQuery.isLoading ? (
+        <div className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm text-foreground-muted">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-border/60 border-t-foreground-muted" />
+          Dang tai Google login...
+        </div>
+      ) : canUseGoogleLogin ? (
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={loading}
+          className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm font-semibold text-foreground-base transition-colors hover:bg-background-elevated disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span className="text-base">G</span>
+          Dang nhap voi Google
+        </button>
+      ) : (
+        <div className="mb-4 rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm text-foreground-muted">
+          Dang nhap Google hien chua san sang.
+          {googleStatus?.enabled && !googleStatus?.configured ? (
+            <span className="mt-1 block">Admin can hoan tat client ID, client secret va redirect URI.</span>
+          ) : null}
+          {googleStatus?.allowedDomain ? (
+            <span className="mt-1 block">Domain duoc phep: {googleStatus.allowedDomain}</span>
+          ) : null}
+        </div>
+      )}
 
       <div className="mb-4 flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-foreground-muted">
         <span className="h-px flex-1 bg-border/50" />

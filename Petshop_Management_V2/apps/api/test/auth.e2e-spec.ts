@@ -5,6 +5,7 @@ import type { Request } from 'express'
 import type { JwtPayload, LoginResponse } from '@petshop/shared'
 import { AuthController } from '../src/modules/auth/auth.controller'
 import { AuthService } from '../src/modules/auth/auth.service'
+import { GoogleAuthService } from '../src/modules/auth/google-auth.service'
 import { JwtGuard } from '../src/modules/auth/guards/jwt.guard'
 
 const authUser = {
@@ -17,6 +18,8 @@ const authUser = {
   branchId: 'branch-1',
   avatar: null,
   authorizedBranches: [{ id: 'branch-1', name: 'Main', address: null, isActive: true }],
+  googleLinked: false,
+  googleEmail: null,
 }
 
 const authResponse: LoginResponse = {
@@ -51,6 +54,7 @@ describe('AuthController (e2e)', () => {
   let app: INestApplication
   const authService = {
     login: jest.fn().mockResolvedValue(authResponse),
+    createSessionForUserId: jest.fn().mockResolvedValue(authResponse),
     refreshTokens: jest.fn().mockResolvedValue({
       ...authResponse,
       accessToken: 'refreshed-access-token',
@@ -58,6 +62,25 @@ describe('AuthController (e2e)', () => {
     }),
     logout: jest.fn().mockResolvedValue(undefined),
     getMe: jest.fn().mockResolvedValue(authUser),
+  }
+  const googleAuthService = {
+    getPublicConfig: jest.fn().mockResolvedValue({
+      enabled: true,
+      configured: true,
+      allowedDomain: 'example.com',
+      apiBaseUrl: 'http://localhost:3001',
+      webAppBaseUrl: 'http://localhost:3000',
+      callbackUrl: 'http://localhost:3001/api/auth/google/callback',
+    }),
+    createAuthorizationUrl: jest.fn().mockResolvedValue('https://accounts.google.com/o/oauth2/v2/auth'),
+    loginWithAuthorizationCode: jest.fn().mockResolvedValue(authResponse),
+    linkUserWithAuthorizationCode: jest.fn().mockResolvedValue({
+      id: 'user-1',
+      googleId: 'google-1',
+      googleEmail: 'admin@example.com',
+      googleAvatar: 'https://avatar.test/a.png',
+    }),
+    getWebAppBaseUrl: jest.fn().mockReturnValue('http://localhost:3000'),
   }
 
   beforeAll(async () => {
@@ -67,6 +90,10 @@ describe('AuthController (e2e)', () => {
         {
           provide: AuthService,
           useValue: authService,
+        },
+        {
+          provide: GoogleAuthService,
+          useValue: googleAuthService,
         },
       ],
     })
@@ -81,6 +108,7 @@ describe('AuthController (e2e)', () => {
   afterEach(() => {
     jest.clearAllMocks()
     authService.login.mockResolvedValue(authResponse)
+    authService.createSessionForUserId.mockResolvedValue(authResponse)
     authService.refreshTokens.mockResolvedValue({
       ...authResponse,
       accessToken: 'refreshed-access-token',
@@ -88,6 +116,23 @@ describe('AuthController (e2e)', () => {
     })
     authService.logout.mockResolvedValue(undefined)
     authService.getMe.mockResolvedValue(authUser)
+    googleAuthService.getPublicConfig.mockResolvedValue({
+      enabled: true,
+      configured: true,
+      allowedDomain: 'example.com',
+      apiBaseUrl: 'http://localhost:3001',
+      webAppBaseUrl: 'http://localhost:3000',
+      callbackUrl: 'http://localhost:3001/api/auth/google/callback',
+    })
+    googleAuthService.createAuthorizationUrl.mockResolvedValue('https://accounts.google.com/o/oauth2/v2/auth')
+    googleAuthService.loginWithAuthorizationCode.mockResolvedValue(authResponse)
+    googleAuthService.linkUserWithAuthorizationCode.mockResolvedValue({
+      id: 'user-1',
+      googleId: 'google-1',
+      googleEmail: 'admin@example.com',
+      googleAvatar: 'https://avatar.test/a.png',
+    })
+    googleAuthService.getWebAppBaseUrl.mockReturnValue('http://localhost:3000')
   })
 
   afterAll(async () => {
@@ -152,5 +197,74 @@ describe('AuthController (e2e)', () => {
 
     expect(authService.getMe).toHaveBeenCalledWith('user-1')
     expect(response.body).toEqual(authUser)
+  })
+
+  it('returns public google auth status for the login page', async () => {
+    const response = await request(app.getHttpServer()).get('/auth/google/status').expect(200)
+
+    expect(googleAuthService.getPublicConfig).toHaveBeenCalled()
+    expect(response.body).toEqual({
+      success: true,
+      data: {
+        enabled: true,
+        configured: true,
+        allowedDomain: 'example.com',
+        apiBaseUrl: 'http://localhost:3001',
+        webAppBaseUrl: 'http://localhost:3000',
+        callbackUrl: 'http://localhost:3001/api/auth/google/callback',
+      },
+    })
+  })
+
+  it('starts google login by setting state cookie and redirecting to Google', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/auth/google?redirect=%2Fequipment')
+      .expect(302)
+
+    expect(googleAuthService.createAuthorizationUrl).toHaveBeenCalled()
+    expect(response.headers.location).toBe('https://accounts.google.com/o/oauth2/v2/auth')
+    const cookies = getSetCookies(response)
+    expect(cookies).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('petshop_google_state='),
+      ]),
+    )
+  })
+
+  it('starts google link by setting state cookie and redirecting to Google', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/auth/google/link?redirect=%2Fdashboard')
+      .set('Cookie', ['access_token=access-token'])
+      .expect(302)
+
+    expect(googleAuthService.createAuthorizationUrl).toHaveBeenCalled()
+    expect(response.headers.location).toBe('https://accounts.google.com/o/oauth2/v2/auth')
+    const cookies = getSetCookies(response)
+    expect(cookies).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('petshop_google_state='),
+      ]),
+    )
+  })
+
+  it('links Google for the authenticated user and redirects back to the app', async () => {
+    const startResponse = await request(app.getHttpServer())
+      .get('/auth/google/link?redirect=%2Fdashboard')
+      .set('Cookie', ['access_token=access-token'])
+      .expect(302)
+
+    const state = googleAuthService.createAuthorizationUrl.mock.calls.at(-1)?.[0]
+    const stateCookie = getSetCookies(startResponse).find((cookie) => cookie.startsWith('petshop_google_state='))
+
+    expect(state).toBeTruthy()
+    expect(stateCookie).toBeTruthy()
+
+    const callbackResponse = await request(app.getHttpServer())
+      .get(`/auth/google/link/callback?code=google-code&state=${encodeURIComponent(String(state))}`)
+      .set('Cookie', [String(stateCookie), 'access_token=access-token'])
+      .expect(302)
+
+    expect(googleAuthService.linkUserWithAuthorizationCode).toHaveBeenCalledWith('user-1', 'google-code')
+    expect(callbackResponse.headers.location).toBe('http://localhost:3000/dashboard?google_link=success')
   })
 })

@@ -123,7 +123,7 @@ export class EquipmentController {
   }
 
   @Get('categories/list')
-  @Permissions('equipment.read', 'equipment.config')
+  @Permissions('equipment.read', 'equipment.create', 'equipment.config')
   @ApiOperation({ summary: 'Danh muc loai thiet bi' })
   getCategories() {
     return this.equipmentService.getCategories()
@@ -144,7 +144,7 @@ export class EquipmentController {
   }
 
   @Get('locations/list')
-  @Permissions('equipment.read', 'equipment.config')
+  @Permissions('equipment.read', 'equipment.create', 'equipment.config')
   @ApiOperation({ summary: 'Preset vi tri theo chi nhanh' })
   getLocations(@Query('branchId') branchId: string | undefined, @Req() req: AuthenticatedRequest) {
     return this.equipmentService.getLocations(branchId ?? getRequestedBranchId(req), req.user)

@@ -8,6 +8,7 @@ import { ThemeProvider } from 'next-themes'
 import { ThemeInjector } from './theme-injector'
 import { MSWProvider } from './providers/MSWProvider'
 import { AnimationProvider } from './providers/AnimationProvider'
+import { AuthBootstrap } from './auth-bootstrap'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -29,6 +30,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ThemeInjector />
       <AnimationProvider />
       <QueryClientProvider client={queryClient}>
+        <AuthBootstrap />
         {children}
         <Toaster
           position="top-right"

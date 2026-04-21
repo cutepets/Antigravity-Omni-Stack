@@ -78,6 +78,8 @@ export class AuthService {
     staffCode: string
     branchId: string | null
     avatar: string | null
+    googleId?: string | null
+    googleEmail?: string | null
     status?: string
     branch?: { id: string; name: string; address: string | null; isActive: boolean } | null
     authorizedBranches?: Array<{ id: string; name: string; address: string | null; isActive: boolean }>
@@ -135,6 +137,8 @@ export class AuthService {
       avatar: user.avatar ?? null,
       authorizedBranches: mappedAuthorizedBranches,
       permissions: combinedPermissions,
+      googleLinked: Boolean(user.googleId),
+      googleEmail: user.googleEmail ?? null,
     }
 
     return { accessToken, refreshToken, user: authUser }
@@ -150,6 +154,8 @@ export class AuthService {
         staffCode: true,
         branchId: true,
         avatar: true,
+        googleId: true,
+        googleEmail: true,
         status: true,
         branch: { select: { id: true, name: true, address: true, isActive: true } },
         authorizedBranches: { select: { id: true, name: true, address: true, isActive: true } },
@@ -174,6 +180,8 @@ export class AuthService {
         staffCode: true,
         branchId: true,
         avatar: true,
+        googleId: true,
+        googleEmail: true,
         passwordHash: true,
         status: true,
         branch: { select: { id: true, name: true, address: true, isActive: true } },
@@ -236,7 +244,9 @@ export class AuthService {
       branchId: user.branchId ?? null,
       avatar: user.avatar ?? null,
       authorizedBranches: mappedAuthorizedBranches,
-      permissions: combinedPermissions
+      permissions: combinedPermissions,
+      googleLinked: Boolean((user as any).googleId),
+      googleEmail: (user as any).googleEmail ?? null,
     }
 
     return { accessToken, refreshToken, user: authUser }
@@ -262,9 +272,9 @@ export class AuthService {
       include: { 
         user: {
           include: {
+            role: true,
             branch: { select: { id: true, name: true, address: true, isActive: true } },
             authorizedBranches: { select: { id: true, name: true, address: true, isActive: true } },
-            role: true
           }
         } 
       },
@@ -321,6 +331,8 @@ export class AuthService {
       branchId: u.branchId ?? null,
       avatar: u.avatar ?? null,
       authorizedBranches: mappedAuthorizedBranches,
+      googleLinked: Boolean((u as any).googleId),
+      googleEmail: (u as any).googleEmail ?? null,
     }
 
     return { accessToken: newAccess, refreshToken: newRefresh, user: authUser }
@@ -355,6 +367,8 @@ export class AuthService {
         staffCode: true,
         branchId: true,
         avatar: true,
+        googleId: true,
+        googleEmail: true,
         branch: { select: { id: true, name: true, address: true, isActive: true } },
         authorizedBranches: { select: { id: true, name: true, address: true, isActive: true } }
       },
@@ -374,6 +388,8 @@ export class AuthService {
       staffCode: user.staffCode,
       branchId: user.branchId ?? null,
       avatar: user.avatar ?? null,
+      googleLinked: Boolean((user as any).googleId),
+      googleEmail: (user as any).googleEmail ?? null,
       authorizedBranches: Array.from(
         new Map(
           [...((user as any).branch ? [(user as any).branch] : []), ...((user as any).authorizedBranches || [])].map(b => [b.id, b])

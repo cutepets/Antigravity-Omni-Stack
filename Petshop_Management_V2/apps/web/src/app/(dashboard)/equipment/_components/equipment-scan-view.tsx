@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { PageContent, PageHeader } from '@/components/layout/PageLayout'
 import { equipmentApi } from '@/lib/equipment'
+import { useEquipmentAccess } from './use-equipment-access'
 
 export function EquipmentScanView() {
   const router = useRouter()
@@ -17,17 +18,26 @@ export function EquipmentScanView() {
   const [code, setCode] = useState('')
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [cameraSupported, setCameraSupported] = useState(false)
+  const { isLoading: isAuthLoading, canRead, canCreate, canAccessScan } = useEquipmentAccess()
 
   const scanMutation = useMutation({
     mutationFn: async (scanCode: string) => equipmentApi.resolveScan(scanCode.trim().toUpperCase()),
     onSuccess: (result) => {
       if (result.found && result.equipment) {
+        if (!canRead) {
+          toast.error('Bạn không có quyền xem chi tiết thiết bị đã tồn tại')
+          return
+        }
         toast.success(`Mở thiết bị ${result.equipment.code}`)
         router.push(`/equipment/${result.equipment.code}`)
         return
       }
 
       if (result.draft?.code) {
+        if (!canCreate) {
+          toast.error('Bạn không có quyền tạo thiết bị mới')
+          return
+        }
         toast.success(`Mã ${result.draft.code} chưa có, chuyển về form tạo mới`)
         router.push(`/equipment?draft=${result.draft.code}`)
       }
@@ -40,6 +50,12 @@ export function EquipmentScanView() {
   useEffect(() => {
     setCameraSupported(typeof navigator !== 'undefined' && 'mediaDevices' in navigator && 'BarcodeDetector' in window)
   }, [])
+
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (canAccessScan) return
+    router.replace('/dashboard')
+  }, [canAccessScan, isAuthLoading, router])
 
   useEffect(() => {
     if (!cameraEnabled || !cameraSupported) return
@@ -112,6 +128,14 @@ export function EquipmentScanView() {
     if (videoRef.current) {
       videoRef.current.srcObject = null
     }
+  }
+
+  if (isAuthLoading) {
+    return <PageContent>Đang kiểm tra quyền truy cập...</PageContent>
+  }
+
+  if (!canAccessScan) {
+    return <PageContent>Đang chuyển hướng...</PageContent>
   }
 
   return (

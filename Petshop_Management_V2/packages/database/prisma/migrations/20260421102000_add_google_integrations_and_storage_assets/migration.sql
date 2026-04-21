@@ -36,7 +36,7 @@ CREATE TABLE "stored_assets" (
   "googleFileId" TEXT,
   "uploadedById" TEXT,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
   "deletedAt" TIMESTAMP(3),
   CONSTRAINT "stored_assets_pkey" PRIMARY KEY ("id")
 );

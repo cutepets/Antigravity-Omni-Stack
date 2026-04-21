@@ -64,15 +64,6 @@ ADD COLUMN     "representativeName" TEXT,
 ADD COLUMN     "representativePhone" TEXT;
 
 -- AlterTable
-ALTER TABLE "equipment_categories" ALTER COLUMN "updatedAt" DROP DEFAULT;
-
--- AlterTable
-ALTER TABLE "equipment_location_presets" ALTER COLUMN "updatedAt" DROP DEFAULT;
-
--- AlterTable
-ALTER TABLE "equipments" ALTER COLUMN "updatedAt" DROP DEFAULT;
-
--- AlterTable
 ALTER TABLE "grooming_sessions" ADD COLUMN     "surcharge" DOUBLE PRECISION DEFAULT 0;
 
 -- AlterTable
@@ -126,9 +117,6 @@ ADD COLUMN     "wholesalePrice" DOUBLE PRECISION;
 
 -- AlterTable
 ALTER TABLE "spa_price_rules" ADD COLUMN     "sku" TEXT;
-
--- AlterTable
-ALTER TABLE "stored_assets" ALTER COLUMN "updatedAt" DROP DEFAULT;
 
 -- AlterTable
 ALTER TABLE "suppliers" ADD COLUMN     "code" TEXT,

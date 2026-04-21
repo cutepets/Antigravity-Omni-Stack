@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Archive, Camera, Plus, RefreshCw, Settings2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -15,6 +16,7 @@ import {
   type EquipmentPayload,
   type EquipmentStatus,
 } from '@/lib/equipment'
+import { useEquipmentAccess } from './use-equipment-access'
 
 type BranchOption = {
   id: string
@@ -114,6 +116,7 @@ function statusBadgeClass(status: EquipmentStatus) {
 }
 
 export function EquipmentWorkspace({ initialDraftCode }: { initialDraftCode?: string }) {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'equipment' | 'config'>('equipment')
   const [search, setSearch] = useState('')
@@ -124,20 +127,42 @@ export function EquipmentWorkspace({ initialDraftCode }: { initialDraftCode?: st
   const [form, setForm] = useState<EquipmentFormState>(getEmptyForm())
   const [categoryForm, setCategoryForm] = useState({ name: '', description: '' })
   const [locationForm, setLocationForm] = useState({ branchId: '', name: '', description: '' })
+  const {
+    allowedBranches,
+    isLoading: isAuthLoading,
+    canRead,
+    canCreate,
+    canArchive,
+    canScan,
+    canConfig,
+    canReadBranches,
+    canAccessWorkspace,
+  } = useEquipmentAccess()
+  const canViewEquipmentTab = canRead || canCreate
 
   const branchesQuery = useQuery({
-    queryKey: ['branches'],
-    queryFn: async () => (await settingsApi.getBranches()) as BranchOption[],
+    queryKey: ['branches', canReadBranches ? 'settings' : 'auth'],
+    queryFn: async () =>
+      canReadBranches
+        ? ((await settingsApi.getBranches()) as BranchOption[])
+        : (allowedBranches.map((branch) => ({
+            id: branch.id,
+            code: '',
+            name: branch.name,
+          })) as BranchOption[]),
+    enabled: canAccessWorkspace,
   })
 
   const categoriesQuery = useQuery({
     queryKey: ['equipment-categories'],
     queryFn: equipmentApi.getCategories,
+    enabled: canRead || canCreate || canConfig,
   })
 
   const locationsQuery = useQuery({
     queryKey: ['equipment-locations', form.branchId || branchFilter || 'all'],
     queryFn: () => equipmentApi.getLocations(form.branchId || branchFilter || undefined),
+    enabled: canRead || canCreate || canConfig,
   })
 
   const equipmentsQuery = useQuery({
@@ -150,6 +175,7 @@ export function EquipmentWorkspace({ initialDraftCode }: { initialDraftCode?: st
         categoryId: categoryFilter || undefined,
         warrantyWindowDays: warrantyOnly ? 30 : undefined,
       }),
+    enabled: canRead,
   })
 
   const createMutation = useMutation({
@@ -261,6 +287,31 @@ export function EquipmentWorkspace({ initialDraftCode }: { initialDraftCode?: st
     }))
   }, [initialDraftCode])
 
+  useEffect(() => {
+    if (isAuthLoading) return
+    if (canAccessWorkspace) return
+    router.replace('/dashboard')
+  }, [canAccessWorkspace, isAuthLoading, router])
+
+  useEffect(() => {
+    if (!canViewEquipmentTab && canConfig) {
+      setActiveTab('config')
+      return
+    }
+
+    if (activeTab === 'config' && !canConfig) {
+      setActiveTab('equipment')
+    }
+  }, [activeTab, canConfig, canViewEquipmentTab])
+
+  if (isAuthLoading) {
+    return <PageContent>Đang kiểm tra quyền truy cập...</PageContent>
+  }
+
+  if (!canAccessWorkspace) {
+    return <PageContent>Đang chuyển hướng...</PageContent>
+  }
+
   return (
     <>
       <PageHeader
@@ -268,54 +319,66 @@ export function EquipmentWorkspace({ initialDraftCode }: { initialDraftCode?: st
         description="Quản lý thiết bị bằng mã QR, theo chi nhánh, vị trí và lịch sử cập nhật."
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href="/equipment/scan"
-              className="inline-flex items-center gap-2 rounded-xl border border-border/60 bg-background-secondary px-4 py-2 text-sm text-foreground-base"
-            >
-              <Camera size={16} />
-              Quét mã
-            </Link>
-            <button
-              type="button"
-              onClick={() => void equipmentsQuery.refetch()}
-              className="inline-flex items-center gap-2 rounded-xl border border-border/60 bg-background-secondary px-4 py-2 text-sm text-foreground-base"
-            >
-              <RefreshCw size={16} />
-              Tải lại
-            </button>
-            <button
-              type="button"
-              onClick={() => void handlePrepareCreate()}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-4 py-2 text-sm font-semibold text-white"
-            >
-              <Plus size={16} />
-              Tạo thiết bị
-            </button>
+            {canScan ? (
+              <Link
+                href="/equipment/scan"
+                className="inline-flex items-center gap-2 rounded-xl border border-border/60 bg-background-secondary px-4 py-2 text-sm text-foreground-base"
+              >
+                <Camera size={16} />
+                Quét mã
+              </Link>
+            ) : null}
+            {canRead ? (
+              <button
+                type="button"
+                onClick={() => void equipmentsQuery.refetch()}
+                className="inline-flex items-center gap-2 rounded-xl border border-border/60 bg-background-secondary px-4 py-2 text-sm text-foreground-base"
+              >
+                <RefreshCw size={16} />
+                Tải lại
+              </button>
+            ) : null}
+            {canCreate ? (
+              <button
+                type="button"
+                onClick={() => void handlePrepareCreate()}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-4 py-2 text-sm font-semibold text-white"
+              >
+                <Plus size={16} />
+                Tạo thiết bị
+              </button>
+            ) : null}
           </div>
         }
       />
 
       <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab('equipment')}
-          className={`rounded-full px-4 py-2 text-sm font-medium ${activeTab === 'equipment' ? 'bg-primary-500 text-white' : 'border border-border/60 bg-background-secondary text-foreground-base'}`}
-        >
-          Danh sách
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('config')}
-          className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${activeTab === 'config' ? 'bg-primary-500 text-white' : 'border border-border/60 bg-background-secondary text-foreground-base'}`}
-        >
-          <Settings2 size={15} />
-          Cấu hình
-        </button>
+        {canViewEquipmentTab ? (
+          <button
+            type="button"
+            onClick={() => setActiveTab('equipment')}
+            className={`rounded-full px-4 py-2 text-sm font-medium ${activeTab === 'equipment' ? 'bg-primary-500 text-white' : 'border border-border/60 bg-background-secondary text-foreground-base'}`}
+          >
+            {canRead ? 'Danh sách' : 'Tạo thiết bị'}
+          </button>
+        ) : null}
+        {canConfig ? (
+          <button
+            type="button"
+            onClick={() => setActiveTab('config')}
+            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${activeTab === 'config' ? 'bg-primary-500 text-white' : 'border border-border/60 bg-background-secondary text-foreground-base'}`}
+          >
+            <Settings2 size={15} />
+            Cấu hình
+          </button>
+        ) : null}
       </div>
 
       {activeTab === 'equipment' ? (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.8fr)_400px]">
           <PageContent className="gap-4">
+            {canRead ? (
+              <>
             <div className="grid gap-3 md:grid-cols-4">
               <input
                 value={search}
@@ -402,6 +465,7 @@ export function EquipmentWorkspace({ initialDraftCode }: { initialDraftCode?: st
                     <EquipmentRow
                       key={item.id}
                       item={item}
+                      canArchive={canArchive}
                       onArchive={() => {
                         if (!window.confirm(`Lưu trữ thiết bị ${item.code}?`)) return
                         archiveMutation.mutate(item.id)
@@ -411,9 +475,19 @@ export function EquipmentWorkspace({ initialDraftCode }: { initialDraftCode?: st
                 )}
               </div>
             </div>
+              </>
+            ) : (
+              <div className="rounded-3xl border border-border/60 bg-background-base p-6">
+                <p className="text-lg font-semibold text-foreground-base">Tạo thiết bị từ mã QR</p>
+                <p className="mt-2 text-sm text-foreground-secondary">
+                  Tài khoản hiện tại không có quyền xem danh sách thiết bị. Bạn vẫn có thể tạo mới bằng mã đã quét hoặc mã tuần tự ở biểu mẫu bên phải.
+                </p>
+              </div>
+            )}
           </PageContent>
 
           <PageContent>
+            {canCreate ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <p className="text-lg font-semibold text-foreground-base">Tạo thiết bị mới</p>
@@ -607,6 +681,14 @@ export function EquipmentWorkspace({ initialDraftCode }: { initialDraftCode?: st
                 </button>
               </div>
             </form>
+            ) : (
+              <div className="rounded-3xl border border-border/60 bg-background-base p-6">
+                <p className="text-lg font-semibold text-foreground-base">Chế độ xem</p>
+                <p className="mt-2 text-sm text-foreground-secondary">
+                  Tài khoản hiện tại chỉ có quyền xem danh sách thiết bị. Các thao tác tạo mới, upload ảnh và lưu trữ đã được ẩn.
+                </p>
+              </div>
+            )}
           </PageContent>
         </div>
       ) : (
@@ -744,7 +826,15 @@ function ConfigRow({ title, subtitle }: { title: string; subtitle: string }) {
   )
 }
 
-function EquipmentRow({ item, onArchive }: { item: EquipmentItem; onArchive: () => void }) {
+function EquipmentRow({
+  item,
+  canArchive,
+  onArchive,
+}: {
+  item: EquipmentItem
+  canArchive: boolean
+  onArchive: () => void
+}) {
   return (
     <div className="grid grid-cols-[140px_1.6fr_1fr_1fr_130px_120px] gap-3 px-4 py-4 text-sm">
       <div className="font-semibold text-foreground-base">{item.code}</div>
@@ -771,13 +861,15 @@ function EquipmentRow({ item, onArchive }: { item: EquipmentItem; onArchive: () 
         >
           Chi tiết
         </Link>
-        <button
-          type="button"
-          onClick={onArchive}
-          className="inline-flex rounded-xl border border-rose-500/30 px-3 py-2 text-xs font-medium text-rose-300"
-        >
-          <Archive size={14} />
-        </button>
+        {canArchive ? (
+          <button
+            type="button"
+            onClick={onArchive}
+            className="inline-flex rounded-xl border border-rose-500/30 px-3 py-2 text-xs font-medium text-rose-300"
+          >
+            <Archive size={14} />
+          </button>
+        ) : null}
       </div>
     </div>
   )

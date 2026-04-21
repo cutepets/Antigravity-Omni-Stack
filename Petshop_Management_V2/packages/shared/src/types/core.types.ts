@@ -65,6 +65,8 @@ export interface AuthUser {
   avatar?: string | null
   authorizedBranches: BaseBranch[]
   permissions?: string[]
+  googleLinked?: boolean
+  googleEmail?: string | null
 }
 
 // ---- Enums ----

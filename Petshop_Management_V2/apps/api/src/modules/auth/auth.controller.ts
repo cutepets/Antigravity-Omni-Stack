@@ -149,6 +149,19 @@ export class AuthController {
     return `${baseUrl}/login?${query.toString()}`
   }
 
+  private buildGoogleLinkRedirect(redirect: string, status: 'success' | 'error', message?: string) {
+    const target = new URL(redirect, this.googleAuthService.getWebAppBaseUrl())
+    target.searchParams.set('google_link', status)
+
+    if (message) {
+      target.searchParams.set('message', message)
+    } else {
+      target.searchParams.delete('message')
+    }
+
+    return target.toString()
+  }
+
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Dang nhap he thong' })
@@ -160,9 +173,38 @@ export class AuthController {
     return auth
   }
 
+  @Get('google/status')
+  @ApiOperation({ summary: 'Lay trang thai cau hinh dang nhap Google' })
+  async googleStatus() {
+    const config = await this.googleAuthService.getPublicConfig()
+    return {
+      success: true,
+      data: config,
+    }
+  }
+
   @Get('google')
   @ApiOperation({ summary: 'Bat dau dang nhap bang Google' })
   async googleLogin(
+    @Query('redirect') redirect: string | undefined,
+    @Res() res: Response,
+  ) {
+    const nonce = randomUUID()
+    const state = this.encodeGoogleState({
+      nonce,
+      redirect: this.sanitizeRedirectPath(redirect),
+    })
+    res.cookie(GOOGLE_AUTH_STATE_COOKIE, nonce, this.getCookieOptions(10 * 60_000, true))
+
+    const url = await this.googleAuthService.createAuthorizationUrl(state)
+    return res.redirect(url)
+  }
+
+  @Get('google/link')
+  @UseGuards(JwtGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Bat dau lien ket tai khoan Google cho user hien tai' })
+  async googleLink(
     @Query('redirect') redirect: string | undefined,
     @Res() res: Response,
   ) {
@@ -208,6 +250,46 @@ export class AuthController {
       return res.redirect(
         this.buildGoogleFailureRedirect(
           error?.message ? String(error.message) : 'Google login failed',
+        ),
+      )
+    }
+  }
+
+  @Get('google/link/callback')
+  @UseGuards(JwtGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Google callback de lien ket tai khoan hien tai' })
+  async googleLinkCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    const clearOptions = this.getClearCookieOptions()
+    const statePayload = this.decodeGoogleState(state)
+    const expectedNonce = getCookieValue(req, GOOGLE_AUTH_STATE_COOKIE)
+
+    res.clearCookie(GOOGLE_AUTH_STATE_COOKIE, clearOptions)
+
+    if (!expectedNonce || expectedNonce !== statePayload.nonce) {
+      return res.redirect(this.buildGoogleLinkRedirect(statePayload.redirect, 'error', 'Google state mismatch'))
+    }
+
+    if (!code) {
+      return res.redirect(this.buildGoogleLinkRedirect(statePayload.redirect, 'error', 'Google login missing code'))
+    }
+
+    try {
+      await this.googleAuthService.linkUserWithAuthorizationCode(req.user.userId, code)
+      const auth = await this.authService.createSessionForUserId(req.user.userId)
+      this.setAuthCookies(res, auth)
+      return res.redirect(this.buildGoogleLinkRedirect(statePayload.redirect, 'success'))
+    } catch (error: any) {
+      return res.redirect(
+        this.buildGoogleLinkRedirect(
+          statePayload.redirect,
+          'error',
+          error?.message ? String(error.message) : 'Google link failed',
         ),
       )
     }
