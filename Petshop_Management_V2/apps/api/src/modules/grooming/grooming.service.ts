@@ -171,6 +171,42 @@ export class GroomingService {
     }
   }
 
+  private normalizeExtraServices(extraServices?: Array<{ pricingRuleId?: string; sku?: string | null; name: string; price: number; quantity?: number; durationMinutes?: number | null }>) {
+    return (extraServices ?? [])
+      .map((service) => {
+        const quantity = Number(service.quantity ?? 1)
+        const price = Number(service.price ?? 0)
+        return {
+          pricingRuleId: service.pricingRuleId ?? null,
+          sku: service.sku ?? null,
+          name: service.name,
+          price: Number.isFinite(price) ? price : 0,
+          quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+          durationMinutes: service.durationMinutes ?? null,
+        }
+      })
+      .filter((service) => service.name?.trim())
+  }
+
+  private buildSessionPricingSnapshot(params: {
+    baseSnapshot?: Record<string, any> | null
+    mainPrice?: number | null
+    extraServices?: Array<{ pricingRuleId?: string | null; sku?: string | null; name: string; price: number; quantity: number; durationMinutes?: number | null }>
+  }) {
+    const extraServices = params.extraServices ?? []
+    const extraTotal = extraServices.reduce((sum, service) => sum + service.price * service.quantity, 0)
+    const mainPrice = Number(params.mainPrice ?? 0)
+    const totalPrice = mainPrice + extraTotal
+
+    return {
+      ...((params.baseSnapshot ?? {}) as Record<string, any>),
+      mainPrice,
+      extraServices,
+      extraTotal,
+      totalPrice,
+    }
+  }
+
   async calculatePrice(dto: CalculateSpaPriceDto, user?: BranchScopedUser): Promise<any> {
     const preview = await this.buildSpaPricingPreview(dto, user)
     return { success: true, data: preview }
@@ -220,6 +256,10 @@ export class GroomingService {
         user,
       )
       : null
+    const extraServices = this.normalizeExtraServices(dto.extraServices)
+    const mainPrice = dto.price ?? pricingPreview?.price ?? null
+    const extraTotal = extraServices.reduce((sum, service) => sum + service.price * service.quantity, 0)
+    const sessionPrice = extraServices.length > 0 ? Number(mainPrice ?? 0) + extraTotal : mainPrice
 
     const session = await this.db.groomingSession.create({
       data: {
@@ -233,10 +273,14 @@ export class GroomingService {
         packageCode: dto.packageCode ?? null,
         weightAtBooking: pricingPreview?.weight ?? pet.weight ?? null,
         weightBandId: pricingPreview?.weightBand?.id ?? null,
-        ...(pricingPreview ? { pricingSnapshot: pricingPreview.pricingSnapshot } : {}),
+        pricingSnapshot: this.buildSessionPricingSnapshot({
+          baseSnapshot: pricingPreview?.pricingSnapshot ?? null,
+          mainPrice,
+          extraServices,
+        }) as any,
         startTime: dto.startTime ? new Date(dto.startTime) : null,
         notes: dto.notes ?? null,
-        price: dto.price ?? pricingPreview?.price ?? null,
+        price: sessionPrice,
         surcharge: dto.surcharge ?? 0,
         status: 'PENDING',
         ...(user?.userId ? {
@@ -271,7 +315,7 @@ export class GroomingService {
       },
     })
 
-    return { success: true, data: session }
+    return { success: true, data: { ...session, extraServices } }
   }
 
   async findAll(query?: any, user?: BranchScopedUser, requestedBranchId?: string): Promise<any> {
@@ -312,12 +356,23 @@ export class GroomingService {
             discountItem: true,
             type: true,
             serviceId: true,
+            sku: true,
+            petId: true,
+            pricingSnapshot: true,
           },
         },
       },
     })
 
-    return { success: true, data: sessions }
+    return {
+      success: true,
+      data: sessions.map((session) => ({
+        ...session,
+        extraServices: Array.isArray((session.pricingSnapshot as any)?.extraServices)
+          ? (session.pricingSnapshot as any).extraServices
+          : [],
+      })),
+    }
   }
 
   async findOne(id: string, user?: BranchScopedUser): Promise<any> {
@@ -352,6 +407,9 @@ export class GroomingService {
             discountItem: true,
             type: true,
             serviceId: true,
+            sku: true,
+            petId: true,
+            pricingSnapshot: true,
           },
         },
         timeline: {
@@ -363,7 +421,15 @@ export class GroomingService {
 
     if (!session) throw new NotFoundException('Khong tim thay phien grooming')
     assertBranchAccess(session.branchId, user)
-    return { success: true, data: session }
+    return {
+      success: true,
+      data: {
+        ...session,
+        extraServices: Array.isArray((session.pricingSnapshot as any)?.extraServices)
+          ? (session.pricingSnapshot as any).extraServices
+          : [],
+      },
+    }
   }
 
   async findByCode(code: string, user?: BranchScopedUser): Promise<any> {
@@ -382,6 +448,20 @@ export class GroomingService {
       assignedStaff: { select: { id: true, fullName: true, avatar: true } },
       order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
       branch: { select: { id: true, name: true, code: true } },
+      orderItems: {
+        select: {
+          id: true,
+          description: true,
+          unitPrice: true,
+          quantity: true,
+          discountItem: true,
+          type: true,
+          serviceId: true,
+          sku: true,
+          petId: true,
+          pricingSnapshot: true,
+        },
+      },
       timeline: {
         include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
         orderBy: { createdAt: 'desc' as const }
@@ -400,7 +480,15 @@ export class GroomingService {
 
     if (!session) throw new NotFoundException('Khong tim thay phien grooming')
     assertBranchAccess(session.branchId, user)
-    return { success: true, data: session }
+    return {
+      success: true,
+      data: {
+        ...session,
+        extraServices: Array.isArray((session.pricingSnapshot as any)?.extraServices)
+          ? (session.pricingSnapshot as any).extraServices
+          : [],
+      },
+    }
   }
 
   async update(id: string, dto: UpdateGroomingDto, user?: BranchScopedUser, requestedBranchId?: string): Promise<any> {
@@ -420,6 +508,7 @@ export class GroomingService {
     delete dataToUpdate.branchId
     delete dataToUpdate.staffIds
     delete dataToUpdate.staffId  // don't overwrite legacy scalar via spread; handle explicitly below
+    delete dataToUpdate.extraServices
 
     if (dto.staffIds !== undefined) {
       // Multi-staff: replace the junction table entries
@@ -447,6 +536,22 @@ export class GroomingService {
     }
     if (dto.status === 'IN_PROGRESS' && !dto.startTime && !session.startTime) {
       dataToUpdate.startTime = new Date()
+    }
+
+    if (dto.extraServices !== undefined) {
+      const currentSnapshot = ((session.pricingSnapshot as Record<string, any> | null) ?? {}) as Record<string, any>
+      const previousExtraTotal = Number(currentSnapshot.extraTotal ?? 0)
+      const currentMainPrice = Number(currentSnapshot.mainPrice ?? (Number(session.price ?? 0) - previousExtraTotal))
+      const mainPrice = dto.price !== undefined ? Number(dto.price) : currentMainPrice
+      const extraServices = this.normalizeExtraServices(dto.extraServices)
+      const extraTotal = extraServices.reduce((sum, service) => sum + service.price * service.quantity, 0)
+
+      dataToUpdate.price = (Number.isFinite(mainPrice) ? mainPrice : 0) + extraTotal
+      dataToUpdate.pricingSnapshot = this.buildSessionPricingSnapshot({
+        baseSnapshot: currentSnapshot,
+        mainPrice: Number.isFinite(mainPrice) ? mainPrice : 0,
+        extraServices,
+      }) as any
     }
 
     if (user?.userId) {
@@ -482,7 +587,15 @@ export class GroomingService {
       },
     })
 
-    return { success: true, data: updated }
+    return {
+      success: true,
+      data: {
+        ...updated,
+        extraServices: Array.isArray((updated.pricingSnapshot as any)?.extraServices)
+          ? (updated.pricingSnapshot as any).extraServices
+          : [],
+      },
+    }
   }
 
   async remove(id: string, user?: BranchScopedUser): Promise<any> {

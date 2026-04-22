@@ -7,6 +7,7 @@ import { OrderCartItems, type CartItemCallbacks } from './OrderCartItems'
 type OrderCartSectionProps = {
     draft: any
     branches: any[]
+    orderStatus?: string
     selectedRowIndex: number
     isEditing: boolean
     noteEditingId: string | null
@@ -17,7 +18,7 @@ type OrderCartSectionProps = {
     onChangeItemDiscount: (index: number, value: string) => void
     onChangeItemVariant?: (index: number, variantId: string) => void
     onRemoveItem: (index: number) => void
-    onSwapItem?: (item: any) => void
+    onSwapItem?: (item: CartItem, swapKind: 'TEMP_PRODUCT' | 'GROOMING_MAIN') => void
 }
 
 /**
@@ -27,6 +28,7 @@ type OrderCartSectionProps = {
 export function OrderCartSection({
     draft,
     branches,
+    orderStatus,
     selectedRowIndex,
     isEditing,
     noteEditingId,
@@ -37,6 +39,7 @@ export function OrderCartSection({
     onChangeItemDiscount,
     onChangeItemVariant,
     onRemoveItem,
+    onSwapItem,
 }: OrderCartSectionProps) {
     // Map draft items to CartItem shape expected by OrderCartItems
     const cartItems = useMemo<CartItem[]>(
@@ -111,12 +114,14 @@ export function OrderCartSection({
                 cart={cartItems}
                 branchId={draft.branchId ?? undefined}
                 branches={branches}
+                orderStatus={orderStatus}
                 selectedRowIndex={selectedRowIndex}
                 noteEditingId={noteEditingId}
                 setNoteEditingId={setNoteEditingId}
                 discountEditingId={discountEditingId}
                 setDiscountEditingId={setDiscountEditingId}
                 callbacks={callbacks}
+                onSwapItem={onSwapItem}
             />
         </div>
     )

@@ -30,6 +30,7 @@ import { UpdateOrderDto } from './dto/update-order.dto.js'
 
 import { ExportStockDto } from './dto/export-stock.dto.js'
 import { SettleOrderDto } from './dto/settle-order.dto.js'
+import { SwapGroomingServiceDto } from './dto/swap-grooming-service.dto.js'
 import { SwapTempItemDto } from './dto/swap-temp-item.dto.js'
 import { OrdersService } from './orders.service.js'
 
@@ -242,6 +243,23 @@ export class OrdersController {
     } catch (error: any) {
       if (error instanceof HttpException) throw error
       console.error('[swapTempItem] Internal error:', error?.message, error?.stack)
+      throw new InternalServerErrorException(error?.message || String(error))
+    }
+  }
+
+  @Patch(':id/items/:itemId/swap-service')
+  @Permissions('order.update')
+  async swapGroomingService(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: SwapGroomingServiceDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    try {
+      return await this.ordersService.swapGroomingService(id, itemId, dto, this.getStaffId(req), req.user)
+    } catch (error: any) {
+      if (error instanceof HttpException) throw error
+      console.error('[swapGroomingService] Internal error:', error?.message, error?.stack)
       throw new InternalServerErrorException(error?.message || String(error))
     }
   }

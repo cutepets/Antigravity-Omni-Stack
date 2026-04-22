@@ -205,6 +205,20 @@ function buildPricingSuggestions({
         petSnapshot: pet,
         suggestionKind: 'SPA' as const,
         suggestionGroup: 'PRIMARY' as const,
+        serviceRole: 'MAIN' as const,
+        isSpaExtraService: false,
+        pricingSnapshot: {
+          source: 'SPA_PRICE_RULE',
+          serviceRole: 'MAIN',
+          pricingRuleId: rule.id,
+          packageCode: rule.packageCode,
+          weightBandId: rule.weightBandId ?? null,
+          weightBandLabel: rule.weightBand?.label ?? null,
+          price: rule.price,
+          serviceName: packageLabel(rule.packageCode),
+          sku: getPricingSku('SPA', packageLabel(rule.packageCode), rule.weightBand?.label, rule.packageCode),
+          durationMinutes: rule.durationMinutes ?? null,
+        },
         suggestionScore: 90,
         isWeightMatched: true,
         reason: `Giá từ bảng giá grooming cho hạng ${rule.weightBand?.label ?? 'phù hợp'}.`,
@@ -212,8 +226,7 @@ function buildPricingSuggestions({
     : [];
 
   // ── Flat-rate spa suggestions (no weightBand, score 60) ───────────────────
-  // Deduplicate by packageCode — show each service type once
-  const weightMatchedPackageCodes = new Set(weightMatchedSpaSuggestions.map((s) => s.packageCode));
+  // Common rules without weightBand are extra SPA services, selectable separately from main packages.
   const customRangeSpaSuggestions = hasPricingProfile
     ? spaRules
       .filter(
@@ -221,9 +234,8 @@ function buildPricingSuggestions({
           !rule.weightBand &&
           !rule.weightBandId &&
           hasCustomSpaWeightRange(rule) &&
-          isSpeciesMatch(species, getRuleSpecies(rule)) &&
-          isWeightInSpaRule(weight, rule) &&
-          !weightMatchedPackageCodes.has(rule.packageCode),
+          getRuleSpecies(rule) === null &&
+          isWeightInSpaRule(weight, rule),
       )
       .map((rule) => ({
         id: `pricing:grooming:custom:${rule.id}`,
@@ -243,23 +255,34 @@ function buildPricingSuggestions({
         petSnapshot: pet,
         suggestionKind: 'SPA' as const,
         suggestionGroup: 'OTHER' as const,
+        serviceRole: 'EXTRA' as const,
+        isSpaExtraService: true,
+        pricingSnapshot: {
+          source: 'SPA_EXTRA_PRICE_RULE',
+          serviceRole: 'EXTRA',
+          pricingRuleId: rule.id,
+          packageCode: rule.packageCode,
+          weightBandId: null,
+          weightBandLabel: getSpaRuleWeightLabel(rule) ?? null,
+          price: rule.price,
+          serviceName: packageLabel(rule.packageCode),
+          sku: getPricingSku('SPA', packageLabel(rule.packageCode), getSpaRuleWeightLabel(rule), rule.packageCode),
+          durationMinutes: rule.durationMinutes ?? null,
+          minWeight: rule.minWeight ?? null,
+          maxWeight: rule.maxWeight ?? null,
+        },
         suggestionScore: 85,
         isWeightMatched: true,
         reason: `Giá grooming theo khoảng cân ${getSpaRuleWeightLabel(rule) ?? 'phù hợp'}.`,
       }))
     : [];
-  const matchedSpaPackageCodes = new Set([
-    ...weightMatchedPackageCodes,
-    ...customRangeSpaSuggestions.map((s) => s.packageCode),
-  ]);
   const flatRateSpaSuggestions = spaRules
     .filter(
       (rule) =>
         !rule.weightBand &&
         !rule.weightBandId &&
         !hasCustomSpaWeightRange(rule) &&
-        isSpeciesMatch(species, getRuleSpecies(rule)) &&
-        !matchedSpaPackageCodes.has(rule.packageCode),
+        getRuleSpecies(rule) === null,
     )
     .map((rule) => ({
       id: `pricing:grooming:flat:${rule.id}`,
@@ -279,6 +302,20 @@ function buildPricingSuggestions({
       petSnapshot: pet,
       suggestionKind: 'SPA' as const,
       suggestionGroup: 'OTHER' as const,
+      serviceRole: 'EXTRA' as const,
+      isSpaExtraService: true,
+      pricingSnapshot: {
+        source: 'SPA_EXTRA_PRICE_RULE',
+        serviceRole: 'EXTRA',
+        pricingRuleId: rule.id,
+        packageCode: rule.packageCode,
+        weightBandId: null,
+        weightBandLabel: null,
+        price: rule.price,
+        serviceName: packageLabel(rule.packageCode),
+        sku: getPricingSku('SPA', packageLabel(rule.packageCode), undefined, rule.packageCode),
+        durationMinutes: rule.durationMinutes ?? null,
+      },
       suggestionScore: 60,
       isWeightMatched: false,
       reason: 'Dịch vụ giá cố định (không phân loại theo cân nặng).',

@@ -27,10 +27,11 @@ import {
   groomingApi,
   type GroomingSession,
   type GroomingStatus,
+  type SpaExtraServiceLine,
 } from "@/lib/api/grooming.api";
 import { petApi } from "@/lib/api/pet.api";
 import { staffApi, type Staff } from "@/lib/api/staff.api";
-import { pricingApi } from "@/lib/api/pricing.api";
+import { pricingApi, type SpaPriceRule } from "@/lib/api/pricing.api";
 import { useAuthorization } from "@/hooks/useAuthorization";
 import { useAuthStore } from "@/stores/auth.store";
 import {
@@ -104,6 +105,28 @@ function HistorySection({ timeline }: { timeline: any[] }) {
   );
 }
 
+function getOrderItemServiceRole(item: { pricingSnapshot?: Record<string, unknown> | null }) {
+  const snapshot = (item.pricingSnapshot ?? {}) as Record<string, any>;
+  return snapshot.serviceRole === "EXTRA" || snapshot.pricingSnapshot?.serviceRole === "EXTRA" ? "EXTRA" : "MAIN";
+}
+
+function getSessionExtraServices(session?: GroomingSession | null): SpaExtraServiceLine[] {
+  const snapshot = (session?.pricingSnapshot ?? {}) as Record<string, any>;
+  return session?.extraServices ?? snapshot.extraServices ?? [];
+}
+
+function isCommonSpaExtraRule(rule: SpaPriceRule, petWeight?: number | null) {
+  if (rule.species || rule.weightBandId || rule.weightBand) return false;
+  const hasMin = rule.minWeight !== null && rule.minWeight !== undefined;
+  const hasMax = rule.maxWeight !== null && rule.maxWeight !== undefined;
+  if (!hasMin && !hasMax) return true;
+  if (!Number.isFinite(Number(petWeight))) return false;
+  const weight = Number(petWeight);
+  const minWeight = Number(rule.minWeight ?? 0);
+  const maxWeight = rule.maxWeight === null || rule.maxWeight === undefined ? Number.POSITIVE_INFINITY : Number(rule.maxWeight);
+  return weight >= minWeight && weight < maxWeight;
+}
+
 
 
 const groomingSchema = z.object({
@@ -151,6 +174,7 @@ export function GroomingSessionDialog({
   const [searchStaff, setSearchStaff] = useState("");
   const [showStaffDropdown, setShowStaffDropdown] = useState(false);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [selectedExtraServices, setSelectedExtraServices] = useState<SpaExtraServiceLine[]>([]);
 
   const petsQuery = useQuery({
     queryKey: ["pets", "grooming-modal"],
@@ -203,10 +227,14 @@ export function GroomingSessionDialog({
 
   const linkedOrderItems = activeSession?.orderItems ?? [];
   const isLinkedToOrder = isEditing && Boolean(activeSession?.orderId || activeSession?.order || linkedOrderItems.length > 0);
+  const linkedMainOrderItems = linkedOrderItems.filter((item) => getOrderItemServiceRole(item) !== "EXTRA");
+  const linkedExtraOrderItems = linkedOrderItems.filter((item) => getOrderItemServiceRole(item) === "EXTRA");
   const linkedOrderBaseAmount = linkedOrderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const linkedOrderDiscount = linkedOrderItems.reduce((sum, item) => sum + (item.discountItem ?? 0), 0);
   const linkedOrderTotal = Math.max(0, linkedOrderBaseAmount - linkedOrderDiscount);
-  const displayedPrice = isLinkedToOrder ? linkedOrderBaseAmount : watchPrice;
+  const standaloneExtraTotal = selectedExtraServices.reduce((sum, item) => sum + Number(item.price ?? 0) * Number(item.quantity ?? 1), 0);
+  const standaloneTotal = Number(watchPrice ?? 0) + standaloneExtraTotal + Number(watchSurcharge ?? 0);
+  const displayedPrice = isLinkedToOrder ? linkedMainOrderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) : watchPrice;
   const displayedAdjustment = isLinkedToOrder ? linkedOrderDiscount : watchSurcharge;
 
   // Derive species from selected pet (create mode) or existing session (detail mode)
@@ -223,10 +251,23 @@ export function GroomingSessionDialog({
   });
 
   const availablePackages = packagesQuery.data ?? [];
+  const selectedPetWeight =
+    mode === "create"
+      ? petsQuery.data?.data?.find((p: any) => p.id === watchPetId)?.weight ?? null
+      : activeSession?.weightAtBooking ?? null;
+  const spaExtraRulesQuery = useQuery({
+    queryKey: ["grooming-extra-services", "common"],
+    queryFn: () => pricingApi.getSpaRules({ isActive: true }),
+    enabled: isOpen && !isLinkedToOrder,
+    staleTime: 30_000,
+  });
+  const availableExtraRules = (spaExtraRulesQuery.data ?? []).filter((rule) => isCommonSpaExtraRule(rule, selectedPetWeight));
 
   useEffect(() => {
     if (isOpen) {
       if (mode === "detail" && activeSession) {
+        const activeSnapshot = (activeSession.pricingSnapshot ?? {}) as Record<string, any>;
+        const activeExtraServices = getSessionExtraServices(activeSession);
         reset({
           petId: activeSession.petId,
           branchId: activeSession.branchId ?? activeBranchId ?? "",
@@ -234,13 +275,14 @@ export function GroomingSessionDialog({
           startTime: toDateTimeLocalValue(activeSession.startTime),
           endTime: toDateTimeLocalValue(activeSession.endTime),
           notes: activeSession.notes ?? "",
-          price: isLinkedToOrder ? linkedOrderBaseAmount : activeSession.price ?? undefined,
+          price: isLinkedToOrder ? linkedOrderBaseAmount : activeSnapshot.mainPrice ?? activeSession.price ?? undefined,
           surcharge: isLinkedToOrder ? linkedOrderDiscount : activeSession.surcharge ?? undefined,
           packageCode: activeSession.packageCode ?? "",
           status: activeSession.status,
         });
         const prevStaffIds = activeSession.assignedStaff?.map(s => s.id) ?? (activeSession.staffId ? [activeSession.staffId] : []);
         setSelectedStaffIds(prevStaffIds);
+        setSelectedExtraServices(isLinkedToOrder ? [] : activeExtraServices);
       } else if (mode === "create") {
         reset({
           petId: "",
@@ -255,6 +297,7 @@ export function GroomingSessionDialog({
           status: "PENDING",
         });
         setSelectedStaffIds([]);
+        setSelectedExtraServices([]);
       }
     }
   }, [isOpen, mode, activeSession, reset, activeBranchId, isLinkedToOrder, linkedOrderBaseAmount, linkedOrderDiscount]);
@@ -301,6 +344,7 @@ export function GroomingSessionDialog({
       if (!isLinkedToOrder) {
         payload.price = typeof data.price === "number" && !Number.isNaN(data.price) ? data.price : undefined;
         payload.surcharge = typeof data.surcharge === "number" && !Number.isNaN(data.surcharge) ? data.surcharge : 0;
+        payload.extraServices = selectedExtraServices;
       }
 
       if (mode === "create" || !session) {
@@ -394,6 +438,32 @@ export function GroomingSessionDialog({
   };
 
   const petInfo = getPetInfo();
+  const addExtraService = (rule: SpaPriceRule) => {
+    if (selectedExtraServices.some((service) => service.pricingRuleId === rule.id)) return;
+    setSelectedExtraServices((current) => [
+      ...current,
+      {
+        pricingRuleId: rule.id,
+        sku: rule.sku ?? null,
+        name: rule.packageCode,
+        price: rule.price,
+        quantity: 1,
+        durationMinutes: rule.durationMinutes ?? null,
+      },
+    ]);
+  };
+  const updateExtraQuantity = (pricingRuleId: string | undefined, quantity: number) => {
+    setSelectedExtraServices((current) =>
+      current.map((service) =>
+        service.pricingRuleId === pricingRuleId
+          ? { ...service, quantity: Math.max(1, Number(quantity) || 1) }
+          : service,
+      ),
+    );
+  };
+  const removeExtraService = (pricingRuleId: string | undefined) => {
+    setSelectedExtraServices((current) => current.filter((service) => service.pricingRuleId !== pricingRuleId));
+  };
   const sessionLabel = isEditing && activeSession ? (activeSession.sessionCode || activeSession.id.slice(-8).toUpperCase()) : "Tạo mới";
 
   return (
@@ -764,7 +834,39 @@ export function GroomingSessionDialog({
                       <span className="text-[10px] text-foreground-muted italic">Chỉ xem — Sửa tại đơn POS</span>
                     </div>
                     <div className="space-y-2">
-                      {linkedOrderItems.map((item, idx) => (
+                      {linkedMainOrderItems.length > 0 ? (
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Dịch vụ chính</p>
+                      ) : null}
+                      {linkedMainOrderItems.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2.5"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-[10px] font-bold text-primary-500">
+                              {idx + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="truncate text-sm font-medium text-foreground">{item.description}</span>
+                              <p className="mt-0.5 text-[11px] text-foreground-muted">
+                                {new Intl.NumberFormat("vi-VN").format(item.unitPrice)} x {item.quantity}
+                                {(item.discountItem ?? 0) > 0 ? ` - CK ${new Intl.NumberFormat("vi-VN").format(item.discountItem ?? 0)}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <span className="text-xs font-semibold text-foreground">
+                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(
+                                item.unitPrice * item.quantity - (item.discountItem ?? 0)
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      {linkedExtraOrderItems.length > 0 ? (
+                        <p className="pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Dịch vụ khác</p>
+                      ) : null}
+                      {linkedExtraOrderItems.map((item, idx) => (
                         <div
                           key={item.id}
                           className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2.5"
@@ -791,6 +893,85 @@ export function GroomingSessionDialog({
                         </div>
                       ))}
                     </div>
+                  </section>
+                )}
+
+                {!isLinkedToOrder && (mode === "create" || activeSession) && (
+                  <section className="rounded-2xl border border-border bg-card/80 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted flex items-center gap-2">
+                        <ClipboardList size={13} />
+                        Dịch vụ khác
+                      </p>
+                      <span className="text-[10px] text-foreground-muted italic">Có thể chọn nhiều dịch vụ</span>
+                    </div>
+
+                    {availableExtraRules.length > 0 ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {availableExtraRules.map((rule) => {
+                          const selected = selectedExtraServices.some((service) => service.pricingRuleId === rule.id);
+                          return (
+                            <button
+                              key={rule.id}
+                              type="button"
+                              disabled={!canUpdateSession || selected}
+                              onClick={() => addExtraService(rule)}
+                              className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background-secondary px-3 py-2 text-left transition-colors hover:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-medium text-foreground">{rule.packageCode}</span>
+                                <span className="text-[11px] text-foreground-muted">{rule.durationMinutes ? `${rule.durationMinutes} phút` : "Dịch vụ thêm"}</span>
+                              </span>
+                              <span className="shrink-0 text-xs font-semibold text-foreground">
+                                {new Intl.NumberFormat("vi-VN").format(rule.price)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-border px-4 py-4 text-center text-sm text-foreground-muted">
+                        Chưa có dịch vụ Khác phù hợp.
+                      </div>
+                    )}
+
+                    {selectedExtraServices.length > 0 ? (
+                      <div className="space-y-2 pt-2">
+                        {selectedExtraServices.map((service) => (
+                          <div key={service.pricingRuleId ?? service.name} className="grid grid-cols-[1fr_90px_110px_32px] items-center gap-2 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-foreground">{service.name}</p>
+                              <p className="text-[11px] text-foreground-muted">{new Intl.NumberFormat("vi-VN").format(service.price)} / lần</p>
+                            </div>
+                            <input
+                              type="number"
+                              min={1}
+                              value={service.quantity ?? 1}
+                              disabled={!canUpdateSession}
+                              onChange={(event) => updateExtraQuantity(service.pricingRuleId, Number(event.target.value))}
+                              className="h-9 rounded-lg border border-border bg-background-secondary px-2 text-sm text-foreground outline-none focus:border-primary-500"
+                            />
+                            <div className="text-right text-xs font-semibold text-foreground">
+                              {new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(service.price * (service.quantity ?? 1))}
+                            </div>
+                            <button
+                              type="button"
+                              disabled={!canUpdateSession}
+                              onClick={() => removeExtraService(service.pricingRuleId)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-error transition-colors hover:bg-error/10 disabled:opacity-50"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between rounded-xl border border-primary-500/20 bg-primary-500/5 px-4 py-3">
+                          <span className="text-sm font-medium text-foreground-muted">Tổng phiếu</span>
+                          <span className="text-base font-semibold text-foreground">
+                            {new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(standaloneTotal)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
                   </section>
                 )}
               </form>

@@ -226,12 +226,14 @@ export function UnifiedPetProfile({
     );
   }, [pet]);
 
-  const suggestedServices = pricingSuggestionsQuery.data?.slice(0, 20) ?? [];
+  const allSuggestedServices = pricingSuggestionsQuery.data ?? [];
   const isOtherSuggestedService = (service: any) =>
     service.suggestionGroup === 'OTHER' ||
-    (service.suggestionKind === 'SPA' && !service.weightBandId);
-  const primarySuggestedServices = suggestedServices.filter((service: any) => !isOtherSuggestedService(service));
-  const otherSuggestedServices = suggestedServices.filter(isOtherSuggestedService);
+    service.serviceRole === 'EXTRA' ||
+    service.isSpaExtraService === true;
+  const primarySuggestedServices = allSuggestedServices.filter((service: any) => !isOtherSuggestedService(service)).slice(0, 20);
+  const otherSuggestedServices = allSuggestedServices.filter(isOtherSuggestedService).slice(0, 20);
+  const suggestedServices = [...primarySuggestedServices, ...otherSuggestedServices];
 
   if (!isOpen || !petId) return null;
 

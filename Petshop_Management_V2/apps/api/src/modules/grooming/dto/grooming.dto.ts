@@ -1,5 +1,30 @@
-import { IsString, IsOptional, IsEnum, IsNumber, IsDateString } from 'class-validator'
+import { Type } from 'class-transformer'
+import { IsString, IsOptional, IsEnum, IsNumber, IsDateString, IsArray, ValidateNested } from 'class-validator'
 import { GroomingStatus } from '@petshop/database'
+
+export class GroomingExtraServiceDto {
+  @IsString()
+  @IsOptional()
+  pricingRuleId?: string
+
+  @IsString()
+  @IsOptional()
+  sku?: string | null
+
+  @IsString()
+  name!: string
+
+  @IsNumber()
+  price!: number
+
+  @IsNumber()
+  @IsOptional()
+  quantity?: number
+
+  @IsNumber()
+  @IsOptional()
+  durationMinutes?: number | null
+}
 
 export class CreateGroomingDto {
   @IsString()
@@ -39,6 +64,12 @@ export class CreateGroomingDto {
   @IsNumber()
   @IsOptional()
   surcharge?: number
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GroomingExtraServiceDto)
+  @IsOptional()
+  extraServices?: GroomingExtraServiceDto[]
 }
 
 export class CalculateSpaPriceDto {
@@ -96,4 +127,10 @@ export class UpdateGroomingDto {
   @IsNumber()
   @IsOptional()
   surcharge?: number
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GroomingExtraServiceDto)
+  @IsOptional()
+  extraServices?: GroomingExtraServiceDto[]
 }

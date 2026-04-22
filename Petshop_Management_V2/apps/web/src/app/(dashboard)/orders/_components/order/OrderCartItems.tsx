@@ -6,6 +6,7 @@ import Link from 'next/link'
 import type { CartItem } from '@petshop/shared'
 import { getProductVariantOptionLabel } from '@petshop/shared'
 import {
+    ArrowLeftRight,
     ChevronDown,
     FileText,
     Info,
@@ -60,12 +61,17 @@ export type OrderCartItemsProps = {
     cart: CartItem[]
     branchId?: string
     branches: any[]
+    orderStatus?: string
     selectedRowIndex: number
     noteEditingId: string | null
     setNoteEditingId: (id: string | null) => void
     discountEditingId: string | null
     setDiscountEditingId: (id: string | null) => void
     callbacks: CartItemCallbacks  // required — không có store fallback
+}
+
+type OrderCartSwapProps = {
+    onSwapItem?: (item: CartItem, swapKind: 'TEMP_PRODUCT' | 'GROOMING_MAIN') => void
 }
 
 const normalizeLabel = (value?: string | null) => `${value ?? ''}`.trim().toLowerCase()
@@ -75,17 +81,62 @@ const getVariantOptionText = (productName: string, variant: any) => {
     return label || variant?.unitLabel || variant?.variantLabel || variant?.name || '—'
 }
 
+const BLOCKED_TEMP_SWAP_STATUSES = new Set(['CANCELLED'])
+const BLOCKED_ORDER_SWAP_STATUSES = new Set(['CANCELLED', 'COMPLETED'])
+const BLOCKED_GROOMING_SWAP_STATUSES = new Set(['CANCELLED', 'COMPLETED'])
+
+function getCartItemServiceRole(item: CartItem) {
+    const details = (item as any).groomingDetails
+    return details?.serviceRole ?? details?.pricingSnapshot?.serviceRole ?? 'MAIN'
+}
+
+function canSwapTempProduct(item: CartItem, orderStatus?: string) {
+    if (BLOCKED_TEMP_SWAP_STATUSES.has(String(orderStatus ?? ''))) return false
+    return Boolean((item as any).isTemp && (item as any).orderItemId)
+}
+
+function canSwapGroomingMain(item: CartItem, orderStatus?: string) {
+    if (BLOCKED_ORDER_SWAP_STATUSES.has(String(orderStatus ?? ''))) return false
+    if (item.type !== 'grooming') return false
+    if (!(item as any).orderItemId) return false
+    if (getCartItemServiceRole(item) === 'EXTRA') return false
+
+    const details = (item as any).groomingDetails
+    const pricingRuleId = details?.pricingRuleId ?? details?.pricingSnapshot?.pricingRuleId ?? null
+    if (!pricingRuleId) return false
+
+    const groomingStatus = String((item as any).groomingSession?.status ?? '')
+    if (BLOCKED_GROOMING_SWAP_STATUSES.has(groomingStatus)) return false
+
+    return true
+}
+
+function SwapActionButton({ onClick }: { onClick: () => void }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="inline-flex items-center gap-1 rounded-md border border-primary-500/25 bg-primary-500/6 px-2 py-0.5 text-[11px] font-semibold text-primary-600 transition-colors hover:border-primary-500/45 hover:bg-primary-500/10"
+        >
+            <ArrowLeftRight size={11} />
+            Äá»•i
+        </button>
+    )
+}
+
 export function OrderCartItems({
     cart,
     branchId,
     branches,
+    orderStatus,
     selectedRowIndex,
     noteEditingId,
     setNoteEditingId,
     discountEditingId,
     setDiscountEditingId,
     callbacks,
-}: OrderCartItemsProps) {
+    onSwapItem,
+}: OrderCartItemsProps & OrderCartSwapProps) {
     const activeBranches = useMemo(() => branches.filter((b: any) => b.isActive), [branches])
 
     if (cart.length === 0) {
@@ -119,12 +170,14 @@ export function OrderCartItems({
                     idx={idx}
                     branchId={branchId}
                     activeBranches={activeBranches}
+                    orderStatus={orderStatus}
                     selectedRowIndex={selectedRowIndex}
                     noteEditingId={noteEditingId}
                     setNoteEditingId={setNoteEditingId}
                     discountEditingId={discountEditingId}
                     setDiscountEditingId={setDiscountEditingId}
                     callbacks={callbacks}
+                    onSwapItem={onSwapItem}
                 />
             ))}
         </div>
@@ -138,12 +191,14 @@ type OrderCartRowProps = {
     idx: number
     branchId?: string
     activeBranches: any[]
+    orderStatus?: string
     selectedRowIndex: number
     noteEditingId: string | null
     setNoteEditingId: (id: string | null) => void
     discountEditingId: string | null
     setDiscountEditingId: (id: string | null) => void
     callbacks: CartItemCallbacks
+    onSwapItem?: (item: CartItem, swapKind: 'TEMP_PRODUCT' | 'GROOMING_MAIN') => void
 }
 
 function OrderCartRow({
@@ -151,12 +206,14 @@ function OrderCartRow({
     idx,
     branchId,
     activeBranches,
+    orderStatus,
     selectedRowIndex,
     noteEditingId,
     setNoteEditingId,
     discountEditingId,
     setDiscountEditingId,
     callbacks,
+    onSwapItem,
 }: OrderCartRowProps) {
     const {
         trueVariants,
@@ -183,6 +240,8 @@ function OrderCartRow({
 
     const updateVariant = (variantId: string) => callbacks.onUpdateItemVariant(item.id, variantId)
     const isSelected = idx === selectedRowIndex
+    const canSwapTemp = canSwapTempProduct(item, orderStatus)
+    const canSwapGrooming = canSwapGroomingMain(item, orderStatus)
 
     return (
         <div
@@ -223,6 +282,12 @@ function OrderCartRow({
                                 <span className="truncate text-[14px] font-semibold text-foreground" title={item.description}>
                                     {item.description}
                                 </span>
+                                {canSwapTemp && onSwapItem && (
+                                    <SwapActionButton onClick={() => onSwapItem(item, 'TEMP_PRODUCT')} />
+                                )}
+                                {!canSwapTemp && canSwapGrooming && onSwapItem && (
+                                    <SwapActionButton onClick={() => onSwapItem(item, 'GROOMING_MAIN')} />
+                                )}
                                 {displayTrueVariants.length > 0 && (
                                     <div className="relative inline-flex shrink-0 cursor-pointer items-center group/v">
                                         <select
@@ -406,6 +471,12 @@ function OrderCartRow({
                 <div className="flex flex-1 flex-col gap-1 pr-8">
                     <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[14px] font-semibold text-foreground">{item.description}</span>
+                        {canSwapTemp && onSwapItem && (
+                            <SwapActionButton onClick={() => onSwapItem(item, 'TEMP_PRODUCT')} />
+                        )}
+                        {!canSwapTemp && canSwapGrooming && onSwapItem && (
+                            <SwapActionButton onClick={() => onSwapItem(item, 'GROOMING_MAIN')} />
+                        )}
                         {displayTrueVariants.length > 0 && (
                             <div className="relative inline-flex cursor-pointer items-center">
                                 <select

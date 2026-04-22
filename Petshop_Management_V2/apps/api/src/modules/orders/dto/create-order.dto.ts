@@ -27,6 +27,18 @@ export class GroomingDetailsDto {
   @IsOptional()
   packageCode?: string;
 
+  @IsString()
+  @IsOptional()
+  serviceRole?: 'MAIN' | 'EXTRA';
+
+  @IsString()
+  @IsOptional()
+  pricingRuleId?: string;
+
+  @IsNumber()
+  @IsOptional()
+  durationMinutes?: number | null;
+
   @IsNumber()
   @IsOptional()
   weightAtBooking?: number;

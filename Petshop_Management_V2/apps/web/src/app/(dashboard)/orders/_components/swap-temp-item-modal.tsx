@@ -42,7 +42,9 @@ export function SwapTempItemModal({
         onSuccess: () => {
             toast.success('Đã đổi sang sản phẩm thật')
             // Invalidate cả UUID key lẫn orderNumber key (useOrderWorkspace dùng orderNumber làm queryKey)
+            void queryClient.invalidateQueries({ queryKey: ['orders'] })
             void queryClient.invalidateQueries({ queryKey: ['order', orderId] })
+            void queryClient.invalidateQueries({ queryKey: ['order-timeline', orderId] })
             void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'order' })
             onSuccess?.()
             onClose()

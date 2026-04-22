@@ -38,6 +38,21 @@ export interface GroomingOrderItem {
   discountItem?: number | null;
   type?: string | null;
   serviceId?: string | null;
+  sku?: string | null;
+  petId?: string | null;
+  pricingSnapshot?: Record<string, unknown> | null;
+}
+
+export interface SpaExtraServiceLine {
+  pricingRuleId?: string;
+  orderItemId?: string;
+  sku?: string | null;
+  name: string;
+  price: number;
+  quantity?: number;
+  durationMinutes?: number | null;
+  discountItem?: number | null;
+  total?: number;
 }
 
 export interface GroomingTimelineEntry {
@@ -71,6 +86,7 @@ export interface GroomingSession {
   weightBandId?: string | null;
   weightBand?: { id: string; label: string } | null;
   pricingSnapshot?: Record<string, unknown> | null;
+  extraServices?: SpaExtraServiceLine[];
   createdAt: string;
   updatedAt?: string;
   pet: GroomingPet;
@@ -109,6 +125,7 @@ export type CreateGroomingPayload = {
   notes?: string;
   price?: number;
   surcharge?: number;
+  extraServices?: SpaExtraServiceLine[];
 };
 
 export interface SpaPricePreview {

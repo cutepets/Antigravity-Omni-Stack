@@ -21,9 +21,13 @@ export interface CreateOrderPayload {
       petId: string;
       performerId?: string;
       startTime?: string;
+      scheduledDate?: string;
       notes?: string;
       serviceItems?: string;
       packageCode?: string;
+      serviceRole?: 'MAIN' | 'EXTRA';
+      pricingRuleId?: string;
+      durationMinutes?: number | null;
       weightAtBooking?: number;
       weightBandId?: string;
       weightBandLabel?: string;
@@ -91,6 +95,14 @@ export interface ApproveOrderPayload {
 }
 
 export interface ExportStockPayload {
+  note?: string;
+}
+
+export interface SwapGroomingServicePayload {
+  targetPricingRuleId: string;
+  refundMethod?: string;
+  refundPaymentAccountId?: string;
+  refundPaymentAccountLabel?: string;
   note?: string;
 }
 
@@ -219,6 +231,13 @@ export const orderApi = {
     data: { realProductId: string; realProductVariantId: string },
   ) =>
     api.patch(`/orders/${orderId}/items/${itemId}/swap-temp`, data).then((r) => r.data),
+
+  swapGroomingService: (
+    orderId: string,
+    itemId: string,
+    data: SwapGroomingServicePayload,
+  ) =>
+    api.patch(`/orders/${orderId}/items/${itemId}/swap-service`, data).then((r) => r.data),
 };
 
 export interface ReturnItemPayload {

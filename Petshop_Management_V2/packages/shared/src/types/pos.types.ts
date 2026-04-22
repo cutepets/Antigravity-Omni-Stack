@@ -51,6 +51,9 @@ export interface CartItem {
     notes?: string
     serviceItems?: string
     packageCode?: string
+    serviceRole?: 'MAIN' | 'EXTRA'
+    pricingRuleId?: string
+    durationMinutes?: number | null
     weightAtBooking?: number
     weightBandId?: string
     weightBandLabel?: string

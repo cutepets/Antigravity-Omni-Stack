@@ -22,6 +22,7 @@ import { CompleteOrderDto } from './dto/complete-order.dto.js';
 import { CancelOrderDto } from './dto/cancel-order.dto.js';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto.js';
 import { RefundOrderDto } from './dto/refund-order.dto.js';
+import { SwapGroomingServiceDto } from './dto/swap-grooming-service.dto.js';
 import {
   generateGroomingSessionCode as formatGroomingSessionCode,
   generateHotelStayCode as formatHotelStayCode,
@@ -85,22 +86,117 @@ function buildGroomingOrderItemPricingSnapshot(item: {
   quantity: number;
   unitPrice: number;
   discountItem?: number;
+  sku?: string | null;
   groomingDetails?: any;
 }) {
-  if (!item.groomingDetails?.packageCode && !item.groomingDetails?.pricingSnapshot) return undefined;
+  if (!item.groomingDetails?.packageCode && !item.groomingDetails?.pricingSnapshot && !item.groomingDetails?.serviceRole) return undefined;
 
   const details = item.groomingDetails;
+  const pricingSnapshot = details.pricingSnapshot ?? {};
+  const serviceRole = details.serviceRole ?? pricingSnapshot.serviceRole ?? 'MAIN';
 
   return {
     source: 'POS_GROOMING_PRICE',
+    serviceRole,
+    pricingRuleId: details.pricingRuleId ?? pricingSnapshot.pricingRuleId ?? null,
     packageCode: details.packageCode ?? null,
     weightAtBooking: details.weightAtBooking ?? null,
     weightBandId: details.weightBandId ?? null,
     weightBandLabel: details.weightBandLabel ?? null,
+    durationMinutes: details.durationMinutes ?? pricingSnapshot.durationMinutes ?? null,
+    serviceName: details.serviceItems ?? item.description ?? null,
+    sku: item.sku ?? pricingSnapshot.sku ?? null,
     price: details.pricingPrice ?? item.unitPrice * item.quantity,
     discountItem: item.discountItem ?? 0,
+    totalPrice: item.unitPrice * item.quantity - (item.discountItem ?? 0),
     pricingSnapshot: details.pricingSnapshot ?? null,
   };
+}
+
+function normalizeSpaPackageCode(value?: string | null) {
+  return String(value ?? '')
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+}
+
+function normalizeSpaSkuText(value?: string | null) {
+  return String(value ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+}
+
+function getSpaWeightBandSkuSuffix(label?: string | null) {
+  const numbers = String(label ?? '').match(/\d+(?:[.,]\d+)?/g);
+  return numbers?.map((value) => value.replace(/[.,]/g, '')).join('') ?? '';
+}
+
+function getSpaSkuInitials(value?: string | null) {
+  return normalizeSpaSkuText(value)
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('');
+}
+
+function getSpaSkuPrefix(packageCode?: string | null, label?: string | null) {
+  const code = normalizeSpaSkuText(packageCode).replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const prefixByCode: Record<string, string> = {
+    BATH: 'T',
+    TAM: 'T',
+    HYGIENE: 'VS',
+    VE_SINH: 'VS',
+    CLIP: 'CL',
+    CUT: 'CL',
+    SHAVE: 'CL',
+    CAO_LONG: 'CL',
+    BATH_HYGIENE: 'TVS',
+    BATH_CLEAN: 'TVS',
+    BATH_CLIP: 'TCL',
+    BATH_SHAVE: 'TCL',
+    BATH_CLIP_HYGIENE: 'TCLVS',
+    BATH_SHAVE_HYGIENE: 'TCLVS',
+    SPA: 'SPA',
+  };
+
+  return prefixByCode[code] ?? (getSpaSkuInitials(label) || 'SPA');
+}
+
+function getSpaPricingSku(packageCode?: string | null, label?: string | null, weightBandLabel?: string | null) {
+  return `${getSpaSkuPrefix(packageCode, label)}${getSpaWeightBandSkuSuffix(weightBandLabel)}`;
+}
+
+function normalizeSpeciesKey(value?: string | null) {
+  const normalized = String(value ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (!normalized) return '';
+  if (['meo', 'cat', 'feline'].includes(normalized)) return 'cat';
+  if (['cho', 'dog', 'canine'].includes(normalized)) return 'dog';
+  return normalized;
+}
+
+function isSpaRuleSpeciesMatch(petSpecies?: string | null, ruleSpecies?: string | null) {
+  if (!ruleSpecies) return true;
+  if (!petSpecies) return false;
+  return normalizeSpeciesKey(petSpecies) === normalizeSpeciesKey(ruleSpecies);
+}
+
+function isWeightInRange(
+  weight: number,
+  minWeight?: number | null,
+  maxWeight?: number | null,
+) {
+  if (!Number.isFinite(weight)) return false;
+  const safeMin = Number(minWeight ?? 0);
+  const safeMax = maxWeight === null || maxWeight === undefined ? Number.POSITIVE_INFINITY : Number(maxWeight);
+  return weight >= safeMin && weight < safeMax;
 }
 
 type OrderPaymentIntentView = {
@@ -1193,6 +1289,80 @@ export class OrdersService {
     };
   }
 
+  private getGroomingOrderItemSnapshot(item: any) {
+    return ((item?.pricingSnapshot as Record<string, any> | null) ?? {}) as Record<string, any>;
+  }
+
+  private getGroomingOrderItemRole(item: any): 'MAIN' | 'EXTRA' {
+    const details = item?.groomingDetails ?? null;
+    const snapshot = details?.pricingSnapshot ?? this.getGroomingOrderItemSnapshot(item);
+    return details?.serviceRole === 'EXTRA' || snapshot?.serviceRole === 'EXTRA' ? 'EXTRA' : 'MAIN';
+  }
+
+  private async refreshGroomingSessionFromOrderItems(tx: DatabaseService, sessionId: string) {
+    const items = await tx.orderItem.findMany({
+      where: { groomingSessionId: sessionId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (items.length === 0) return;
+
+    const mainItem = items.find((item) => this.getGroomingOrderItemRole(item) !== 'EXTRA') ?? null;
+    const sourceItem = mainItem ?? items[0];
+    const sourceSnapshot = this.getGroomingOrderItemSnapshot(sourceItem);
+    const grossAmount = items.reduce((sum, item) => sum + Number(item.unitPrice ?? 0) * Number(item.quantity ?? 0), 0);
+    const discountAmount = items.reduce((sum, item) => sum + Number(item.discountItem ?? 0), 0);
+    const extraServices = items
+      .filter((item) => this.getGroomingOrderItemRole(item) === 'EXTRA')
+      .map((item) => {
+        const snapshot = this.getGroomingOrderItemSnapshot(item);
+        const quantity = Number(item.quantity ?? 1);
+        const price = Number(item.unitPrice ?? snapshot.price ?? 0);
+        return {
+          orderItemId: item.id,
+          pricingRuleId: snapshot.pricingRuleId ?? snapshot.pricingSnapshot?.pricingRuleId ?? null,
+          sku: item.sku ?? snapshot.sku ?? snapshot.pricingSnapshot?.sku ?? null,
+          name: item.description ?? snapshot.serviceName ?? null,
+          price,
+          quantity,
+          durationMinutes: snapshot.durationMinutes ?? snapshot.pricingSnapshot?.durationMinutes ?? null,
+          discountItem: Number(item.discountItem ?? 0),
+          total: price * quantity - Number(item.discountItem ?? 0),
+        };
+      });
+
+    await tx.groomingSession.update({
+      where: { id: sessionId },
+      data: {
+        serviceId: mainItem?.serviceId ?? null,
+        price: grossAmount,
+        packageCode: mainItem ? sourceSnapshot.packageCode ?? null : null,
+        weightAtBooking: mainItem ? sourceSnapshot.weightAtBooking ?? null : null,
+        weightBandId: mainItem ? sourceSnapshot.weightBandId ?? null : null,
+        pricingSnapshot: {
+          ...sourceSnapshot,
+          source: 'POS_GROOMING_GROUP',
+          mainOrderItemId: mainItem?.id ?? null,
+          mainService: mainItem
+            ? {
+              orderItemId: mainItem.id,
+              name: mainItem.description,
+              price: Number(mainItem.unitPrice ?? 0),
+              quantity: Number(mainItem.quantity ?? 1),
+              discountItem: Number(mainItem.discountItem ?? 0),
+              serviceId: mainItem.serviceId ?? null,
+            }
+            : null,
+          extraServices,
+          grossAmount,
+          discountAmount,
+          totalAmount: Math.max(0, grossAmount - discountAmount),
+          orderItemIds: items.map((item) => item.id),
+        } as any,
+      },
+    });
+  }
+
   private async syncGroomingSession(
     tx: DatabaseService,
     params: {
@@ -1214,13 +1384,20 @@ export class OrdersService {
         if (session && !['PENDING', 'IN_PROGRESS', 'CANCELLED'].includes(session.status)) {
           throw new BadRequestException(`Phiên spa ${session.sessionCode ?? session.id} đã hoàn thành, không thể bỏ khỏi đơn đang giao dịch.`);
         }
-        await tx.groomingSession.update({
-          where: { id: params.existingSessionId },
-          data: { status: 'CANCELLED' },
+        const siblingCount = await tx.orderItem.count({
+          where: { groomingSessionId: params.existingSessionId, id: { not: params.orderItemId } },
         });
         await tx.orderItem.update({
           where: { id: params.orderItemId },
           data: { groomingSessionId: null },
+        });
+        if (siblingCount > 0) {
+          await this.refreshGroomingSessionFromOrderItems(tx, params.existingSessionId);
+          return null;
+        }
+        await tx.groomingSession.update({
+          where: { id: params.existingSessionId },
+          data: { status: 'CANCELLED' },
         });
       }
       return null;
@@ -1263,19 +1440,42 @@ export class OrdersService {
       weightBandId: details.weightBandId ?? null,
       pricingSnapshot: (buildGroomingOrderItemPricingSnapshot(params.item) ?? details.pricingSnapshot) as any,
     };
+    const isExtraItem = this.getGroomingOrderItemRole({
+      pricingSnapshot: payload.pricingSnapshot,
+      groomingDetails: details,
+    }) === 'EXTRA';
+    const reusableSession = params.existingSessionId
+      ? null
+      : await tx.groomingSession.findFirst({
+        where: {
+          orderId: params.orderId,
+          petId: details.petId,
+          status: { not: 'CANCELLED' },
+        },
+        select: { id: true, status: true, sessionCode: true },
+      });
+    const targetSessionId = params.existingSessionId ?? reusableSession?.id ?? null;
 
-    if (params.existingSessionId) {
-      const current = await tx.groomingSession.findUnique({ where: { id: params.existingSessionId } });
+    if (targetSessionId) {
+      const current = await tx.groomingSession.findUnique({ where: { id: targetSessionId } });
       if (current && current.status === 'CANCELLED') {
         throw new BadRequestException(`Phiên spa ${current.sessionCode ?? current.id} đã bị hủy, không thể cập nhật lại từ POS.`);
       }
 
-      await tx.groomingSession.update({
-        where: { id: params.existingSessionId },
-        data: payload,
-      });
+      if (!isExtraItem) {
+        await tx.groomingSession.update({
+          where: { id: targetSessionId },
+          data: payload,
+        });
+      }
 
-      return params.existingSessionId;
+      await tx.orderItem.update({
+        where: { id: params.orderItemId },
+        data: { groomingSessionId: targetSessionId },
+      });
+      await this.refreshGroomingSessionFromOrderItems(tx, targetSessionId);
+
+      return targetSessionId;
     }
 
     const codeDate = params.orderCreatedAt ?? new Date();
@@ -1283,6 +1483,9 @@ export class OrdersService {
     const created = await tx.groomingSession.create({
       data: {
         ...payload,
+        serviceId: isExtraItem ? null : payload.serviceId,
+        packageCode: isExtraItem ? null : payload.packageCode,
+        weightBandId: isExtraItem ? null : payload.weightBandId,
         sessionCode,
         status: 'PENDING',
         ...(params.staffId ? {
@@ -1302,6 +1505,7 @@ export class OrdersService {
       where: { id: params.orderItemId },
       data: { groomingSessionId: created.id },
     });
+    await this.refreshGroomingSessionFromOrderItems(tx, created.id);
 
     return created.id;
   }
@@ -3007,6 +3211,9 @@ export class OrdersService {
               discountItem: true,
               type: true,
               serviceId: true,
+              sku: true,
+              petId: true,
+              pricingSnapshot: true,
             },
           },
           timeline: {
@@ -3036,6 +3243,9 @@ export class OrdersService {
               status: groomingSession.status,
               packageCode: groomingSession.packageCode,
               price: groomingSession.price,
+              extraServices: Array.isArray((groomingSession.pricingSnapshot as any)?.extraServices)
+                ? (groomingSession.pricingSnapshot as any).extraServices
+                : [],
               orderItems: groomingSession.orderItems,
               timeline: groomingSession.timeline,
             }
@@ -3046,11 +3256,15 @@ export class OrdersService {
               performerId: groomingSession.staffId,
               startTime: groomingSession.startTime,
               notes: groomingSession.notes,
-              packageCode: groomingSession.packageCode,
-              weightAtBooking: groomingSession.weightAtBooking,
-              weightBandId: groomingSession.weightBandId,
-              weightBandLabel: groomingSession.weightBand?.label ?? (groomingSession.pricingSnapshot as any)?.weightBandLabel ?? null,
-              pricingSnapshot: groomingSession.pricingSnapshot,
+              packageCode: itemPricingSnapshot?.serviceRole === 'EXTRA' ? undefined : groomingSession.packageCode,
+              serviceRole: itemPricingSnapshot?.serviceRole ?? 'MAIN',
+              pricingRuleId: itemPricingSnapshot?.pricingRuleId ?? undefined,
+              durationMinutes: itemPricingSnapshot?.durationMinutes ?? null,
+              weightAtBooking: itemPricingSnapshot?.weightAtBooking ?? groomingSession.weightAtBooking,
+              weightBandId: itemPricingSnapshot?.weightBandId ?? groomingSession.weightBandId,
+              weightBandLabel: itemPricingSnapshot?.weightBandLabel ?? groomingSession.weightBand?.label ?? (groomingSession.pricingSnapshot as any)?.weightBandLabel ?? null,
+              pricingPrice: item.unitPrice,
+              pricingSnapshot: itemPricingSnapshot ?? groomingSession.pricingSnapshot,
             }
             : undefined,
           hotelDetails: item.hotelStay
@@ -3483,6 +3697,278 @@ export class OrdersService {
   // T\u1ea1o y\u00eau c\u1ea7u \u0111\u1ed5i tr\u1ea3 h\u00e0ng t\u1eeb \u0111\u01a1n \u0111\u00e3 ho\u00e0n th\u00e0nh.
   // - items c\u00f3 action=RETURN: ghi nh\u1eadn tr\u1ea3 h\u00e0ng, t\u00ednh ti\u1ec1n ho\u00e0n
   // - items c\u00f3 action=EXCHANGE: t\u1ea1o \u0111\u01a1n m\u1edbi v\u1edbi credit pre-applied (\u0111\u1ec3 staff th\u00eam s\u1ea3n ph\u1ea9m v\u00e0o)
+  async swapGroomingService(
+    orderId: string,
+    itemId: string,
+    dto: SwapGroomingServiceDto,
+    staffId: string,
+    user?: AccessUser,
+  ): Promise<any> {
+    const order = await this.prisma.order.findFirst({
+      where: { OR: [{ id: orderId }, { orderNumber: orderId }] },
+      include: { items: true, customer: true },
+    });
+    if (!order) throw new NotFoundException('Khong tim thay don hang');
+    this.assertOrderScope(order, user);
+    orderId = order.id;
+
+    if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+      throw new BadRequestException('Khong the doi goi SPA cho don da hoan tat hoac da huy');
+    }
+    if (['PARTIALLY_REFUNDED', 'FULLY_REFUNDED'].includes(String(order.paymentStatus ?? ''))) {
+      throw new BadRequestException('Khong the doi goi SPA cho don da phat sinh hoan tien');
+    }
+
+    const item = order.items.find((entry: any) => entry.id === itemId);
+    if (!item) throw new NotFoundException('Khong tim thay dong dich vu');
+    if (item.type !== 'grooming') {
+      throw new BadRequestException('Chi ho tro doi cho dong dich vu SPA');
+    }
+    if (this.getGroomingOrderItemRole(item) === 'EXTRA') {
+      throw new BadRequestException('Chi duoc doi dich vu chinh, khong doi dich vu khac');
+    }
+    if (!item.groomingSessionId) {
+      throw new BadRequestException('Dong dich vu nay chua lien ket voi phieu SPA');
+    }
+
+    const currentSnapshot = this.getGroomingOrderItemSnapshot(item);
+    const currentPricingRuleId = String(
+      currentSnapshot.pricingRuleId
+      ?? currentSnapshot.pricingSnapshot?.pricingRuleId
+      ?? '',
+    ).trim();
+    if (!currentPricingRuleId) {
+      throw new BadRequestException('Dong SPA hien tai thieu metadata bang gia, chua ho tro doi goi');
+    }
+
+    const targetPricingRuleId = String(dto.targetPricingRuleId ?? '').trim();
+    if (!targetPricingRuleId) {
+      throw new BadRequestException('Thieu goi SPA muon doi den');
+    }
+    if (targetPricingRuleId === currentPricingRuleId) {
+      throw new BadRequestException('Goi SPA moi trung voi goi hien tai');
+    }
+
+    const linkedSession = await this.prisma.groomingSession.findUnique({
+      where: { id: item.groomingSessionId },
+      select: {
+        id: true,
+        sessionCode: true,
+        status: true,
+        packageCode: true,
+      },
+    });
+    if (!linkedSession) {
+      throw new NotFoundException('Khong tim thay phieu SPA lien ket');
+    }
+    if (['COMPLETED', 'CANCELLED'].includes(linkedSession.status)) {
+      throw new BadRequestException('Phieu SPA da hoan thanh hoac da huy, khong the doi goi');
+    }
+
+    const petId = String(
+      item.petId
+      ?? currentSnapshot.petId
+      ?? currentSnapshot.pricingSnapshot?.petId
+      ?? '',
+    ).trim();
+    if (!petId) {
+      throw new BadRequestException('Khong xac dinh duoc thu cung cua dong SPA');
+    }
+
+    const pet = await this.prisma.pet.findUnique({
+      where: { id: petId },
+      select: { id: true, name: true, species: true, weight: true },
+    });
+    if (!pet) {
+      throw new NotFoundException('Khong tim thay thu cung');
+    }
+
+    const targetRule = await this.prisma.spaPriceRule.findUnique({
+      where: { id: targetPricingRuleId },
+      include: { weightBand: true },
+    });
+    if (!targetRule || targetRule.isActive !== true) {
+      throw new BadRequestException('Bang gia SPA dich den khong hop le hoac da ngung ap dung');
+    }
+    if (!targetRule.weightBandId || !targetRule.weightBand) {
+      throw new BadRequestException('Chi ho tro doi sang goi SPA chinh theo hang can');
+    }
+
+    const weightAtBooking = Number(currentSnapshot.weightAtBooking ?? pet.weight ?? Number.NaN);
+    if (!Number.isFinite(weightAtBooking)) {
+      throw new BadRequestException('Thu cung chua co can nang de doi goi SPA');
+    }
+
+    const ruleSpecies = targetRule.species ?? targetRule.weightBand.species ?? null;
+    if (!isSpaRuleSpeciesMatch(pet.species, ruleSpecies)) {
+      throw new BadRequestException('Goi SPA moi khong phu hop loai thu cung');
+    }
+    if (!isWeightInRange(weightAtBooking, targetRule.weightBand.minWeight, targetRule.weightBand.maxWeight)) {
+      throw new BadRequestException('Goi SPA moi khong phu hop hang can cua thu cung');
+    }
+
+    const packageLabel = normalizeSpaPackageCode(targetRule.packageCode);
+    const quantity = Math.max(1, Number(item.quantity ?? 1));
+    const currentDiscount = Math.max(0, Number(item.discountItem ?? 0));
+    const targetUnitPrice = Math.max(0, Number(targetRule.price ?? 0));
+    const targetGross = targetUnitPrice * quantity;
+    const nextDiscountItem = Math.min(currentDiscount, targetGross);
+    const currentLineTotal = Math.max(
+      0,
+      Number(item.subtotal ?? (Number(item.unitPrice ?? 0) * quantity - currentDiscount)),
+    );
+    const nextLineTotal = Math.max(0, targetGross - nextDiscountItem);
+    const nextSubtotal = Math.max(
+      0,
+      order.items.reduce(
+        (sum, entry: any) => sum + (entry.id === item.id ? nextLineTotal : Number(entry.subtotal ?? 0)),
+        0,
+      ),
+    );
+    const orderDiscount = Math.max(0, Number(order.discount ?? 0));
+    const shippingFee = Math.max(0, Number(order.shippingFee ?? 0));
+    const nextTotal = Math.max(0, nextSubtotal + shippingFee - orderDiscount);
+    const paidAmount = Math.max(0, Number(order.paidAmount ?? 0));
+    const overpaidAmount = Math.max(0, paidAmount - nextTotal);
+
+    const matchingService = await this.prisma.service.findFirst({
+      where: {
+        type: 'GROOMING',
+        isActive: true,
+        OR: [
+          { name: { equals: packageLabel, mode: 'insensitive' } as any },
+          { name: { contains: packageLabel, mode: 'insensitive' } as any },
+        ],
+      },
+      select: { id: true },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      const refundPaymentAccount = overpaidAmount > 0
+        ? await this.resolvePaymentAccount(
+          tx as any,
+          dto.refundMethod ?? 'CASH',
+          dto.refundPaymentAccountId,
+        )
+        : null;
+
+      if (overpaidAmount > 0 && !refundPaymentAccount?.paymentMethod) {
+        throw new BadRequestException('Khong xac dinh duoc phuong thuc hoan tien');
+      }
+
+      const sku = targetRule.sku
+        ?? getSpaPricingSku(targetRule.packageCode, packageLabel, targetRule.weightBand?.label);
+
+      const nextSnapshot = {
+        ...currentSnapshot,
+        source: 'POS_GROOMING_PRICE',
+        serviceRole: 'MAIN',
+        pricingRuleId: targetRule.id,
+        packageCode: targetRule.packageCode,
+        weightAtBooking,
+        weightBandId: targetRule.weightBandId,
+        weightBandLabel: targetRule.weightBand?.label ?? null,
+        durationMinutes: targetRule.durationMinutes ?? null,
+        serviceName: packageLabel,
+        sku,
+        price: targetUnitPrice,
+        discountItem: nextDiscountItem,
+        totalPrice: nextLineTotal,
+        pricingSnapshot: {
+          ...(currentSnapshot.pricingSnapshot ?? {}),
+          source: 'SPA_PRICE_RULE',
+          serviceRole: 'MAIN',
+          pricingRuleId: targetRule.id,
+          packageCode: targetRule.packageCode,
+          weightBandId: targetRule.weightBandId ?? null,
+          weightBandLabel: targetRule.weightBand?.label ?? null,
+          price: targetUnitPrice,
+          durationMinutes: targetRule.durationMinutes ?? null,
+          serviceName: packageLabel,
+          sku,
+        },
+      };
+
+      await tx.orderItem.update({
+        where: { id: item.id },
+        data: {
+          serviceId: matchingService?.id ?? item.serviceId ?? null,
+          sku,
+          description: packageLabel,
+          unitPrice: targetUnitPrice,
+          discountItem: nextDiscountItem,
+          subtotal: nextLineTotal,
+          pricingSnapshot: nextSnapshot as any,
+        } as any,
+      });
+
+      await this.refreshGroomingSessionFromOrderItems(tx as any, item.groomingSessionId!);
+
+      await tx.groomingSession.update({
+        where: { id: item.groomingSessionId! },
+        data: {
+          timeline: {
+            create: {
+              action: 'Doi goi dich vu theo don',
+              fromStatus: linkedSession.status,
+              toStatus: linkedSession.status,
+              note: `${linkedSession.packageCode ?? item.description} -> ${packageLabel} (don ${order.orderNumber})`,
+              performedBy: staffId,
+            },
+          },
+        } as any,
+      });
+
+      let finalPaidAmount = paidAmount;
+      if (overpaidAmount > 0) {
+        await this.createOrderTransaction(tx as any, {
+          order: {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            branchId: order.branchId,
+            customerId: order.customerId,
+            customerName: order.customer?.fullName ?? order.customerName ?? null,
+          },
+          type: 'EXPENSE',
+          amount: overpaidAmount,
+          paymentMethod: refundPaymentAccount?.paymentMethod ?? dto.refundMethod ?? 'CASH',
+          paymentAccountId: refundPaymentAccount?.paymentAccountId ?? null,
+          paymentAccountLabel: dto.refundPaymentAccountLabel?.trim()
+            || refundPaymentAccount?.paymentAccountLabel
+            || null,
+          description: `Hoan tien chenh lech doi goi SPA ${order.orderNumber}`,
+          note: dto.note?.trim() || `Doi goi ${item.description} -> ${packageLabel}`,
+          source: 'ORDER_ADJUSTMENT',
+          staffId,
+        });
+        finalPaidAmount = nextTotal;
+      }
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          subtotal: nextSubtotal,
+          total: nextTotal,
+          paidAmount: finalPaidAmount,
+          remainingAmount: this.calculateRemainingAmount(nextTotal, finalPaidAmount),
+          paymentStatus: this.calculatePaymentStatus(nextTotal, finalPaidAmount) as any,
+        } as any,
+      });
+
+      await this.createTimelineEntry({
+        orderId: order.id,
+        action: 'ITEM_SWAPPED',
+        note: `Doi goi SPA "${item.description}" -> "${packageLabel}"` +
+          (nextLineTotal !== currentLineTotal
+            ? ` (${currentLineTotal.toLocaleString('vi-VN')}d -> ${nextLineTotal.toLocaleString('vi-VN')}d)`
+            : ''),
+        performedBy: staffId,
+      });
+    });
+
+    return this.findOne(orderId, user);
+  }
+
   async createReturnRequest(
     orderId: string,
     dto: import('./dto/create-return-request.dto.js').CreateReturnRequestDto,

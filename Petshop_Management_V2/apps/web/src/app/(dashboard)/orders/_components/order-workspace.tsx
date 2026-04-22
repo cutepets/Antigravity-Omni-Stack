@@ -19,6 +19,7 @@ import type { OrderWorkspaceMode } from './order/order.types'
 import { useOrderWorkspace } from './order/use-order-workspace'
 import { QrPaymentModal } from '@/app/(dashboard)/_shared/payment/components/QrPaymentModal'
 import { SwapTempItemModal } from './swap-temp-item-modal'
+import { SwapGroomingServiceModal } from './swap-grooming-service-modal'
 import {
   buildOrderQrIntentStorageKey,
   createOrderQrPaymentIntent,
@@ -39,6 +40,18 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
   const showPrintActions = mode === 'detail' && Boolean(workspace.printPayload)
 
   const [swapItemTarget, setSwapItemTarget] = useState<{ id: string; description: string; unitPrice: number } | null>(null)
+  const [swapGroomingTarget, setSwapGroomingTarget] = useState<{
+    id: string
+    description: string
+    unitPrice: number
+    quantity: number
+    discountItem: number
+    petId?: string
+    petName?: string
+    pricingRuleId?: string
+    packageCode?: string
+    sessionId?: string | null
+  } | null>(null)
   const [noteEditingId, setNoteEditingId] = useState<string | null>(null)
   const [discountEditingId, setDiscountEditingId] = useState<string | null>(null)
   const [isMultiSelect, setIsMultiSelect] = useState(false)
@@ -350,6 +363,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             <OrderCartSection
               draft={workspace.draft}
               branches={branches}
+              orderStatus={workspace.order?.status}
               selectedRowIndex={workspace.selectedRowIndex}
               isEditing={workspace.isEditing}
               noteEditingId={noteEditingId}
@@ -360,7 +374,33 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
               onChangeItemDiscount={workspace.handleChangeItemDiscount}
               onChangeItemVariant={workspace.handleChangeItemVariant}
               onRemoveItem={workspace.handleRemoveItem}
-              onSwapItem={(item: any) => setSwapItemTarget({ id: item.orderItemId ?? item.id, description: item.description, unitPrice: item.unitPrice })}
+              onSwapItem={
+                mode === 'detail' && workspace.order?.id && !workspace.isEditing
+                  ? (item: any, swapKind) => {
+                    if (swapKind === 'TEMP_PRODUCT') {
+                      setSwapItemTarget({
+                        id: item.orderItemId ?? item.id,
+                        description: item.description,
+                        unitPrice: item.unitPrice,
+                      })
+                      return
+                    }
+
+                    setSwapGroomingTarget({
+                      id: item.orderItemId ?? item.id,
+                      description: item.description,
+                      unitPrice: Number(item.unitPrice ?? 0),
+                      quantity: Number(item.quantity ?? 1),
+                      discountItem: Number(item.discountItem ?? 0),
+                      petId: item.petId ?? item.groomingDetails?.petId,
+                      petName: item.groomingDetails?.petName,
+                      pricingRuleId: item.groomingDetails?.pricingRuleId ?? item.groomingDetails?.pricingSnapshot?.pricingRuleId,
+                      packageCode: item.groomingDetails?.packageCode,
+                      sessionId: item.groomingSession?.id ?? null,
+                    })
+                  }
+                  : undefined
+              }
             />
           </div>
 
@@ -459,6 +499,27 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
           itemId={swapItemTarget.id}
           itemDescription={swapItemTarget.description}
           targetUnitPrice={swapItemTarget.unitPrice}
+        />
+      )}
+
+      {swapGroomingTarget && workspace.order?.id && (
+        <SwapGroomingServiceModal
+          isOpen={Boolean(swapGroomingTarget)}
+          onClose={() => setSwapGroomingTarget(null)}
+          orderId={workspace.order.id}
+          itemId={swapGroomingTarget.id}
+          branchId={workspace.order.branchId ?? workspace.draft.branchId}
+          orderTotal={Number(workspace.order.total ?? workspace.total)}
+          amountPaid={Number(workspace.order.paidAmount ?? workspace.amountPaid)}
+          itemDescription={swapGroomingTarget.description}
+          currentUnitPrice={swapGroomingTarget.unitPrice}
+          quantity={swapGroomingTarget.quantity}
+          discountItem={swapGroomingTarget.discountItem}
+          petId={swapGroomingTarget.petId}
+          petName={swapGroomingTarget.petName}
+          pricingRuleId={swapGroomingTarget.pricingRuleId}
+          packageCode={swapGroomingTarget.packageCode}
+          sessionId={swapGroomingTarget.sessionId}
         />
       )}
 
