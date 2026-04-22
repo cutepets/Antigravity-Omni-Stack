@@ -29,6 +29,17 @@ const mockSession = {
     startTime: null,
     endTime: null,
     notes: null,
+    pricingSnapshot: {
+        mainPrice: 150000,
+        extraServices: [
+            {
+                pricingRuleId: 'extra-1',
+                name: 'Cat mong',
+                price: 30000,
+                quantity: 1,
+            },
+        ],
+    },
 }
 
 const mockPet = {
@@ -43,12 +54,47 @@ const mockPet = {
 
 const mockBranch = { id: 'branch-1', code: 'HN01', name: 'Ha Noi 01' }
 const mockPriceRule = { id: 'rule-1', packageCode: 'SPA_BASIC', species: null, price: 150000, durationMinutes: 60, minWeight: null, maxWeight: null, weightBandId: null }
+const mockOrder = {
+    id: 'order-1',
+    orderNumber: 'DH001',
+    status: 'OPEN',
+    paymentStatus: 'UNPAID',
+    total: 180000,
+    paidAmount: 0,
+    remainingAmount: 180000,
+}
+const mockOrderItems = [
+    {
+        id: 'item-main',
+        description: 'Cao long',
+        unitPrice: 150000,
+        quantity: 1,
+        discountItem: 0,
+        type: 'SERVICE',
+        serviceId: 'service-1',
+        sku: 'SPA_BASIC',
+        petId: 'pet-1',
+        pricingSnapshot: { serviceRole: 'MAIN', packageCode: 'SPA_BASIC' },
+    },
+    {
+        id: 'item-extra',
+        description: 'Cat mong',
+        unitPrice: 30000,
+        quantity: 1,
+        discountItem: 0,
+        type: 'SERVICE',
+        serviceId: null,
+        sku: 'SPA_EXTRA_1',
+        petId: 'pet-1',
+        pricingSnapshot: { serviceRole: 'EXTRA', packageCode: 'SPA_EXTRA_1' },
+    },
+]
 
 const mockDb = {
     groomingSession: {
         create: jest.fn().mockResolvedValue({ ...mockSession, pet: mockPet, staff: null, assignedStaff: [], order: null, branch: mockBranch }),
-        findMany: jest.fn().mockResolvedValue([{ ...mockSession, pet: mockPet, staff: null, assignedStaff: [], order: null, branch: mockBranch }]),
-        findFirst: jest.fn().mockResolvedValue(mockSession),
+        findMany: jest.fn().mockResolvedValue([{ ...mockSession, pet: mockPet, staff: null, assignedStaff: [], order: mockOrder, branch: mockBranch, orderItems: mockOrderItems }]),
+        findFirst: jest.fn().mockResolvedValue({ ...mockSession, pet: mockPet, staff: null, assignedStaff: [], order: mockOrder, branch: mockBranch, orderItems: mockOrderItems, timeline: [] }),
         update: jest.fn().mockResolvedValue({ ...mockSession, status: 'IN_PROGRESS', pet: mockPet, staff: null, assignedStaff: [], order: null, branch: mockBranch }),
         delete: jest.fn().mockResolvedValue(mockSession),
         count: jest.fn().mockResolvedValue(0),
@@ -144,15 +190,18 @@ describe('Grooming CQRS Handlers', () => {
             expect(result.success).toBe(true)
             expect(Array.isArray(result.data)).toBe(true)
             expect(result.data.length).toBe(1)
+            expect(result.data[0].orderItems).toHaveLength(2)
+            expect(result.data[0].extraServices).toEqual(mockSession.pricingSnapshot.extraServices)
         })
     })
 
     describe('FindGroomingHandler', () => {
         it('returns single session by id', async () => {
-            mockDb.groomingSession.findFirst.mockResolvedValueOnce({ ...mockSession, timeline: [] })
             const result = await queryBus.execute(new FindGroomingQuery('session-1', undefined))
             expect(result.success).toBe(true)
             expect(result.data.id).toBe('session-1')
+            expect(result.data.orderItems).toHaveLength(2)
+            expect(result.data.extraServices).toEqual(mockSession.pricingSnapshot.extraServices)
         })
 
         it('throws NotFoundException if session not found', async () => {

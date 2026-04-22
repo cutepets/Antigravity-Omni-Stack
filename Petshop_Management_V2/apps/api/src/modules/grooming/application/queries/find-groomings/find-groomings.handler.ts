@@ -2,6 +2,11 @@ import { QueryHandler, IQueryHandler } from '@nestjs/cqrs'
 import { DatabaseService } from '../../../../../database/database.service.js'
 import { getScopedBranchIds, type BranchScopedUser } from '../../../../../common/utils/branch-scope.util.js'
 import { FindGroomingsQuery } from './find-groomings.query.js'
+import {
+    groomingOrderInclude,
+    groomingOrderItemsInclude,
+    mapGroomingSessionResult,
+} from '../grooming-query-result.js'
 
 @QueryHandler(FindGroomingsQuery)
 export class FindGroomingsHandler implements IQueryHandler<FindGroomingsQuery> {
@@ -33,11 +38,12 @@ export class FindGroomingsHandler implements IQueryHandler<FindGroomingsQuery> {
                 },
                 staff: { select: { id: true, fullName: true, avatar: true } },
                 assignedStaff: { select: { id: true, fullName: true, avatar: true } },
-                order: { select: { id: true, orderNumber: true } },
+                order: groomingOrderInclude,
                 branch: { select: { id: true, name: true, code: true } },
+                orderItems: groomingOrderItemsInclude,
             },
         })
 
-        return { success: true, data: sessions }
+        return { success: true, data: sessions.map((session) => mapGroomingSessionResult(session)) }
     }
 }

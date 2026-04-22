@@ -131,7 +131,11 @@ export function usePosCart() {
     const handleSelectSuggestedService = useCallback(
         (service: any, petId: string, petName?: string) => {
             const cart = store.tabs.find((t) => t.id === store.activeTabId)?.cart ?? [];
-            const isDuplicate = cart.some(
+            const isRepeatableService =
+                service?.suggestionGroup === 'OTHER' ||
+                service?.serviceRole === 'EXTRA' ||
+                service?.isSpaExtraService === true;
+            const isDuplicate = !isRepeatableService && cart.some(
                 (item) =>
                     item.petId === petId &&
                     (item.serviceId === service.id ||

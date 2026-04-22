@@ -74,7 +74,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   const deferredCustomerSearch = useDeferredValue(customerSearch)
 
   const { data: branches = [] } = useBranches()
-  const { data: order, isLoading: isOrderLoading, isError: isOrderError } = useQuery({
+  const { data: order, isLoading: isOrderLoading, isError: isOrderError, dataUpdatedAt: orderDataUpdatedAt } = useQuery({
     queryKey: ['order', orderId],
     queryFn: () => orderApi.get(orderId!),
     enabled: mode === 'detail' && Boolean(orderId),
@@ -106,13 +106,13 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
 
   useEffect(() => {
     if (mode !== 'detail' || !order) return
-    const orderVersion = `${order.id}:${order.updatedAt ?? order.createdAt ?? ''}`
+    const orderVersion = `${order.id}:${order.updatedAt ?? order.createdAt ?? ''}:${orderDataUpdatedAt}`
     if (initializedOrderVersionRef.current === orderVersion && isEditing) return
     if (initializedOrderVersionRef.current === orderVersion && draft.items.length > 0) return
     setDraft(buildDraftFromOrder(order))
     setIsEditing(false)
     initializedOrderVersionRef.current = orderVersion
-  }, [draft.items.length, isEditing, mode, order])
+  }, [draft.items.length, isEditing, mode, order, orderDataUpdatedAt])
 
   const orderNeedsBranch = (items: any[]) =>
     items.some((item) => item.productVariantId || (item.variants && item.variants.length > 0))

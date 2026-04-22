@@ -39,13 +39,27 @@ export function SwapTempItemModal({
     const swapMutation = useMutation({
         mutationFn: ({ variantId, productId }: { variantId: string; productId: string }) =>
             orderApi.swapTempItem(orderId, itemId, { realProductId: productId, realProductVariantId: variantId }),
-        onSuccess: () => {
+        onSuccess: (updatedOrder) => {
             toast.success('Đã đổi sang sản phẩm thật')
             // Invalidate cả UUID key lẫn orderNumber key (useOrderWorkspace dùng orderNumber làm queryKey)
             void queryClient.invalidateQueries({ queryKey: ['orders'] })
-            void queryClient.invalidateQueries({ queryKey: ['order', orderId] })
-            void queryClient.invalidateQueries({ queryKey: ['order-timeline', orderId] })
+            queryClient.setQueriesData({ predicate: (query) => query.queryKey[0] === 'order' }, (previous) => {
+                if (!previous || typeof previous !== 'object') return previous
+                const cachedOrder = previous as Record<string, any>
+                const cachedId = String(cachedOrder.id ?? '')
+                const cachedNumber = String(cachedOrder.orderNumber ?? '')
+                const nextId = String((updatedOrder as any)?.id ?? '')
+                const nextNumber = String((updatedOrder as any)?.orderNumber ?? '')
+
+                if (!nextId && !nextNumber) return previous
+                if (cachedId === nextId || cachedId === nextNumber || cachedNumber === nextId || cachedNumber === nextNumber) {
+                    return updatedOrder
+                }
+                return previous
+            })
             void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'order' })
+            void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'order-timeline' })
+            void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'order-payment-intents' })
             onSuccess?.()
             onClose()
         },

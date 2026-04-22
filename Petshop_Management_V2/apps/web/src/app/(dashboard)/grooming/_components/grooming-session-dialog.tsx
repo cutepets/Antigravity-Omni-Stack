@@ -25,7 +25,9 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { customToast as toast } from "@/components/ui/toast-with-copy";
 import {
   groomingApi,
+  type GroomingOrderItem,
   type GroomingSession,
+  type GroomingSessionPricingSnapshot,
   type GroomingStatus,
   type SpaExtraServiceLine,
 } from "@/lib/api/grooming.api";
@@ -113,6 +115,206 @@ function getOrderItemServiceRole(item: { pricingSnapshot?: Record<string, unknow
 function getSessionExtraServices(session?: GroomingSession | null): SpaExtraServiceLine[] {
   const snapshot = (session?.pricingSnapshot ?? {}) as Record<string, any>;
   return session?.extraServices ?? snapshot.extraServices ?? [];
+}
+
+function getLinkedSessionSnapshot(session?: GroomingSession | null) {
+  return ((session?.pricingSnapshot ?? {}) as GroomingSessionPricingSnapshot) ?? {};
+}
+
+type SpaServiceLineRole = "MAIN" | "EXTRA";
+type SpaServiceLineSource = "order" | "snapshot" | "draft";
+
+interface SpaServiceLine {
+  key: string;
+  role: SpaServiceLineRole;
+  source: SpaServiceLineSource;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  lineDiscount: number;
+  lineTotal: number;
+  pricingRuleId?: string;
+}
+
+const moneyFormatter = new Intl.NumberFormat("vi-VN", {
+  style: "currency",
+  currency: "VND",
+  maximumFractionDigits: 0,
+});
+const numberFormatter = new Intl.NumberFormat("vi-VN");
+
+function toSafeNumber(value: unknown, fallback = 0) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : fallback;
+}
+
+function formatMoney(value: number) {
+  return moneyFormatter.format(toSafeNumber(value));
+}
+
+function formatNumber(value: number) {
+  return numberFormatter.format(toSafeNumber(value));
+}
+
+function buildSpaOrderLine(item: GroomingOrderItem, index: number): SpaServiceLine {
+  const quantity = Math.max(1, toSafeNumber(item.quantity, 1));
+  const unitPrice = toSafeNumber(item.unitPrice);
+  const lineDiscount = toSafeNumber(item.discountItem);
+  return {
+    key: item.id ?? `order-${index}`,
+    role: getOrderItemServiceRole(item),
+    source: "order",
+    name: item.description?.trim() || "Dịch vụ",
+    quantity,
+    unitPrice,
+    lineDiscount,
+    lineTotal: unitPrice * quantity - lineDiscount,
+  };
+}
+
+function buildSpaExtraLine(
+  service: SpaExtraServiceLine,
+  index: number,
+  source: SpaServiceLineSource,
+): SpaServiceLine {
+  const quantity = Math.max(1, toSafeNumber(service.quantity, 1));
+  const unitPrice = toSafeNumber(service.price);
+  const lineDiscount = toSafeNumber(service.discountItem);
+  return {
+    key: service.orderItemId ?? service.pricingRuleId ?? `${source}-extra-${index}-${service.name}`,
+    role: "EXTRA",
+    source,
+    name: service.name?.trim() || "Dịch vụ phụ",
+    quantity,
+    unitPrice,
+    lineDiscount,
+    lineTotal: toSafeNumber(service.total, unitPrice * quantity - lineDiscount),
+    pricingRuleId: service.pricingRuleId,
+  };
+}
+
+function buildSpaMainSnapshotLine(
+  snapshot: GroomingSessionPricingSnapshot,
+  fallbackName?: string,
+  fallbackPrice?: number,
+): SpaServiceLine | null {
+  const mainService = snapshot.mainService ?? null;
+  const quantity = Math.max(1, toSafeNumber(mainService?.quantity, 1));
+  const unitPrice = toSafeNumber(mainService?.price, toSafeNumber(snapshot.mainPrice, toSafeNumber(fallbackPrice)));
+  const lineDiscount = toSafeNumber(mainService?.discountItem);
+  const name =
+    mainService?.name?.trim()
+    || mainService?.packageCode?.trim()
+    || snapshot.packageCode?.trim()
+    || fallbackName?.trim()
+    || (unitPrice > 0 ? "Dịch vụ chính" : "");
+
+  if (!name) return null;
+
+  return {
+    key: `main-${snapshot.packageCode ?? fallbackName ?? "service"}`,
+    role: "MAIN",
+    source: "snapshot",
+    name,
+    quantity,
+    unitPrice,
+    lineDiscount,
+    lineTotal: toSafeNumber(mainService?.total, unitPrice * quantity - lineDiscount),
+  };
+}
+
+function buildSpaDraftMainLine(packageName: string, price?: number): SpaServiceLine | null {
+  const unitPrice = toSafeNumber(price);
+  const trimmedName = packageName.trim();
+  const name = trimmedName || (unitPrice > 0 ? "Dịch vụ chính" : "");
+  if (!name) return null;
+
+  return {
+    key: `draft-main-${trimmedName || unitPrice}`,
+    role: "MAIN",
+    source: "draft",
+    name,
+    quantity: 1,
+    unitPrice,
+    lineDiscount: 0,
+    lineTotal: unitPrice,
+  };
+}
+
+function buildServiceMeta(line: SpaServiceLine) {
+  const base = `${formatNumber(line.unitPrice)} x ${line.quantity}`;
+  return line.lineDiscount > 0 ? `${base} - CK ${formatNumber(line.lineDiscount)}` : base;
+}
+
+function SpaServiceLineRow({
+  line,
+  index,
+  disabled = false,
+  onQuantityChange,
+  onRemove,
+}: {
+  line: SpaServiceLine;
+  index: number;
+  disabled?: boolean;
+  onQuantityChange?: (quantity: number) => void;
+  onRemove?: () => void;
+}) {
+  const isEditable = Boolean(onQuantityChange || onRemove);
+
+  if (isEditable) {
+    return (
+      <div className="grid grid-cols-[minmax(0,1fr)_88px_112px_32px] items-center gap-2 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2">
+        <div className="min-w-0 flex items-center gap-2">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-[10px] font-bold text-primary-500">
+            {index}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">{line.name}</p>
+            <p className="text-[11px] text-foreground-muted">
+              {formatNumber(line.unitPrice)} / lần
+              {line.lineDiscount > 0 ? ` • CK ${formatNumber(line.lineDiscount)}` : ""}
+            </p>
+          </div>
+        </div>
+        <input
+          type="number"
+          min={1}
+          value={line.quantity}
+          disabled={disabled || !onQuantityChange}
+          onChange={(event) => onQuantityChange?.(Number(event.target.value))}
+          className="h-9 rounded-lg border border-border bg-background-secondary px-2 text-sm text-foreground outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        <div className="text-right text-xs font-semibold text-foreground">
+          {formatMoney(line.lineTotal)}
+        </div>
+        <button
+          type="button"
+          disabled={disabled || !onRemove}
+          onClick={onRemove}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-error transition-colors hover:bg-error/10 disabled:opacity-50"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-[10px] font-bold text-primary-500">
+          {index}
+        </span>
+        <div className="min-w-0">
+          <span className="truncate text-sm font-medium text-foreground">{line.name}</span>
+          <p className="mt-0.5 text-[11px] text-foreground-muted">{buildServiceMeta(line)}</p>
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <span className="text-xs font-semibold text-foreground">{formatMoney(line.lineTotal)}</span>
+      </div>
+    </div>
+  );
 }
 
 function isCommonSpaExtraRule(rule: SpaPriceRule, petWeight?: number | null) {
@@ -226,16 +428,29 @@ export function GroomingSessionDialog({
   const watchSurcharge = watch("surcharge");
 
   const linkedOrderItems = activeSession?.orderItems ?? [];
+  const linkedSessionSnapshot = getLinkedSessionSnapshot(activeSession);
+  const snapshotExtraServices = getSessionExtraServices(activeSession);
   const isLinkedToOrder = isEditing && Boolean(activeSession?.orderId || activeSession?.order || linkedOrderItems.length > 0);
-  const linkedMainOrderItems = linkedOrderItems.filter((item) => getOrderItemServiceRole(item) !== "EXTRA");
-  const linkedExtraOrderItems = linkedOrderItems.filter((item) => getOrderItemServiceRole(item) === "EXTRA");
-  const linkedOrderBaseAmount = linkedOrderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  const linkedOrderDiscount = linkedOrderItems.reduce((sum, item) => sum + (item.discountItem ?? 0), 0);
-  const linkedOrderTotal = Math.max(0, linkedOrderBaseAmount - linkedOrderDiscount);
-  const standaloneExtraTotal = selectedExtraServices.reduce((sum, item) => sum + Number(item.price ?? 0) * Number(item.quantity ?? 1), 0);
-  const standaloneTotal = Number(watchPrice ?? 0) + standaloneExtraTotal + Number(watchSurcharge ?? 0);
-  const displayedPrice = isLinkedToOrder ? linkedMainOrderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) : watchPrice;
-  const displayedAdjustment = isLinkedToOrder ? linkedOrderDiscount : watchSurcharge;
+  const linkedOrderLines = linkedOrderItems.map((item, index) => buildSpaOrderLine(item, index));
+  const linkedMainOrderItems = linkedOrderLines.filter((item) => item.role === "MAIN");
+  const linkedExtraOrderItems = linkedOrderLines.filter((item) => item.role === "EXTRA");
+  const linkedMainBaseAmount = linkedMainOrderItems.length > 0
+    ? linkedMainOrderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+    : Number(linkedSessionSnapshot.mainService?.price ?? linkedSessionSnapshot.mainPrice ?? 0)
+      * Number(linkedSessionSnapshot.mainService?.quantity ?? 1);
+  const linkedExtraBaseAmount = linkedExtraOrderItems.length > 0
+    ? linkedExtraOrderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+    : Number(linkedSessionSnapshot.extraTotal ?? 0);
+  const linkedOrderBaseAmount = linkedMainBaseAmount + linkedExtraBaseAmount;
+  const linkedOrderDiscount = linkedOrderItems.length > 0
+    ? linkedOrderItems.reduce((sum, item) => sum + (item.discountItem ?? 0), 0)
+    : Number(linkedSessionSnapshot.discountAmount ?? linkedSessionSnapshot.mainService?.discountItem ?? 0);
+  const linkedOrderTotal = Math.max(
+    0,
+    linkedOrderItems.length > 0
+      ? linkedOrderBaseAmount - linkedOrderDiscount
+      : Number(linkedSessionSnapshot.totalPrice ?? linkedSessionSnapshot.totalAmount ?? (linkedOrderBaseAmount - linkedOrderDiscount)),
+  );
 
   // Derive species from selected pet (create mode) or existing session (detail mode)
   const selectedPetSpecies =
@@ -262,11 +477,43 @@ export function GroomingSessionDialog({
     staleTime: 30_000,
   });
   const availableExtraRules = (spaExtraRulesQuery.data ?? []).filter((rule) => isCommonSpaExtraRule(rule, selectedPetWeight));
+  const selectedPackageLabel =
+    availablePackages.find((pkg: { code: string; label: string }) => pkg.code === watchPackageCode)?.label
+    ?? watchPackageCode
+    ?? "";
+  const standaloneMainLine = buildSpaDraftMainLine(selectedPackageLabel, watchPrice);
+  const standaloneExtraLines = selectedExtraServices.map((service, index) => buildSpaExtraLine(service, index, "draft"));
+  const snapshotMainLine = buildSpaMainSnapshotLine(linkedSessionSnapshot, activeSession?.packageCode ?? undefined, activeSession?.price ?? undefined);
+  const snapshotExtraLines = snapshotExtraServices.map((service, index) => buildSpaExtraLine(service, index, "snapshot"));
+  const spaServiceLines = isLinkedToOrder
+    ? (linkedOrderLines.length > 0
+      ? linkedOrderLines
+      : [
+        ...(snapshotMainLine ? [snapshotMainLine] : []),
+        ...snapshotExtraLines,
+      ])
+    : [
+      ...(standaloneMainLine ? [standaloneMainLine] : []),
+      ...standaloneExtraLines,
+    ];
+  const mainServiceLines = spaServiceLines.filter((line) => line.role === "MAIN");
+  const extraServiceLines = spaServiceLines.filter((line) => line.role === "EXTRA");
+  const hasMultipleMainServices = mainServiceLines.length > 1;
+  const serviceSubtotal = spaServiceLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+  const serviceLineDiscount = spaServiceLines.reduce((sum, line) => sum + line.lineDiscount, 0);
+  const standaloneAdjustment = toSafeNumber(watchSurcharge);
+  const serviceSummaryDiscount = isLinkedToOrder ? linkedOrderDiscount : serviceLineDiscount;
+  const serviceSummaryTotal = isLinkedToOrder
+    ? linkedOrderTotal
+    : Math.max(0, serviceSubtotal - serviceLineDiscount + standaloneAdjustment);
+  const standaloneTotal = serviceSummaryTotal;
+  const displayedPrice = isLinkedToOrder ? linkedMainBaseAmount : watchPrice;
+  const displayedAdjustment = isLinkedToOrder ? linkedOrderDiscount : watchSurcharge;
 
   useEffect(() => {
     if (isOpen) {
       if (mode === "detail" && activeSession) {
-        const activeSnapshot = (activeSession.pricingSnapshot ?? {}) as Record<string, any>;
+        const activeSnapshot = getLinkedSessionSnapshot(activeSession);
         const activeExtraServices = getSessionExtraServices(activeSession);
         reset({
           petId: activeSession.petId,
@@ -275,7 +522,7 @@ export function GroomingSessionDialog({
           startTime: toDateTimeLocalValue(activeSession.startTime),
           endTime: toDateTimeLocalValue(activeSession.endTime),
           notes: activeSession.notes ?? "",
-          price: isLinkedToOrder ? linkedOrderBaseAmount : activeSnapshot.mainPrice ?? activeSession.price ?? undefined,
+          price: isLinkedToOrder ? linkedMainBaseAmount : activeSnapshot.mainPrice ?? activeSession.price ?? undefined,
           surcharge: isLinkedToOrder ? linkedOrderDiscount : activeSession.surcharge ?? undefined,
           packageCode: activeSession.packageCode ?? "",
           status: activeSession.status,
@@ -300,7 +547,7 @@ export function GroomingSessionDialog({
         setSelectedExtraServices([]);
       }
     }
-  }, [isOpen, mode, activeSession, reset, activeBranchId, isLinkedToOrder, linkedOrderBaseAmount, linkedOrderDiscount]);
+  }, [isOpen, mode, activeSession, reset, activeBranchId, isLinkedToOrder, linkedMainBaseAmount, linkedOrderDiscount]);
 
   const calculateMutation = useMutation({
     mutationFn: async () => {
@@ -671,7 +918,7 @@ export function GroomingSessionDialog({
                           </label>
                         )}
 
-                        <label className="space-y-2 col-span-1">
+                        <label className="space-y-2 col-span-1" hidden={isLinkedToOrder}>
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                             Mã gói / Package
                           </span>
@@ -743,7 +990,7 @@ export function GroomingSessionDialog({
                           </div>
                         </div>
 
-                        <label className="space-y-2 col-span-1">
+                        <label className="space-y-2 col-span-1" hidden={isLinkedToOrder}>
                           <div className="flex items-center justify-between">
                             <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                               <Tag size={14} /> Giá dịch vụ
@@ -775,7 +1022,7 @@ export function GroomingSessionDialog({
                           {errors.price && <p className="text-xs text-error">{errors.price.message}</p>}
                         </label>
 
-                        <label className="space-y-2 col-span-1">
+                        <label className="space-y-2 col-span-1" hidden={isLinkedToOrder}>
                           <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                             <Coins size={14} /> {isLinkedToOrder ? "Chiết khấu" : "Phụ phí"}
                           </span>
@@ -794,7 +1041,82 @@ export function GroomingSessionDialog({
                           {errors.surcharge && <p className="text-xs text-error">{errors.surcharge.message}</p>}
                         </label>
 
-                        {isLinkedToOrder && (
+                        <div className="sm:col-span-2 space-y-3 rounded-xl border border-primary-500/20 bg-primary-500/5 px-4 py-3">
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-sm font-medium text-foreground-muted">Chi tiáº¿t phiáº¿u</span>
+                            <span className="text-[11px] italic text-foreground-muted">
+                              {isLinkedToOrder ? "Chá»‰ xem â€” sá»­a dá»‹ch vá»¥ táº¡i Ä‘Æ¡n POS" : "Cáº­p nháº­t tá»± Ä‘á»™ng theo phiáº¿u"}
+                            </span>
+                          </div>
+
+                          {spaServiceLines.length > 0 ? (
+                            <div className="space-y-3">
+                              {mainServiceLines.length > 0 ? (
+                                <div className="space-y-2">
+                                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Dá»‹ch vá»¥ chÃ­nh</p>
+                                  {mainServiceLines.map((line, idx) => (
+                                    <SpaServiceLineRow key={line.key} line={line} index={idx + 1} />
+                                  ))}
+                                </div>
+                              ) : null}
+
+                              {extraServiceLines.length > 0 ? (
+                                <div className="space-y-2">
+                                  <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Dá»‹ch vá»¥ phá»¥</p>
+                                  {extraServiceLines.map((line, idx) => (
+                                    <SpaServiceLineRow
+                                      key={line.key}
+                                      line={line}
+                                      index={idx + 1}
+                                      disabled={!canUpdateSession}
+                                      onQuantityChange={!isLinkedToOrder && line.source === "draft"
+                                        ? (quantity) => updateExtraQuantity(line.pricingRuleId, quantity)
+                                        : undefined}
+                                      onRemove={!isLinkedToOrder && line.source === "draft"
+                                        ? () => removeExtraService(line.pricingRuleId)
+                                        : undefined}
+                                    />
+                                  ))}
+                                </div>
+                              ) : null}
+
+                              {hasMultipleMainServices ? (
+                                <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+                                  Phiáº¿u nÃ y Ä‘ang cÃ³ nhiá»u dÃ²ng dá»‹ch vá»¥ chÃ­nh tá»« dá»¯ liá»‡u Ä‘Æ¡n cÅ©. Há»‡ thá»‘ng hiá»‡n thá»‹ táº¥t cáº£ Ä‘á»ƒ trÃ¡nh máº¥t thÃ´ng tin.
+                                </p>
+                              ) : null}
+
+                              <div className="rounded-xl border border-primary-500/10 bg-background-base/40 px-4 py-3">
+                                <div className="flex items-center justify-between gap-4 text-sm">
+                                  <span className="text-foreground-muted">Táº¡m tÃ­nh dá»‹ch vá»¥</span>
+                                  <span className="font-medium text-foreground">{formatMoney(serviceSubtotal)}</span>
+                                </div>
+                                {serviceSummaryDiscount > 0 ? (
+                                  <div className="mt-2 flex items-center justify-between gap-4 text-sm">
+                                    <span className="text-foreground-muted">Chiáº¿t kháº¥u</span>
+                                    <span className="font-medium text-foreground">-{formatMoney(serviceSummaryDiscount)}</span>
+                                  </div>
+                                ) : null}
+                                {!isLinkedToOrder && standaloneAdjustment > 0 ? (
+                                  <div className="mt-2 flex items-center justify-between gap-4 text-sm">
+                                    <span className="text-foreground-muted">Phá»¥ phÃ­</span>
+                                    <span className="font-medium text-foreground">{formatMoney(standaloneAdjustment)}</span>
+                                  </div>
+                                ) : null}
+                                <div className="mt-3 flex items-center justify-between gap-4 border-t border-primary-500/10 pt-3">
+                                  <span className="text-sm font-medium text-foreground-muted">Tá»•ng phiáº¿u</span>
+                                  <span className="text-base font-semibold text-foreground">{formatMoney(serviceSummaryTotal)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-border px-4 py-4 text-center text-sm text-foreground-muted">
+                              {isLinkedToOrder ? "ChÆ°a Ä‘á»“ng bá»™ Ä‘Æ°á»£c dÃ²ng dá»‹ch vá»¥ tá»« Ä‘Æ¡n POS." : "ChÆ°a cÃ³ dá»‹ch vá»¥ nÃ o trÃªn phiáº¿u."}
+                            </div>
+                          )}
+                        </div>
+
+                        {false && isLinkedToOrder && (
                           <div className="sm:col-span-2 rounded-xl border border-primary-500/20 bg-primary-500/5 px-4 py-3">
                             <div className="flex items-center justify-between gap-4">
                               <span className="text-sm font-medium text-foreground-muted">Thành tiền</span>
@@ -824,7 +1146,7 @@ export function GroomingSessionDialog({
                 )}
 
                 {/* Section: Dịch vụ từ POS — read-only, POS is source of truth */}
-                {isLinkedToOrder && linkedOrderItems.length > 0 && (
+                {false && isLinkedToOrder && linkedOrderItems.length > 0 && (
                   <section className="rounded-2xl border border-primary-500/20 bg-primary-500/5 p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-500 flex items-center gap-2">
@@ -935,7 +1257,7 @@ export function GroomingSessionDialog({
                       </div>
                     )}
 
-                    {selectedExtraServices.length > 0 ? (
+                    {selectedExtraServices.length > 0 && spaServiceLines.length < 0 ? (
                       <div className="space-y-2 pt-2">
                         {selectedExtraServices.map((service) => (
                           <div key={service.pricingRuleId ?? service.name} className="grid grid-cols-[1fr_90px_110px_32px] items-center gap-2 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2">

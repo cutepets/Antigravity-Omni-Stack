@@ -55,6 +55,30 @@ export interface SpaExtraServiceLine {
   total?: number;
 }
 
+export interface GroomingSessionPricingSnapshot {
+  source?: string;
+  packageCode?: string | null;
+  mainPrice?: number | null;
+  extraTotal?: number | null;
+  totalPrice?: number | null;
+  totalAmount?: number | null;
+  grossAmount?: number | null;
+  discountAmount?: number | null;
+  weightBandLabel?: string | null;
+  mainService?: {
+    orderItemId?: string | null;
+    name?: string | null;
+    price?: number | null;
+    quantity?: number | null;
+    discountItem?: number | null;
+    serviceId?: string | null;
+    packageCode?: string | null;
+    total?: number | null;
+  } | null;
+  extraServices?: SpaExtraServiceLine[];
+  [key: string]: unknown;
+}
+
 export interface GroomingTimelineEntry {
   id: string;
   action: string;
@@ -85,7 +109,7 @@ export interface GroomingSession {
   weightAtBooking?: number | null;
   weightBandId?: string | null;
   weightBand?: { id: string; label: string } | null;
-  pricingSnapshot?: Record<string, unknown> | null;
+  pricingSnapshot?: GroomingSessionPricingSnapshot | null;
   extraServices?: SpaExtraServiceLine[];
   createdAt: string;
   updatedAt?: string;

@@ -58,6 +58,7 @@ interface OrderTopBarProps {
   // Customer section props (passed down to OrderCustomerSection in TopBar)
   customerId?: string
   customerName?: string
+  cartItems?: any[]
   onRemoveCustomer: () => void
   onSelectSuggestedService?: (service: any, petId: string, petName?: string) => void
   onOpenPay: () => void
@@ -119,6 +120,7 @@ export function OrderTopBar({
   onOpenPay,
   customerId,
   customerName,
+  cartItems,
   onRemoveCustomer,
   onSelectSuggestedService,
 
@@ -141,6 +143,7 @@ export function OrderTopBar({
         <OrderCustomerSection
           customerId={customerId}
           customerName={customerName}
+          cartItems={cartItems}
           isEditing={isEditing}
           onSelectCustomer={(id, name) => onSelectCustomer({ id, fullName: name })}
           onRemoveCustomer={onRemoveCustomer}

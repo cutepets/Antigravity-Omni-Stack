@@ -124,6 +124,7 @@ export interface UnifiedPetProfileProps {
   ownerName?: string;
   onClose: () => void;
   onSelectService?: (service: any, petId: string, petName?: string) => void;
+  cartItemsOverride?: any[];
   hideSuggestions?: boolean; // Flag to hide the suggestions tab in CRM
   mode?: 'pos' | 'crm';
 }
@@ -134,6 +135,7 @@ export function UnifiedPetProfile({
   ownerName,
   onClose,
   onSelectService,
+  cartItemsOverride,
   hideSuggestions = false,
   mode = 'crm',
 }: UnifiedPetProfileProps) {
@@ -161,10 +163,10 @@ export function UnifiedPetProfile({
   });
 
   const posActiveTab = usePosStore((state) => state.tabs.find((t) => t.id === state.activeTabId));
-  const cartItems = mode === 'pos' ? posActiveTab?.cart ?? [] : [];
+  const cartItems = cartItemsOverride ?? (mode === 'pos' ? posActiveTab?.cart ?? [] : []);
 
-  const isInCart = (service: any) =>
-    cartItems.some(
+  const getCartMatchesCount = (service: any) =>
+    cartItems.filter(
       (item) => item.petId === petId && (
         item.serviceId === service.id ||
         (item.sku && service.sku && item.sku === service.sku) ||
@@ -174,7 +176,7 @@ export function UnifiedPetProfile({
           item.type === 'service'
         ))
       )
-    );
+    ).length;
 
   const pet = petQuery.data as PetProfile | undefined;
   const pricingSuggestionsQuery = usePetPricingSuggestions(pet);
@@ -231,8 +233,11 @@ export function UnifiedPetProfile({
     service.suggestionGroup === 'OTHER' ||
     service.serviceRole === 'EXTRA' ||
     service.isSpaExtraService === true;
+  const isInCart = (service: any) => getCartMatchesCount(service) > 0;
+  const canSelectSuggestedService = (service: any) =>
+    Boolean(onSelectService) && (!isInCart(service) || isOtherSuggestedService(service));
   const primarySuggestedServices = allSuggestedServices.filter((service: any) => !isOtherSuggestedService(service)).slice(0, 20);
-  const otherSuggestedServices = allSuggestedServices.filter(isOtherSuggestedService).slice(0, 20);
+  const otherSuggestedServices = allSuggestedServices.filter(isOtherSuggestedService);
   const suggestedServices = [...primarySuggestedServices, ...otherSuggestedServices];
 
   if (!isOpen || !petId) return null;
@@ -287,8 +292,8 @@ export function UnifiedPetProfile({
   const renderSuggestedServiceCard = (service: any) => (
     <div
       key={service.id}
-      onClick={() => !isInCart(service) && onSelectService?.(service, pet!.id, pet!.name)}
-      className={`group relative flex ${!isInCart(service) && onSelectService ? 'cursor-pointer hover:bg-background' : ''} ${isInCart(service) ? 'ring-2 ring-[#0089A1] bg-[#0089A1]/10' : 'bg-background-secondary'} flex-col justify-between rounded-xl p-4 transition-colors`}
+      onClick={() => canSelectSuggestedService(service) && onSelectService?.(service, pet!.id, pet!.name)}
+      className={`group relative flex ${canSelectSuggestedService(service) ? 'cursor-pointer hover:bg-background' : ''} ${isInCart(service) ? 'ring-2 ring-[#0089A1] bg-[#0089A1]/10' : 'bg-background-secondary'} flex-col justify-between rounded-xl p-4 transition-colors`}
     >
       {isInCart(service) && (
         <div className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0089A1] shadow-sm">
@@ -630,11 +635,8 @@ export function UnifiedPetProfile({
                   {primarySuggestedServices.length > 0 ? (
                     <div className="space-y-3">
                       {otherSuggestedServices.length > 0 ? (
-                        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background-secondary/60 px-4 py-3">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">Dịch vụ chính</p>
-                            <p className="mt-1 text-xs text-foreground-muted">Các dịch vụ đang đi theo bảng giá chính của pet.</p>
-                          </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-foreground-muted">Dịch vụ chính</p>
                         </div>
                       ) : null}
                       <div className="grid gap-3 xl:grid-cols-2">
@@ -645,11 +647,8 @@ export function UnifiedPetProfile({
 
                   {otherSuggestedServices.length > 0 ? (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background-secondary/60 px-4 py-3">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">Dịch vụ khác</p>
-                          <p className="mt-1 text-xs text-foreground-muted">Các dịch vụ SPA / Grooming dùng chung, tách riêng để dễ chọn hơn.</p>
-                        </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-foreground-muted">Dịch vụ khác</p>
                       </div>
                       <div className="grid gap-3 xl:grid-cols-2">
                         {otherSuggestedServices.map(renderSuggestedServiceCard)}
@@ -661,8 +660,8 @@ export function UnifiedPetProfile({
                     {suggestedServices.map((service: any) => (
                       <div
                         key={service.id}
-                        onClick={() => !isInCart(service) && onSelectService?.(service, pet.id, pet.name)}
-                        className={`group relative flex ${!isInCart(service) && onSelectService ? 'cursor-pointer hover:bg-background' : ''} ${isInCart(service) ? 'ring-2 ring-[#0089A1] bg-[#0089A1]/10' : 'bg-background-secondary'} flex-col justify-between rounded-xl p-4 transition-colors`}
+                        onClick={() => canSelectSuggestedService(service) && onSelectService?.(service, pet.id, pet.name)}
+                        className={`group relative flex ${canSelectSuggestedService(service) ? 'cursor-pointer hover:bg-background' : ''} ${isInCart(service) ? 'ring-2 ring-[#0089A1] bg-[#0089A1]/10' : 'bg-background-secondary'} flex-col justify-between rounded-xl p-4 transition-colors`}
                       >
                         {isInCart(service) && (
                           <div className="absolute top-2 right-2 w-5 h-5 bg-[#0089A1] rounded-full flex items-center justify-center shadow-sm">

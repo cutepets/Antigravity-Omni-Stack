@@ -200,6 +200,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
         onOpenPos={workspace.handleGoPos}
         customerId={workspace.draft.customerId}
         customerName={workspace.draft.customerName}
+        cartItems={workspace.draft.items}
         onRemoveCustomer={workspace.handleClearCustomer}
         onSelectSuggestedService={workspace.addCatalogItem}
       />

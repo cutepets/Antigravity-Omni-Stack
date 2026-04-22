@@ -3,6 +3,11 @@ import { NotFoundException } from '@nestjs/common'
 import { DatabaseService } from '../../../../../database/database.service.js'
 import { assertBranchAccess, type BranchScopedUser } from '../../../../../common/utils/branch-scope.util.js'
 import { FindGroomingQuery } from './find-grooming.query.js'
+import {
+    groomingOrderInclude,
+    groomingOrderItemsInclude,
+    mapGroomingSessionResult,
+} from '../grooming-query-result.js'
 
 const fullSessionInclude = {
     pet: {
@@ -13,13 +18,9 @@ const fullSessionInclude = {
     },
     staff: { select: { id: true, fullName: true, avatar: true } },
     assignedStaff: { select: { id: true, fullName: true, avatar: true } },
-    order: {
-        select: {
-            id: true, orderNumber: true, status: true, paymentStatus: true,
-            total: true, paidAmount: true, remainingAmount: true,
-        },
-    },
+    order: groomingOrderInclude,
     branch: { select: { id: true, name: true, code: true } },
+    orderItems: groomingOrderItemsInclude,
     timeline: {
         include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
         orderBy: { createdAt: 'desc' as const },
@@ -46,6 +47,6 @@ export class FindGroomingHandler implements IQueryHandler<FindGroomingQuery> {
         if (!session) throw new NotFoundException('Không tìm thấy phiên grooming')
         assertBranchAccess(session.branchId, user)
 
-        return { success: true, data: session }
+        return { success: true, data: mapGroomingSessionResult(session) }
     }
 }

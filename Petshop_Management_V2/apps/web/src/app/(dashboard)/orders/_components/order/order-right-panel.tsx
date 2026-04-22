@@ -137,6 +137,17 @@ function shouldHideHistoryPart(part: string) {
   return normalizeSearchText(part).startsWith('xuat kho luc')
 }
 
+function getHistoryActionLabel(entry: any) {
+  if (entry?.action !== 'ITEM_SWAPPED') {
+    return ORDER_ACTION_LABELS[entry?.action] ?? entry?.action
+  }
+
+  const normalizedNote = normalizeSearchText(String(entry?.note ?? ''))
+  if (normalizedNote.includes('goi spa')) return 'Đổi gói dịch vụ'
+  if (normalizedNote.includes('sp tam')) return 'Đổi sản phẩm tạm'
+  return 'Đổi sản phẩm / dịch vụ'
+}
+
 function renderHistoryNote(entry: any, note: string) {
   if (!note) return null
 
@@ -215,7 +226,7 @@ function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatu
                     <div>
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="text-sm font-semibold leading-snug text-foreground">
-                          {ORDER_ACTION_LABELS[entry.action] ?? entry.action}
+                          {getHistoryActionLabel(entry)}
                           {actorName ? (
                             <span className="ml-1.5 text-xs font-normal text-foreground-muted">{actorName}</span>
                           ) : null}

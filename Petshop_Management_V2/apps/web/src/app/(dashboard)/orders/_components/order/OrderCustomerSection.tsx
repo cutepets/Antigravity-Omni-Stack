@@ -22,6 +22,7 @@ export type { }
 type Props = {
     customerId?: string
     customerName?: string
+    cartItems?: any[]
     isEditing: boolean
     onSelectCustomer: (id: string, name: string) => void
     onRemoveCustomer: () => void
@@ -32,6 +33,7 @@ type Props = {
 export function OrderCustomerSection({
     customerId,
     customerName,
+    cartItems,
     isEditing,
     onSelectCustomer,
     onRemoveCustomer,
@@ -298,6 +300,7 @@ export function OrderCustomerSection({
                     ownerName={customerDetail.fullName}
                     onClose={() => setSelectedPetId(null)}
                     onSelectService={handleSelectService}
+                    cartItemsOverride={cartItems}
                     mode="pos"
                 />,
                 document.body

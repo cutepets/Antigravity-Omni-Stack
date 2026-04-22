@@ -125,7 +125,7 @@ function normalizeSpaSkuText(value?: string | null) {
   return String(value ?? '')
     .trim()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .toUpperCase();
 }
 
@@ -173,7 +173,7 @@ function normalizeSpeciesKey(value?: string | null) {
   const normalized = String(value ?? '')
     .trim()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .toLowerCase();
 
   if (!normalized) return '';
@@ -464,7 +464,7 @@ export class OrdersService {
   private sanitizeTransferContentPart(value: string | null | undefined, maxLength: number) {
     return String(value ?? '')
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[̀-ͯ]/g, '')
       .trim()
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, '')
@@ -3694,9 +3694,9 @@ export class OrdersService {
   }
 
   // â”€â”€â”€ createReturnRequest â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // T\u1ea1o y\u00eau c\u1ea7u \u0111\u1ed5i tr\u1ea3 h\u00e0ng t\u1eeb \u0111\u01a1n \u0111\u00e3 ho\u00e0n th\u00e0nh.
-  // - items c\u00f3 action=RETURN: ghi nh\u1eadn tr\u1ea3 h\u00e0ng, t\u00ednh ti\u1ec1n ho\u00e0n
-  // - items c\u00f3 action=EXCHANGE: t\u1ea1o \u0111\u01a1n m\u1edbi v\u1edbi credit pre-applied (\u0111\u1ec3 staff th\u00eam s\u1ea3n ph\u1ea9m v\u00e0o)
+  // Tạo yêu cầu đổi trả hàng từ đơn đã hoàn thành.
+  // - items có action=RETURN: ghi nhận trả hàng, tính tiền hoàn
+  // - items có action=EXCHANGE: tạo đơn mới với credit pre-applied (để staff thêm sản phẩm vào)
   async swapGroomingService(
     orderId: string,
     itemId: string,
@@ -3980,27 +3980,27 @@ export class OrdersService {
       where: { OR: [{ id: orderId }, { orderNumber: orderId }] },
       include: { items: true, customer: true, branch: true },
     });
-    if (!order) throw new NotFoundException('Kh\u00f4ng t\u00ecm th\u1ea5y \u0111\u01a1n h\u00e0ng');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     this.assertOrderScope(order, user);
     orderId = order.id;
 
     if (order.status !== 'COMPLETED') {
-      throw new BadRequestException('Ch\u1ec9 c\u00f3 th\u1ec3 \u0111\u1ed5i/tr\u1ea3 h\u00e0ng cho \u0111\u01a1n \u0111\u00e3 ho\u00e0n th\u00e0nh');
+      throw new BadRequestException('Chỉ có thể đổi/trả hàng cho đơn đã hoàn thành');
     }
 
     if (!dto.items || dto.items.length === 0) {
-      throw new BadRequestException('Ph\u1ea3i ch\u1ecdn \u00edt nh\u1ea5t m\u1ed9t s\u1ea3n ph\u1ea9m \u0111\u1ed5i/tr\u1ea3');
+      throw new BadRequestException('Phải chọn ít nhất một sản phẩm đổi/trả');
     }
 
     // Validate items belong to the order
     const orderItemMap = new Map(order.items.map((item: any) => [item.id, item]));
     for (const reqItem of dto.items) {
       if (!orderItemMap.has(reqItem.orderItemId)) {
-        throw new BadRequestException(`S\u1ea3n ph\u1ea9m ${reqItem.orderItemId} kh\u00f4ng thu\u1ed9c \u0111\u01a1n n\u00e0y`);
+        throw new BadRequestException(`Sản phẩm ${reqItem.orderItemId} không thuộc đơn này`);
       }
       const orderItem = orderItemMap.get(reqItem.orderItemId) as any;
       if (reqItem.quantity > orderItem.quantity) {
-        throw new BadRequestException(`S\u1ed1 l\u01b0\u1ee3ng tr\u1ea3 kh\u00f4ng th\u1ec3 v\u01b0\u1ee3t qu\u00e1 s\u1ed1 l\u01b0\u1ee3ng \u0111\u00e3 mua (${orderItem.quantity})`);
+        throw new BadRequestException(`Số lượng trả không thể vượt quá số lượng đã mua (${orderItem.quantity})`);
       }
     }
 
@@ -4021,7 +4021,7 @@ export class OrdersService {
     const itemSummary = dto.items
       .map((item) => {
         const oi = orderItemMap.get(item.orderItemId) as any;
-        const action = item.action === 'EXCHANGE' ? '\u0110\u1ed4I' : 'TR\u1ea2';
+        const action = item.action === 'EXCHANGE' ? 'ĐỔI' : 'TRẢ';
         return `${action}: ${oi?.description ?? item.orderItemId} x${item.quantity}`;
       })
       .join(', ');
@@ -4066,9 +4066,9 @@ export class OrdersService {
           action: 'RETURN_REQUESTED',
           fromStatus: 'COMPLETED',
           toStatus: newStatus,
-          note: `\u0110\u1ed5i/tr\u1ea3: ${itemSummary}` +
-            (dto.reason ? ` â€” L\u00fd do: ${dto.reason}` : '') +
-            `. Credit: ${totalCredit.toLocaleString('vi-VN')}\u0111`,
+          note: `Đổi/trả: ${itemSummary}` +
+            (dto.reason ? ` — Lý do: ${dto.reason}` : '') +
+            `. Credit: ${totalCredit.toLocaleString('vi-VN')}đ`,
           performedBy: staffId,
           metadata: {
             returnRequestId: returnRequest.id,
@@ -4101,7 +4101,7 @@ export class OrdersService {
             customerName: (order.customer as any)?.fullName ??
               (order.customer as any)?.name ??
               (order as any).customerName ??
-              'Kh\u00e1ch l\u1ebb',
+              'Khách lẻ',
             staffId,
             branchId: order.branchId ?? null,
             status: 'DRAFT',
@@ -4114,7 +4114,7 @@ export class OrdersService {
             remainingAmount: 0,
             creditAmount: creditForExchange,
             linkedReturnId: returnRequest.id,
-            notes: `\u0110\u01a1n \u0111\u1ed5i h\u00e0ng t\u1eeb #${order.orderNumber}. Credit \u0111\u01b0\u1ee3c \u00e1p d\u1ee5ng: ${creditForExchange.toLocaleString('vi-VN')}\u0111`,
+            notes: `Đơn đổi hàng từ #${order.orderNumber}. Credit được áp dụng: ${creditForExchange.toLocaleString('vi-VN')}đ`,
             createdAt: now,
             updatedAt: now,
           } as any,
@@ -4127,9 +4127,9 @@ export class OrdersService {
               orderId: exchangeOrder.id,
               method: 'ORDER_CREDIT',
               amount: creditForExchange,
-              note: `Credit t\u1eeb \u0111\u01a1n #${order.orderNumber}`,
+              note: `Credit từ đơn #${order.orderNumber}`,
               paymentAccountId: null,
-              paymentAccountLabel: `\u0110\u1ed5i h\u00e0ng t\u1eeb ${order.orderNumber}`,
+              paymentAccountLabel: `Đổi hàng từ ${order.orderNumber}`,
               createdAt: now,
             } as any,
           });
@@ -4141,7 +4141,7 @@ export class OrdersService {
               action: 'CREATED',
               fromStatus: null,
               toStatus: 'DRAFT',
-              note: `\u0110\u01a1n \u0111\u1ed5i h\u00e0ng t\u1eeb #${order.orderNumber}. Credit ${creditForExchange.toLocaleString('vi-VN')}\u0111 \u0111\u00e3 \u0111\u01b0\u1ee3c \u00e1p d\u1ee5ng.`,
+              note: `Đơn đổi hàng từ #${order.orderNumber}. Credit ${creditForExchange.toLocaleString('vi-VN')}đ đã được áp dụng.`,
               performedBy: staffId,
               metadata: {
                 sourceOrderId: orderId,

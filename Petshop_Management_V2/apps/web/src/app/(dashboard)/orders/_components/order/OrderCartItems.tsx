@@ -119,7 +119,7 @@ function SwapActionButton({ onClick }: { onClick: () => void }) {
             className="inline-flex items-center gap-1 rounded-md border border-primary-500/25 bg-primary-500/6 px-2 py-0.5 text-[11px] font-semibold text-primary-600 transition-colors hover:border-primary-500/45 hover:bg-primary-500/10"
         >
             <ArrowLeftRight size={11} />
-            Äá»•i
+            Đổi
         </button>
     )
 }
