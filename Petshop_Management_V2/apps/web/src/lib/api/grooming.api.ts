@@ -26,7 +26,28 @@ export interface GroomingPet {
 export interface GroomingStaff {
   id: string;
   fullName: string;
+  staffCode?: string | null;
   avatar?: string | null;
+}
+
+export interface GroomingOrderItem {
+  id: string;
+  description: string;
+  unitPrice: number;
+  quantity: number;
+  discountItem?: number | null;
+  type?: string | null;
+  serviceId?: string | null;
+}
+
+export interface GroomingTimelineEntry {
+  id: string;
+  action: string;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  note?: string | null;
+  createdAt: string;
+  performedByUser?: GroomingStaff | null;
 }
 
 export interface GroomingSession {
@@ -48,6 +69,7 @@ export interface GroomingSession {
   packageCode?: string | null;
   weightAtBooking?: number | null;
   weightBandId?: string | null;
+  weightBand?: { id: string; label: string } | null;
   pricingSnapshot?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt?: string;
@@ -58,7 +80,14 @@ export interface GroomingSession {
   order?: {
     id: string;
     orderNumber: string;
+    status?: string | null;
+    paymentStatus?: string | null;
+    total?: number | null;
+    paidAmount?: number | null;
+    remainingAmount?: number | null;
   } | null;
+  orderItems?: GroomingOrderItem[];
+  timeline?: GroomingTimelineEntry[];
 }
 
 export interface GetGroomingSessionsParams {

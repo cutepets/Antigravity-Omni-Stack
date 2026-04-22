@@ -45,6 +45,10 @@ export class GroomingDetailsDto {
 
   @IsOptional()
   pricingSnapshot?: Record<string, unknown>;
+
+  @IsDateString()
+  @IsOptional()
+  scheduledDate?: string;
 }
 
 // === Hotel Details ===

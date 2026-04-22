@@ -9,7 +9,6 @@ import {
   CreditCard,
   Loader2,
   Package,
-  PencilLine,
   Save,
   Scissors,
   TriangleAlert,
@@ -131,6 +130,7 @@ export function OrderTopBar({
   onOpenPos,
 }: OrderTopBarProps) {
   const operatorLabel = operatorName
+  const showDetailActionGrid = mode === 'detail' && !isEditing
 
   return (
     <div className="relative z-30 shrink-0 border-b border-border bg-background/80 backdrop-blur-sm">
@@ -250,12 +250,12 @@ export function OrderTopBar({
             </button>
           ) : null}
 
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className={showDetailActionGrid ? 'grid w-full max-w-[320px] grid-cols-2 gap-2' : 'flex flex-wrap justify-end gap-2'}>
             {actionFlags.canPayCurrentOrder ? (
               <button
                 type="button"
                 onClick={onOpenPay}
-                className="btn-primary h-9 px-4 shadow-sm"
+                className="btn-primary order-1 h-9 justify-center px-4 shadow-sm"
               >
                 <CreditCard size={14} />
                 Thu tiền
@@ -267,7 +267,7 @@ export function OrderTopBar({
               <button
                 type="button"
                 onClick={onOpenExportStock}
-                className="btn-primary bg-sky-500 hover:bg-sky-600 text-white h-9 px-4 shadow-sm"
+                className="btn-primary order-2 h-9 justify-center bg-sky-500 px-4 text-white shadow-sm hover:bg-sky-600"
               >
                 <Package size={14} />
                 Xuất kho
@@ -278,7 +278,7 @@ export function OrderTopBar({
               <button
                 type="button"
                 onClick={onOpenSettle}
-                className="btn-outline border-orange-500/30 text-orange-600 hover:bg-orange-500/10 h-9 px-4"
+                className="btn-outline h-9 justify-center border-orange-500/30 px-4 text-orange-600 hover:bg-orange-500/10"
               >
                 <CheckCircle2 size={14} />
                 Quyết toán
@@ -290,7 +290,7 @@ export function OrderTopBar({
               <button
                 type="button"
                 onClick={onOpenReturn}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-amber-500/35 bg-amber-500/12 px-4 text-sm font-semibold text-amber-600 shadow-[0_10px_24px_rgba(245,158,11,0.12)] transition-colors hover:border-amber-400/55 hover:bg-amber-500/20"
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-amber-500/35 bg-amber-500/12 px-4 text-sm font-semibold text-amber-600 shadow-[0_10px_24px_rgba(245,158,11,0.12)] transition-colors hover:border-amber-400/55 hover:bg-amber-500/20"
               >
                 <ArrowLeftRight size={14} />
                 Đổi/trả
@@ -302,7 +302,7 @@ export function OrderTopBar({
                 type="button"
                 onClick={onCancelOrder}
                 disabled={pendingAction}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-500/35 bg-rose-500/12 px-4 text-sm font-semibold text-rose-300 shadow-[0_10px_24px_rgba(244,63,94,0.12)] transition-colors hover:border-rose-400/55 hover:bg-rose-500/20 disabled:opacity-60"
+                className="order-4 inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-rose-500/35 bg-rose-500/12 px-4 text-sm font-semibold text-rose-300 shadow-[0_10px_24px_rgba(244,63,94,0.12)] transition-colors hover:border-rose-400/55 hover:bg-rose-500/20 disabled:opacity-60"
               >
                 <XCircle size={14} />
                 Hủy đơn

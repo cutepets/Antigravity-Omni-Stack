@@ -29,7 +29,7 @@ type CreateOrderPostActionParams = {
 
 type CreateOrderPostActionDeps = {
   handleQuickProductItem: (params: { item: any; orderItem: any; order: CreateOrderPostActionOrder; branchId?: string | null; orderStatus: string; staffId: string }) => Promise<void>
-  syncGroomingSession: (params: { item: any; orderItem: any; order: CreateOrderPostActionOrder; customerId?: string | null; branchId?: string | null }) => Promise<string | null>
+  syncGroomingSession: (params: { item: any; orderItem: any; order: CreateOrderPostActionOrder; customerId?: string | null; branchId?: string | null; staffId?: string | null }) => Promise<string | null>
   syncHotelStay: (params: { item: any; orderItem: any; order: CreateOrderPostActionOrder; customerId?: string | null; branchId?: string | null }) => Promise<string | null>
   syncGroupedHotelStay: (params: { entries: Array<{ item: any; orderItem: any }>; order: CreateOrderPostActionOrder; customerId?: string | null; branchId?: string | null }) => Promise<string[] | void>
   recordInitialPayments: (params: { order: CreateOrderPostActionOrder; normalizedPayments: CreateOrderPostActionParams['normalizedPayments']; notes?: string | null; staffId: string; serviceTraceParts: string[] }) => Promise<void>
@@ -90,6 +90,7 @@ export async function applyCreateOrderPostActions(
         order: params.order,
         customerId: params.customerId ?? null,
         branchId: params.branchId ?? null,
+        staffId: params.staffId,
       })
       if (sessionId) serviceTraceParts.push(`GROOMING_SESSION:${sessionId}`)
     }

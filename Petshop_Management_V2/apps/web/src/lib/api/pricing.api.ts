@@ -34,18 +34,12 @@ export interface HotelPriceRule {
   id: string
   year: number
   species: string | null
-  branchId: string | null
   weightBandId: string
   dayType: PricingDayType
   sku?: string | null
   halfDayPrice: number
   fullDayPrice: number
   isActive: boolean
-  branch?: {
-    id: string
-    code: string
-    name: string
-  } | null
   weightBand?: ServiceWeightBand
 }
 
@@ -96,11 +90,9 @@ export interface HotelRulePayload {
   id?: string
   year: number
   species?: string | null
-  branchId?: string | null
   weightBandId: string
   dayType: PricingDayType
   sku?: string | null
-  halfDayPrice?: number
   fullDayPrice: number
   isActive?: boolean
 }
@@ -132,7 +124,7 @@ export const pricingApi = {
   bulkUpsertSpaRules: (data: { species?: string | null; rules: SpaRulePayload[] }) =>
     api.put<SpaPriceRule[]>('/pricing/spa-rules/bulk', data).then((res) => res.data),
 
-  getHotelRules: (params: { species?: string; year?: number; dayType?: PricingDayType; isActive?: boolean; branchId?: string }) =>
+  getHotelRules: (params: { species?: string; year?: number; dayType?: PricingDayType; isActive?: boolean }) =>
     api.get<HotelPriceRule[]>('/pricing/hotel-rules', { params }).then((res) => res.data),
 
   bulkUpsertHotelRules: (rules: HotelRulePayload[]) =>

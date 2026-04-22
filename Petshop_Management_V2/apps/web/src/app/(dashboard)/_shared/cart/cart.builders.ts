@@ -87,7 +87,11 @@ export function buildDirectServiceCartItem(service: any, petId?: string, petName
 
 export function buildGroomingCartItem(service: any, petId?: string, petName?: string): CartItem {
     const unitPrice = Number(service?.sellingPrice ?? service?.price ?? 0)
-    const packageCode = service?.packageCode ?? inferSpaPackageCodeFromService(service)
+    const packageCode =
+        service?.packageCode ??
+        service?.pricingSnapshot?.packageCode ??
+        service?.pricingRule?.packageCode ??
+        inferSpaPackageCodeFromService(service)
     const petWeight = Number(service?.petSnapshot?.weight ?? Number.NaN)
     const pricingSnapshot =
         service?.pricingSnapshot ??
@@ -98,6 +102,8 @@ export function buildGroomingCartItem(service: any, petId?: string, petName?: st
                 weightBandId: service?.weightBandId ?? null,
                 weightBandLabel: service?.weightBandLabel ?? null,
                 price: unitPrice,
+                serviceName: service?.name ?? null,
+                sku: service?.sku ?? null,
             }
             : undefined)
 

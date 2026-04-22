@@ -56,6 +56,7 @@ type ValidateUploadedFileOptions = {
   allowedExtensions: Set<string>
   maxFileSize: number
   errorMessage: string
+  requireStoredFilename?: boolean
 }
 
 type UploadedFilePathOptions = {
@@ -140,7 +141,7 @@ export function validateUploadedFile(
     throw new BadRequestException(options.errorMessage)
   }
 
-  if (!file.filename) {
+  if (options.requireStoredFilename && !file.filename) {
     throw new BadRequestException('Uploaded file is missing filename metadata')
   }
 }

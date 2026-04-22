@@ -60,6 +60,9 @@ export function OrderCartSection({
                 stock: item.stock ?? undefined,
                 availableStock: item.availableStock ?? undefined,
                 hotelDetails: item.hotelDetails ?? undefined,
+                groomingDetails: item.groomingDetails ?? undefined,
+                // groomingSession: session status từ BE (nếu có)
+                groomingSession: item.groomingSession ?? undefined,
                 // Pass extra fields through for swap badge rendering
                 isTemp: item.isTemp,
                 stockExportedAt: item.stockExportedAt,

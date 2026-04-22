@@ -21,53 +21,53 @@ export const GROOMING_STATUS_ORDER: GroomingStatus[] = [
 ];
 
 export const GROOMING_STATUS_META: Record<GroomingStatus, GroomingStatusMeta> =
-  {
-    BOOKED: {
-      label: "Đặt lịch",
-      columnTitle: "Đặt lịch",
-      icon: CalendarClock,
-      chipClassName: "border-indigo-500/20 bg-indigo-500/10 text-indigo-500",
-      columnClassName: "border-indigo-500/15 bg-indigo-500/[0.04]",
-      headerClassName:
-        "border-b border-indigo-500/10 bg-indigo-500/[0.08] text-indigo-500",
-    },
-    PENDING: {
-      label: "Chờ làm",
-      columnTitle: "Chờ làm",
-      icon: Clock3,
-      chipClassName: "border-amber-500/20 bg-amber-500/10 text-amber-500",
-      columnClassName: "border-amber-500/15 bg-amber-500/[0.04]",
-      headerClassName:
-        "border-b border-amber-500/10 bg-amber-500/[0.08] text-amber-500",
-    },
-    IN_PROGRESS: {
-      label: "Đang làm",
-      columnTitle: "Đang làm",
-      icon: Scissors,
-      chipClassName: "border-sky-500/20 bg-sky-500/10 text-sky-500",
-      columnClassName: "border-sky-500/15 bg-sky-500/[0.04]",
-      headerClassName:
-        "border-b border-sky-500/10 bg-sky-500/[0.08] text-sky-500",
-    },
-    COMPLETED: {
-      label: "Hoàn thành",
-      columnTitle: "Hoàn thành (hôm nay)",
-      icon: CheckCircle2,
-      chipClassName: "border-emerald-500/20 bg-emerald-500/10 text-emerald-500",
-      columnClassName: "border-emerald-500/15 bg-emerald-500/[0.04]",
-      headerClassName:
-        "border-b border-emerald-500/10 bg-emerald-500/[0.08] text-emerald-500",
-    },
-    CANCELLED: {
-      label: "Đã hủy",
-      columnTitle: "Hủy (hôm nay)",
-      icon: XCircle,
-      chipClassName: "border-rose-500/20 bg-rose-500/10 text-rose-500",
-      columnClassName: "border-rose-500/15 bg-rose-500/[0.04]",
-      headerClassName:
-        "border-b border-rose-500/10 bg-rose-500/[0.08] text-rose-500",
-    },
-  };
+{
+  BOOKED: {
+    label: "Đặt lịch",
+    columnTitle: "Đặt lịch",
+    icon: CalendarClock,
+    chipClassName: "border-indigo-500/20 bg-indigo-500/10 text-indigo-500",
+    columnClassName: "border-indigo-500/15 bg-indigo-500/[0.04]",
+    headerClassName:
+      "rounded-t-[28px] border-b border-indigo-500/10 bg-indigo-500/[0.08] text-indigo-500",
+  },
+  PENDING: {
+    label: "Chờ làm",
+    columnTitle: "Chờ làm",
+    icon: Clock3,
+    chipClassName: "border-amber-500/20 bg-amber-500/10 text-amber-500",
+    columnClassName: "border-amber-500/15 bg-amber-500/[0.04]",
+    headerClassName:
+      "rounded-t-[28px] border-b border-amber-500/10 bg-amber-500/[0.08] text-amber-500",
+  },
+  IN_PROGRESS: {
+    label: "Đang làm",
+    columnTitle: "Đang làm",
+    icon: Scissors,
+    chipClassName: "border-sky-500/20 bg-sky-500/10 text-sky-500",
+    columnClassName: "border-sky-500/15 bg-sky-500/[0.04]",
+    headerClassName:
+      "rounded-t-[28px] border-b border-sky-500/10 bg-sky-500/[0.08] text-sky-500",
+  },
+  COMPLETED: {
+    label: "Hoàn thành",
+    columnTitle: "Hoàn thành (hôm nay)",
+    icon: CheckCircle2,
+    chipClassName: "border-emerald-500/20 bg-emerald-500/10 text-emerald-500",
+    columnClassName: "border-emerald-500/15 bg-emerald-500/[0.04]",
+    headerClassName:
+      "rounded-t-[28px] border-b border-emerald-500/10 bg-emerald-500/[0.08] text-emerald-500",
+  },
+  CANCELLED: {
+    label: "Đã hủy",
+    columnTitle: "Hủy (hôm nay)",
+    icon: XCircle,
+    chipClassName: "border-rose-500/20 bg-rose-500/10 text-rose-500",
+    columnClassName: "border-rose-500/15 bg-rose-500/[0.04]",
+    headerClassName:
+      "rounded-t-[28px] border-b border-rose-500/10 bg-rose-500/[0.08] text-rose-500",
+  },
+};
 
 export function formatGroomingMoney(value?: number | null) {
   return `${Math.round(value ?? 0).toLocaleString("vi-VN")}₫`;

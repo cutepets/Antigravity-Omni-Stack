@@ -20,10 +20,6 @@ export class PricingQueryDto {
   @IsIn(['REGULAR', 'HOLIDAY'])
   @IsOptional()
   dayType?: PricingDayType
-
-  @IsString()
-  @IsOptional()
-  branchId?: string
 }
 
 export class UpsertWeightBandDto {
@@ -134,18 +130,10 @@ export class HotelRuleInputDto {
   species?: string | null
 
   @IsString()
-  @IsOptional()
-  branchId?: string | null
-
-  @IsString()
   weightBandId!: string
 
   @IsIn(['REGULAR', 'HOLIDAY'])
   dayType!: PricingDayType
-
-  @IsNumber()
-  @IsOptional()
-  halfDayPrice?: number
 
   @IsNumber()
   fullDayPrice!: number

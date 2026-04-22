@@ -708,6 +708,7 @@ model GroomingSession {
   orderId     String?
   status      GroomingStatus @default(PENDING)
   startTime   DateTime?
+  scheduledDate DateTime?
   endTime     DateTime?
   notes       String?
   price       Float?

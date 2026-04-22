@@ -146,6 +146,32 @@ function KanbanCard({
   )
 }
 
+function KanbanCardCancelled({
+  session,
+  onOpen,
+}: {
+  session: GroomingSession
+  onOpen: (session: GroomingSession) => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(session)}
+      className="w-full rounded-2xl border border-rose-500/15 bg-rose-500/3 p-3 text-left transition-all hover:border-rose-500/30 hover:bg-rose-500/6 cursor-pointer"
+    >
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/10 text-sm font-black uppercase text-rose-500">
+          {session.petName?.charAt(0) || 'P'}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold text-foreground">{session.petName}</p>
+          <p className="truncate text-xs text-foreground-muted font-mono">{session.sessionCode || session.id.slice(-6).toUpperCase()}</p>
+        </div>
+      </div>
+    </button>
+  )
+}
+
 export function GroomingBoard() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -423,15 +449,20 @@ export function GroomingBoard() {
                     }
                   }
 
+                  // Ẩn cột BOOKED khi không có items nào
+                  if (status === 'BOOKED' && columnSessions.length === 0 && !sessionsQuery.isLoading) return null
+
+                  const isCancelledColumn = status === 'CANCELLED'
+
                   return (
-                    <section key={status} className={cn('flex flex-col rounded-[28px] border shrink-0', meta.columnClassName, isFlexibleColumn ? 'w-auto min-w-[320px]' : 'w-[320px] min-w-[320px] overflow-hidden')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleDrop(event, status)}>
+                    <section key={status} className={cn('flex flex-col rounded-[28px] border shrink-0', meta.columnClassName, isFlexibleColumn ? 'w-auto min-w-[320px]' : isCancelledColumn ? 'w-[220px] min-w-[220px] overflow-hidden' : 'w-[320px] min-w-[320px] overflow-hidden')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleDrop(event, status)}>
                       <div className={cn('flex items-center justify-between px-4 py-3 shrink-0', meta.headerClassName)}>
                         <div className="flex items-center gap-2 text-sm font-bold"><Icon size={16} />{meta.columnTitle}</div>
                         <span className="rounded-full border border-current/15 bg-white/10 px-2 py-1 text-xs font-semibold">{columnSessions.length}</span>
                       </div>
-                      <div className={cn("flex flex-1 min-h-0", isFlexibleColumn ? "flex-row p-3 gap-4 overflow-hidden" : "custom-scrollbar flex-col gap-3 p-3 overflow-y-auto overflow-x-hidden")}>
+                      <div className={cn("flex flex-1 min-h-0", isFlexibleColumn ? "flex-row p-3 gap-4 overflow-hidden" : "custom-scrollbar flex-col gap-2 p-2 overflow-y-auto overflow-x-hidden")}>
                         {sessionsQuery.isLoading ? (
-                          <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-[296px]">Đang tải dữ liệu...</div>
+                          <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-full">Đang tải...</div>
                         ) : columnSessions.length === 0 ? (
                           <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-[296px]">Không có phiên nào trong cột này.</div>
                         ) : isFlexibleColumn ? (
@@ -440,6 +471,8 @@ export function GroomingBoard() {
                               {chunk.map((session) => <KanbanCard key={session.id} session={session} onOpen={(s) => { setSelectedSession(s); setDialogMode('detail'); }} />)}
                             </div>
                           ))
+                        ) : isCancelledColumn ? (
+                          columnSessions.map((session) => <KanbanCardCancelled key={session.id} session={session} onOpen={(s) => { setSelectedSession(s); setDialogMode('detail'); }} />)
                         ) : (
                           columnSessions.map((session) => <KanbanCard key={session.id} session={session} onOpen={(s) => { setSelectedSession(s); setDialogMode('detail'); }} />)
                         )}

@@ -260,6 +260,38 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
             onAddTempProduct={workspace.handleAddTempItem}
           />
 
+          {/* Nút Cập nhật / Lưu — chỉ hiện ở detail mode vì create mode đã có nút bên phải top bar */}
+          {mode === 'detail' && workspace.actionFlags.canEditCurrentOrder && !workspace.isEditing ? (
+            <button
+              type="button"
+              onClick={workspace.handleStartEdit}
+              className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(6,182,212,0.28)] transition-colors hover:bg-primary-600"
+            >
+              <PencilLine size={14} />
+              Cập nhật
+            </button>
+          ) : mode === 'detail' && workspace.isEditing ? (
+            <>
+              <button
+                type="button"
+                onClick={workspace.handleSave}
+                disabled={workspace.pendingAction}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(6,182,212,0.28)] transition-colors hover:bg-primary-600 disabled:opacity-60"
+              >
+                {workspace.pendingAction ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                Lưu cập nhật
+              </button>
+              <button
+                type="button"
+                onClick={workspace.handleCancelEdit}
+                className="inline-flex h-9 items-center gap-2 rounded-xl border border-border-strong bg-background-secondary px-3 text-sm font-semibold text-foreground transition-colors hover:bg-background-tertiary"
+              >
+                <XCircle size={14} />
+                Hủy sửa
+              </button>
+            </>
+          ) : null}
+
           {showPrintActions ? (
             <div className="relative shrink-0" ref={printMenuRef}>
               <button
@@ -310,38 +342,6 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
                 </div>
               ) : null}
             </div>
-          ) : null}
-
-          {/* Nút Cập nhật / Lưu — chỉ hiện ở detail mode vì create mode đã có nút bên phải top bar */}
-          {mode === 'detail' && workspace.actionFlags.canEditCurrentOrder && !workspace.isEditing ? (
-            <button
-              type="button"
-              onClick={workspace.handleStartEdit}
-              className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
-            >
-              <PencilLine size={14} />
-              Cập nhật
-            </button>
-          ) : mode === 'detail' && workspace.isEditing ? (
-            <>
-              <button
-                type="button"
-                onClick={workspace.handleSave}
-                disabled={workspace.pendingAction}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(16,185,129,0.2)] transition-opacity hover:opacity-90 disabled:opacity-60"
-              >
-                {workspace.pendingAction ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                Lưu cập nhật
-              </button>
-              <button
-                type="button"
-                onClick={workspace.handleCancelEdit}
-                className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-background-tertiary"
-              >
-                <XCircle size={14} />
-                Hủy sửa
-              </button>
-            </>
           ) : null}
         </div>
 

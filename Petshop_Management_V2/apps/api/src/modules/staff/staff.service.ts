@@ -229,6 +229,7 @@ export class StaffService {
       allowedExtensions: DOCUMENT_UPLOAD_EXTENSIONS,
       maxFileSize: 10 * 1024 * 1024,
       errorMessage: 'Invalid file type. Only images (JPEG, PNG, WebP) and PDFs are allowed',
+      requireStoredFilename: true,
     })
 
     const fileUrl = `/uploads/documents/${userId}/${file.filename}`

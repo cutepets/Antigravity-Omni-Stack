@@ -53,6 +53,14 @@ export class PricingService {
     return Math.round(fullDayPrice / 2)
   }
 
+  private serializeHotelRule<T extends { branchId?: string | null; fullDayPrice: number }>(rule: T) {
+    const { branchId: _branchId, ...rest } = rule
+    return {
+      ...rest,
+      halfDayPrice: this.deriveHalfDayPrice(rest.fullDayPrice),
+    }
+  }
+
   private normalizeServiceType(value?: string | null): PricingServiceType {
     const normalized = String(value ?? '').trim().toUpperCase()
     if (normalized === 'SPA' || normalized === 'GROOMING') return 'GROOMING'
@@ -198,12 +206,19 @@ export class PricingService {
     return { minWeight, maxWeight }
   }
 
-  private getSpaRuleComboKey(rule: { weightBandId?: string | null; packageCode: string; minWeight?: number | null; maxWeight?: number | null }) {
+  private getSpaRuleComboKey(rule: {
+    species?: string | null
+    weightBandId?: string | null
+    packageCode: string
+    minWeight?: number | null
+    maxWeight?: number | null
+  }) {
+    const speciesKey = rule.species ?? 'NULL'
     if (rule.weightBandId) {
-      return `BAND:${rule.weightBandId}:${rule.packageCode}`
+      return `BAND:${speciesKey}:${rule.weightBandId}:${rule.packageCode}`
     }
 
-    return `FLAT:${rule.packageCode}:${rule.minWeight ?? 'NULL'}:${rule.maxWeight ?? 'INF'}`
+    return `FLAT:${speciesKey}:${rule.packageCode}:${rule.minWeight ?? 'NULL'}:${rule.maxWeight ?? 'INF'}`
   }
 
   private normalizeHotelExtraServiceWeightRange(service: { minWeight?: unknown; maxWeight?: unknown }) {
@@ -332,10 +347,11 @@ export class PricingService {
   async listSpaRules(query: { species?: string; isActive?: string }) {
     const species = this.normalizeSpecies(query.species)
     const isActive = query.isActive === undefined ? undefined : String(query.isActive) !== 'false'
+    const speciesFilter = species === null ? undefined : { OR: [{ species }, { species: null }] }
 
     const weightBandedRules = await this.db.spaPriceRule.findMany({
       where: {
-        ...(species !== null ? { species } : {}),
+        ...(speciesFilter ?? {}),
         ...(isActive !== undefined ? { isActive } : {}),
         ...(isActive !== false ? { weightBand: { is: { isActive: true } } } : {}),
       } as any,
@@ -346,7 +362,7 @@ export class PricingService {
     const flatRateRules = await this.db.spaPriceRule.findMany({
       where: {
         weightBandId: null,
-        ...(species !== null ? { species } : {}),
+        ...(speciesFilter ?? {}),
         ...(isActive !== undefined ? { isActive } : {}),
       } as any,
       include: { weightBand: true },
@@ -357,7 +373,6 @@ export class PricingService {
   }
 
   async bulkUpsertSpaRules(dto: BulkUpsertSpaRulesDto) {
-    const species = this.normalizeSpecies(dto.species ?? dto.rules?.[0]?.species)
     const normalizedRules: Array<{
       id?: string | undefined
       species: string | null
@@ -372,13 +387,34 @@ export class PricingService {
     }> = []
 
     for (const rule of dto.rules ?? []) {
+      const ruleSpecies = Object.prototype.hasOwnProperty.call(rule, 'species')
+        ? this.normalizeSpecies(rule.species)
+        : this.normalizeSpecies(dto.species)
+
       if (rule.weightBandId) {
-        await this.assertWeightBandScope(rule.weightBandId, 'GROOMING')
+        const weightBand = await this.assertWeightBandScope(rule.weightBandId, 'GROOMING')
+        const normalizedSpecies = ruleSpecies ?? weightBand.species ?? null
+        if (!normalizedSpecies) {
+          throw new BadRequestException('Bang gia Grooming theo hang can phai luu rieng cho tung loai thu cung')
+        }
+        normalizedRules.push({
+          id: rule.id,
+          species: normalizedSpecies,
+          packageCode: this.normalizeText(rule.packageCode, 'Gói SPA'),
+          weightBandId: rule.weightBandId ?? null,
+          minWeight: null,
+          maxWeight: null,
+          sku: rule.sku ?? null,
+          price: this.normalizeNumber(rule.price, 'Giá SPA'),
+          durationMinutes: this.normalizeOptionalNumber(rule.durationMinutes, 'Thời lượng', 1),
+          isActive: rule.isActive ?? true,
+        })
+        continue
       }
       const { minWeight, maxWeight } = this.normalizeSpaRuleWeightRange(rule)
       normalizedRules.push({
         id: rule.id,
-        species,
+        species: ruleSpecies,
         packageCode: this.normalizeText(rule.packageCode, 'Gói SPA'),
         weightBandId: rule.weightBandId ?? null,
         minWeight,
@@ -390,14 +426,21 @@ export class PricingService {
       })
     }
 
+    if (normalizedRules.length === 0) {
+      throw new BadRequestException('Can nhap it nhat mot dong gia Grooming truoc khi luu')
+    }
+
     return this.db.$transaction(async (tx) => {
+      const speciesVariants = Array.from(new Set(normalizedRules.map((rule) => rule.species ?? null)))
       const existingRules = await tx.spaPriceRule.findMany({
-        where: { species, isActive: true } as any,
+        where: {
+          isActive: true,
+          OR: speciesVariants.map((currentSpecies) => ({ species: currentSpecies })),
+        } as any,
         include: { weightBand: true },
         orderBy: [{ weightBand: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
       })
       const existingByCombo = new Map(existingRules.map((rule) => [this.getSpaRuleComboKey(rule), rule]))
-      const retainedIds = new Set<string>()
       const results = []
 
       for (const rule of normalizedRules) {
@@ -412,33 +455,44 @@ export class PricingService {
           durationMinutes: rule.durationMinutes,
           isActive: rule.isActive,
         }
+        let savedRule: (typeof existingRules)[number]
 
         if (rule.id) {
           const current = await tx.spaPriceRule.findUnique({ where: { id: rule.id } })
           if (!current) throw new NotFoundException('Không tìm thấy dòng giá SPA')
-          retainedIds.add(current.id)
-          results.push(await tx.spaPriceRule.update({ where: { id: current.id }, data, include: { weightBand: true } }))
+          savedRule = await tx.spaPriceRule.update({ where: { id: current.id }, data, include: { weightBand: true } })
         } else {
           const comboKey = this.getSpaRuleComboKey(rule)
           const current = existingByCombo.get(comboKey)
           if (current) {
-            retainedIds.add(current.id)
-            results.push(await tx.spaPriceRule.update({ where: { id: current.id }, data, include: { weightBand: true } }))
+            savedRule = await tx.spaPriceRule.update({ where: { id: current.id }, data, include: { weightBand: true } })
           } else {
-            results.push(await tx.spaPriceRule.create({ data, include: { weightBand: true } }))
+            savedRule = await tx.spaPriceRule.create({ data, include: { weightBand: true } })
           }
         }
-      }
 
-      const idsToDeactivate = existingRules.filter((rule) => !retainedIds.has(rule.id)).map((rule) => rule.id)
-      if (idsToDeactivate.length > 0) {
-        await tx.spaPriceRule.updateMany({
-          where: { id: { in: idsToDeactivate } },
-          data: { isActive: false },
-        })
+        if (!rule.weightBandId && rule.species === null) {
+          await tx.spaPriceRule.updateMany({
+            where: {
+              id: { not: savedRule.id },
+              weightBandId: null,
+              packageCode: rule.packageCode,
+              minWeight: rule.minWeight,
+              maxWeight: rule.maxWeight,
+              isActive: true,
+              NOT: { species: null },
+            } as any,
+            data: { isActive: false },
+          })
+        }
+
+        results.push(savedRule)
       }
 
       return results.sort((left, right) => {
+        if ((left.species ?? '') !== (right.species ?? '')) {
+          return String(left.species ?? '').localeCompare(String(right.species ?? ''))
+        }
         const bandOrder = (left.weightBand?.sortOrder ?? Number.MAX_SAFE_INTEGER) - (right.weightBand?.sortOrder ?? Number.MAX_SAFE_INTEGER)
         if (bandOrder !== 0) return bandOrder
         const minWeightOrder = (left.minWeight ?? -1) - (right.minWeight ?? -1)
@@ -448,9 +502,8 @@ export class PricingService {
     })
   }
 
-  async listHotelRules(query: { species?: string; year?: string | number; dayType?: string; isActive?: string; branchId?: string }) {
+  async listHotelRules(query: { species?: string; year?: string | number; dayType?: string; isActive?: string }) {
     const species = this.normalizeSpecies(query.species)
-    const branchId = this.normalizeOptionalText(query.branchId)
     const year = Math.floor(Number(query.year ?? new Date().getFullYear()))
     const dayType = this.normalizeDayType(query.dayType)
     const isActive = query.isActive === undefined ? undefined : String(query.isActive) !== 'false'
@@ -458,19 +511,37 @@ export class PricingService {
     const rules = await this.db.hotelPriceRule.findMany({
       where: {
         year,
-        ...(branchId !== null ? { branchId } : {}),
         ...(species !== null ? { species } : {}),
         ...(dayType ? { dayType } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
       } as any,
-      include: { branch: { select: { id: true, code: true, name: true } }, weightBand: true },
-      orderBy: [{ branchId: 'asc' }, { dayType: 'asc' }, { weightBand: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
+      include: { weightBand: true },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     })
 
-    return rules.map((rule) => ({
-      ...rule,
-      halfDayPrice: this.deriveHalfDayPrice(rule.fullDayPrice),
-    }))
+    const canonicalRules = new Map<string, (typeof rules)[number]>()
+    const prioritizedRules = [...rules].sort((left, right) => {
+      const leftScore = (left.branchId === null ? 2 : 0) + (left.species ? 1 : 0)
+      const rightScore = (right.branchId === null ? 2 : 0) + (right.species ? 1 : 0)
+      if (leftScore !== rightScore) return rightScore - leftScore
+      return right.updatedAt.getTime() - left.updatedAt.getTime()
+    })
+
+    for (const rule of prioritizedRules) {
+      const comboKey = `${rule.year}:${rule.species ?? 'NULL'}:${rule.dayType}:${rule.weightBandId}`
+      if (canonicalRules.has(comboKey)) continue
+      canonicalRules.set(comboKey, rule)
+    }
+
+    return Array.from(canonicalRules.values())
+      .sort((left, right) => {
+        const leftBandOrder = left.weightBand?.sortOrder ?? Number.MAX_SAFE_INTEGER
+        const rightBandOrder = right.weightBand?.sortOrder ?? Number.MAX_SAFE_INTEGER
+        if (leftBandOrder !== rightBandOrder) return leftBandOrder - rightBandOrder
+        if (left.dayType !== right.dayType) return left.dayType.localeCompare(right.dayType)
+        return String(left.species ?? '').localeCompare(String(right.species ?? ''))
+      })
+      .map((rule) => this.serializeHotelRule(rule))
   }
 
   async bulkUpsertHotelRules(dto: BulkUpsertHotelRulesDto) {
@@ -479,37 +550,80 @@ export class PricingService {
     }
 
     return this.db.$transaction(async (tx) => {
+      const incomingYears = Array.from(
+        new Set((dto.rules ?? []).map((rule) => Math.floor(this.normalizeNumber(rule.year, 'Năm', 2000)))),
+      )
+      const existingRules = await tx.hotelPriceRule.findMany({
+        where: {
+          year: { in: incomingYears.length > 0 ? incomingYears : [Math.floor(new Date().getFullYear())] },
+          isActive: true,
+        },
+        include: { weightBand: true },
+        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      })
+      const existingByCombo = new Map<string, typeof existingRules>()
+      for (const existingRule of existingRules) {
+        const comboKey = `${existingRule.year}:${existingRule.species ?? 'NULL'}:${existingRule.dayType}:${existingRule.weightBandId}`
+        existingByCombo.set(comboKey, [...(existingByCombo.get(comboKey) ?? []), existingRule])
+      }
+
       const results = []
       for (const rule of dto.rules ?? []) {
         const fullDayPrice = this.normalizeNumber(rule.fullDayPrice, 'Giá một ngày')
+        const year = Math.floor(this.normalizeNumber(rule.year, 'Năm', 2000))
+        const normalizedSpecies = this.normalizeSpecies(rule.species)
+        if (!normalizedSpecies) {
+          throw new BadRequestException('Bang gia Hotel phai luu rieng cho tung loai thu cung')
+        }
+        const normalizedDayType = this.normalizeDayType(rule.dayType) ?? 'REGULAR'
         const data = {
-          year: Math.floor(this.normalizeNumber(rule.year, 'Năm', 2000)),
-          species: this.normalizeSpecies(rule.species),
-          branchId: this.normalizeOptionalText(rule.branchId),
+          year,
+          species: normalizedSpecies,
+          branchId: null,
           weightBandId: rule.weightBandId,
-          dayType: this.normalizeDayType(rule.dayType) ?? 'REGULAR',
+          dayType: normalizedDayType,
           sku: rule.sku ?? null,
           halfDayPrice: this.deriveHalfDayPrice(fullDayPrice),
           fullDayPrice,
           isActive: rule.isActive ?? true,
         }
+        const comboKey = `${year}:${normalizedSpecies ?? 'NULL'}:${normalizedDayType}:${rule.weightBandId}`
+        const legacyComboKey = `${year}:NULL:${normalizedDayType}:${rule.weightBandId}`
+        const matchedRule = rule.id
+          ? await tx.hotelPriceRule.findUnique({ where: { id: rule.id } })
+          : rule.isActive === false
+            ? (existingByCombo.get(comboKey) ?? existingByCombo.get(legacyComboKey) ?? [])[0] ?? null
+            : (existingByCombo.get(comboKey) ?? [])[0] ?? null
 
-        if (rule.id) {
-          const current = await tx.hotelPriceRule.findUnique({ where: { id: rule.id } })
-          if (!current) throw new NotFoundException('Không tìm thấy dòng giá Hotel')
-          results.push(await tx.hotelPriceRule.update({
-            where: { id: rule.id },
-            data,
-            include: { branch: { select: { id: true, code: true, name: true } }, weightBand: true },
-          }))
-        } else {
-          results.push(await tx.hotelPriceRule.create({
-            data,
-            include: { branch: { select: { id: true, code: true, name: true } }, weightBand: true },
-          }))
+        if (!matchedRule && rule.isActive === false) {
+          continue
         }
+        const savedRule = matchedRule
+          ? await tx.hotelPriceRule.update({
+              where: { id: matchedRule.id },
+              data,
+              include: { weightBand: true },
+            })
+          : await tx.hotelPriceRule.create({
+              data,
+              include: { weightBand: true },
+            })
+
+        await tx.hotelPriceRule.updateMany({
+          where: {
+            id: { not: savedRule.id },
+            year,
+            weightBandId: rule.weightBandId,
+            dayType: normalizedDayType,
+            isActive: true,
+            OR: [{ species: normalizedSpecies }, { species: null }],
+          },
+          data: { isActive: false },
+        })
+
+        results.push(savedRule)
       }
-      return results
+      return results.map((rule) => this.serializeHotelRule(rule))
     })
   }
 

@@ -227,6 +227,11 @@ export function UnifiedPetProfile({
   }, [pet]);
 
   const suggestedServices = pricingSuggestionsQuery.data?.slice(0, 20) ?? [];
+  const isOtherSuggestedService = (service: any) =>
+    service.suggestionGroup === 'OTHER' ||
+    (service.suggestionKind === 'SPA' && !service.weightBandId);
+  const primarySuggestedServices = suggestedServices.filter((service: any) => !isOtherSuggestedService(service));
+  const otherSuggestedServices = suggestedServices.filter(isOtherSuggestedService);
 
   if (!isOpen || !petId) return null;
 
@@ -276,6 +281,59 @@ export function UnifiedPetProfile({
       setIsSavingWeight(false);
     }
   };
+
+  const renderSuggestedServiceCard = (service: any) => (
+    <div
+      key={service.id}
+      onClick={() => !isInCart(service) && onSelectService?.(service, pet!.id, pet!.name)}
+      className={`group relative flex ${!isInCart(service) && onSelectService ? 'cursor-pointer hover:bg-background' : ''} ${isInCart(service) ? 'ring-2 ring-[#0089A1] bg-[#0089A1]/10' : 'bg-background-secondary'} flex-col justify-between rounded-xl p-4 transition-colors`}
+    >
+      {isInCart(service) && (
+        <div className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0089A1] shadow-sm">
+          <Check size={12} className="text-white" />
+        </div>
+      )}
+
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-h-[50px] flex-col justify-between">
+          <span
+            className={`inline-flex w-fit rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${service.suggestionKind === 'HOTEL'
+              ? 'bg-primary-500/10 text-primary-500'
+              : service.suggestionKind === 'SPA'
+                ? 'bg-pink-500/10 text-pink-500'
+                : 'bg-warning/10 text-warning'
+              }`}
+          >
+            {service.suggestionKind}
+          </span>
+
+          <div className="mt-4 flex flex-wrap items-center gap-1.5">
+            <h3 className={`truncate text-[15px] font-bold text-foreground transition-colors ${onSelectService ? 'group-hover:text-primary-500' : ''}`}>
+              {service.name}
+            </h3>
+            {service.weightBandLabel ? (
+              <span className="text-[12px] font-normal text-foreground-muted">
+                · {service.weightBandLabel}
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded bg-foreground-muted/10 px-1.5 py-0.5 text-[10px] font-semibold text-foreground-muted">
+                Giá cố định
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <p className={`text-[17px] font-bold text-foreground transition-colors ${onSelectService ? 'group-hover:text-primary-500' : ''}`}>
+            {money(service.sellingPrice ?? service.price ?? 0)}
+          </p>
+          {service.duration ? (
+            <p className="mt-0.5 text-[11px] text-foreground-muted">{service.duration} phút</p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -567,7 +625,37 @@ export function UnifiedPetProfile({
                     </div>
                   )}
 
-                  <div className="grid gap-3 xl:grid-cols-2">
+                  {primarySuggestedServices.length > 0 ? (
+                    <div className="space-y-3">
+                      {otherSuggestedServices.length > 0 ? (
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background-secondary/60 px-4 py-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">Dịch vụ chính</p>
+                            <p className="mt-1 text-xs text-foreground-muted">Các dịch vụ đang đi theo bảng giá chính của pet.</p>
+                          </div>
+                        </div>
+                      ) : null}
+                      <div className="grid gap-3 xl:grid-cols-2">
+                        {primarySuggestedServices.map(renderSuggestedServiceCard)}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {otherSuggestedServices.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background-secondary/60 px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">Dịch vụ khác</p>
+                          <p className="mt-1 text-xs text-foreground-muted">Các dịch vụ SPA / Grooming dùng chung, tách riêng để dễ chọn hơn.</p>
+                        </div>
+                      </div>
+                      <div className="grid gap-3 xl:grid-cols-2">
+                        {otherSuggestedServices.map(renderSuggestedServiceCard)}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="hidden grid gap-3 xl:grid-cols-2">
                     {suggestedServices.map((service: any) => (
                       <div
                         key={service.id}

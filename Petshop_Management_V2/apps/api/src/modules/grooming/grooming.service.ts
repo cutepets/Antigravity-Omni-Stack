@@ -266,7 +266,7 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         assignedStaff: { select: { id: true, fullName: true, avatar: true } },
-        order: { select: { id: true, orderNumber: true } },
+        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
         branch: { select: { id: true, name: true, code: true } },
       },
     })
@@ -301,8 +301,19 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         assignedStaff: { select: { id: true, fullName: true, avatar: true } },
-        order: { select: { id: true, orderNumber: true } },
+        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
         branch: { select: { id: true, name: true, code: true } },
+        orderItems: {
+          select: {
+            id: true,
+            description: true,
+            unitPrice: true,
+            quantity: true,
+            discountItem: true,
+            type: true,
+            serviceId: true,
+          },
+        },
       },
     })
 
@@ -330,8 +341,19 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         assignedStaff: { select: { id: true, fullName: true, avatar: true } },
-        order: { select: { id: true, orderNumber: true } },
+        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
         branch: { select: { id: true, name: true, code: true } },
+        orderItems: {
+          select: {
+            id: true,
+            description: true,
+            unitPrice: true,
+            quantity: true,
+            discountItem: true,
+            type: true,
+            serviceId: true,
+          },
+        },
         timeline: {
           include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
           orderBy: { createdAt: 'desc' as const }
@@ -455,7 +477,7 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         assignedStaff: { select: { id: true, fullName: true, avatar: true } },
-        order: { select: { id: true, orderNumber: true } },
+        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
         branch: { select: { id: true, name: true, code: true } },
       },
     })

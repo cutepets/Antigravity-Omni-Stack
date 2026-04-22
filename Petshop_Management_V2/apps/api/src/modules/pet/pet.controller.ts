@@ -151,7 +151,10 @@ export class PetController {
     @Req() req: AuthenticatedRequest,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    validateUploadedFile(file, petImageUploadValidation)
+    validateUploadedFile(file, {
+      ...petImageUploadValidation,
+      requireStoredFilename: true,
+    })
     const avatarUrl = `/uploads/pets/${file.filename}`
 
     try {
@@ -183,7 +186,10 @@ export class PetController {
     @Param('id') _id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    validateUploadedFile(file, petImageUploadValidation)
+    validateUploadedFile(file, {
+      ...petImageUploadValidation,
+      requireStoredFilename: true,
+    })
     const photoUrl = `/uploads/vaccines/${file.filename}`
     return { photoUrl }
   }

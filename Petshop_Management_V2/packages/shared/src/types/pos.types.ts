@@ -47,6 +47,7 @@ export interface CartItem {
     petId: string
     performerId?: string
     startTime?: string
+    scheduledDate?: string
     notes?: string
     serviceItems?: string
     packageCode?: string

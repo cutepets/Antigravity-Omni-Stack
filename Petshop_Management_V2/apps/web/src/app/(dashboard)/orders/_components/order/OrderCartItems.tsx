@@ -31,6 +31,26 @@ import { getCartItemWeightBandLabel } from '@/app/(dashboard)/pos/utils/pos.util
 // Re-export so consumers only need to import from here
 export type { CartItemCallbacks }
 
+// ── Spa Session Status Badge ─────────────────────────────────────────────────
+
+const SPA_STATUS: Record<string, { label: string; className: string }> = {
+    PENDING: { label: 'Chờ làm', className: 'bg-amber-500/12 text-amber-600' },
+    IN_PROGRESS: { label: 'Đang làm', className: 'bg-blue-500/12 text-blue-600' },
+    COMPLETED: { label: 'Hoàn thành', className: 'bg-emerald-500/12 text-emerald-600' },
+    CANCELLED: { label: 'Đã hủy', className: 'bg-rose-500/12 text-rose-500 line-through' },
+}
+
+function SpaSessionBadge({ status, sessionCode }: { status?: string; sessionCode?: string | null }) {
+    if (!status) return null
+    const meta = SPA_STATUS[status] ?? { label: status, className: 'bg-gray-500/12 text-gray-500' }
+    return (
+        <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${meta.className}`}>
+            ✂ {meta.label}{sessionCode ? ` · ${sessionCode}` : ''}
+        </span>
+    )
+}
+
+
 // ────────────────────────────────────────────────────────────────────────────
 // OrderCartItems — cart list dùng system design tokens (ERP dashboard style)
 // KHÔNG dùng usePosStore. Tất cả mutations đi qua `callbacks` (required).
@@ -288,6 +308,20 @@ function OrderCartRow({
                     {item.hotelDetails && (
                         <div className="pl-11 text-[10px] text-primary-600 bg-primary-500/8 rounded w-fit px-1.5 py-0.5 mt-0.5">
                             In: {new Date((item.hotelDetails as any).checkIn).toLocaleDateString()} — Out: {new Date((item.hotelDetails as any).checkOut).toLocaleDateString()}
+                        </div>
+                    )}
+
+                    {/* Grooming: scheduled date + Spa session status badge */}
+                    {item.type === 'grooming' && (
+                        <div className="pl-11 flex items-center gap-2 flex-wrap mt-0.5">
+                            {(item as any).groomingDetails?.scheduledDate && (
+                                <span className="inline-flex items-center gap-1 rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600">
+                                    📅 {new Date((item as any).groomingDetails.scheduledDate).toLocaleDateString('vi-VN')}
+                                </span>
+                            )}
+                            {(item as any).groomingSession && (
+                                <SpaSessionBadge status={(item as any).groomingSession.status} sessionCode={(item as any).groomingSession.sessionCode} />
+                            )}
                         </div>
                     )}
                 </div>

@@ -111,6 +111,7 @@ export function buildDraftFromOrder(order: any): OrderDraft {
           petId: item.groomingDetails.petId,
           performerId: item.groomingDetails.performerId,
           startTime: item.groomingDetails.startTime,
+          scheduledDate: item.groomingDetails.scheduledDate,
           notes: item.groomingDetails.notes,
           serviceItems: item.groomingDetails.serviceItems,
           packageCode: item.groomingDetails.packageCode,
@@ -121,6 +122,8 @@ export function buildDraftFromOrder(order: any): OrderDraft {
           pricingSnapshot: item.groomingDetails.pricingSnapshot,
         }
         : undefined,
+      // groomingSession: chỉ để hiển thị badge status ở FE, không gửi lên BE
+      groomingSession: item.groomingSession ?? undefined,
     })),
   }
 }
@@ -146,12 +149,12 @@ export function buildOrderPayload(draft: OrderDraft): CreateOrderPayload | Updat
       type: item.type,
       isTemp: (item as any).isTemp ?? false,
       tempLabel: (item as any).tempLabel ?? undefined,
-      stockExportedAt: (item as any).stockExportedAt ?? null,
       groomingDetails: item.groomingDetails
         ? {
           petId: item.groomingDetails.petId,
           performerId: item.groomingDetails.performerId,
           startTime: item.groomingDetails.startTime,
+          scheduledDate: item.groomingDetails.scheduledDate,
           notes: item.groomingDetails.notes,
           serviceItems: item.groomingDetails.serviceItems,
           packageCode: item.groomingDetails.packageCode,

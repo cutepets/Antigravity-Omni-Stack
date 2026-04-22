@@ -93,6 +93,28 @@ function getWeightBandLabel(line: HotelQuickPreviewResult['chargeLines'][number]
 }
 
 function aggregatePreviewLines(preview: HotelQuickPreviewResult) {
+  return [...preview.chargeLines]
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((line) => {
+      const snapshot = line.pricingSnapshot as Record<string, unknown> | undefined
+      const weightBandLabel = getWeightBandLabel(line, preview)
+      const holidayName = String(snapshot?.holidayName ?? '').trim()
+      const fullDayPrice = Number(snapshot?.fullDayPrice)
+      const label = line.dayType === 'HOLIDAY'
+        ? holidayName
+          ? `Hotel ng\u00E0y l\u1EC5 ${holidayName} - ${weightBandLabel}`
+          : `Hotel ng\u00E0y l\u1EC5 - ${weightBandLabel}`
+        : `Hotel ${weightBandLabel}`
+
+      return {
+        ...line,
+        label,
+        unitPriceLabel: formatCurrency(Number.isFinite(fullDayPrice) ? fullDayPrice : line.unitPrice),
+        quantityDays: Math.round(line.quantityDays * 10) / 10,
+        subtotal: Math.round(line.subtotal),
+      }
+    })
+
   const grouped = new Map<string, {
     dayType: HotelQuickPreviewResult['chargeLines'][number]['dayType']
     quantityDays: number
@@ -105,7 +127,7 @@ function aggregatePreviewLines(preview: HotelQuickPreviewResult) {
   for (const line of preview.chargeLines) {
     const snapshot = line.pricingSnapshot as Record<string, unknown> | undefined
     const key = String(line.dayType ?? 'REGULAR')
-    const existing = grouped.get(key)
+    const existing = grouped.get(key)!
     const fullDayPrice = Number(snapshot?.fullDayPrice)
     const holidayName = String(snapshot?.holidayName ?? '').trim()
 

@@ -164,20 +164,13 @@ export function GroomingSessionDialog({
     enabled: isOpen,
   });
 
-  // Derive species from selected pet (create mode) or existing session (detail mode)
-  const selectedPetSpecies =
-    mode === "create"
-      ? petsQuery.data?.data?.find((p: any) => p.id === watchPetId)?.species ?? undefined
-      : session?.pet?.species ?? undefined;
-
-  const packagesQuery = useQuery({
-    queryKey: ["grooming-packages", selectedPetSpecies ?? "all"],
-    queryFn: () => groomingApi.getPackages(selectedPetSpecies),
-    enabled: isOpen,
-    staleTime: 5 * 60 * 1000,
+  const sessionId = isEditing ? session?.id : undefined;
+  const sessionDetailQuery = useQuery({
+    queryKey: ["grooming-session", sessionId],
+    queryFn: () => groomingApi.getSession(sessionId!),
+    enabled: isOpen && isEditing && Boolean(sessionId),
   });
-
-  const availablePackages = packagesQuery.data ?? [];
+  const activeSession = sessionDetailQuery.data ?? session;
 
   const {
     register,
@@ -208,22 +201,45 @@ export function GroomingSessionDialog({
   const watchPrice = watch("price");
   const watchSurcharge = watch("surcharge");
 
+  const linkedOrderItems = activeSession?.orderItems ?? [];
+  const isLinkedToOrder = isEditing && Boolean(activeSession?.orderId || activeSession?.order || linkedOrderItems.length > 0);
+  const linkedOrderBaseAmount = linkedOrderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const linkedOrderDiscount = linkedOrderItems.reduce((sum, item) => sum + (item.discountItem ?? 0), 0);
+  const linkedOrderTotal = Math.max(0, linkedOrderBaseAmount - linkedOrderDiscount);
+  const displayedPrice = isLinkedToOrder ? linkedOrderBaseAmount : watchPrice;
+  const displayedAdjustment = isLinkedToOrder ? linkedOrderDiscount : watchSurcharge;
+
+  // Derive species from selected pet (create mode) or existing session (detail mode)
+  const selectedPetSpecies =
+    mode === "create"
+      ? petsQuery.data?.data?.find((p: any) => p.id === watchPetId)?.species ?? undefined
+      : activeSession?.pet?.species ?? undefined;
+
+  const packagesQuery = useQuery({
+    queryKey: ["grooming-packages", selectedPetSpecies ?? "all"],
+    queryFn: () => groomingApi.getPackages(selectedPetSpecies),
+    enabled: isOpen,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const availablePackages = packagesQuery.data ?? [];
+
   useEffect(() => {
     if (isOpen) {
-      if (mode === "detail" && session) {
+      if (mode === "detail" && activeSession) {
         reset({
-          petId: session.petId,
-          branchId: session.branchId ?? activeBranchId ?? "",
-          staffId: session.staffId ?? "",
-          startTime: toDateTimeLocalValue(session.startTime),
-          endTime: toDateTimeLocalValue(session.endTime),
-          notes: session.notes ?? "",
-          price: session.price ?? undefined,
-          surcharge: session.surcharge ?? undefined,
-          packageCode: session.packageCode ?? "",
-          status: session.status,
+          petId: activeSession.petId,
+          branchId: activeSession.branchId ?? activeBranchId ?? "",
+          staffId: activeSession.staffId ?? "",
+          startTime: toDateTimeLocalValue(activeSession.startTime),
+          endTime: toDateTimeLocalValue(activeSession.endTime),
+          notes: activeSession.notes ?? "",
+          price: isLinkedToOrder ? linkedOrderBaseAmount : activeSession.price ?? undefined,
+          surcharge: isLinkedToOrder ? linkedOrderDiscount : activeSession.surcharge ?? undefined,
+          packageCode: activeSession.packageCode ?? "",
+          status: activeSession.status,
         });
-        const prevStaffIds = session.assignedStaff?.map(s => s.id) ?? (session.staffId ? [session.staffId] : []);
+        const prevStaffIds = activeSession.assignedStaff?.map(s => s.id) ?? (activeSession.staffId ? [activeSession.staffId] : []);
         setSelectedStaffIds(prevStaffIds);
       } else if (mode === "create") {
         reset({
@@ -241,7 +257,7 @@ export function GroomingSessionDialog({
         setSelectedStaffIds([]);
       }
     }
-  }, [isOpen, mode, session, reset, activeBranchId]);
+  }, [isOpen, mode, activeSession, reset, activeBranchId, isLinkedToOrder, linkedOrderBaseAmount, linkedOrderDiscount]);
 
   const calculateMutation = useMutation({
     mutationFn: async () => {
@@ -271,7 +287,7 @@ export function GroomingSessionDialog({
 
   const saveMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const payload = {
+      const payload: any = {
         petId: data.petId,
         branchId: data.branchId || undefined,
         staffId: selectedStaffIds.length > 0 ? selectedStaffIds[0] : undefined,
@@ -280,9 +296,12 @@ export function GroomingSessionDialog({
         endTime: data.endTime || undefined,
         notes: data.notes?.trim() || undefined,
         packageCode: data.packageCode || undefined,
-        price: typeof data.price === "number" && !Number.isNaN(data.price) ? data.price : undefined,
-        surcharge: typeof data.surcharge === "number" && !Number.isNaN(data.surcharge) ? data.surcharge : 0,
       };
+
+      if (!isLinkedToOrder) {
+        payload.price = typeof data.price === "number" && !Number.isNaN(data.price) ? data.price : undefined;
+        payload.surcharge = typeof data.surcharge === "number" && !Number.isNaN(data.surcharge) ? data.surcharge : 0;
+      }
 
       if (mode === "create" || !session) {
         return groomingApi.createSession(payload);
@@ -296,6 +315,13 @@ export function GroomingSessionDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grooming-sessions"] });
+      if (session?.id) {
+        queryClient.invalidateQueries({ queryKey: ["grooming-session", session.id] });
+      }
+      if (isLinkedToOrder) {
+        queryClient.invalidateQueries({ queryKey: ["order"] });
+        queryClient.invalidateQueries({ queryKey: ["order-timeline"] });
+      }
       toast.success(isEditing ? "Đã cập nhật phiên grooming" : "Đã tạo phiên grooming");
       onClose();
     },
@@ -311,6 +337,11 @@ export function GroomingSessionDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grooming-sessions"] });
+      if (session?.id) {
+        queryClient.invalidateQueries({ queryKey: ["grooming-session", session.id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["order"] });
+      queryClient.invalidateQueries({ queryKey: ["order-timeline"] });
       toast.success("Đã xóa phiên grooming");
       onClose();
     },
@@ -332,19 +363,19 @@ export function GroomingSessionDialog({
     "grooming.complete",
     "grooming.cancel",
   ]);
-  const canDeleteSession = isEditing && hasPermission("grooming.cancel") && !session?.orderId;
+  const canDeleteSession = isEditing && hasPermission("grooming.cancel") && !isLinkedToOrder;
   const canReadOrders = hasAnyPermission(["order.read.all", "order.read.assigned"]);
 
   const getPetInfo = () => {
-    if (mode === "detail" && session) {
+    if (mode === "detail" && activeSession) {
       return {
-        petId: session.petId,
-        customerId: session.pet?.customer?.id || session.customerId,
-        name: session.petName,
-        label: session.pet?.breed || session.pet?.species || "Không rõ giống",
-        code: session.pet?.petCode || session.petId,
-        customerName: session.pet?.customer?.fullName || "Khách lẻ",
-        customerPhone: session.pet?.customer?.phone || "—",
+        petId: activeSession.petId,
+        customerId: activeSession.pet?.customer?.id || activeSession.customerId,
+        name: activeSession.petName,
+        label: activeSession.pet?.breed || activeSession.pet?.species || "Không rõ giống",
+        code: activeSession.pet?.petCode || activeSession.petId,
+        customerName: activeSession.pet?.customer?.fullName || "Khách lẻ",
+        customerPhone: activeSession.pet?.customer?.phone || "—",
       };
     }
     const pet = pets.find((p) => p.id === watchPetId);
@@ -363,7 +394,7 @@ export function GroomingSessionDialog({
   };
 
   const petInfo = getPetInfo();
-  const sessionLabel = isEditing ? (session!.sessionCode || session!.id.slice(-8).toUpperCase()) : "Tạo mới";
+  const sessionLabel = isEditing && activeSession ? (activeSession.sessionCode || activeSession.id.slice(-8).toUpperCase()) : "Tạo mới";
 
   return (
     <>
@@ -397,7 +428,7 @@ export function GroomingSessionDialog({
               </div>
 
               <div className="flex items-start gap-4">
-                {session && (
+                {activeSession && (
                   <Tabs.List className="flex items-center gap-1 rounded-xl bg-background-secondary/50 p-1">
                     <Tabs.Trigger
                       value="info"
@@ -495,21 +526,34 @@ export function GroomingSessionDialog({
                       <div className="rounded-2xl border border-border bg-card/80 p-4 relative group min-h-[120px]">
                         <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                           <span className="flex items-center gap-2"><ClipboardList size={14} /> Thông tin đơn hàng</span>
+                          {isEditing && activeSession?.order && canReadOrders && (
+                            <Link
+                              href={`/orders/${activeSession.order.orderNumber}`}
+                              target="_blank"
+                              className="flex items-center gap-1 text-xs text-primary-500 hover:text-primary-400 transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              <ArrowUpRight size={13} />
+                              {activeSession.order.orderNumber}
+                            </Link>
+                          )}
                         </div>
                         {isEditing ? (
                           <div className="space-y-1 mt-2">
                             <p className="text-xs text-foreground-muted">
-                              Tạo lúc: <span className="font-medium text-foreground">{formatGroomingDateTime(session!.createdAt)}</span>
+                              Tạo lúc: <span className="font-medium text-foreground">{formatGroomingDateTime(activeSession!.createdAt)}</span>
                             </p>
-                            {session!.branch && (
+                            {activeSession!.branch && (
                               <p className="text-xs text-foreground-muted">
-                                CN: <span className="font-medium text-foreground">{session!.branch.name}</span>
+                                CN: <span className="font-medium text-foreground">{activeSession!.branch.name}</span>
                               </p>
                             )}
-                            {session!.staff && (
+                            {activeSession!.staff && (
                               <p className="text-xs text-foreground-muted">
-                                Người tạo: <span className="font-medium text-foreground">{session!.staff.fullName}</span>
+                                Người tạo: <span className="font-medium text-foreground">{activeSession!.staff.fullName}</span>
                               </p>
+                            )}
+                            {!activeSession!.order && (
+                              <p className="mt-2 text-xs italic text-foreground-muted">Chưa liên kết đơn POS</p>
                             )}
                           </div>
                         ) : (
@@ -563,7 +607,7 @@ export function GroomingSessionDialog({
                           </span>
                           <select
                             {...register("packageCode")}
-                            disabled={!canUpdateSession}
+                            disabled={!canUpdateSession || isLinkedToOrder}
                             className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
                           >
                             <option value="">-- Không chọn (Tự nhập giá) --</option>
@@ -648,12 +692,13 @@ export function GroomingSessionDialog({
                           </div>
                           <input
                             type="text"
-                            value={watchPrice !== undefined ? new Intl.NumberFormat("vi-VN").format(watchPrice) : ""}
+                            value={displayedPrice !== undefined ? new Intl.NumberFormat("vi-VN").format(displayedPrice) : ""}
                             onChange={(e) => {
+                              if (isLinkedToOrder) return;
                               const raw = e.target.value.replace(/[^0-9]/g, "");
                               setValue("price", raw ? Number(raw) : undefined, { shouldDirty: true });
                             }}
-                            disabled={!canUpdateSession}
+                            disabled={!canUpdateSession || isLinkedToOrder}
                             placeholder="0"
                             className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
                           />
@@ -662,21 +707,34 @@ export function GroomingSessionDialog({
 
                         <label className="space-y-2 col-span-1">
                           <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                            <Coins size={14} /> Phụ phí
+                            <Coins size={14} /> {isLinkedToOrder ? "Chiết khấu" : "Phụ phí"}
                           </span>
                           <input
                             type="text"
-                            value={watchSurcharge !== undefined && watchSurcharge !== 0 ? new Intl.NumberFormat("vi-VN").format(watchSurcharge) : ""}
+                            value={displayedAdjustment !== undefined && displayedAdjustment !== 0 ? new Intl.NumberFormat("vi-VN").format(displayedAdjustment) : ""}
                             onChange={(e) => {
+                              if (isLinkedToOrder) return;
                               const raw = e.target.value.replace(/[^0-9]/g, "");
                               setValue("surcharge", raw ? Number(raw) : undefined, { shouldDirty: true });
                             }}
-                            disabled={!canUpdateSession}
+                            disabled={!canUpdateSession || isLinkedToOrder}
                             placeholder="0"
                             className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
                           />
                           {errors.surcharge && <p className="text-xs text-error">{errors.surcharge.message}</p>}
                         </label>
+
+                        {isLinkedToOrder && (
+                          <div className="sm:col-span-2 rounded-xl border border-primary-500/20 bg-primary-500/5 px-4 py-3">
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-sm font-medium text-foreground-muted">Thành tiền</span>
+                              <span className="text-base font-semibold text-foreground">
+                                {new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(linkedOrderTotal)}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-foreground-muted">Sửa giá/chiết khấu tại đơn POS.</p>
+                          </div>
+                        )}
 
                         <label className="space-y-2 sm:col-span-2">
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
@@ -693,6 +751,47 @@ export function GroomingSessionDialog({
                       </div>
                     </section>
                   </>
+                )}
+
+                {/* Section: Dịch vụ từ POS — read-only, POS is source of truth */}
+                {isLinkedToOrder && linkedOrderItems.length > 0 && (
+                  <section className="rounded-2xl border border-primary-500/20 bg-primary-500/5 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-500 flex items-center gap-2">
+                        <ClipboardList size={13} />
+                        Dịch vụ từ POS
+                      </p>
+                      <span className="text-[10px] text-foreground-muted italic">Chỉ xem — Sửa tại đơn POS</span>
+                    </div>
+                    <div className="space-y-2">
+                      {linkedOrderItems.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2.5"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-[10px] font-bold text-primary-500">
+                              {idx + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="truncate text-sm font-medium text-foreground">{item.description}</span>
+                              <p className="mt-0.5 text-[11px] text-foreground-muted">
+                                {new Intl.NumberFormat("vi-VN").format(item.unitPrice)} x {item.quantity}
+                                {(item.discountItem ?? 0) > 0 ? ` - CK ${new Intl.NumberFormat("vi-VN").format(item.discountItem ?? 0)}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <span className="text-xs font-semibold text-foreground">
+                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(
+                                item.unitPrice * item.quantity - (item.discountItem ?? 0)
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 )}
               </form>
 
@@ -739,9 +838,9 @@ export function GroomingSessionDialog({
               </footer>
             </Tabs.Content >
             {
-              session ? (
+              activeSession ? (
                 <Tabs.Content value="history" className="flex-1 overflow-y-auto outline-none" >
-                  <HistorySection timeline={(session as any).timeline || []} />
+                  <HistorySection timeline={activeSession.timeline || []} />
                 </Tabs.Content >
               ) : null}
           </Tabs.Root >

@@ -74,4 +74,45 @@ describe('upload.util', () => {
       ),
     ).not.toThrow()
   })
+
+  it('allows memory uploads without stored filename metadata', () => {
+    const options = {
+      allowedMimeTypes: new Set(['image/png']),
+      allowedExtensions: new Set(['.png']),
+      maxFileSize: 1024,
+      errorMessage: 'Invalid file',
+    }
+
+    expect(() =>
+      validateUploadedFile(
+        {
+          originalname: 'logo.png',
+          mimetype: 'image/png',
+          size: 512,
+        } as Express.Multer.File,
+        options,
+      ),
+    ).not.toThrow()
+  })
+
+  it('requires stored filename metadata when explicitly requested', () => {
+    const options = {
+      allowedMimeTypes: new Set(['image/png']),
+      allowedExtensions: new Set(['.png']),
+      maxFileSize: 1024,
+      errorMessage: 'Invalid file',
+      requireStoredFilename: true,
+    }
+
+    expect(() =>
+      validateUploadedFile(
+        {
+          originalname: 'logo.png',
+          mimetype: 'image/png',
+          size: 512,
+        } as Express.Multer.File,
+        options,
+      ),
+    ).toThrow(BadRequestException)
+  })
 })

@@ -97,7 +97,8 @@ function buildGroomingOrderItemPricingSnapshot(item: {
     weightAtBooking: details.weightAtBooking ?? null,
     weightBandId: details.weightBandId ?? null,
     weightBandLabel: details.weightBandLabel ?? null,
-    price: details.pricingPrice ?? item.unitPrice * item.quantity - (item.discountItem ?? 0),
+    price: details.pricingPrice ?? item.unitPrice * item.quantity,
+    discountItem: item.discountItem ?? 0,
     pricingSnapshot: details.pricingSnapshot ?? null,
   };
 }
@@ -1201,6 +1202,7 @@ export class OrdersService {
       branchId?: string | null;
       serviceId?: string | null;
       orderCreatedAt?: Date;
+      staffId?: string | null;
       item: CreateOrderDto['items'][number] | UpdateOrderItemDto;
       existingSessionId?: string | null;
     },
@@ -1226,17 +1228,36 @@ export class OrdersService {
 
     const pet = await tx.pet.findUnique({ where: { id: details.petId } });
     const branch = await resolveBranchIdentity(tx as any, params.branchId);
+
+    // Auto-resolve serviceId from item description if not provided
+    let resolvedServiceId = params.serviceId ?? null;
+    if (!resolvedServiceId && params.item.serviceId) {
+      resolvedServiceId = params.item.serviceId;
+    }
+    if (!resolvedServiceId && params.item.description) {
+      const matchingService = await tx.service.findFirst({
+        where: {
+          type: 'GROOMING',
+          isActive: true,
+          name: { contains: params.item.description, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+      if (matchingService) resolvedServiceId = matchingService.id;
+    }
+
     const payload = {
       petId: details.petId,
       petName: pet?.name ?? '',
       customerId: params.customerId ?? null,
       branchId: branch.id,
       staffId: details.performerId ?? null,
-      serviceId: params.serviceId ?? null,
+      serviceId: resolvedServiceId,
       orderId: params.orderId,
       startTime: details.startTime ? new Date(details.startTime) : null,
+      scheduledDate: details.scheduledDate ? new Date(details.scheduledDate) : null,
       notes: details.notes ?? null,
-      price: params.item.unitPrice * params.item.quantity - (params.item.discountItem ?? 0),
+      price: params.item.unitPrice * params.item.quantity,
       packageCode: details.packageCode ?? null,
       weightAtBooking: details.weightAtBooking ?? null,
       weightBandId: details.weightBandId ?? null,
@@ -1264,6 +1285,16 @@ export class OrdersService {
         ...payload,
         sessionCode,
         status: 'PENDING',
+        ...(params.staffId ? {
+          timeline: {
+            create: {
+              action: 'Tạo phiếu từ đơn',
+              toStatus: 'PENDING',
+              note: `Từ đơn ${params.orderId}`,
+              performedBy: params.staffId,
+            },
+          },
+        } : {}),
       },
     });
 
@@ -1700,7 +1731,7 @@ export class OrdersService {
               });
             }
           },
-          syncGroomingSession: ({ item, orderItem, order, customerId, branchId }) =>
+          syncGroomingSession: ({ item, orderItem, order, customerId, branchId, staffId }) =>
             this.syncGroomingSession(tx as any, {
               orderId: order.id,
               orderItemId: orderItem.id,
@@ -1708,6 +1739,7 @@ export class OrdersService {
               branchId,
               serviceId: item.serviceId ?? null,
               orderCreatedAt: order.createdAt,
+              staffId,
               item,
             }),
           syncHotelStay: ({ item, orderItem, order, customerId, branchId }) =>
@@ -1891,6 +1923,7 @@ export class OrdersService {
           orderItemId: currentItem.id,
           branchId: data.branchId ?? null,
           orderCreatedAt: order.createdAt,
+          staffId,
           item: {
             description: currentItem.description,
             quantity: currentItem.quantity,
@@ -1934,6 +1967,7 @@ export class OrdersService {
             branchId: data.branchId ?? null,
             serviceId: item.serviceId ?? null,
             orderCreatedAt: order.createdAt,
+            staffId,
             item,
             existingSessionId: existingItem.groomingSessionId,
           });
@@ -1969,6 +2003,7 @@ export class OrdersService {
           branchId: data.branchId ?? null,
           serviceId: item.serviceId ?? null,
           orderCreatedAt: order.createdAt,
+          staffId,
           item,
         });
         if (item.hotelDetails?.bookingGroupKey) {
@@ -2909,7 +2944,7 @@ export class OrdersService {
           items: { include: { product: true, service: true } },
           payments: true,
           transactions: { select: { voucherNumber: true, type: true } },
-          groomingSessions: { select: { sessionCode: true } },
+          groomingSessions: { select: { id: true, sessionCode: true, status: true } },
           hotelStays: { select: { stayCode: true } },
         },
         skip,
@@ -2961,6 +2996,25 @@ export class OrdersService {
     const groomingSessions = groomingSessionIds.length
       ? await this.prisma.groomingSession.findMany({
         where: { id: { in: groomingSessionIds } },
+        include: {
+          weightBand: { select: { id: true, label: true } },
+          orderItems: {
+            select: {
+              id: true,
+              description: true,
+              unitPrice: true,
+              quantity: true,
+              discountItem: true,
+              type: true,
+              serviceId: true,
+            },
+          },
+          timeline: {
+            include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
+            orderBy: { createdAt: 'desc' as const },
+            take: 5,
+          },
+        },
       })
       : [];
 
@@ -2975,6 +3029,17 @@ export class OrdersService {
 
         return {
           ...item,
+          groomingSession: groomingSession
+            ? {
+              id: groomingSession.id,
+              sessionCode: groomingSession.sessionCode,
+              status: groomingSession.status,
+              packageCode: groomingSession.packageCode,
+              price: groomingSession.price,
+              orderItems: groomingSession.orderItems,
+              timeline: groomingSession.timeline,
+            }
+            : undefined,
           groomingDetails: groomingSession
             ? {
               petId: groomingSession.petId,
@@ -2984,6 +3049,7 @@ export class OrdersService {
               packageCode: groomingSession.packageCode,
               weightAtBooking: groomingSession.weightAtBooking,
               weightBandId: groomingSession.weightBandId,
+              weightBandLabel: groomingSession.weightBand?.label ?? (groomingSession.pricingSnapshot as any)?.weightBandLabel ?? null,
               pricingSnapshot: groomingSession.pricingSnapshot,
             }
             : undefined,
