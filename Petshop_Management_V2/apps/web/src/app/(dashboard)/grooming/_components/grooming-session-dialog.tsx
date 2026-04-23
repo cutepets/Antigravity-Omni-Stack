@@ -10,6 +10,7 @@ import {
   ArrowUpRight,
   ClipboardList,
   PawPrint,
+  Printer,
   Save,
   Tag,
   Trash2,
@@ -40,6 +41,21 @@ import {
 } from "./grooming-status";
 import { formatDateTime } from "@/lib/utils";
 import { CancelNotesModal } from "./cancel-notes-modal";
+import { settingsApi } from "@/lib/api/settings.api";
+import { printGroomingSession } from "@/lib/grooming-print";
+
+const GROOMING_STATUS_VI: Record<string, string> = {
+  BOOKED: 'Đặt lịch',
+  PENDING: 'Chờ làm',
+  IN_PROGRESS: 'Đang làm',
+  COMPLETED: 'Hoàn thành',
+  CANCELLED: 'Đã hủy',
+};
+
+function translateStatus(status?: string | null) {
+  if (!status) return null;
+  return GROOMING_STATUS_VI[status] ?? status;
+}
 
 function buildHistorySummary(entry: any) {
   const actorName =
@@ -47,8 +63,8 @@ function buildHistorySummary(entry: any) {
   const statusLabel =
     entry.fromStatus || entry.toStatus
       ? [
-        entry.fromStatus ? entry.fromStatus : null,
-        entry.toStatus ? `→ ${entry.toStatus}` : null,
+        entry.fromStatus ? translateStatus(entry.fromStatus) : null,
+        entry.toStatus ? `→ ${translateStatus(entry.toStatus)}` : null,
       ]
         .filter(Boolean)
         .join(' ')
@@ -378,6 +394,21 @@ export function GroomingSessionDialog({
     enabled: isOpen,
   });
 
+  const printTemplateQuery = useQuery({
+    queryKey: ["settings.print-templates", "spa_receipt_k80"],
+    queryFn: () => settingsApi.getPrintTemplateByType("spa_receipt_k80"),
+    enabled: isOpen && isEditing,
+    retry: false,
+  });
+
+  const printConfigQuery = useQuery({
+    queryKey: ["settings", "configs", "print-shop"],
+    queryFn: () => settingsApi.getConfigs(["shopName", "shopAddress", "shopPhone"]),
+    enabled: isOpen && isEditing,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const sessionId = isEditing ? session?.id : undefined;
   const sessionDetailQuery = useQuery({
     queryKey: ["grooming-session", sessionId],
@@ -586,9 +617,11 @@ export function GroomingSessionDialog({
         return groomingApi.createSession(payload);
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { petId: _petId, ...updatePayload } = payload;
       return groomingApi.updateSession({
         id: session.id,
-        ...payload,
+        ...updatePayload,
         status: data.status,
       });
     },
@@ -732,7 +765,7 @@ export function GroomingSessionDialog({
                 )}
               </div>
 
-              <div className="flex items-start gap-4">
+              <div className="flex items-center gap-2">
                 {activeSession && (
                   <Tabs.List className="flex items-center gap-1 rounded-xl bg-background-secondary/50 p-1">
                     <Tabs.Trigger
@@ -748,6 +781,27 @@ export function GroomingSessionDialog({
                       Lịch sử
                     </Tabs.Trigger>
                   </Tabs.List>
+                )}
+                {isEditing && activeSession && (
+                  <button
+                    type="button"
+                    title="In phiếu grooming"
+                    onClick={() =>
+                      printGroomingSession(
+                        {
+                          session: activeSession,
+                          shopName: printConfigQuery.data?.shopName,
+                          shopAddress: printConfigQuery.data?.shopAddress,
+                          shopPhone: printConfigQuery.data?.shopPhone,
+                          branchName: activeSession.branch?.name,
+                        },
+                        printTemplateQuery.data ?? null,
+                      )
+                    }
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background-secondary text-foreground-muted transition-all duration-150 hover:border-primary-500/40 hover:bg-primary-500/10 hover:text-primary-500 active:scale-95"
+                  >
+                    <Printer size={18} />
+                  </button>
                 )}
                 <button
                   type="button"
@@ -818,14 +872,9 @@ export function GroomingSessionDialog({
                           )}
                         </div>
                         <p className="text-sm font-mono font-semibold text-foreground">{petInfo.code}</p>
-                        <div className="mt-2 space-y-1">
-                          <p className="text-xs text-foreground-muted">
-                            Tên: <span className="font-medium text-foreground">{petInfo.name}</span>
-                          </p>
-                          <p className="text-xs text-foreground-muted">
-                            Giống: <span className="font-medium text-foreground">{petInfo.label}</span>
-                          </p>
-                        </div>
+                        <p className="mt-2 text-xs text-foreground-muted">
+                          Tên: <span className="font-medium text-foreground">{petInfo.name}</span>
+                        </p>
                       </div>
 
                       <div className="rounded-2xl border border-border bg-card/80 p-4 relative group min-h-[120px]">
@@ -930,6 +979,27 @@ export function GroomingSessionDialog({
                               </div>
                             )}
                           </div>
+                          {/* Tags nhân viên đã chọn — hiện ngay dưới ô tìm kiếm */}
+                          {selectedStaffIds.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {selectedStaffIds.map((id) => {
+                                const st = staffOptions.find(s => s.id === id);
+                                return st ? (
+                                  <div key={id} className="flex items-center gap-1.5 rounded-full bg-primary-100 text-primary-700 px-3 py-1 text-xs font-medium dark:bg-primary-900/30 dark:text-primary-400">
+                                    <span>{st.fullName}</span>
+                                    {canUpdateSession && (
+                                      <button type="button" onClick={() => setSelectedStaffIds(prev => prev.filter(p => p !== id))} className="mt-0.5 hover:text-primary-900 dark:hover:text-primary-200 focus:outline-none">
+                                        <X size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                          )}
+                          {canUpdateSession && selectedStaffIds.length === 0 && (
+                            <p className="mt-1 text-xs text-error">Vui lòng chọn ít nhất một nhân viên phụ trách</p>
+                          )}
                         </div>
 
                         <label className="space-y-2 col-span-1" hidden={isLinkedToOrder}>
@@ -1021,21 +1091,6 @@ export function GroomingSessionDialog({
                           )}
                         </div>
 
-                        <div className="flex flex-wrap gap-2 mt-2 sm:col-span-2">
-                          {selectedStaffIds.map((id) => {
-                            const st = staffOptions.find(s => s.id === id);
-                            return st ? (
-                              <div key={id} className="flex items-center gap-1.5 rounded-full bg-primary-100 text-primary-700 px-3 py-1 text-xs font-medium dark:bg-primary-900/30 dark:text-primary-400">
-                                <span>{st.fullName}</span>
-                                {canUpdateSession && (
-                                  <button type="button" onClick={() => setSelectedStaffIds(prev => prev.filter(p => p !== id))} className="mt-0.5 hover:text-primary-900 dark:hover:text-primary-200 focus:outline-none">
-                                    <X size={12} />
-                                  </button>
-                                )}
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
 
                         <label className="space-y-2 sm:col-span-2">
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">

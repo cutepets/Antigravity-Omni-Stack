@@ -124,6 +124,7 @@ model User {
   orderTimelines          OrderTimeline[]
   groomingTimelines       GroomingTimeline[]
   hotelStayTimelines      HotelStayTimeline[]
+  hotelStayHealthLogs     HotelStayHealthLog[]
   staffSchedules          StaffSchedule[]
   attendanceRecords       AttendanceRecord[]
   reviewedAttendances     AttendanceRecord[]     @relation("AttendanceReviewer")
@@ -274,6 +275,7 @@ model Pet {
   temperament      String?
   groomingSessions GroomingSession[]
   hotelStays       HotelStay[]
+  hotelStayHealthLogs HotelStayHealthLog[]
   healthNotes      PetHealthNote[]
   vaccinations     PetVaccination[]
   weightLogs       PetWeightLog[]
@@ -594,6 +596,29 @@ model HotelStayTimeline {
   @@map("hotel_stay_timelines")
 }
 
+model HotelStayHealthLog {
+  id          String    @id @default(cuid())
+  hotelStayId String
+  petId       String
+  content     String
+  condition   String
+  temperature Float?
+  weight      Float?
+  appetite    String?
+  stool       String?
+  performedBy String
+  createdAt   DateTime  @default(now())
+
+  stay            HotelStay @relation(fields: [hotelStayId], references: [id], onDelete: Cascade)
+  pet             Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
+  performedByUser User      @relation(fields: [performedBy], references: [id])
+
+  @@index([hotelStayId, createdAt])
+  @@index([petId, createdAt])
+  @@index([performedBy])
+  @@map("hotel_stay_health_logs")
+}
+
 model OrderItem {
   id                String           @id @default(cuid())
   orderId           String
@@ -898,6 +923,7 @@ model HotelStay {
   chargeLines       HotelStayChargeLine[]
   adjustments       HotelStayAdjustment[]
   timeline          HotelStayTimeline[]
+  healthLogs        HotelStayHealthLog[]
 
   @@index([petId])
   @@index([customerId])

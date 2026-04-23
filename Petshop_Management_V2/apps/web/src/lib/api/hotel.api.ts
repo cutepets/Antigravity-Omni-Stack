@@ -88,6 +88,7 @@ export interface HotelStay {
     id: string
     fullName: string
     phone: string
+    representativePhone?: string | null
   } | null
   receiver?: {
     id: string
@@ -111,6 +112,7 @@ export interface HotelStay {
       id: string
       fullName: string
       phone: string
+      representativePhone?: string | null
     } | null
   } | null
   order?: {
@@ -166,6 +168,34 @@ export interface HotelStayTimeline {
       staffCode?: string | null
     } | null
   }>
+}
+
+export interface HotelStayHealthLog {
+  id: string
+  hotelStayId: string
+  petId: string
+  content: string
+  condition: string
+  temperature?: number | null
+  weight?: number | null
+  appetite?: string | null
+  stool?: string | null
+  performedBy: string
+  createdAt: string
+  performedByUser?: {
+    id: string
+    fullName: string
+    staffCode?: string | null
+  } | null
+}
+
+export interface CreateHotelStayHealthLogDto {
+  content: string
+  condition: string
+  temperature?: number
+  weight?: number
+  appetite?: string
+  stool?: string
 }
 
 export interface HotelStayChargeLine {
@@ -337,6 +367,10 @@ export const hotelApi = {
   },
   getStay: (id: string) => api.get<HotelStay>(`/hotel/stays/${id}`).then((res) => res.data),
   getStayTimeline: (id: string) => api.get<HotelStayTimeline>(`/hotel/stays/${id}/timeline`).then((res) => res.data),
+  getStayHealthLogs: (id: string) =>
+    api.get<HotelStayHealthLog[]>(`/hotel/stays/${id}/health-logs`).then((res) => res.data),
+  createStayHealthLog: (id: string, data: CreateHotelStayHealthLogDto) =>
+    api.post<HotelStayHealthLog>(`/hotel/stays/${id}/health-logs`, data).then((res) => res.data),
   createStay: (data: CreateHotelStayDto) => api.post<HotelStay>('/hotel/stays', data).then((res) => res.data),
   updateStay: (id: string, data: UpdateHotelStayDto) => api.patch<HotelStay>(`/hotel/stays/${id}`, data).then((res) => res.data),
   updateStayPayment: (id: string, paymentStatus: HotelPaymentStatus) =>

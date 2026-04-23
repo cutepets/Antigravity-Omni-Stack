@@ -137,6 +137,32 @@ export class CreateHotelStayDto {
   adjustments?: HotelStayAdjustmentDto[];
 }
 
+export class CreateHotelStayHealthLogDto {
+  @IsString()
+  @IsNotEmpty()
+  content!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  condition!: string;
+
+  @IsNumber()
+  @IsOptional()
+  temperature?: number;
+
+  @IsNumber()
+  @IsOptional()
+  weight?: number;
+
+  @IsString()
+  @IsOptional()
+  appetite?: string;
+
+  @IsString()
+  @IsOptional()
+  stool?: string;
+}
+
 export class CreateHotelRateTableDto {
   @IsString()
   @IsNotEmpty()

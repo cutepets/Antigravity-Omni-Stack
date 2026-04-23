@@ -19,7 +19,7 @@ import { RequireModule } from '../../common/decorators/require-module.decorator.
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
-import { CreateCageDto, CreateHotelRateTableDto, CreateHotelStayDto } from './dto/create-hotel.dto.js'
+import { CreateCageDto, CreateHotelRateTableDto, CreateHotelStayDto, CreateHotelStayHealthLogDto } from './dto/create-hotel.dto.js'
 import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateCageDto, UpdateHotelRateTableDto, UpdateHotelStayDto } from './dto/update-hotel.dto.js'
 
 // Commands
@@ -35,6 +35,7 @@ import { UpdateStayCommand } from './application/commands/update-stay/update-sta
 import { UpdateStayPaymentCommand } from './application/commands/update-stay-payment/update-stay-payment.command.js'
 import { CheckoutStayCommand } from './application/commands/checkout-stay/checkout-stay.command.js'
 import { DeleteStayCommand } from './application/commands/delete-stay/delete-stay.command.js'
+import { CreateStayHealthLogCommand } from './application/commands/create-stay-health-log/create-stay-health-log.command.js'
 
 // Queries
 import { FindAllCagesQuery } from './application/queries/find-all-cages/find-all-cages.query.js'
@@ -43,6 +44,7 @@ import { FindRateTableQuery } from './application/queries/find-rate-table/find-r
 import { FindAllStaysQuery } from './application/queries/find-all-stays/find-all-stays.query.js'
 import { FindStayQuery } from './application/queries/find-stay/find-stay.query.js'
 import { FindStayTimelineQuery } from './application/queries/find-stay-timeline/find-stay-timeline.query.js'
+import { FindStayHealthLogsQuery } from './application/queries/find-stay-health-logs/find-stay-health-logs.query.js'
 import { CalculateHotelPriceQuery } from './application/queries/calculate-hotel-price/calculate-hotel-price.query.js'
 
 interface AuthenticatedRequest extends Request {
@@ -149,6 +151,22 @@ export class HotelController {
   @Permissions('hotel.read')
   findStayTimeline(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {
     return this.queryBus.execute(new FindStayTimelineQuery(id, req.user))
+  }
+
+  @Get('stays/:id/health-logs')
+  @Permissions('hotel.read')
+  findStayHealthLogs(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {
+    return this.queryBus.execute(new FindStayHealthLogsQuery(id, req.user))
+  }
+
+  @Post('stays/:id/health-logs')
+  @Permissions('hotel.update')
+  createStayHealthLog(
+    @Param('id') id: string,
+    @Body() dto: CreateHotelStayHealthLogDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.commandBus.execute(new CreateStayHealthLogCommand(id, dto, req.user))
   }
 
   @Patch('stays/:id')

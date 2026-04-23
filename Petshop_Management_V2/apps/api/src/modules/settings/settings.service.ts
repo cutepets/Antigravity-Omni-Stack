@@ -247,6 +247,55 @@ const DEFAULT_TEMPLATES = [
 </div>`,
   },
   {
+    type: 'grooming',
+    name: 'Phiếu Grooming & Spa',
+    paperSize: 'a4',
+    content: `<div style="font-family:Arial,sans-serif;font-size:12px;color:#111;max-width:210mm;margin:0 auto;padding:20px">
+  <div style="text-align:center;padding-bottom:12px;border-bottom:2px solid #667eea;margin-bottom:14px">
+    <div style="font-size:20px;font-weight:800;color:#667eea">{{shopName}}</div>
+    <div style="font-size:11px;color:#555">{{shopAddress}}</div>
+    <div style="font-size:11px;color:#555">ĐT: {{shopPhone}}</div>
+  </div>
+  <div style="margin-bottom:14px">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#667eea;margin-bottom:6px;padding-bottom:2px;border-bottom:1px solid #e5e7eb">Thông tin phiếu</div>
+    <div><span style="color:#888;display:inline-block;width:90px">Mã phiếu:</span><span style="font-weight:600">{{sessionCode}}</span></div>
+    <div><span style="color:#888;display:inline-block;width:90px">Trạng thái:</span><span style="font-weight:700;color:{{statusColor}}">{{status}}</span></div>
+    <div><span style="color:#888;display:inline-block;width:90px">Ngày lập:</span><span style="font-weight:600">{{createdAt}}</span></div>
+    <div><span style="color:#888;display:inline-block;width:90px">Bắt đầu:</span><span style="font-weight:600">{{startTime}}</span></div>
+    <div><span style="color:#888;display:inline-block;width:90px">Chi nhánh:</span><span style="font-weight:600">{{branchName}}</span></div>
+    <div><span style="color:#888;display:inline-block;width:90px">Nhân viên:</span><span style="font-weight:600">{{staffNames}}</span></div>
+  </div>
+  <div style="margin-bottom:14px">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#667eea;margin-bottom:6px;padding-bottom:2px;border-bottom:1px solid #e5e7eb">Thú cưng & Khách hàng</div>
+    <div><span style="color:#888;display:inline-block;width:90px">Thú cưng:</span><span style="font-weight:600">{{petName}}</span></div>
+    <div><span style="color:#888;display:inline-block;width:90px">Mã thú:</span><span style="font-weight:600">{{petCode}}</span></div>
+    <div><span style="color:#888;display:inline-block;width:90px">Khách hàng:</span><span style="font-weight:600">{{customerName}}</span></div>
+    <div><span style="color:#888;display:inline-block;width:90px">SĐT:</span><span style="font-weight:600">{{customerPhone}}</span></div>
+  </div>
+  <div style="margin-bottom:14px">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#667eea;margin-bottom:6px;padding-bottom:2px;border-bottom:1px solid #e5e7eb">Dịch vụ</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
+      <thead><tr style="background:#f3f4f6">
+        <th style="padding:5px 8px;text-align:left;font-size:11px;border-bottom:2px solid #d1d5db">Dịch vụ</th>
+        <th style="padding:5px 8px;text-align:center;font-size:11px;border-bottom:2px solid #d1d5db">SL</th>
+        <th style="padding:5px 8px;text-align:right;font-size:11px;border-bottom:2px solid #d1d5db">Đơn giá</th>
+        <th style="padding:5px 8px;text-align:right;font-size:11px;border-bottom:2px solid #d1d5db">Thành tiền</th>
+      </tr></thead>
+      <tbody>{{extra_items_html}}</tbody>
+    </table>
+    <div style="margin-left:auto;width:200px">
+      <div style="display:flex;justify-content:space-between;padding:2px 4px"><span>Dịch vụ chính:</span><span style="font-weight:600">{{mainPrice}}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:2px 4px"><span>Dịch vụ bổ sung:</span><span style="font-weight:600">{{extraTotal}}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:8px 4px 2px;border-top:2px solid #111;font-size:14px;font-weight:800"><span>Tổng cộng:</span><span>{{totalPrice}}</span></div>
+    </div>
+  </div>
+  <div style="text-align:center;font-size:11px;color:#999;padding-top:10px;border-top:1px dashed #ccc;margin-top:14px">
+    <div>Cảm ơn quý khách đã tin tưởng dịch vụ!</div>
+    <div>In lúc: {{printTime}}</div>
+  </div>
+</div>`,
+  },
+  {
     type: 'spa_receipt_k80',
     name: 'Mẫu SPA & Grooming',
     paperSize: 'k80',

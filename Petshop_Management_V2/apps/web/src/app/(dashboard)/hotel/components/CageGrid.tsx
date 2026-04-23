@@ -6,6 +6,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { useAuthStore } from '@/stores/auth.store'
 import { format, isToday, differenceInDays } from 'date-fns'
+import { toast } from 'sonner'
 
 import CheckInDialog from './CheckInDialog'
 import StayDetailsDialog from './StayDetailsDialog'
@@ -324,6 +325,11 @@ export default function CageGrid() {
       if (draggedData.type === 'booked') {
         const bookedStay = bookedStays.find((s) => s.id === draggedData.stayId)
         if (!bookedStay) return
+        if (slotStayMap.has(targetSlotIndex)) {
+          toast.error('Chuồng đang có lưu trú, không thể check-in vào ô này')
+          setDraggedData(null)
+          return
+        }
 
         setSelectedSlot(targetSlotIndex)
         setSelectedStay(bookedStay)
@@ -333,6 +339,8 @@ export default function CageGrid() {
         const sourceStay = boardingStays.find(s => s.slotIndex === draggedData.slotIndex)
         if (sourceStay && !slotStayMap.has(targetSlotIndex)) {
           updateStayMutation.mutate({ id: sourceStay.id, data: { slotIndex: targetSlotIndex } })
+        } else if (sourceStay) {
+          toast.error('Chuồng đang có lưu trú, không thể chuyển vào ô này')
         }
       }
 
@@ -378,14 +386,8 @@ export default function CageGrid() {
               draggable={canCheckIn}
               onDragStart={handleDragStart}
               onClick={() => {
-                const emptySlot = SLOTS.find((i) => !slotStayMap.has(i))
-                if (emptySlot !== undefined) {
-                  setSelectedSlot(emptySlot)
-                  setSelectedStay(stay)
-                } else {
-                  setSelectedSlot(null)
-                  setSelectedStay(stay)
-                }
+                setSelectedSlot(null)
+                setSelectedStay(stay)
                 setIsStayDetailsOpen(true)
               }}
               variant="booked"
@@ -413,8 +415,11 @@ export default function CageGrid() {
               const bookedStay = bookedStays.find((s) => s.id === draggedData.stayId)
               if (bookedStay) setSelectedStay(bookedStay)
               setIsStayDetailsOpen(true)
+            } else {
+              toast.error('Không còn chuồng trống để check-in')
             }
           }
+          setDraggedData(null)
         }}
       >
         {/* Header */}

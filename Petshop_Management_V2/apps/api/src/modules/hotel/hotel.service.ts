@@ -4,7 +4,7 @@ import { generateHotelStayCode as formatHotelStayCode } from '@petshop/shared';
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js';
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
 import { DatabaseService } from '../../database/database.service.js';
-import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto, HotelStayAdjustmentDto } from './dto/create-hotel.dto.js';
+import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto, HotelStayAdjustmentDto, CreateHotelStayHealthLogDto } from './dto/create-hotel.dto.js';
 import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateHotelRateTableDto, UpdateHotelStayDto, UpdateCageDto } from './dto/update-hotel.dto.js';
 
 const ACTIVE_STAY_STATUSES = ['BOOKED', 'CHECKED_IN'] as const;
@@ -68,6 +68,7 @@ export class HotelService {
             id: true,
             fullName: true,
             phone: true,
+            representativePhone: true,
           },
         },
       },
@@ -77,6 +78,7 @@ export class HotelService {
         id: true,
         fullName: true,
         phone: true,
+        representativePhone: true,
       },
     },
     branch: {
@@ -312,6 +314,7 @@ export class HotelService {
             id: true,
             fullName: true,
             phone: true,
+            representativePhone: true,
           },
         },
       },
@@ -350,6 +353,7 @@ export class HotelService {
             id: true,
             fullName: true,
             phone: true,
+            representativePhone: true,
           },
         },
       },
@@ -1210,6 +1214,46 @@ export class HotelService {
       updateData.cancelledAt = new Date();
     }
 
+    const changedKeys = Object.keys(data);
+    const isNotesOnlyUpdate =
+      changedKeys.length > 0 &&
+      changedKeys.every((key) => ['notes', 'petNotes', 'accessories'].includes(key));
+
+    if (isNotesOnlyUpdate) {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await tx.hotelStay.update({
+          where: { id },
+          data: updateData,
+        });
+
+        if (user?.userId) {
+          await tx.hotelStayTimeline.create({
+            data: {
+              stayId: id,
+              action: 'Cap nhat ghi chu',
+              fromStatus: stay.status,
+              toStatus: stay.status,
+              note: data.notes?.trim() || data.petNotes?.trim() || data.accessories?.trim() || null,
+              performedBy: user.userId,
+            },
+          });
+        }
+
+        return tx.hotelStay.findUniqueOrThrow({
+          where: { id },
+          include: this.stayInclude,
+        });
+      });
+
+      await this.logStayActivity('HOTEL_STAY_UPDATED', updated, user, {
+        previousStatus: stay.status,
+        nextStatus: updated.status,
+        notesUpdated: true,
+      });
+
+      return this.mapStay(updated);
+    }
+
     const promotion = data.promotion ?? stay.promotion;
     const surcharge = data.adjustments
       ? this.sumAdjustmentAmount(data.adjustments)
@@ -1679,6 +1723,103 @@ export class HotelService {
         user: entry.user,
       })),
     };
+  }
+
+  async findStayHealthLogs(id: string, user?: BranchScopedUser) {
+    const stay = await this.prisma.hotelStay.findFirst({
+      where: {
+        OR: [
+          { id },
+          { stayCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        branchId: true,
+      },
+    });
+    if (!stay) throw new NotFoundException('Khong tim thay ky luu tru');
+    assertBranchAccess(stay.branchId, user);
+
+    return (this.prisma as any).hotelStayHealthLog.findMany({
+      where: { hotelStayId: stay.id },
+      include: {
+        performedByUser: {
+          select: {
+            id: true,
+            fullName: true,
+            staffCode: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  async createStayHealthLog(id: string, data: CreateHotelStayHealthLogDto, user?: BranchScopedUser) {
+    if (!user?.userId) {
+      throw new BadRequestException('Khong xac dinh nhan vien ghi nhan suc khoe');
+    }
+
+    const stay = await this.prisma.hotelStay.findFirst({
+      where: {
+        OR: [
+          { id },
+          { stayCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        stayCode: true,
+        petId: true,
+        petName: true,
+        branchId: true,
+        status: true,
+      },
+    });
+    if (!stay) throw new NotFoundException('Khong tim thay ky luu tru');
+    assertBranchAccess(stay.branchId, user);
+
+    if (stay.status !== 'CHECKED_IN') {
+      throw new BadRequestException('Chi ghi nhan suc khoe khi thu cung dang o shop');
+    }
+
+    const content = data.content.trim();
+    const condition = data.condition.trim();
+    if (!content || !condition) {
+      throw new BadRequestException('Noi dung va tinh trang suc khoe la bat buoc');
+    }
+
+    const healthLog = await (this.prisma as any).hotelStayHealthLog.create({
+      data: {
+        hotelStayId: stay.id,
+        petId: stay.petId,
+        content,
+        condition,
+        ...(data.temperature !== undefined ? { temperature: data.temperature } : {}),
+        ...(data.weight !== undefined ? { weight: data.weight } : {}),
+        ...(data.appetite?.trim() ? { appetite: data.appetite.trim() } : {}),
+        ...(data.stool?.trim() ? { stool: data.stool.trim() } : {}),
+        performedBy: user.userId,
+      },
+      include: {
+        performedByUser: {
+          select: {
+            id: true,
+            fullName: true,
+            staffCode: true,
+          },
+        },
+      },
+    });
+
+    await this.logStayActivity('HOTEL_STAY_HEALTH_LOG_CREATED', stay, user, {
+      healthLogId: healthLog.id,
+      condition: healthLog.condition,
+    });
+
+    return healthLog;
   }
 
   async deleteStay(id: string, user?: BranchScopedUser) {

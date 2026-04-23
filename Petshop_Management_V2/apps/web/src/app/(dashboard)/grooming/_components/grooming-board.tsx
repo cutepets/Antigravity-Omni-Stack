@@ -435,7 +435,8 @@ export function GroomingBoard() {
 
                     if (!dateFilter && (status === 'COMPLETED' || status === 'CANCELLED')) {
                       const todayStr = getDateKey(new Date().toISOString());
-                      const sessionDateStr = getDateKey(session.createdAt);
+                      // Lọc theo ngày cập nhật trạng thái (updatedAt), không phải ngày tạo
+                      const sessionDateStr = getDateKey(session.updatedAt ?? session.createdAt);
                       if (todayStr !== sessionDateStr) return false;
                     }
 
@@ -532,6 +533,13 @@ export function GroomingBoard() {
           onClose={() => {
             setDialogMode(null)
             setSelectedSession(null)
+            // Nếu dialog được mở từ URL ?sessionId=... (link từ trang Orders)
+            // → reset về kanban tổng quan, xóa URL params
+            if (focusSessionId) {
+              setViewMode('kanban')
+              setSearch('')
+              router.replace('/grooming')
+            }
           }}
         />
         {cancelSessionData && (
