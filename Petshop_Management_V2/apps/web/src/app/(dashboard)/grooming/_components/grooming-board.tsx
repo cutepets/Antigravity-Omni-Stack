@@ -3,7 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, LayoutGrid, List, Pencil, Plus, RefreshCw, Table, Tag, Trash2, UserRound, XCircle } from 'lucide-react'
+import { CalendarDays, LayoutGrid, List, Pencil, Plus, RefreshCw, Table, Tag, Trash2, UserRound, XCircle, Phone } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { ServicePricingWorkspace } from '@/components/service-pricing/ServicePricingWorkspace'
 import {
@@ -90,7 +90,42 @@ function KanbanCard({
 }) {
   const { hasAnyPermission } = useAuthorization()
   const isCancelled = session.status === 'CANCELLED'
-  const canInteract = (canDrag ?? hasAnyPermission(['grooming.update', 'grooming.start', 'grooming.complete', 'grooming.cancel'])) && !isCancelled
+  const canInteract =
+    (canDrag ?? hasAnyPermission(['grooming.update', 'grooming.start', 'grooming.complete', 'grooming.cancel'])) &&
+    !isCancelled
+
+  const petInitial = (session.petName || 'P').charAt(0).toUpperCase()
+
+  const breedLine = [
+    session.pet?.breed || session.pet?.species || null,
+    session.weightAtBooking != null
+      ? `${session.weightAtBooking}kg`
+      : session.weightBand?.label || null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const allStaff = session.assignedStaff?.length
+    ? session.assignedStaff.map((s) => s.fullName)
+    : session.staff
+      ? [session.staff.fullName]
+      : []
+
+  const snap = session.pricingSnapshot as Record<string, any> | null | undefined
+  const mainServiceName =
+    snap?.mainService?.name ||
+    (session.packageCode ? `Gói ${session.packageCode}` : null)
+  const extraNames =
+    session.extraServices?.map((e) => e.name).join(', ') ||
+    (snap?.extraServices as any[] | undefined)?.map((e: any) => e.name).join(', ') ||
+    ''
+
+  const timeLabel = session.startTime
+    ? new Date(session.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+    : new Date(session.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+
+  const isCalled = (session.contactStatus ?? 'UNCALLED') === 'CALLED'
+  const showContact = session.status === 'COMPLETED' || session.status === 'RETURNED'
 
   return (
     <button
@@ -103,45 +138,85 @@ function KanbanCard({
       className={cn(
         'w-[296px] shrink-0 rounded-[24px] border bg-background-base p-4 text-left transition-all',
         canInteract
-          ? 'cursor-grab border-border hover:-translate-y-0.5 hover:border-primary-500/35 hover:shadow-lg active:cursor-grabbing'
+          ? 'cursor-grab border-border hover:-translate-y-0.5 hover:border-primary-500/35 hover:shadow-lg active:cursor-grabbing active:scale-[0.99]'
           : isCancelled
             ? 'cursor-default border-rose-500/20 opacity-70'
             : 'cursor-pointer border-border hover:-translate-y-0.5 hover:border-primary-500/35 hover:shadow-lg',
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-lg font-black uppercase text-primary-500">
-              {session.petName?.charAt(0) || 'P'}
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-base font-bold text-foreground">{session.petName}</p>
-              <p className="truncate text-sm text-foreground-muted">{session.pet?.breed || session.pet?.species || 'Không rõ giống'}</p>
-            </div>
+      {/* Top block: Avatar left + 2 rows right */}
+      <div className="grid grid-cols-[44px_1fr] gap-3">
+        {/* Avatar — spans 2 rows */}
+        <div className="row-span-2 flex h-11 w-11 shrink-0 items-start justify-center pt-0.5">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-base font-black text-primary-500">
+            {petInitial}
           </div>
         </div>
 
-        <div className="text-right">
-          <p className="text-xs text-foreground-muted">{formatGroomingTime(session.createdAt)}</p>
-          <p className="mt-1 text-base font-black text-primary-500">{formatGroomingMoney(session.price)}</p>
+        {/* Row 1: Tên | Giống · Cân - Tính cách */}
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+          <span className="text-[15px] font-bold leading-tight text-foreground">{session.petName}</span>
+          {breedLine ? (
+            <span className="text-xs text-foreground-muted">{breedLine}</span>
+          ) : null}
+        </div>
+
+        {/* Row 2: Mã phiếu nổi bật + Giờ — Tổng tiền */}
+        <div className="flex items-center gap-2">
+          <span className="rounded-lg bg-primary-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary-500">
+            {session.sessionCode || `#${session.id.slice(-6).toUpperCase()}`}
+          </span>
+          <span className="text-[11px] text-foreground-muted">{timeLabel}</span>
+          <span className="ml-auto text-[15px] font-black text-primary-500">{formatGroomingMoney(session.price)}</span>
         </div>
       </div>
 
-      <div className="mt-4 space-y-2 text-sm">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-foreground-muted">Khách</span>
-          <span className="truncate font-medium text-foreground">{session.pet?.customer?.fullName || 'Khách lẻ'}</span>
+      {/* Dịch vụ — nổi bật */}
+      {(mainServiceName || extraNames) ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {mainServiceName ? (
+            <span className="rounded-lg bg-background-secondary px-2 py-1 text-[12px] font-semibold text-foreground">
+              {mainServiceName}
+            </span>
+          ) : null}
+          {extraNames ? (
+            <span className="rounded-lg bg-background-secondary/70 px-2 py-1 text-[12px] text-foreground-muted">
+              {extraNames}
+            </span>
+          ) : null}
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-foreground-muted">SĐT</span>
-          <span className="font-medium text-foreground">{session.pet?.customer?.phone || '—'}</span>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-foreground-muted">Nhân viên</span>
-          <span className="truncate font-medium text-foreground">{session.staff?.fullName || 'Chưa phân công'}</span>
-        </div>
+      ) : null}
+
+      <div className="my-2.5 h-px bg-border/50" />
+
+      {/* KH + SĐT + badge liên hệ */}
+      <div className="flex items-center gap-1.5 text-[13px]">
+        <span className="shrink-0 text-foreground-muted">KH:</span>
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+          {session.pet?.customer?.fullName || 'Khách lẻ'}
+        </span>
+        {session.pet?.customer?.phone ? (
+          <span className="shrink-0 text-[12px] text-foreground-muted">{session.pet.customer.phone}</span>
+        ) : null}
+        {showContact ? (
+          <span
+            className={`ml-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight ${isCalled ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
+              }`}
+          >
+            {isCalled ? 'Đã gọi' : 'Chưa gọi'}
+          </span>
+        ) : null}
       </div>
+
+      {/* NV */}
+      {allStaff.length > 0 ? (
+        <div className="mt-1.5 flex items-center gap-1.5 text-[13px]">
+          <span className="shrink-0 text-foreground-muted">NV:</span>
+          <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+            {allStaff.join(', ')}
+          </span>
+        </div>
+      ) : null}
     </button>
   )
 }
@@ -433,7 +508,7 @@ export function GroomingBoard() {
                     if (session.status !== status) return false;
                     if (session.branchId !== activeBranchId) return false;
 
-                    if (!dateFilter && (status === 'COMPLETED' || status === 'CANCELLED')) {
+                    if (!dateFilter && (status === 'RETURNED' || status === 'CANCELLED')) {
                       const todayStr = getDateKey(new Date().toISOString());
                       // Lọc theo ngày cập nhật trạng thái (updatedAt), không phải ngày tạo
                       const sessionDateStr = getDateKey(session.updatedAt ?? session.createdAt);

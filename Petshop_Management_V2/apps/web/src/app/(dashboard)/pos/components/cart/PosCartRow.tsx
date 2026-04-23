@@ -271,12 +271,75 @@ export function PosCartRow({
                     )}
                 </div>
 
-                <div className="flex-1 flex flex-col pr-8">
-                    <div className="font-semibold text-[15px] text-gray-800 leading-tight mb-1" title={item.description}>
+                <div className="flex-1 flex flex-col pr-8 min-w-0">
+                    {/* Product name */}
+                    <div className="font-semibold text-[15px] text-gray-800 leading-tight mb-0.5 truncate" title={item.description}>
                         {item.description}
                     </div>
-                    <div className="text-xs text-gray-500 mb-2">{item.sku || 'N/A'}</div>
-                    <div className="flex items-center gap-3">
+
+                    {/* SKU + weight band */}
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="text-xs text-gray-500">{item.sku || 'N/A'}</span>
+                        {weightBandLabel ? (
+                            <span className="rounded bg-primary-50 px-1.5 py-0.5 text-[11px] font-semibold text-primary-700">{weightBandLabel}</span>
+                        ) : null}
+                    </div>
+
+                    {/* Variant selector (true variants) */}
+                    {displayTrueVariants.length > 0 ? (
+                        <div className="relative inline-flex items-center mb-1.5 max-w-[200px] group">
+                            <select
+                                className="appearance-none bg-primary-50 text-primary-700 text-[13px] font-semibold pr-5 pl-2 py-0.5 rounded outline-none cursor-pointer border border-primary-200"
+                                value={currentTrueVariant?.id || (!isCurrentConversion && item.productVariantId) || ''}
+                                onChange={(event) => {
+                                    const newTrueVariantId = event.target.value;
+                                    let targetVariantId = newTrueVariantId;
+                                    if (isCurrentConversion && currentTrueVariant && currentVariantObj) {
+                                        const newTrueVariant = displayTrueVariants.find((v: any) => v.id === newTrueVariantId);
+                                        if (newTrueVariant && allConversionVariants) {
+                                            const currentConversionLabel = normalizeLabel(getVariantOptionText(item.description, currentVariantObj));
+                                            const newTrueVariantLabel = normalizeLabel(newTrueVariant.variantLabel as string | null | undefined);
+                                            const matchingConversion = allConversionVariants.find((conversion: any) =>
+                                                normalizeLabel(getVariantOptionText(item.description, conversion)) === currentConversionLabel &&
+                                                normalizeLabel(conversion.variantLabel) === newTrueVariantLabel,
+                                            );
+                                            if (matchingConversion) targetVariantId = matchingConversion.id;
+                                        }
+                                    }
+                                    updateVariant(targetVariantId);
+                                }}
+                            >
+                                <option value="base" className="hidden">Phiên bản</option>
+                                {displayTrueVariants.map((variant: any) => (
+                                    <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 text-primary-500 pointer-events-none" size={12} />
+                        </div>
+                    ) : null}
+
+                    {/* Conversion unit selector */}
+                    {conversionVariants.length > 0 ? (
+                        <div className="relative inline-flex items-center mb-1.5 max-w-[120px] group">
+                            <select
+                                className="appearance-none bg-gray-50 text-gray-700 text-[13px] pr-5 pl-2 py-0.5 rounded outline-none cursor-pointer border border-gray-200"
+                                value={isCurrentConversion ? item.productVariantId : 'base'}
+                                onChange={(event) => {
+                                    if (event.target.value === 'base') updateVariant(currentTrueVariant ? currentTrueVariant.id : 'base');
+                                    else updateVariant(event.target.value);
+                                }}
+                            >
+                                <option value="base">{baseUnit}</option>
+                                {conversionVariants.map((variant: any) => (
+                                    <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={12} />
+                        </div>
+                    ) : null}
+
+                    {/* Qty + Discount */}
+                    <div className="flex items-center gap-3 mb-1.5">
                         <PosCartQuantityControl item={item} isOverSellableQty={isOverSellableQty} store={store} callbacks={callbacks} mobile />
                         <div className="relative">
                             <PosCartDiscountEditor
@@ -293,6 +356,55 @@ export function PosCartRow({
                             />
                         </div>
                     </div>
+
+                    {/* Hotel dates */}
+                    {item.hotelDetails ? (
+                        <div className="text-[11px] text-primary-600 bg-primary-50 w-fit px-1.5 py-0.5 rounded mb-1">
+                            In: {new Date(item.hotelDetails.checkIn).toLocaleDateString('vi-VN')} – Out: {new Date(item.hotelDetails.checkOut).toLocaleDateString('vi-VN')}
+                        </div>
+                    ) : null}
+
+                    {/* Item notes */}
+                    {noteEditingId === item.id ? (
+                        <input
+                            type="text"
+                            placeholder="Ghi chú sản phẩm..."
+                            defaultValue={item.itemNotes || ''}
+                            autoFocus
+                            onBlur={(event) => {
+                                const newNotes = event.target.value;
+                                if (newNotes !== item.itemNotes) {
+                                    callbacks ? callbacks.onUpdateItemNotes(item.id, newNotes) : store?.updateItemNotes(item.id, newNotes);
+                                }
+                                setNoteEditingId(null);
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                    callbacks ? callbacks.onUpdateItemNotes(item.id, event.currentTarget.value) : store?.updateItemNotes(item.id, event.currentTarget.value);
+                                    setNoteEditingId(null);
+                                } else if (event.key === 'Escape') {
+                                    setNoteEditingId(null);
+                                }
+                            }}
+                            className="w-full h-7 px-2 text-[12px] bg-white border border-amber-300 focus:border-amber-500 focus:outline-none rounded text-amber-700 placeholder:text-gray-400"
+                        />
+                    ) : (
+                        <div
+                            className="flex items-center gap-1 cursor-pointer hover:opacity-75 transition-opacity"
+                            onClick={() => setNoteEditingId(item.id)}
+                        >
+                            {item.itemNotes ? (
+                                <span className="text-[11px] text-amber-600 font-medium italic truncate max-w-[200px] flex items-center gap-1">
+                                    <FileText size={11} className="shrink-0 text-amber-500" />
+                                    {item.itemNotes}
+                                </span>
+                            ) : (
+                                <button className="text-gray-300 hover:text-[#0089A1] transition-colors p-0.5" type="button">
+                                    <FileText size={12} strokeWidth={2.5} />
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <button

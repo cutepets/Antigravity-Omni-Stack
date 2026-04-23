@@ -6,7 +6,9 @@ export type GroomingStatus =
   | "PENDING"
   | "IN_PROGRESS"
   | "COMPLETED"
+  | "RETURNED"
   | "CANCELLED";
+
 
 export interface GroomingCustomer {
   id?: string;
@@ -111,6 +113,7 @@ export interface GroomingSession {
   weightBand?: { id: string; label: string } | null;
   pricingSnapshot?: GroomingSessionPricingSnapshot | null;
   extraServices?: SpaExtraServiceLine[];
+  contactStatus?: 'CALLED' | 'UNCALLED' | null;
   createdAt: string;
   updatedAt?: string;
   pet: GroomingPet;
@@ -173,6 +176,7 @@ export interface SpaPricePreview {
 export type UpdateGroomingPayload = Partial<CreateGroomingPayload> & {
   id: string;
   status?: GroomingStatus;
+  contactStatus?: 'CALLED' | 'UNCALLED';
   endTime?: string;
   price?: number;
   staffIds?: string[];

@@ -95,6 +95,10 @@ export class UpdateGroomingDto {
 
   @IsString()
   @IsOptional()
+  contactStatus?: string
+
+  @IsString()
+  @IsOptional()
   branchId?: string
 
   @IsString()

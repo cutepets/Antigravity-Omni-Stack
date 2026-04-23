@@ -51,7 +51,8 @@ export function PosCartItems({
       <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-4">
         <ShoppingCart size={64} className="opacity-20" />
         <p className="text-lg">Đơn hàng trống</p>
-        <p className="text-sm">Hãy tìm kiếm sản phẩm hoặc quét mã vạch (F1)</p>
+        <p className="text-sm hidden sm:block">Hãy tìm kiếm sản phẩm hoặc quét mã vạch (F1)</p>
+        <p className="text-sm sm:hidden">Tìm kiếm sản phẩm để thêm vào đơn</p>
       </div>
     );
   }

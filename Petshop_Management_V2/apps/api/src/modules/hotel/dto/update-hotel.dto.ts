@@ -12,6 +12,14 @@ export class UpdateHotelStayDto extends PartialType(CreateHotelStayDto) {
   @IsEnum(PaymentStatus)
   @IsOptional()
   paymentStatus?: PaymentStatus;
+
+  @IsDateString()
+  @IsOptional()
+  checkedInAt?: string | null;
+
+  @IsDateString()
+  @IsOptional()
+  checkOutActual?: string | null;
 }
 
 export class UpdateCageDto extends PartialType(CreateCageDto) {}

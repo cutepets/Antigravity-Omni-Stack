@@ -306,6 +306,7 @@ const registry = [
       { dataset: 'orderTimeline', delegate: 'orderTimeline' },
       { dataset: 'groomingTimeline', delegate: 'groomingTimeline' },
       { dataset: 'hotelStayTimeline', delegate: 'hotelStayTimeline' },
+      { dataset: 'hotelStayHealthLog', delegate: 'hotelStayHealthLog' },
       { dataset: 'hotelStayChargeLine', delegate: 'hotelStayChargeLine' },
       { dataset: 'hotelStayAdjustment', delegate: 'hotelStayAdjustment' },
       { dataset: 'orderReturnRequest', delegate: 'orderReturnRequest' },
@@ -385,4 +386,3 @@ export function getBackupCatalogEntries(): BackupCatalogEntry[] {
 export function getReverseDependencies(moduleId: string) {
   return [...(reverseDependencyMap[moduleId] ?? [])]
 }
-

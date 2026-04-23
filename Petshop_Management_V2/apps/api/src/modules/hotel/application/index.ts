@@ -16,6 +16,7 @@ import { UpdateStayPaymentHandler } from './commands/update-stay-payment/update-
 import { CheckoutStayHandler } from './commands/checkout-stay/checkout-stay.handler.js'
 import { DeleteStayHandler } from './commands/delete-stay/delete-stay.handler.js'
 import { CreateStayHealthLogHandler } from './commands/create-stay-health-log/create-stay-health-log.handler.js'
+import { CreateStayNoteHandler } from './commands/create-stay-note/create-stay-note.handler.js'
 
 // ===== CAGE QUERIES =====
 import { FindAllCagesHandler } from './queries/find-all-cages/find-all-cages.handler.js'
@@ -35,7 +36,7 @@ export const CommandHandlers = [
     CreateCageHandler, UpdateCageHandler, DeleteCageHandler, ReorderCagesHandler,
     CreateRateTableHandler, UpdateRateTableHandler, DeleteRateTableHandler,
     CreateStayHandler, UpdateStayHandler, UpdateStayPaymentHandler, CheckoutStayHandler, DeleteStayHandler,
-    CreateStayHealthLogHandler,
+    CreateStayHealthLogHandler, CreateStayNoteHandler,
 ]
 
 export const QueryHandlers = [

@@ -227,6 +227,7 @@ export default function CageGrid() {
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null)
   const [selectedStay, setSelectedStay] = useState<HotelStay | null>(null)
   const [isStayDetailsOpen, setIsStayDetailsOpen] = useState(false)
+  const [isCheckInDialogOpen, setIsCheckInDialogOpen] = useState(false)
 
   const canCheckIn = hasAnyPermission(['hotel.create', 'hotel.checkin'])
 
@@ -317,6 +318,7 @@ export default function CageGrid() {
   const handleSlotDrop = useCallback(
     (e: React.DragEvent, targetSlotIndex: number) => {
       e.preventDefault()
+      e.stopPropagation()
       setDragOverSlotIndex(null)
       setDragOverCenter(false)
 
@@ -333,7 +335,7 @@ export default function CageGrid() {
 
         setSelectedSlot(targetSlotIndex)
         setSelectedStay(bookedStay)
-        setIsStayDetailsOpen(true)
+        setIsCheckInDialogOpen(true)
       } else if (draggedData.type === 'slot') {
         // Move an existing stay to a new slot
         const sourceStay = boardingStays.find(s => s.slotIndex === draggedData.slotIndex)
@@ -414,7 +416,7 @@ export default function CageGrid() {
               setSelectedSlot(emptySlot)
               const bookedStay = bookedStays.find((s) => s.id === draggedData.stayId)
               if (bookedStay) setSelectedStay(bookedStay)
-              setIsStayDetailsOpen(true)
+              setIsCheckInDialogOpen(true)
             } else {
               toast.error('Không còn chuồng trống để check-in')
             }
@@ -502,6 +504,16 @@ export default function CageGrid() {
         isOpen={isStayDetailsOpen}
         onClose={() => {
           setIsStayDetailsOpen(false)
+          setSelectedSlot(null)
+          setSelectedStay(null)
+        }}
+      />
+      <CheckInDialog
+        slotIndex={selectedSlot}
+        bookedStay={selectedStay?.status === 'BOOKED' ? selectedStay : null}
+        isOpen={isCheckInDialogOpen}
+        onClose={() => {
+          setIsCheckInDialogOpen(false)
           setSelectedSlot(null)
           setSelectedStay(null)
         }}

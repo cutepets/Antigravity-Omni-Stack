@@ -203,8 +203,8 @@ function PosPageContent() {
             </div>
 
             <button
-              className={`hidden lg:block p-1.5 hover:bg-white/20 rounded border transition-colors shrink-0 ${store.isMultiSelect ? 'border-amber-400 text-amber-400 bg-white/10' : 'border-white/20 text-white'}`}
-              title={store.isMultiSelect ? "Tắt chọn nhiều" : "Bật chọn nhiều (Thêm nhanh nhiều sản phẩm liên tục)"}
+              className={`p-1.5 hover:bg-white/20 rounded border transition-colors shrink-0 ${store.isMultiSelect ? 'border-amber-400 text-amber-400 bg-white/10' : 'border-white/20 text-white'}`}
+              title={store.isMultiSelect ? "Tắt chọn nhiều" : "Bật chọn nhiều"}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.preventDefault();
@@ -213,6 +213,11 @@ function PosPageContent() {
             >
               <ListChecks size={18} />
             </button>
+
+            {/* Branch Select — mobile only (desktop has it in right section) */}
+            <div className="lg:hidden shrink-0">
+              <PosBranchSelect />
+            </div>
 
             <button
               className="p-1.5 hover:bg-white/20 rounded border border-white/20 transition-colors shrink-0"
@@ -326,6 +331,37 @@ function PosPageContent() {
           </button>
         </div>
       </header>
+      {/* MOBILE TABS BAR */}
+      <div className="lg:hidden flex items-center bg-[#006E82] border-b border-[#005767] px-2 py-1 gap-1 overflow-x-auto no-scrollbar shrink-0">
+        {store.tabs.map((tab) => {
+          const isActive = tab.id === store.activeTabId;
+          return (
+            <div
+              key={tab.id}
+              onClick={() => store.setActiveTab(tab.id)}
+              className={`flex items-center gap-1 px-3 py-1 rounded-full text-[13px] font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0 ${isActive ? "bg-white text-[#006E82] font-semibold shadow-sm" : "bg-white/20 text-white hover:bg-white/30"}`}
+            >
+              <span className="max-w-[110px] truncate">{tab.title}</span>
+              {store.tabs.length > 1 && (
+                <button
+                  className={`p-0.5 rounded-full flex items-center justify-center transition-colors ${isActive ? "text-[#006E82]/50 hover:text-red-500" : "text-white/50 hover:text-white"}`}
+                  onClick={(e) => { e.stopPropagation(); store.closeTab(tab.id); }}
+                >
+                  <X size={11} strokeWidth={3} />
+                </button>
+              )}
+            </div>
+          );
+        })}
+        <button
+          onClick={() => store.addTab()}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-white/20 hover:bg-white/35 text-white transition-colors shrink-0 ml-0.5"
+          title="Tao don moi"
+        >
+          <Plus size={15} strokeWidth={2.5} />
+        </button>
+            </div>
+
 
       {/* â• â• â•  MAIN POS AREA â• â• â•  */}
       <main className="flex-1 flex flex-col lg:grid lg:grid-cols-[1fr_390px] xl:grid-cols-[1fr_420px] lg:grid-rows-[auto_1fr_auto] overflow-y-auto lg:overflow-hidden bg-background relative">
@@ -362,24 +398,24 @@ function PosPageContent() {
 
           {/* Bottom Toolbar & Notes */}
           <div className="mt-auto flex flex-col bg-surface-secondary border-t border-border">
-            <div className="flex items-center gap-2 p-2 px-4 shadow-[0_-2px_10px_rgba(0,0,0,0.02)] z-10 overflow-x-auto no-scrollbar whitespace-nowrap">
+            <div className="flex flex-wrap items-center gap-1.5 p-2 px-3 shadow-[0_-2px_10px_rgba(0,0,0,0.02)] z-10">
               <button
-                className="px-4 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors"
+                className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap"
                 onClick={() => {
                   const check = window.confirm('Xác nhận làm mới Đơn hàng?');
                   if (check) store.clearCart();
                 }}
               >Xoá tất cả</button>
-              <button className="px-4 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors">Khuyến mại</button>
+              <button className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap">Khuyến mại</button>
               <button
-                className="px-4 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors"
+                className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap"
                 onClick={() => {
                   const url = authUser?.id ? `/orders?staffId=${authUser.id}` : '/orders';
                   router.push(url);
                 }}
               >Xem đơn hàng</button>
               <button
-                className="px-4 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors"
+                className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap"
                 onClick={() => {
                   store.addItem({
                     id: `temp-${Date.now()}`,
@@ -391,9 +427,9 @@ function PosPageContent() {
                     isTemp: true,
                   } as any);
                 }}
-              >+ Sản phẩm tạm</button>
+              >+ SP tạm</button>
               <HotelQuickPreviewTool
-                triggerClassName="h-auto rounded border-border bg-surface px-4 py-1.5 text-foreground hover:border-primary-500 hover:bg-surface"
+                triggerClassName="h-auto rounded border-border bg-surface px-3 py-1.5 text-foreground hover:border-primary-500 hover:bg-surface whitespace-nowrap"
                 triggerLabelClassName=""
               />
             </div>
@@ -457,7 +493,7 @@ function PosPageContent() {
             const method = activeTab.payments?.[0]?.method ?? preferredPaymentMethod?.type ?? 'CASH';
             handleCheckout(method as string);
           }}
-          primaryActionLabel={hasServiceItems ? 'Tạo Dịch Vụ (F9)' : 'Thanh Toán (F9)'}
+          primaryActionLabel={hasServiceItems ? 'Tạo Dịch Vụ' : 'Thanh Toán'}
         />
 
       </main >

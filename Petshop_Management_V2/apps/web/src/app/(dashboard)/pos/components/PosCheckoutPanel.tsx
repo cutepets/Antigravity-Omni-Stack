@@ -96,7 +96,7 @@ export function PosCheckoutPanel({
 
           <div className="flex justify-between items-center py-0.5 border-b border-dashed border-border pb-2">
             <span className="text-[15px] text-primary-600 cursor-pointer hover:underline decoration-dashed decoration-primary-400 underline-offset-4">
-              Chiết khấu đơn (F6)
+              Chiết khấu đơn<span className="hidden sm:inline"> (F6)</span>
             </span>
             <div className="flex items-center">
               <input
@@ -182,7 +182,7 @@ export function PosCheckoutPanel({
                       className="shrink-0 text-[14px] sm:text-[15px] font-medium text-foreground-muted cursor-pointer"
                       onClick={() => document.getElementById('customer_money_input')?.focus()}
                     >
-                      Khách đưa (F8)
+                      Khách đưa<span className="hidden sm:inline"> (F8)</span>
                     </span>
 
                     <div ref={paymentMenuRef} className="relative shrink-0 min-w-0">

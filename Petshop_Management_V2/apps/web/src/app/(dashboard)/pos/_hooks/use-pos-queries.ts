@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { orderApi } from '@/lib/api/order.api';
 import {
   pricingApi,
+  type HotelExtraService,
   type HotelPriceRule,
   type SpaPriceRule,
 } from '@/lib/api/pricing.api';
@@ -188,6 +189,13 @@ export function usePetPricingSuggestions(pet: any) {
     staleTime: 30_000,
   });
 
+  const hotelExtraServicesQuery = useQuery({
+    queryKey: ['pos', 'pricing-suggestions', 'hotel-extra-services'],
+    queryFn: () => pricingApi.getHotelExtraServices(),
+    enabled: Boolean(pet?.id),
+    staleTime: 60_000,
+  });
+
   const suggestions = buildPricingSuggestions({
     pet,
     weight,
@@ -195,6 +203,7 @@ export function usePetPricingSuggestions(pet: any) {
     species,
     spaRules: spaRulesQuery.data ?? [],
     hotelRules: hotelRulesQuery.data ?? [],
+    hotelExtraServices: hotelExtraServicesQuery.data ?? [],
   });
 
   return {
@@ -212,6 +221,7 @@ function buildPricingSuggestions({
   species,
   spaRules,
   hotelRules,
+  hotelExtraServices,
 }: {
   pet: any;
   weight: number;
@@ -219,6 +229,7 @@ function buildPricingSuggestions({
   species?: string;
   spaRules: SpaPriceRule[];
   hotelRules: HotelPriceRule[];
+  hotelExtraServices: HotelExtraService[];
 }) {
   if (!pet) return [];
 
@@ -357,34 +368,34 @@ function buildPricingSuggestions({
       reason: 'Dịch vụ giá cố định (không phân loại theo cân nặng).',
     }));
 
-  // ── Weight-matched hotel suggestion (score 85) ────────────────────────────
+  // ── Weight-matched hotel suggestions (score 85 REGULAR, 80 HOLIDAY) ────────
   const matchingHotelRules = hasPricingProfile
     ? hotelRules.filter((rule) => isSpeciesMatch(species, getRuleSpecies(rule)) && isWeightInBand(weight, rule.weightBand))
     : [];
-  const regularHotelRule = matchingHotelRules.find((rule) => rule.dayType === 'REGULAR') ?? matchingHotelRules[0];
-  const weightMatchedHotelSuggestions = regularHotelRule
-    ? [{
-      id: `pricing:hotel:${regularHotelRule.weightBandId}`,
-      entryType: 'pricing-hotel',
-      pricingKind: 'HOTEL',
-      type: 'hotel',
-      name: 'Hotel lưu trú',
-      description: `Chọn ngày để tính lễ/ngày thường`,
-      sku: getPricingSku('HOTEL', 'Hotel lưu trú', regularHotelRule.weightBand?.label),
-      price: regularHotelRule.fullDayPrice,
-      sellingPrice: regularHotelRule.fullDayPrice,
-      duration: undefined,
-      weightBandId: regularHotelRule.weightBandId,
-      weightBandLabel: regularHotelRule.weightBand?.label,
-      pricingRuleId: regularHotelRule.id,
-      petSnapshot: pet,
-      suggestionKind: 'HOTEL' as const,
-      suggestionGroup: 'PRIMARY' as const,
-      suggestionScore: 85,
-      isWeightMatched: true,
-      reason: 'Tính giá hotel theo ngày nhận/trả, tự tách ngày lễ và ngày thường.',
-    }]
-    : [];
+  const weightMatchedHotelSuggestions = matchingHotelRules.map((rule) => ({
+    id: `pricing:hotel:${rule.id}`,
+    entryType: 'pricing-hotel',
+    pricingKind: 'HOTEL',
+    type: 'hotel',
+    name: rule.dayType === 'HOLIDAY' ? 'Hotel lưu trú (Ngày lễ)' : 'Hotel lưu trú',
+    description: rule.dayType === 'HOLIDAY' ? 'Áp dụng cho ngày lễ/Tết' : 'Chọn ngày để tính lễ/ngày thường',
+    sku: getPricingSku('HOTEL', rule.dayType === 'HOLIDAY' ? 'Hotel lưu trú Ngày lễ' : 'Hotel lưu trú', rule.weightBand?.label),
+    price: rule.fullDayPrice,
+    sellingPrice: rule.fullDayPrice,
+    duration: undefined,
+    weightBandId: rule.weightBandId,
+    weightBandLabel: rule.weightBand?.label,
+    pricingRuleId: rule.id,
+    dayType: rule.dayType,
+    petSnapshot: pet,
+    suggestionKind: 'HOTEL' as const,
+    suggestionGroup: 'PRIMARY' as const,
+    suggestionScore: rule.dayType === 'REGULAR' ? 85 : 80,
+    isWeightMatched: true,
+    reason: rule.dayType === 'HOLIDAY'
+      ? 'Giá hotel ngày lễ theo hạng cân.'
+      : 'Tính giá hotel theo ngày nhận/trả, tự tách ngày lễ và ngày thường.',
+  }));
 
   // ── Flat-rate hotel suggestions (no weightBand, score 55) ────────────────
   const hasWeightMatchedHotel = weightMatchedHotelSuggestions.length > 0;
@@ -393,30 +404,64 @@ function buildPricingSuggestions({
       (rule) =>
         !rule.weightBand &&
         !rule.weightBandId &&
-        rule.dayType === 'REGULAR' &&
         isSpeciesMatch(species, getRuleSpecies(rule)),
     )
     : [];
-  const flatRateHotelSuggestions = flatRateHotelRules.slice(0, 1).map((rule) => ({
+  const flatRateHotelSuggestions = flatRateHotelRules.map((rule) => ({
     id: `pricing:hotel:flat:${rule.id}`,
     entryType: 'pricing-hotel',
     pricingKind: 'HOTEL',
     type: 'hotel',
-    name: 'Hotel lưu trú',
+    name: rule.dayType === 'HOLIDAY' ? 'Hotel lưu trú (Ngày lễ)' : 'Hotel lưu trú',
     description: 'Chọn ngày để tính giá',
-    sku: getPricingSku('HOTEL', 'Hotel lưu trú', undefined),
+    sku: getPricingSku('HOTEL', rule.dayType === 'HOLIDAY' ? 'Hotel lưu trú Ngày lễ' : 'Hotel lưu trú', undefined),
     price: rule.fullDayPrice,
     sellingPrice: rule.fullDayPrice,
     duration: undefined,
     weightBandId: undefined,
     weightBandLabel: undefined,
     pricingRuleId: rule.id,
+    dayType: rule.dayType,
     petSnapshot: pet,
     suggestionKind: 'HOTEL' as const,
     suggestionGroup: 'PRIMARY' as const,
-    suggestionScore: 55,
+    suggestionScore: rule.dayType === 'REGULAR' ? 55 : 50,
     isWeightMatched: false,
     reason: 'Dịch vụ khách sạn giá cố định.',
+  }));
+
+  // ── Hotel extra services (score 70) ─────────────────────────────────────
+  const matchingHotelExtraServices = hotelExtraServices.filter((svc) => {
+    if (!svc.minWeight && !svc.maxWeight) return true; // flat-rate, always show
+    if (!Number.isFinite(weight)) return false;
+    const min = Number(svc.minWeight ?? 0);
+    const max = svc.maxWeight === null || svc.maxWeight === undefined ? Number.POSITIVE_INFINITY : Number(svc.maxWeight);
+    return weight >= min && weight < max;
+  });
+  const hotelExtraServiceSuggestions = matchingHotelExtraServices.map((svc) => ({
+    id: `pricing:hotel:extra:${svc.sku ?? svc.name}`,
+    entryType: 'pricing-hotel-extra',
+    pricingKind: 'HOTEL',
+    type: 'hotel',
+    name: svc.name,
+    description: undefined,
+    sku: svc.sku ?? undefined,
+    price: svc.price,
+    sellingPrice: svc.price,
+    duration: undefined,
+    weightBandId: undefined,
+    weightBandLabel: (svc.minWeight != null)
+      ? `${svc.minWeight}-${svc.maxWeight ?? '∞'}kg`
+      : undefined,
+    pricingRuleId: undefined,
+    petSnapshot: pet,
+    suggestionKind: 'HOTEL' as const,
+    suggestionGroup: 'OTHER' as const,
+    serviceRole: 'EXTRA' as const,
+    isSpaExtraService: false,
+    suggestionScore: 70,
+    isWeightMatched: svc.minWeight != null,
+    reason: 'Dịch vụ bổ sung của hotel.',
   }));
 
   return [
@@ -425,6 +470,7 @@ function buildPricingSuggestions({
     ...weightMatchedHotelSuggestions,
     ...flatRateSpaSuggestions,
     ...flatRateHotelSuggestions,
+    ...hotelExtraServiceSuggestions,
   ].sort((left, right) => right.suggestionScore - left.suggestionScore);
 }
 

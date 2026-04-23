@@ -4,7 +4,7 @@ import { generateHotelStayCode as formatHotelStayCode } from '@petshop/shared';
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js';
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
 import { DatabaseService } from '../../database/database.service.js';
-import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto, HotelStayAdjustmentDto, CreateHotelStayHealthLogDto } from './dto/create-hotel.dto.js';
+import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto, HotelStayAdjustmentDto, CreateHotelStayHealthLogDto, CreateHotelStayNoteDto } from './dto/create-hotel.dto.js';
 import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateHotelRateTableDto, UpdateHotelStayDto, UpdateCageDto } from './dto/update-hotel.dto.js';
 
 const ACTIVE_STAY_STATUSES = ['BOOKED', 'CHECKED_IN'] as const;
@@ -106,6 +106,20 @@ export class HotelService {
         weightBand: true,
       },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    },
+    orderItems: {
+      select: {
+        id: true,
+        description: true,
+        quantity: true,
+        unitPrice: true,
+        discountItem: true,
+        subtotal: true,
+        pricingSnapshot: true,
+        type: true,
+        createdAt: true,
+      },
+      orderBy: [{ createdAt: 'asc' as const }],
     },
     order: {
       select: {
@@ -269,6 +283,7 @@ export class HotelService {
       chargeLines: Array.isArray(stay.chargeLines)
         ? stay.chargeLines.map((line: any) => this.mapStayChargeLine(line))
         : [],
+      orderItems: Array.isArray(stay.orderItems) ? stay.orderItems : [],
     };
   }
 
@@ -420,12 +435,15 @@ export class HotelService {
       },
       select: {
         id: true,
+        discountItem: true,
       },
     });
     if (!orderItem) return;
     const description = stay.chargeLines.length > 0
       ? stay.chargeLines.map((line) => line.label).join(' + ')
       : null;
+    const lineDiscount = Math.max(0, Number(orderItem.discountItem ?? 0));
+    const lineSubtotal = Math.max(0, stay.totalPrice - lineDiscount);
 
     await this.prisma.orderItem.update({
       where: { id: orderItem.id },
@@ -433,7 +451,7 @@ export class HotelService {
         ...(description ? { description } : {}),
         unitPrice: stay.totalPrice,
         quantity: 1,
-        subtotal: stay.totalPrice,
+        subtotal: lineSubtotal,
         ...(stay.breakdownSnapshot !== null
           ? { pricingSnapshot: stay.breakdownSnapshot as Prisma.InputJsonValue }
           : {}),
@@ -1125,7 +1143,17 @@ export class HotelService {
     assertBranchAccess(stay.branchId, user);
     const updateData: Prisma.HotelStayUpdateInput = {};
     const nextPetId = data.petId ?? stay.petId;
-    let nextCheckIn = data.checkIn ? new Date(data.checkIn) : stay.checkIn;
+    const requestedCheckedInAt = data.checkedInAt
+      ? new Date(data.checkedInAt)
+      : data.checkedInAt === null
+        ? null
+        : undefined;
+    const requestedCheckOutActual = data.checkOutActual
+      ? new Date(data.checkOutActual)
+      : data.checkOutActual === null
+        ? null
+        : undefined;
+    let nextCheckIn = requestedCheckedInAt ?? (data.checkIn ? new Date(data.checkIn) : stay.checkIn);
     let nextPet = stay.pet;
     const statusTransition = data.status && data.status !== stay.status ? data.status : null;
     const nextEstimatedCheckOut = data.estimatedCheckOut
@@ -1149,6 +1177,7 @@ export class HotelService {
     if (
       data.petId !== undefined ||
       data.checkIn !== undefined ||
+      data.checkedInAt !== undefined ||
       data.estimatedCheckOut !== undefined
     ) {
       await this.ensureStayCanOccupyWindow({
@@ -1182,6 +1211,16 @@ export class HotelService {
 
     if (data.checkIn) updateData.checkIn = new Date(data.checkIn);
     if (data.checkOut) updateData.checkOut = new Date(data.checkOut);
+    if (requestedCheckedInAt !== undefined) {
+      updateData.checkedInAt = requestedCheckedInAt;
+      if (requestedCheckedInAt) {
+        updateData.checkIn = requestedCheckedInAt;
+      }
+    }
+    if (requestedCheckOutActual !== undefined) {
+      updateData.checkOutActual = requestedCheckOutActual;
+      updateData.checkOut = requestedCheckOutActual;
+    }
     if (data.estimatedCheckOut !== undefined) {
       updateData.estimatedCheckOut = data.estimatedCheckOut ? new Date(data.estimatedCheckOut) : null;
     }
@@ -1202,7 +1241,7 @@ export class HotelService {
       if (!['BOOKED', 'CHECKED_IN'].includes(stay.status)) {
         throw new BadRequestException('Khong the nhan phong cho stay da ket thuc');
       }
-      nextCheckIn = new Date();
+      nextCheckIn = requestedCheckedInAt ?? new Date();
       updateData.checkIn = nextCheckIn;
       updateData.checkedInAt = nextCheckIn;
     }
@@ -1227,13 +1266,14 @@ export class HotelService {
         });
 
         if (user?.userId) {
+          const noteContent = data.notes?.trim() || data.petNotes?.trim() || null;
           await tx.hotelStayTimeline.create({
             data: {
               stayId: id,
-              action: 'Cap nhat ghi chu',
+              action: noteContent ? 'Cap nhat ghi chu' : 'Cap nhat do di kem',
               fromStatus: stay.status,
               toStatus: stay.status,
-              note: data.notes?.trim() || data.petNotes?.trim() || data.accessories?.trim() || null,
+              note: noteContent,
               performedBy: user.userId,
             },
           });
@@ -1259,10 +1299,12 @@ export class HotelService {
       ? this.sumAdjustmentAmount(data.adjustments)
       : data.surcharge ?? stay.surcharge;
     const finalCheckOut = statusTransition === 'CHECKED_OUT'
-      ? new Date()
-      : data.checkOut
-        ? new Date(data.checkOut)
-        : nextEstimatedCheckOut ?? stay.checkOutActual ?? stay.checkOut ?? null;
+      ? requestedCheckOutActual ?? new Date()
+      : requestedCheckOutActual !== undefined
+        ? requestedCheckOutActual
+        : data.checkOut
+          ? new Date(data.checkOut)
+          : nextEstimatedCheckOut ?? stay.checkOutActual ?? stay.checkOut ?? null;
     const nextRateTableId = data.rateTableId !== undefined ? data.rateTableId : stay.rateTableId;
     const pricingPreview = await this.buildHotelPricingPreview({
       species: nextPet.species,
@@ -1349,7 +1391,9 @@ export class HotelService {
       data.totalPrice !== undefined ||
       data.dailyRate !== undefined ||
       data.checkIn !== undefined ||
+      data.checkedInAt !== undefined ||
       data.checkOut !== undefined ||
+      data.checkOutActual !== undefined ||
       data.estimatedCheckOut !== undefined ||
       data.petId !== undefined ||
       data.surcharge !== undefined ||
@@ -1369,6 +1413,8 @@ export class HotelService {
       {
         previousStatus: stay.status,
         nextStatus: updated.status,
+        checkedInAt: updated.checkedInAt,
+        checkOutActual: updated.checkOutActual,
         estimatedCheckOut: updated.estimatedCheckOut,
         surcharge: updated.surcharge,
         totalPrice: updated.totalPrice,
@@ -1741,7 +1787,7 @@ export class HotelService {
     if (!stay) throw new NotFoundException('Khong tim thay ky luu tru');
     assertBranchAccess(stay.branchId, user);
 
-    return (this.prisma as any).hotelStayHealthLog.findMany({
+    return this.prisma.hotelStayHealthLog.findMany({
       where: { hotelStayId: stay.id },
       include: {
         performedByUser: {
@@ -1785,13 +1831,13 @@ export class HotelService {
       throw new BadRequestException('Chi ghi nhan suc khoe khi thu cung dang o shop');
     }
 
-    const content = data.content.trim();
-    const condition = data.condition.trim();
-    if (!content || !condition) {
-      throw new BadRequestException('Noi dung va tinh trang suc khoe la bat buoc');
+    const content = data.content?.trim();
+    const condition = data.condition?.trim() || 'Theo doi';
+    if (!content) {
+      throw new BadRequestException('Noi dung suc khoe la bat buoc');
     }
 
-    const healthLog = await (this.prisma as any).hotelStayHealthLog.create({
+    const healthLog = await this.prisma.hotelStayHealthLog.create({
       data: {
         hotelStayId: stay.id,
         petId: stay.petId,
@@ -1820,6 +1866,68 @@ export class HotelService {
     });
 
     return healthLog;
+  }
+
+  async createStayNote(id: string, data: CreateHotelStayNoteDto, user?: BranchScopedUser) {
+    if (!user?.userId) {
+      throw new BadRequestException('Khong xac dinh nhan vien cap nhat ghi chu');
+    }
+
+    const content = data.content?.trim();
+    if (!content) {
+      throw new BadRequestException('Noi dung ghi chu la bat buoc');
+    }
+
+    const stay = await this.prisma.hotelStay.findFirst({
+      where: {
+        OR: [
+          { id },
+          { stayCode: { equals: id, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        stayCode: true,
+        petName: true,
+        branchId: true,
+        status: true,
+      },
+    });
+    if (!stay) throw new NotFoundException('Khong tim thay ky luu tru');
+    assertBranchAccess(stay.branchId, user);
+
+    const timelineEntry = await this.prisma.$transaction(async (tx) => {
+      await tx.hotelStay.update({
+        where: { id: stay.id },
+        data: { notes: content },
+      });
+
+      return tx.hotelStayTimeline.create({
+        data: {
+          stayId: stay.id,
+          action: 'Cap nhat ghi chu suc khoe',
+          fromStatus: stay.status,
+          toStatus: stay.status,
+          note: content,
+          performedBy: user.userId,
+        },
+        include: {
+          performedByUser: {
+            select: {
+              id: true,
+              fullName: true,
+              staffCode: true,
+            },
+          },
+        },
+      });
+    });
+
+    await this.logStayActivity('HOTEL_STAY_NOTE_CREATED', stay, user, {
+      note: content,
+    });
+
+    return timelineEntry;
   }
 
   async deleteStay(id: string, user?: BranchScopedUser) {

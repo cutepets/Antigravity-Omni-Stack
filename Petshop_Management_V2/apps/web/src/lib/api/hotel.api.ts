@@ -132,6 +132,7 @@ export interface HotelStay {
   } | null
   adjustments?: HotelStayAdjustment[]
   chargeLines?: HotelStayChargeLine[]
+  orderItems?: HotelStayOrderItem[]
 }
 
 export interface HotelStayAdjustment {
@@ -191,11 +192,15 @@ export interface HotelStayHealthLog {
 
 export interface CreateHotelStayHealthLogDto {
   content: string
-  condition: string
+  condition?: string
   temperature?: number
   weight?: number
   appetite?: string
   stool?: string
+}
+
+export interface CreateHotelStayNoteDto {
+  content: string
 }
 
 export interface HotelStayChargeLine {
@@ -209,6 +214,18 @@ export interface HotelStayChargeLine {
   weightBandId: string | null
   pricingSnapshot?: Record<string, unknown> | null
   weightBandLabel?: string | null
+}
+
+export interface HotelStayOrderItem {
+  id: string
+  description: string
+  quantity: number
+  unitPrice: number
+  discountItem: number
+  subtotal: number
+  pricingSnapshot?: Record<string, unknown> | null
+  type?: string | null
+  createdAt: string
 }
 
 export interface HotelStayListResponse {
@@ -265,6 +282,8 @@ export interface CreateHotelStayDto {
 
 export interface UpdateHotelStayDto extends Partial<CreateHotelStayDto> {
   status?: HotelStatus
+  checkedInAt?: string | null
+  checkOutActual?: string | null
 }
 
 export interface CheckoutHotelStayDto {
@@ -371,6 +390,8 @@ export const hotelApi = {
     api.get<HotelStayHealthLog[]>(`/hotel/stays/${id}/health-logs`).then((res) => res.data),
   createStayHealthLog: (id: string, data: CreateHotelStayHealthLogDto) =>
     api.post<HotelStayHealthLog>(`/hotel/stays/${id}/health-logs`, data).then((res) => res.data),
+  createStayNote: (id: string, data: CreateHotelStayNoteDto) =>
+    api.post<HotelStayTimeline['activities'][number]>(`/hotel/stays/${id}/notes`, data).then((res) => res.data),
   createStay: (data: CreateHotelStayDto) => api.post<HotelStay>('/hotel/stays', data).then((res) => res.data),
   updateStay: (id: string, data: UpdateHotelStayDto) => api.patch<HotelStay>(`/hotel/stays/${id}`, data).then((res) => res.data),
   updateStayPayment: (id: string, paymentStatus: HotelPaymentStatus) =>

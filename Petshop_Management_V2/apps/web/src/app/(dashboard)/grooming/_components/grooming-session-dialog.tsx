@@ -8,7 +8,10 @@ import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpRight,
+  CheckCircle2,
   ClipboardList,
+  LogOut,
+  Phone,
   PawPrint,
   Printer,
   Save,
@@ -49,6 +52,7 @@ const GROOMING_STATUS_VI: Record<string, string> = {
   PENDING: 'Chờ làm',
   IN_PROGRESS: 'Đang làm',
   COMPLETED: 'Hoàn thành',
+  RETURNED: 'Đã trả',
   CANCELLED: 'Đã hủy',
 };
 
@@ -308,14 +312,21 @@ function SpaServiceLineRow({
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-3 gap-y-0.5 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2">
       <div className="flex min-w-0 items-center gap-2">
         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-[10px] font-bold text-primary-500">
           {index}
         </span>
         <span className="truncate text-sm font-medium text-foreground">{line.name}</span>
-        <span className="text-[11px] text-foreground-muted whitespace-nowrap">× {line.quantity}{line.lineDiscount > 0 ? ` · -${formatNumber(line.lineDiscount)}` : ''}</span>
       </div>
+      <span className="text-[11px] text-foreground-muted whitespace-nowrap">
+        {formatNumber(line.unitPrice)} × {line.quantity}
+      </span>
+      {line.lineDiscount > 0 ? (
+        <span className="text-[11px] text-rose-500 whitespace-nowrap">-{formatNumber(line.lineDiscount)}</span>
+      ) : (
+        <span className="text-[11px] text-foreground-muted/40">—</span>
+      )}
       <span className="shrink-0 text-xs font-semibold text-foreground">{formatMoney(line.lineTotal)}</span>
     </div>
   );
@@ -353,7 +364,7 @@ const groomingSchema = z.object({
       value === "" || value == null || Number.isNaN(value) ? undefined : value,
     z.number().nonnegative("Phụ phí không hợp lệ").optional(),
   ),
-  status: z.enum(["BOOKED", "PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"] as const).optional(),
+  status: z.enum(["BOOKED", "PENDING", "IN_PROGRESS", "COMPLETED", "RETURNED", "CANCELLED"] as const).optional(),
 });
 
 type FormData = z.infer<typeof groomingSchema>;
@@ -662,6 +673,54 @@ export function GroomingSessionDialog({
     },
   });
 
+  const contactStatusMutation = useMutation({
+    mutationFn: async (contactStatus: 'CALLED' | 'UNCALLED') => {
+      if (!session) return null;
+      return groomingApi.updateSession({ id: session.id, contactStatus });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["grooming-sessions"] });
+      if (session?.id) {
+        queryClient.invalidateQueries({ queryKey: ["grooming-session", session.id] });
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || "Không thể cập nhật liên hệ");
+    },
+  });
+
+  const returnMutation = useMutation({
+    mutationFn: async () => {
+      if (!session) return null;
+      return groomingApi.updateSession({ id: session.id, status: 'RETURNED' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["grooming-sessions"] });
+      if (session?.id) {
+        queryClient.invalidateQueries({ queryKey: ["grooming-session", session.id] });
+      }
+      toast.success("Đã trả thú cưng cho khách");
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || "Không thể cập nhật trạng thái");
+    },
+  });
+
+  const revertCancelMutation = useMutation({
+    mutationFn: async () => {
+      if (!session) return null;
+      return groomingApi.updateSession({ id: session.id, status: 'PENDING' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['grooming-sessions'] });
+      if (session?.id) queryClient.invalidateQueries({ queryKey: ['grooming-session', session.id] });
+      toast.success('Đã hoàn hủy phiếu — chuyển về Chờ làm');
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Không thể hoàn hủy');
+    },
+  });
+
   if (!isOpen) return null;
 
   const pets = petsQuery.data?.data ?? [];
@@ -845,7 +904,7 @@ export function GroomingSessionDialog({
                 {(mode === "detail" || watchPetId) && (
                   <>
                     <section className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group min-h-[120px]">
+                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group">
                         <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                           <span className="flex items-center gap-2"><UserRound size={14} /> Khách hàng</span>
                           {petInfo.customerId && (
@@ -862,7 +921,7 @@ export function GroomingSessionDialog({
                         </div>
                       </div>
 
-                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group min-h-[120px]">
+                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group">
                         <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                           <span className="flex items-center gap-2"><Tag size={14} /> Mã thú cưng</span>
                           {petInfo.petId && (
@@ -877,7 +936,7 @@ export function GroomingSessionDialog({
                         </p>
                       </div>
 
-                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group min-h-[120px]">
+                      <div className="rounded-2xl border border-border bg-card/80 p-4 relative group">
                         <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                           <span className="flex items-center gap-2"><ClipboardList size={14} /> Đơn hàng</span>
                           {isEditing && activeSession?.order && canReadOrders && (
@@ -917,12 +976,6 @@ export function GroomingSessionDialog({
                     </section>
 
                     <section className="space-y-4 rounded-2xl border border-border bg-card/80 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-foreground">
-                          Thông tin dịch vụ
-                        </p>
-                      </div>
-
                       <div className="grid gap-4 sm:grid-cols-2">
                         <label className="space-y-2 col-span-1" hidden={isLinkedToOrder}>
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
@@ -946,39 +999,71 @@ export function GroomingSessionDialog({
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                             Nhân viên phụ trách
                           </span>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              disabled={!canUpdateSession}
-                              placeholder="Tìm nhân viên..."
-                              value={searchStaff}
-                              onFocus={() => setShowStaffDropdown(true)}
-                              onBlur={() => setTimeout(() => setShowStaffDropdown(false), 200)}
-                              onChange={(e) => setSearchStaff(e.target.value)}
-                              className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
-                            />
-                            {showStaffDropdown && (
-                              <div className="absolute left-0 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-border bg-background-base p-1 text-sm shadow-xl z-10 custom-scrollbar">
-                                {staffOptions
-                                  .filter(s => s.fullName.toLowerCase().includes(searchStaff.toLowerCase()) && !selectedStaffIds.includes(s.id))
-                                  .map((staff) => (
-                                    <div
-                                      key={staff.id}
-                                      onClick={() => {
-                                        setSelectedStaffIds(prev => [...prev, staff.id]);
-                                        setSearchStaff("");
-                                      }}
-                                      className="cursor-pointer rounded-lg px-3 py-2 hover:bg-background-secondary text-foreground transition-colors"
-                                    >
-                                      {staff.fullName}
-                                    </div>
-                                  ))}
-                                {staffOptions.filter(s => s.fullName.toLowerCase().includes(searchStaff.toLowerCase()) && !selectedStaffIds.includes(s.id)).length === 0 && (
-                                  <div className="px-3 py-2 text-foreground-muted text-center text-xs">Không có kết quả</div>
-                                )}
+                          {/* Input + pill toggle ngang nhau */}
+                          <div className="flex items-start gap-2">
+                            <div className="relative flex-1">
+                              <input
+                                type="text"
+                                disabled={!canUpdateSession}
+                                placeholder="Tìm nhân viên..."
+                                value={searchStaff}
+                                onFocus={() => setShowStaffDropdown(true)}
+                                onBlur={() => setTimeout(() => setShowStaffDropdown(false), 200)}
+                                onChange={(e) => setSearchStaff(e.target.value)}
+                                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500"
+                              />
+                              {showStaffDropdown && (
+                                <div className="absolute left-0 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-border bg-background-base p-1 text-sm shadow-xl z-10 custom-scrollbar">
+                                  {staffOptions
+                                    .filter(s => s.fullName.toLowerCase().includes(searchStaff.toLowerCase()) && !selectedStaffIds.includes(s.id))
+                                    .map((staff) => (
+                                      <div
+                                        key={staff.id}
+                                        onClick={() => {
+                                          setSelectedStaffIds(prev => [...prev, staff.id]);
+                                          setSearchStaff("");
+                                        }}
+                                        className="cursor-pointer rounded-lg px-3 py-2 hover:bg-background-secondary text-foreground transition-colors"
+                                      >
+                                        {staff.fullName}
+                                      </div>
+                                    ))}
+                                  {staffOptions.filter(s => s.fullName.toLowerCase().includes(searchStaff.toLowerCase()) && !selectedStaffIds.includes(s.id)).length === 0 && (
+                                    <div className="px-3 py-2 text-foreground-muted text-center text-xs">Không có kết quả</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Pill segmented: Chưa gọi / Đã gọi */}
+                            {isEditing && (activeSession?.status === 'COMPLETED' || activeSession?.status === 'RETURNED') && (
+                              <div className="ml-auto flex h-11 shrink-0 items-center gap-0.5 rounded-xl border border-border bg-background-secondary p-1">
+                                <button
+                                  type="button"
+                                  disabled={contactStatusMutation.isPending}
+                                  onClick={() => contactStatusMutation.mutate('UNCALLED')}
+                                  className={`h-full rounded-lg px-3 text-xs font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50 ${(activeSession?.contactStatus ?? 'UNCALLED') === 'UNCALLED'
+                                    ? 'bg-amber-500 text-white shadow-sm'
+                                    : 'text-foreground-muted hover:text-foreground'
+                                    }`}
+                                >
+                                  Chưa gọi
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={contactStatusMutation.isPending}
+                                  onClick={() => contactStatusMutation.mutate('CALLED')}
+                                  className={`h-full rounded-lg px-3 text-xs font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50 ${(activeSession?.contactStatus ?? 'UNCALLED') === 'CALLED'
+                                    ? 'bg-emerald-500 text-white shadow-sm'
+                                    : 'text-foreground-muted hover:text-foreground'
+                                    }`}
+                                >
+                                  Đã gọi
+                                </button>
                               </div>
                             )}
                           </div>
+
                           {/* Tags nhân viên đã chọn — hiện ngay dưới ô tìm kiếm */}
                           {selectedStaffIds.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-2">
@@ -996,9 +1081,6 @@ export function GroomingSessionDialog({
                                 ) : null;
                               })}
                             </div>
-                          )}
-                          {canUpdateSession && selectedStaffIds.length === 0 && (
-                            <p className="mt-1 text-xs text-error">Vui lòng chọn ít nhất một nhân viên phụ trách</p>
                           )}
                         </div>
 
@@ -1193,23 +1275,35 @@ export function GroomingSessionDialog({
 
               <footer className="border-t border-border bg-background-base px-6 py-4">
                 <div className="flex items-center justify-between">
-                  {canDeleteSession ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm("Bạn có chắc muốn xóa phiên này?")) {
-                          deleteMutation.mutate();
-                        }
-                      }}
-                      disabled={deleteMutation.isPending}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-medium text-error transition-colors hover:bg-error/10 px-4"
-                    >
-                      <Trash2 size={16} />
-                      Xóa
-                    </button>
-                  ) : (
-                    <div />
-                  )}
+                  <div className="flex items-center gap-2">
+                    {canDeleteSession ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm("Bạn có chắc muốn xóa phiên này?")) {
+                            deleteMutation.mutate();
+                          }
+                        }}
+                        disabled={deleteMutation.isPending}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-medium text-error transition-colors hover:bg-error/10 px-4"
+                      >
+                        <Trash2 size={16} />
+                        Xóa
+                      </button>
+                    ) : null}
+                    {isEditing && activeSession?.status === 'CANCELLED' && hasAnyPermission(['grooming.update']) ? (
+                      <button
+                        type="button"
+                        disabled={revertCancelMutation.isPending}
+                        onClick={() => revertCancelMutation.mutate()}
+                        className="inline-flex h-11 items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-500/20 active:scale-95 disabled:opacity-50"
+                      >
+                        <RefreshCw size={15} className={revertCancelMutation.isPending ? 'animate-spin' : ''} />
+                        Hoàn hủy
+                      </button>
+                    ) : null}
+                  </div>
+
                   <div className="flex gap-3 *:flex-1">
                     <button
                       type="button"

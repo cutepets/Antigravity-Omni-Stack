@@ -143,8 +143,8 @@ export class CreateHotelStayHealthLogDto {
   content!: string;
 
   @IsString()
-  @IsNotEmpty()
-  condition!: string;
+  @IsOptional()
+  condition?: string;
 
   @IsNumber()
   @IsOptional()
@@ -161,6 +161,12 @@ export class CreateHotelStayHealthLogDto {
   @IsString()
   @IsOptional()
   stool?: string;
+}
+
+export class CreateHotelStayNoteDto {
+  @IsString()
+  @IsNotEmpty()
+  content!: string;
 }
 
 export class CreateHotelRateTableDto {

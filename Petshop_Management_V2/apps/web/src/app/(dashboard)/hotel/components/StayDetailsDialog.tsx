@@ -5,25 +5,23 @@ import * as Tabs from '@radix-ui/react-tabs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import {
-  CalendarClock,
   ClipboardList,
-  CreditCard,
   HeartPulse,
+  LogIn,
+  LogOut,
   MessageCircle,
+  Pencil,
   PawPrint,
   Printer,
-  ReceiptText,
   Save,
-  Tag,
   type LucideIcon,
-  UserRound,
   X,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { useAuthorization } from '@/hooks/useAuthorization'
-import { hotelApi, type HotelStay, type HotelStayHealthLog, type HotelStayTimeline } from '@/lib/api/hotel.api'
+import { hotelApi, type HotelStay, type HotelStayHealthLog, type HotelStayOrderItem, type UpdateHotelStayDto } from '@/lib/api/hotel.api'
 import { settingsApi } from '@/lib/api/settings.api'
 import { printHotelStay } from '@/lib/hotel-print'
 import { formatCurrency } from '@/lib/utils'
@@ -34,6 +32,15 @@ interface ChargeLine {
   quantityDays?: number
   unitPrice?: number
   subtotal?: number
+}
+
+interface DisplayPriceLine {
+  id?: string
+  label: string
+  quantityDays: number
+  unitPrice: number
+  discount: number
+  subtotal: number
 }
 
 interface BreakdownSnapshot {
@@ -67,12 +74,21 @@ type NoteDraft = {
 }
 
 type HealthDraft = {
-  condition: string
   content: string
-  temperature: string
-  weight: string
-  appetite: string
-  stool: string
+}
+
+type CareLogEntry = {
+  id: string
+  content: string
+  createdAt?: string | null
+  actor: string
+}
+
+type StayDateDraft = {
+  scheduledCheckIn: string
+  estimatedCheckOut: string
+  checkedInAt: string
+  checkOutActual: string
 }
 
 const EMPTY_NOTE_DRAFT: NoteDraft = {
@@ -82,12 +98,14 @@ const EMPTY_NOTE_DRAFT: NoteDraft = {
 }
 
 const EMPTY_HEALTH_DRAFT: HealthDraft = {
-  condition: 'Theo dõi',
   content: '',
-  temperature: '',
-  weight: '',
-  appetite: '',
-  stool: '',
+}
+
+const EMPTY_STAY_DATE_DRAFT: StayDateDraft = {
+  scheduledCheckIn: '',
+  estimatedCheckOut: '',
+  checkedInAt: '',
+  checkOutActual: '',
 }
 
 const HOTEL_STATUS_META: Record<string, { label: string; className: string; dotClassName: string }> = {
@@ -127,6 +145,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   HOTEL_STAY_CHECKED_OUT: 'Trả phòng',
   HOTEL_STAY_CANCELLED: 'Hủy lưu trú',
   HOTEL_STAY_HEALTH_LOG_CREATED: 'Ghi nhận sức khỏe',
+  HOTEL_STAY_NOTE_CREATED: 'Cập nhật ghi chú & sức khỏe',
 }
 
 function getBreakdownChargeLines(stay: { chargeLines?: ChargeLine[]; breakdownSnapshot?: BreakdownSnapshot | null }): ChargeLine[] {
@@ -136,6 +155,34 @@ function getBreakdownChargeLines(stay: { chargeLines?: ChargeLine[]; breakdownSn
 
   const snapshot = stay?.breakdownSnapshot
   return Array.isArray(snapshot?.chargeLines) ? snapshot.chargeLines : []
+}
+
+function getStayOrderItems(stay: HotelStay | null): HotelStayOrderItem[] {
+  return Array.isArray(stay?.orderItems) ? stay.orderItems : []
+}
+
+function getDisplayPriceLines(stay: HotelStay | null): DisplayPriceLine[] {
+  const orderItems = getStayOrderItems(stay)
+  if (orderItems.length > 0) {
+    return orderItems.map((item) => ({
+      id: item.id,
+      label: item.description || 'Hotel',
+      quantityDays: Number(item.quantity ?? 0),
+      unitPrice: Number(item.unitPrice ?? 0),
+      discount: Number(item.discountItem ?? 0),
+      subtotal: Number(item.subtotal ?? 0),
+    }))
+  }
+
+  if (!stay) return []
+  return getBreakdownChargeLines(stay).map((line, index) => ({
+    id: line.id ?? `${line.label ?? 'hotel'}-${index}`,
+    label: String(line.label ?? 'Hotel'),
+    quantityDays: Number(line.quantityDays ?? 0),
+    unitPrice: Number(line.unitPrice ?? 0),
+    discount: 0,
+    subtotal: Number(line.subtotal ?? 0),
+  }))
 }
 
 function getSnapshotNumber(source: BreakdownSnapshot | null | undefined, key: keyof BreakdownSnapshot): number | null {
@@ -157,17 +204,6 @@ function normalizeZaloPhone(value?: string | null) {
   return digits
 }
 
-function parseOptionalNumber(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) return undefined
-  const normalized = Number(trimmed.replace(',', '.'))
-  return Number.isFinite(normalized) ? normalized : undefined
-}
-
-function getCurrentTotal(basePrice?: number | null, surcharge?: number | null, promotion?: number | null) {
-  return Number(basePrice ?? 0) + Number(surcharge ?? 0) - Number(promotion ?? 0)
-}
-
 function formatStayDate(value?: string | null) {
   if (!value) return '---'
 
@@ -177,13 +213,22 @@ function formatStayDate(value?: string | null) {
   return format(date, 'dd/MM/yyyy HH:mm')
 }
 
-function formatShortDate(value?: string | null) {
-  if (!value) return '---'
+function toDateTimeLocalValue(value?: string | null) {
+  if (!value) return ''
 
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '---'
+  if (Number.isNaN(date.getTime())) return ''
 
-  return format(date, 'dd/MM/yyyy')
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return localDate.toISOString().slice(0, 16)
+}
+
+function fromDateTimeLocalValue(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+
+  const date = new Date(trimmed)
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString()
 }
 
 function getStatusLabel(status?: string | null) {
@@ -223,7 +268,7 @@ function buildHistorySummary(entry: ActivityEntry) {
       typeof details.previousStatus === 'string' ? getStatusLabel(details.previousStatus) : null,
       typeof details.nextStatus === 'string' ? `→ ${getStatusLabel(details.nextStatus)}` : null,
       typeof details.totalPrice === 'number' ? `Tổng ${toMoney(details.totalPrice)}` : null,
-      typeof details.surcharge === 'number' ? `Phụ thu ${toMoney(details.surcharge)}` : null,
+      typeof details.note === 'string' ? details.note : null,
     ]
       .filter(Boolean)
       .join(' • ')
@@ -235,6 +280,108 @@ function buildHistorySummary(entry: ActivityEntry) {
 function getFallbackTimeline(stay: HotelStay | null): ActivityEntry[] {
   const timeline = (stay as (HotelStay & { timeline?: ActivityEntry[] }) | null)?.timeline
   return Array.isArray(timeline) ? timeline : []
+}
+
+function autoResizeTextArea(element: HTMLTextAreaElement) {
+  element.style.height = 'auto'
+  element.style.height = `${Math.max(40, element.scrollHeight)}px`
+}
+
+function getActivityActor(entry: ActivityEntry) {
+  return (
+    entry.user?.fullName ??
+    entry.user?.staffCode ??
+    entry.performedByUser?.fullName ??
+    entry.performedByUser?.staffCode ??
+    'Nhân viên'
+  )
+}
+
+function getStayCareEntries(stay: HotelStay | null, healthLogs: HotelStayHealthLog[], fallbackNote: string): CareLogEntry[] {
+  if (!stay) return []
+
+  const timeline = getFallbackTimeline(stay)
+  const noteEntries: CareLogEntry[] = timeline
+    .filter((entry) => {
+      const action = String(entry.action ?? '').toLowerCase()
+      return Boolean(entry.note?.trim()) && (action.includes('ghi chú') || action.includes('ghi chu') || action.includes('note'))
+    })
+    .map((entry) => ({
+      id: entry.id,
+      content: entry.note?.trim() ?? '',
+      createdAt: entry.createdAt,
+      actor: getActivityActor(entry),
+    }))
+
+  const healthEntries: CareLogEntry[] = healthLogs.map((log) => ({
+    id: log.id,
+    content: log.content,
+    createdAt: log.createdAt,
+    actor: log.performedByUser?.fullName ?? log.performedByUser?.staffCode ?? 'Nhân viên',
+  }))
+
+  const entries = [...noteEntries, ...healthEntries].sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return bTime - aTime
+  })
+
+  if (entries.length > 0) return entries
+  if (!fallbackNote.trim()) return []
+
+  return [{
+    id: `${stay.id}-current-note`,
+    content: fallbackNote,
+    createdAt: stay.updatedAt ?? stay.createdAt,
+    actor: stay.createdBy?.fullName ?? stay.createdBy?.staffCode ?? 'Nhân viên',
+  }]
+}
+
+function getActualCheckIn(stay: HotelStay | null) {
+  if (!stay || stay.status === 'BOOKED') return null
+  return stay.checkedInAt ?? stay.checkIn ?? null
+}
+
+function getActualCheckOut(stay: HotelStay | null) {
+  if (!stay || stay.status !== 'CHECKED_OUT') return null
+  return stay.checkOutActual ?? stay.checkOut ?? null
+}
+
+function getStayDateDraft(stay: HotelStay | null): StayDateDraft {
+  if (!stay) return EMPTY_STAY_DATE_DRAFT
+
+  return {
+    scheduledCheckIn: toDateTimeLocalValue(stay.checkIn),
+    estimatedCheckOut: toDateTimeLocalValue(stay.estimatedCheckOut),
+    checkedInAt: toDateTimeLocalValue(getActualCheckIn(stay)),
+    checkOutActual: toDateTimeLocalValue(getActualCheckOut(stay)),
+  }
+}
+
+function getStayDateSource(stay: HotelStay | null, draft = getStayDateDraft(stay)) {
+  if (!stay) return ''
+  return `${stay.id}:${stay.updatedAt}:${draft.scheduledCheckIn}:${draft.estimatedCheckOut}:${draft.checkedInAt}:${draft.checkOutActual}`
+}
+
+function buildStayDatePayload(stay: HotelStay, draft: StayDateDraft): UpdateHotelStayDto {
+  const payload: UpdateHotelStayDto = {}
+  const scheduledCheckIn = fromDateTimeLocalValue(draft.scheduledCheckIn)
+  const estimatedCheckOut = fromDateTimeLocalValue(draft.estimatedCheckOut)
+  const checkedInAt = fromDateTimeLocalValue(draft.checkedInAt)
+  const checkOutActual = fromDateTimeLocalValue(draft.checkOutActual)
+
+  if (scheduledCheckIn) payload.checkIn = scheduledCheckIn
+  if (estimatedCheckOut) payload.estimatedCheckOut = estimatedCheckOut
+
+  if (stay.status !== 'BOOKED' && checkedInAt) {
+    payload.checkedInAt = checkedInAt
+  }
+
+  if (stay.status === 'CHECKED_OUT' && checkOutActual) {
+    payload.checkOutActual = checkOutActual
+  }
+
+  return payload
 }
 
 function HotelStatusBadge({ status }: { status?: string | null }) {
@@ -302,6 +449,26 @@ function InfoItem({
   )
 }
 
+function InlineInfoLine({
+  label,
+  value,
+  action,
+}: {
+  label: string
+  value: ReactNode
+  action?: ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <p className="min-w-0 text-foreground-muted">
+        <span className="font-semibold text-foreground-muted">{label}: </span>
+        <span className="font-semibold text-foreground">{value || '---'}</span>
+      </p>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  )
+}
+
 function PhoneLine({ label, phone }: { label: string; phone?: string | null }) {
   const zaloPhone = normalizeZaloPhone(phone)
 
@@ -324,86 +491,50 @@ function PhoneLine({ label, phone }: { label: string; phone?: string | null }) {
   )
 }
 
-function HealthLogList({
-  logs,
+function CareLogList({
+  entries,
   isLoading,
 }: {
-  logs: HotelStayHealthLog[]
+  entries: CareLogEntry[]
   isLoading?: boolean
 }) {
   if (isLoading) {
-    return <div className="rounded-xl border border-border/60 px-4 py-5 text-center text-sm text-foreground-muted">Đang tải lịch sử sức khỏe...</div>
+    return <div className="rounded-xl border border-border/60 px-4 py-5 text-center text-sm text-foreground-muted">Đang tải ghi chú & sức khỏe...</div>
   }
 
-  if (!logs.length) {
-    return <div className="rounded-xl border border-dashed border-border px-4 py-5 text-center text-sm text-foreground-muted">Chưa có ghi nhận sức khỏe cho lượt lưu trú này.</div>
+  if (!entries.length) {
+    return <div className="rounded-xl border border-dashed border-border px-4 py-5 text-center text-sm text-foreground-muted">Chưa có ghi chú hoặc cập nhật sức khỏe.</div>
   }
 
   return (
-    <div className="space-y-3">
-      {logs.map((log) => (
-        <div key={log.id} className="rounded-xl border border-border/60 bg-background-secondary/40 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm font-semibold text-foreground">{log.condition}</span>
-            <span className="text-xs text-foreground-muted">{formatStayDate(log.createdAt)}</span>
+    <div className="rounded-xl border border-border/60">
+      <div className="grid grid-cols-[1fr_120px_130px] gap-3 border-b border-border/60 bg-background-secondary/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-muted">
+        <div>Nội dung</div>
+        <div>NV cập nhật</div>
+        <div>Thời gian</div>
+      </div>
+      <div className="divide-y divide-border/60">
+        {entries.map((entry) => (
+          <div key={entry.id} className="grid grid-cols-[1fr_120px_130px] gap-3 px-4 py-3 text-sm">
+            <div className="whitespace-pre-wrap leading-6 text-foreground">{entry.content}</div>
+            <div className="min-w-0 truncate font-medium text-foreground">{entry.actor}</div>
+            <div className="text-foreground-muted">{formatStayDate(entry.createdAt)}</div>
           </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{log.content}</p>
-          <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-foreground-muted">
-            {log.temperature != null ? <span className="rounded-full bg-background-base px-2 py-1">Nhiệt độ {log.temperature}°C</span> : null}
-            {log.weight != null ? <span className="rounded-full bg-background-base px-2 py-1">Cân nặng {log.weight}kg</span> : null}
-            {log.appetite ? <span className="rounded-full bg-background-base px-2 py-1">Ăn uống: {log.appetite}</span> : null}
-            {log.stool ? <span className="rounded-full bg-background-base px-2 py-1">Đi vệ sinh: {log.stool}</span> : null}
-            <span className="rounded-full bg-background-base px-2 py-1">
-              {log.performedByUser?.fullName ?? log.performedByUser?.staffCode ?? 'Nhân viên'}
-            </span>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
 
 function HistorySection({
   activities,
-  checkpoints,
   isLoading,
 }: {
   activities: ActivityEntry[]
-  checkpoints?: HotelStayTimeline['checkpoints']
   isLoading?: boolean
 }) {
   return (
     <div className="custom-scrollbar space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
-      {checkpoints && checkpoints.length > 0 ? (
-        <InfoPanel>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <SectionTitle icon={CalendarClock} title="Mốc lưu trú" />
-            {isLoading ? <span className="text-xs text-foreground-muted">Đang đồng bộ...</span> : null}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-5">
-            {checkpoints.map((checkpoint) => (
-              <div
-                key={checkpoint.key}
-                className={`rounded-xl border px-3 py-3 ${checkpoint.at
-                  ? 'border-primary-500/20 bg-primary-500/5'
-                  : 'border-border/60 bg-background-secondary/40'
-                  }`}
-              >
-                <div className="text-xs font-semibold text-foreground">{checkpoint.label}</div>
-                <div className="mt-1 text-[11px] leading-4 text-foreground-muted">
-                  {formatShortDate(checkpoint.at)}
-                </div>
-                {checkpoint.user ? (
-                  <div className="mt-2 truncate text-[11px] text-foreground-muted">
-                    {checkpoint.user.fullName ?? checkpoint.user.staffCode}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </InfoPanel>
-      ) : null}
-
       <InfoPanel>
         <div className="mb-4 flex items-center justify-between gap-3">
           <SectionTitle icon={ClipboardList} title="Lịch sử thao tác" />
@@ -451,7 +582,7 @@ export default function StayDetailsDialog({
   onClose,
 }: StayDetailsDialogProps) {
   const queryClient = useQueryClient()
-  const { hasPermission, hasAnyPermission } = useAuthorization()
+  const { hasPermission, hasAnyPermission, hasRole } = useAuthorization()
   const canCheckout = hasPermission('hotel.checkout')
   const canCheckIn = hasAnyPermission(['hotel.create', 'hotel.checkin'])
   const canCancel = hasPermission('hotel.cancel')
@@ -460,7 +591,12 @@ export default function StayDetailsDialog({
   const stayId = currentStay?.id
   const [noteDraft, setNoteDraft] = useState<NoteDraft>(EMPTY_NOTE_DRAFT)
   const [noteDraftSource, setNoteDraftSource] = useState('')
-  const [healthDraft, setHealthDraft] = useState<HealthDraft>(EMPTY_HEALTH_DRAFT)
+  const [careDraft, setCareDraft] = useState<HealthDraft>(EMPTY_HEALTH_DRAFT)
+  const [dateDraft, setDateDraft] = useState<StayDateDraft>(EMPTY_STAY_DATE_DRAFT)
+  const [dateDraftSource, setDateDraftSource] = useState('')
+  const [isEditingStayDates, setIsEditingStayDates] = useState(false)
+  const [isEditingAccessories, setIsEditingAccessories] = useState(false)
+  const [isAddingCareLog, setIsAddingCareLog] = useState(false)
 
   const detailQuery = useQuery({
     queryKey: ['hotel-stay', stayId],
@@ -529,13 +665,13 @@ export default function StayDetailsDialog({
     retry: false,
     refetchInterval: canFetchCurrentPreview ? 60_000 : false,
   })
-  const chargeLines = stay ? getBreakdownChargeLines(stay) : []
+  const priceLines = getDisplayPriceLines(stay)
   const snapshotTotalDays = stay
     ? getSnapshotNumber(stay.breakdownSnapshot as BreakdownSnapshot | null, 'totalDays')
     : null
   const totalDays =
     snapshotTotalDays ??
-    chargeLines.reduce((sum: number, line: ChargeLine) => sum + Number(line.quantityDays ?? 0), 0)
+    priceLines.reduce((sum: number, line: DisplayPriceLine) => sum + Number(line.quantityDays ?? 0), 0)
   const customer = stay?.customer ?? stay?.pet?.customer ?? stay?.receiver ?? null
   const primaryPhone = customer?.phone ?? null
   const rawCustomerSecondaryPhone =
@@ -552,83 +688,109 @@ export default function StayDetailsDialog({
   const petDescription = [stay?.pet?.breed, stay?.pet?.species].filter(Boolean).join(' • ')
   const paymentStatus = stay?.order?.paymentStatus ?? stay?.paymentStatus
   const activities = timelineQuery.data?.activities ?? getFallbackTimeline(stay)
-  const checkpoints = timelineQuery.data?.checkpoints
-  const adjustments = stay?.adjustments ?? []
   const customerId = customer?.id ?? stay?.customerId ?? stay?.pet?.customer?.id
   const petId = stay?.pet?.id ?? stay?.petId
+  const actualCheckIn = getActualCheckIn(stay)
+  const actualCheckOut = getActualCheckOut(stay)
+  const currentDateDraft = getStayDateDraft(stay)
+  const dateSource = getStayDateSource(stay, currentDateDraft)
+  const stayDatesChanged = Boolean(stay) && (
+    dateDraft.scheduledCheckIn !== currentDateDraft.scheduledCheckIn ||
+    dateDraft.estimatedCheckOut !== currentDateDraft.estimatedCheckOut ||
+    dateDraft.checkedInAt !== currentDateDraft.checkedInAt ||
+    dateDraft.checkOutActual !== currentDateDraft.checkOutActual
+  )
+  const canEditStayDates = Boolean(stay) && canUpdateHotel && hasRole(['SUPER_ADMIN', 'ADMIN']) && stay?.status !== 'CANCELLED'
   const canShowCheckIn = stay?.status === 'BOOKED' && actionSlotIndex != null
   const canShowCancel = stay ? !['CHECKED_OUT', 'CANCELLED'].includes(stay.status) : false
   const displayTotalDays = stay?.status === 'CHECKED_IN' && currentPriceQuery.data
     ? currentPriceQuery.data.totalDays
     : totalDays
-  const currentPreviewTotal = currentPriceQuery.data
-    ? getCurrentTotal(currentPriceQuery.data.totalPrice, stay?.surcharge, stay?.promotion)
-    : null
-  const noteSource = stay ? `${stay.id}:${stay.updatedAt}:${stay.notes ?? ''}:${stay.petNotes ?? ''}:${stay.accessories ?? ''}` : ''
+  const accessoryText = stay?.accessories ?? ''
+  const careEntries = getStayCareEntries(stay, healthLogsQuery.data ?? [], stay?.notes ?? '')
+  const noteSource = stay ? `${stay.id}:${stay.updatedAt}:${accessoryText}` : ''
   const notesChanged = Boolean(stay) && (
-    noteDraft.notes !== (stay?.notes ?? '') ||
-    noteDraft.petNotes !== (stay?.petNotes ?? '') ||
-    noteDraft.accessories !== (stay?.accessories ?? '')
+    noteDraft.accessories !== accessoryText
   )
-  const canShowHealthSection = stay ? ['CHECKED_IN', 'CHECKED_OUT'].includes(stay.status) : false
 
   useEffect(() => {
     if (!stay || noteDraftSource === noteSource || (noteDraftSource && notesChanged)) return
 
     setNoteDraft({
-      notes: stay.notes ?? '',
-      petNotes: stay.petNotes ?? '',
-      accessories: stay.accessories ?? '',
+      notes: '',
+      petNotes: '',
+      accessories: accessoryText,
     })
     setNoteDraftSource(noteSource)
-  }, [noteDraftSource, noteSource, notesChanged, stay])
+  }, [accessoryText, noteDraftSource, noteSource, notesChanged, stay])
 
-  const saveNotesMutation = useMutation({
+  useEffect(() => {
+    if (!stay || dateDraftSource === dateSource || (dateDraftSource && stayDatesChanged)) return
+
+    setDateDraft(currentDateDraft)
+    setDateDraftSource(dateSource)
+  }, [currentDateDraft, dateDraftSource, dateSource, stay, stayDatesChanged])
+
+  const saveAccessoriesMutation = useMutation({
     mutationFn: () =>
       hotelApi.updateStay(stay?.id as string, {
-        notes: noteDraft.notes,
-        petNotes: noteDraft.petNotes,
         accessories: noteDraft.accessories,
       }),
     onSuccess: (updatedStay) => {
       setNoteDraft({
-        notes: updatedStay.notes ?? '',
-        petNotes: updatedStay.petNotes ?? '',
+        notes: '',
+        petNotes: '',
         accessories: updatedStay.accessories ?? '',
       })
-      setNoteDraftSource(`${updatedStay.id}:${updatedStay.updatedAt}:${updatedStay.notes ?? ''}:${updatedStay.petNotes ?? ''}:${updatedStay.accessories ?? ''}`)
+      setNoteDraftSource(`${updatedStay.id}:${updatedStay.updatedAt}:${updatedStay.accessories ?? ''}`)
+      setIsEditingAccessories(false)
       queryClient.invalidateQueries({ queryKey: ['stays'] })
       queryClient.invalidateQueries({ queryKey: ['hotel-stay', updatedStay.id] })
       queryClient.invalidateQueries({ queryKey: ['hotel-stay-timeline', updatedStay.id] })
-      toast.success('Đã lưu ghi chú lưu trú')
+      toast.success('Đã lưu đồ đi kèm')
     },
     onError: () => {
-      toast.error('Không lưu được ghi chú lưu trú')
+      toast.error('Không lưu được đồ đi kèm')
     },
   })
 
-  const createHealthLogMutation = useMutation({
+  const saveStayDatesMutation = useMutation({
+    mutationFn: () => {
+      if (!stay) throw new Error('Khong tim thay luu tru')
+      return hotelApi.updateStay(stay.id, buildStayDatePayload(stay, dateDraft))
+    },
+    onSuccess: (updatedStay) => {
+      const nextDateDraft = getStayDateDraft(updatedStay)
+      setDateDraft(nextDateDraft)
+      setDateDraftSource(getStayDateSource(updatedStay, nextDateDraft))
+      setIsEditingStayDates(false)
+      queryClient.invalidateQueries({ queryKey: ['cages'] })
+      queryClient.invalidateQueries({ queryKey: ['stays'] })
+      queryClient.invalidateQueries({ queryKey: ['hotel-stay', updatedStay.id] })
+      queryClient.invalidateQueries({ queryKey: ['hotel-stay-timeline', updatedStay.id] })
+      toast.success('Đã lưu mốc thời gian lưu trú')
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : 'Không thể lưu mốc thời gian')
+    },
+  })
+
+  const createStayNoteMutation = useMutation({
     mutationFn: () =>
-      hotelApi.createStayHealthLog(stay?.id as string, {
-        condition: healthDraft.condition.trim() || 'Theo dõi',
-        content: healthDraft.content.trim(),
-        ...(parseOptionalNumber(healthDraft.temperature) !== undefined
-          ? { temperature: parseOptionalNumber(healthDraft.temperature) }
-          : {}),
-        ...(parseOptionalNumber(healthDraft.weight) !== undefined
-          ? { weight: parseOptionalNumber(healthDraft.weight) }
-          : {}),
-        ...(healthDraft.appetite.trim() ? { appetite: healthDraft.appetite.trim() } : {}),
-        ...(healthDraft.stool.trim() ? { stool: healthDraft.stool.trim() } : {}),
+      hotelApi.createStayNote(stay?.id as string, {
+        content: careDraft.content.trim(),
       }),
     onSuccess: () => {
-      setHealthDraft(EMPTY_HEALTH_DRAFT)
+      setCareDraft(EMPTY_HEALTH_DRAFT)
+      setIsAddingCareLog(false)
+      queryClient.invalidateQueries({ queryKey: ['stays'] })
+      queryClient.invalidateQueries({ queryKey: ['hotel-stay', stay?.id] })
       queryClient.invalidateQueries({ queryKey: ['hotel-stay-health-logs', stay?.id] })
       queryClient.invalidateQueries({ queryKey: ['hotel-stay-timeline', stay?.id] })
-      toast.success('Đã ghi nhận sức khỏe')
+      toast.success('Đã lưu ghi chú & sức khỏe')
     },
     onError: () => {
-      toast.error('Không ghi nhận được sức khỏe')
+      toast.error('Không lưu được ghi chú & sức khỏe')
     },
   })
 
@@ -714,6 +876,42 @@ export default function StayDetailsDialog({
                     </Tabs.Trigger>
                   </Tabs.List>
                 ) : null}
+                {canEditStayDates ? (
+                  isEditingStayDates ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDateDraft(currentDateDraft)
+                          setIsEditingStayDates(false)
+                        }}
+                        className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-background-secondary px-3 text-sm font-medium text-foreground-muted transition-all duration-150 hover:bg-background-tertiary hover:text-foreground active:scale-[0.98]"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => saveStayDatesMutation.mutate()}
+                        disabled={!stayDatesChanged || saveStayDatesMutation.isPending}
+                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary-500 px-3 text-sm font-medium text-white transition-all duration-150 hover:bg-primary-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Save size={14} />
+                        {saveStayDatesMutation.isPending ? 'Đang lưu...' : 'Lưu'}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDateDraft(currentDateDraft)
+                        setIsEditingStayDates(true)
+                      }}
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-primary-500/30 bg-primary-500/10 px-3 text-sm font-medium text-primary-500 transition-all duration-150 hover:bg-primary-500/15 active:scale-[0.98]"
+                    >
+                      Sửa
+                    </button>
+                  )
+                ) : null}
                 {stay ? (
                   <button
                     type="button"
@@ -762,336 +960,316 @@ export default function StayDetailsDialog({
                     ) : null}
 
                     <section className="grid gap-3 lg:grid-cols-3">
-                      <InfoPanel className="relative group min-h-[136px]">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <SectionTitle icon={UserRound} title="Khách hàng" />
+                      <InfoPanel className="relative group min-h-[126px] space-y-2">
+                        <InlineInfoLine
+                          label="Khách hàng"
+                          value={customer?.fullName || 'Khách lẻ (Khách vãng lai)'}
+                          action={customerId ? (
+                            <Link href={`/customers/${customerId}`} className="text-xs font-medium text-primary-500 hover:text-primary-400">
+                              Chi tiết
+                            </Link>
+                          ) : null}
+                        />
+                        <PhoneLine label="SĐT chính" phone={primaryPhone} />
+                        <div className="flex items-center justify-between gap-2">
+                          <PhoneLine label="SĐT phụ" phone={secondaryPhone} />
                           {customerId ? (
                             <Link
                               href={`/customers/${customerId}`}
-                              className="text-xs font-medium text-primary-500 opacity-100 transition-opacity hover:text-primary-400 sm:opacity-0 sm:group-hover:opacity-100"
+                              title="Chỉnh SĐT phụ trong hồ sơ khách hàng"
+                              className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-border/60 text-foreground-muted transition-colors hover:border-primary-500/40 hover:bg-primary-500/10 hover:text-primary-500"
                             >
-                              Chi tiết
+                              <Pencil size={11} />
                             </Link>
                           ) : null}
                         </div>
-                        <p className="text-base font-semibold text-foreground">
-                          {customer?.fullName || 'Khách lẻ (Khách vãng lai)'}
-                        </p>
-                        <div className="mt-2">
-                          <PhoneLine label="SĐT chính" phone={primaryPhone} />
-                          <PhoneLine label="SĐT phụ" phone={secondaryPhone} />
-                        </div>
                       </InfoPanel>
 
-                      <InfoPanel className="relative group min-h-[136px]">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <SectionTitle icon={Tag} title="Thú cưng" />
-                          {petId ? (
-                            <Link
-                              href={`/pets/${petId}`}
-                              className="text-xs font-medium text-primary-500 opacity-100 transition-opacity hover:text-primary-400 sm:opacity-0 sm:group-hover:opacity-100"
-                            >
+                      <InfoPanel className="relative group min-h-[126px] space-y-2">
+                        <InlineInfoLine
+                          label="Thú cưng"
+                          value={petName}
+                          action={petId ? (
+                            <Link href={`/pets/${petId}`} className="text-xs font-medium text-primary-500 hover:text-primary-400">
                               Chi tiết
                             </Link>
                           ) : null}
-                        </div>
-                        <p className="text-base font-semibold text-foreground">{petName}</p>
-                        <p className="mt-2 text-xs text-foreground-muted">
-                          Mã: <span className="font-mono font-medium text-foreground">{petCode}</span>
-                        </p>
-                        <p className="mt-1 text-xs text-foreground-muted">
-                          Hạng cân: <span className="font-medium text-foreground">{stay.weightBand?.label || 'Chưa xác định'}</span>
-                        </p>
+                        />
+                        <InlineInfoLine label="Mã" value={<span className="font-mono">{petCode}</span>} />
+                        <InlineInfoLine label="Hạng cân" value={stay.weightBand?.label || 'Chưa xác định'} />
                       </InfoPanel>
 
-                      <InfoPanel className="min-h-[136px]">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <SectionTitle icon={CreditCard} title="Đơn hàng" />
-                          <PaymentStatusBadge status={paymentStatus} />
-                        </div>
-                        {stay.order ? (
-                          canReadOrders ? (
-                            <Link
-                              href={`/orders/${stay.order.id}`}
-                              className="inline-flex font-mono text-sm font-semibold text-primary-500 transition-colors hover:text-primary-400 hover:underline"
-                            >
-                              {stay.order.orderNumber}
-                            </Link>
-                          ) : (
-                            <p className="font-mono text-sm font-semibold text-foreground">{stay.order.orderNumber}</p>
-                          )
-                        ) : (
-                          <div className="rounded-xl border border-dashed border-border px-3 py-4 text-sm text-foreground-muted">
-                            Chưa liên kết đơn POS.
-                          </div>
-                        )}
+                      <InfoPanel className="min-h-[126px] space-y-2">
+                        <InlineInfoLine
+                          label="Đơn hàng"
+                          value={stay.order ? (
+                            canReadOrders ? (
+                              <Link href={`/orders/${stay.order.id}`} className="font-mono font-semibold text-primary-500 hover:text-primary-400 hover:underline">
+                                {stay.order.orderNumber}
+                              </Link>
+                            ) : (
+                              <span className="font-mono font-semibold">{stay.order.orderNumber}</span>
+                            )
+                          ) : 'Chưa liên kết đơn POS'}
+                          action={<PaymentStatusBadge status={paymentStatus} />}
+                        />
+                        <InlineInfoLine label="Đã thu" value={toMoney(stay.order?.paidAmount ?? 0)} />
+                        <InlineInfoLine label="Tổng đơn" value={toMoney(stay.order?.total ?? 0)} />
                       </InfoPanel>
                     </section>
 
                     <section className="grid gap-3 sm:grid-cols-4">
-                      <InfoItem label="Check-in" value={formatStayDate(stay.checkIn)} />
-                      <InfoItem label="Dự kiến trả" value={formatStayDate(stay.estimatedCheckOut)} />
-                      <InfoItem label="Check-out" value={formatStayDate(stay.checkOutActual)} />
+                      {isEditingStayDates && canEditStayDates ? (
+                        stay.status === 'BOOKED' ? (
+                          <label className="rounded-xl border border-border/60 bg-background-secondary/60 px-3 py-2.5">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-muted">Dự kiến nhận</span>
+                            <input
+                              type="datetime-local"
+                              value={dateDraft.scheduledCheckIn}
+                              onChange={(event) => setDateDraft((draft) => ({ ...draft, scheduledCheckIn: event.target.value }))}
+                              className="mt-1 h-8 w-full rounded-lg border border-border bg-background-base px-2 text-sm font-medium text-foreground outline-none focus:border-primary-500"
+                            />
+                          </label>
+                        ) : (
+                          <label className="rounded-xl border border-border/60 bg-background-secondary/60 px-3 py-2.5">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-muted">Check-in thực tế</span>
+                            <input
+                              type="datetime-local"
+                              value={dateDraft.checkedInAt}
+                              onChange={(event) => setDateDraft((draft) => ({ ...draft, checkedInAt: event.target.value }))}
+                              className="mt-1 h-8 w-full rounded-lg border border-border bg-background-base px-2 text-sm font-medium text-foreground outline-none focus:border-primary-500"
+                            />
+                          </label>
+                        )
+                      ) : (
+                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5">
+                          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-600">
+                            <LogIn size={12} />
+                            {stay.status === 'BOOKED' ? 'Dự kiến nhận' : 'Check-in'}
+                          </div>
+                          <div className="mt-1 text-sm font-medium text-foreground">
+                            {formatStayDate(stay.status === 'BOOKED' ? stay.checkIn : actualCheckIn) || '---'}
+                          </div>
+                        </div>
+                      )}
+                      {isEditingStayDates && canEditStayDates ? (
+                        stay.status === 'CHECKED_OUT' ? (
+                          <label className="rounded-xl border border-border/60 bg-background-secondary/60 px-3 py-2.5">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-muted">Check-out thực tế</span>
+                            <input
+                              type="datetime-local"
+                              value={dateDraft.checkOutActual}
+                              onChange={(event) => setDateDraft((draft) => ({ ...draft, checkOutActual: event.target.value }))}
+                              className="mt-1 h-8 w-full rounded-lg border border-border bg-background-base px-2 text-sm font-medium text-foreground outline-none focus:border-primary-500"
+                            />
+                          </label>
+                        ) : (
+                          <label className="rounded-xl border border-border/60 bg-background-secondary/60 px-3 py-2.5">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-muted">Dự kiến trả</span>
+                            <input
+                              type="datetime-local"
+                              value={dateDraft.estimatedCheckOut}
+                              onChange={(event) => setDateDraft((draft) => ({ ...draft, estimatedCheckOut: event.target.value }))}
+                              className="mt-1 h-8 w-full rounded-lg border border-border bg-background-base px-2 text-sm font-medium text-foreground outline-none focus:border-primary-500"
+                            />
+                          </label>
+                        )
+                      ) : (
+                        <div className="rounded-xl border border-border/60 bg-background-secondary/60 px-3 py-2.5">
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-muted">Dự kiến trả</div>
+                            {canEditStayDates ? (
+                              <button
+                                type="button"
+                                title="Sửa dự kiến trả"
+                                onClick={() => {
+                                  setDateDraft(currentDateDraft)
+                                  setIsEditingStayDates(true)
+                                }}
+                                className="inline-flex h-5 w-5 items-center justify-center rounded text-foreground-muted transition-colors hover:bg-primary-500/10 hover:text-primary-500"
+                              >
+                                <Pencil size={11} />
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 text-sm font-medium text-foreground">
+                            {formatStayDate(stay.estimatedCheckOut) || '---'}
+                          </div>
+                        </div>
+                      )}
+                      <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-600">
+                          <LogOut size={12} />
+                          Check-out
+                        </div>
+                        <div className="mt-1 text-sm font-medium text-foreground">
+                          {formatStayDate(actualCheckOut) || '---'}
+                        </div>
+                      </div>
                       <InfoItem label="Số ngày" value={displayTotalDays || 0} />
                     </section>
 
-                    <InfoPanel>
-                      <div className="mb-4 flex items-center justify-between gap-3">
-                        <SectionTitle icon={ReceiptText} title="Bảng tính giá" />
-                        <span className="text-xs text-foreground-muted">Tổng ngày tính tiền: {displayTotalDays || 0}</span>
-                      </div>
+                    <div>
 
-                      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-                        <div className="space-y-3">
-                          {chargeLines.length > 0 ? (
-                            chargeLines.map((line: ChargeLine, index: number) => (
-                              <div
-                                key={`${line.id ?? line.label}-${index}`}
-                                className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-background-secondary/50 px-4 py-3"
-                              >
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-semibold text-foreground">
-                                    {String(line.label ?? 'Hotel')}
-                                  </p>
-                                  <p className="mt-1 text-xs text-foreground-muted">
-                                    {Number(line.quantityDays ?? 0)} ngày x {toMoney(line.unitPrice)}
-                                  </p>
-                                </div>
-                                <p className="shrink-0 text-sm font-semibold text-foreground">
-                                  {toMoney(line.subtotal)}
-                                </p>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="rounded-xl border border-dashed border-border px-4 py-5 text-center text-sm text-foreground-muted">
-                              Chưa có dòng tính giá chi tiết.
+                      {priceLines.length > 0 ? (
+                        <div className="rounded-xl border border-border/60">
+                          <div>
+                            <div className="grid grid-cols-[1fr_60px_1fr_1fr_1fr] gap-2 border-b border-border/60 bg-background-secondary/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-muted">
+                              <div>Tên dịch vụ</div>
+                              <div className="text-right">Ngày</div>
+                              <div className="text-right">Đơn giá</div>
+                              <div className="text-right">Chiết khấu</div>
+                              <div className="text-right">Thành tiền</div>
                             </div>
-                          )}
-
-                          {adjustments.length > 0 ? (
-                            <div className="space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
-                              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-600">Phụ thu chi tiết</p>
-                              {adjustments.map((adjustment) => (
-                                <div key={adjustment.id} className="flex items-start justify-between gap-3 text-sm">
-                                  <div>
-                                    <p className="font-medium text-foreground">{adjustment.label}</p>
-                                    {adjustment.note ? <p className="text-xs text-foreground-muted">{adjustment.note}</p> : null}
-                                  </div>
-                                  <span className="font-semibold text-foreground">{toMoney(adjustment.amount)}</span>
+                            <div className="divide-y divide-border/60">
+                              {priceLines.map((line, index) => (
+                                <div
+                                  key={`${line.id ?? line.label}-${index}`}
+                                  className="grid grid-cols-[1fr_60px_1fr_1fr_1fr] gap-2 px-4 py-3 text-sm"
+                                >
+                                  <div className="min-w-0 truncate font-semibold text-foreground">{line.label}</div>
+                                  <div className="text-right text-foreground-muted">{line.quantityDays}</div>
+                                  <div className="text-right font-medium text-foreground">{toMoney(line.unitPrice)}</div>
+                                  <div className="text-right font-medium text-foreground">{toMoney(line.discount)}</div>
+                                  <div className="text-right font-semibold text-foreground">{toMoney(line.subtotal)}</div>
                                 </div>
                               ))}
                             </div>
-                          ) : null}
-                        </div>
-
-                        <div className="rounded-xl border border-primary-500/20 bg-primary-500/5 p-4">
-                          <div className="space-y-3 text-sm">
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-foreground-muted">Đơn giá/ngày</span>
-                              <span className="font-semibold text-foreground">{toMoney(stay.dailyRate)}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-foreground-muted">Phụ thu</span>
-                              <span className="font-semibold text-foreground">{toMoney(stay.surcharge)}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-foreground-muted">Khuyến mãi</span>
-                              <span className="font-semibold text-foreground">-{toMoney(stay.promotion)}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-foreground-muted">Đặt cọc</span>
-                              <span className="font-semibold text-foreground">{toMoney(stay.depositAmount)}</span>
-                            </div>
-                            <div className="border-t border-primary-500/20 pt-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <span className="text-sm font-semibold text-foreground">Tổng tiền</span>
-                                <span className="text-lg font-bold text-primary-500">{toMoney(stay.totalPrice)}</span>
-                              </div>
-                            </div>
-                            {stay.status === 'CHECKED_IN' ? (
-                              <div className="border-t border-primary-500/20 pt-3">
-                                {currentPriceQuery.data ? (
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-between gap-3">
-                                      <span className="text-foreground-muted">Số ngày hiện tại</span>
-                                      <span className="font-semibold text-foreground">{currentPriceQuery.data.totalDays}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-3">
-                                      <span className="text-sm font-semibold text-foreground">Tạm tính hiện tại</span>
-                                      <span className="text-lg font-bold text-primary-500">{toMoney(currentPreviewTotal)}</span>
-                                    </div>
-                                  </div>
-                                ) : canFetchCurrentPreview ? (
-                                  <div className="text-xs text-foreground-muted">
-                                    {currentPriceQuery.isFetching ? 'Đang tính tạm tính hiện tại...' : 'Chưa tính được tạm tính hiện tại.'}
-                                  </div>
-                                ) : (
-                                  <div className="rounded-lg border border-dashed border-primary-500/20 px-3 py-2 text-xs text-foreground-muted">
-                                    Không đủ dữ liệu loài/cân nặng để tính tạm tính hiện tại.
-                                  </div>
-                                )}
-                              </div>
-                            ) : null}
                           </div>
                         </div>
-                      </div>
-                    </InfoPanel>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-border px-4 py-5 text-center text-sm text-foreground-muted">
+                          Chưa có dòng tính giá chi tiết.
+                        </div>
+                      )}
+                    </div>
 
-                    <InfoPanel>
-                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <SectionTitle icon={PawPrint} title="Ghi chú & đồ gửi kèm" />
-                        <button
-                          type="button"
-                          onClick={() => saveNotesMutation.mutate()}
-                          disabled={!canUpdateHotel || !notesChanged || saveNotesMutation.isPending}
-                          className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary-500 px-3 text-sm font-medium text-white transition-all duration-150 hover:bg-primary-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Save size={14} />
-                          {saveNotesMutation.isPending ? 'Đang lưu...' : 'Lưu ghi chú'}
-                        </button>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <label className="block">
-                          <span className="text-xs font-semibold text-foreground-muted">Ghi chú lưu trú</span>
-                          <textarea
-                            value={noteDraft.notes}
-                            onChange={(event) => setNoteDraft((draft) => ({ ...draft, notes: event.target.value }))}
-                            rows={4}
-                            disabled={!canUpdateHotel}
-                            className="mt-2 min-h-[112px] w-full rounded-xl border border-border bg-background-secondary/50 px-3 py-2 text-sm leading-6 text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                            placeholder="Ghi chú chăm sóc, lịch ăn, lưu ý từ khách..."
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="text-xs font-semibold text-foreground-muted">Ghi chú thú cưng</span>
-                          <textarea
-                            value={noteDraft.petNotes}
-                            onChange={(event) => setNoteDraft((draft) => ({ ...draft, petNotes: event.target.value }))}
-                            rows={4}
-                            disabled={!canUpdateHotel}
-                            className="mt-2 min-h-[112px] w-full rounded-xl border border-border bg-background-secondary/50 px-3 py-2 text-sm leading-6 text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                            placeholder="Tính cách, dị ứng, tình trạng cần theo dõi..."
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="text-xs font-semibold text-foreground-muted">Đồ gửi kèm</span>
-                          <textarea
-                            value={noteDraft.accessories}
-                            onChange={(event) => setNoteDraft((draft) => ({ ...draft, accessories: event.target.value }))}
-                            rows={4}
-                            disabled={!canUpdateHotel}
-                            className="mt-2 min-h-[112px] w-full rounded-xl border border-border bg-background-secondary/50 px-3 py-2 text-sm leading-6 text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                            placeholder="Dây dắt, đồ ăn, thuốc, phụ kiện..."
-                          />
-                        </label>
-                      </div>
-                    </InfoPanel>
-
-                    {canShowHealthSection ? (
+                    <section className="grid gap-4 lg:grid-cols-[230px_1fr]">
                       <InfoPanel>
                         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                          <SectionTitle icon={HeartPulse} title="Sức khỏe khi trông" />
-                          {stay.status === 'CHECKED_IN' ? (
-                            <button
-                              type="button"
-                              onClick={() => createHealthLogMutation.mutate()}
-                              disabled={!canUpdateHotel || !healthDraft.content.trim() || createHealthLogMutation.isPending}
-                              className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary-500 px-3 text-sm font-medium text-white transition-all duration-150 hover:bg-primary-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <Save size={14} />
-                              {createHealthLogMutation.isPending ? 'Đang lưu...' : 'Ghi nhận'}
-                            </button>
+                          <SectionTitle icon={PawPrint} title="Đồ đi kèm" />
+                          {canUpdateHotel ? (
+                            isEditingAccessories ? (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setNoteDraft((draft) => ({ ...draft, accessories: accessoryText }))
+                                    setIsEditingAccessories(false)
+                                  }}
+                                  className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-sm font-medium text-foreground-muted transition-colors hover:bg-background-secondary"
+                                >
+                                  Hủy
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => saveAccessoriesMutation.mutate()}
+                                  disabled={saveAccessoriesMutation.isPending || noteDraft.accessories === accessoryText}
+                                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary-500 px-3 text-sm font-medium text-white transition-all duration-150 hover:bg-primary-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <Save size={14} />
+                                  {saveAccessoriesMutation.isPending ? 'Đang lưu...' : 'Lưu'}
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNoteDraft((draft) => ({ ...draft, accessories: accessoryText }))
+                                  setIsEditingAccessories(true)
+                                }}
+                                className="inline-flex h-9 items-center rounded-xl border border-primary-500/30 bg-primary-500/10 px-3 text-sm font-medium text-primary-500 transition-colors hover:bg-primary-500/15"
+                              >
+                                Sửa
+                              </button>
+                            )
+                          ) : null}
+                        </div>
+                        {isEditingAccessories ? (
+                          <textarea
+                            value={noteDraft.accessories}
+                            onChange={(event) => {
+                              setNoteDraft((draft) => ({ ...draft, accessories: event.target.value }))
+                              autoResizeTextArea(event.currentTarget)
+                            }}
+                            rows={1}
+                            disabled={!canUpdateHotel}
+                            className="min-h-10 w-full resize-none overflow-hidden rounded-xl border border-border bg-background-secondary/50 px-3 py-2 text-sm leading-6 text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            placeholder="Nhập đồ đi kèm..."
+                          />
+                        ) : (
+                          <div className="min-h-10 whitespace-pre-wrap rounded-xl border border-border/60 bg-background-secondary/40 px-3 py-2 text-sm leading-6 text-foreground">
+                            {accessoryText || 'Chưa có đồ đi kèm.'}
+                          </div>
+                        )}
+                      </InfoPanel>
+
+                      <InfoPanel>
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                          <SectionTitle icon={HeartPulse} title="Ghi chú & Sức khỏe" />
+                          {canUpdateHotel ? (
+                            isAddingCareLog ? (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCareDraft(EMPTY_HEALTH_DRAFT)
+                                    setIsAddingCareLog(false)
+                                  }}
+                                  className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-sm font-medium text-foreground-muted transition-colors hover:bg-background-secondary"
+                                >
+                                  Hủy
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => createStayNoteMutation.mutate()}
+                                  disabled={!careDraft.content.trim() || createStayNoteMutation.isPending}
+                                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary-500 px-3 text-sm font-medium text-white transition-all duration-150 hover:bg-primary-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <Save size={14} />
+                                  {createStayNoteMutation.isPending ? 'Đang lưu...' : 'Lưu'}
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCareDraft(EMPTY_HEALTH_DRAFT)
+                                  setIsAddingCareLog(true)
+                                }}
+                                className="inline-flex h-9 items-center rounded-xl border border-primary-500/30 bg-primary-500/10 px-3 text-sm font-medium text-primary-500 transition-colors hover:bg-primary-500/15"
+                              >
+                                Thêm
+                              </button>
+                            )
                           ) : null}
                         </div>
 
-                        {stay.status === 'CHECKED_IN' ? (
-                          <div className="mb-4 grid gap-3 lg:grid-cols-[180px_1fr]">
-                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                              <label className="block">
-                                <span className="text-xs font-semibold text-foreground-muted">Tình trạng</span>
-                                <input
-                                  value={healthDraft.condition}
-                                  onChange={(event) => setHealthDraft((draft) => ({ ...draft, condition: event.target.value }))}
-                                  disabled={!canUpdateHotel}
-                                  className="mt-2 h-10 w-full rounded-xl border border-border bg-background-secondary/50 px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                  placeholder="Ổn định"
-                                />
-                              </label>
-                              <div className="grid grid-cols-2 gap-2">
-                                <label className="block">
-                                  <span className="text-xs font-semibold text-foreground-muted">Nhiệt độ</span>
-                                  <input
-                                    value={healthDraft.temperature}
-                                    onChange={(event) => setHealthDraft((draft) => ({ ...draft, temperature: event.target.value }))}
-                                    disabled={!canUpdateHotel}
-                                    inputMode="decimal"
-                                    className="mt-2 h-10 w-full rounded-xl border border-border bg-background-secondary/50 px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                    placeholder="°C"
-                                  />
-                                </label>
-                                <label className="block">
-                                  <span className="text-xs font-semibold text-foreground-muted">Cân nặng</span>
-                                  <input
-                                    value={healthDraft.weight}
-                                    onChange={(event) => setHealthDraft((draft) => ({ ...draft, weight: event.target.value }))}
-                                    disabled={!canUpdateHotel}
-                                    inputMode="decimal"
-                                    className="mt-2 h-10 w-full rounded-xl border border-border bg-background-secondary/50 px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                    placeholder="kg"
-                                  />
-                                </label>
-                              </div>
-                            </div>
-                            <div className="grid gap-3">
-                              <label className="block">
-                                <span className="text-xs font-semibold text-foreground-muted">Nội dung theo dõi</span>
-                                <textarea
-                                  value={healthDraft.content}
-                                  onChange={(event) => setHealthDraft((draft) => ({ ...draft, content: event.target.value }))}
-                                  rows={4}
-                                  disabled={!canUpdateHotel}
-                                  className="mt-2 min-h-[112px] w-full rounded-xl border border-border bg-background-secondary/50 px-3 py-2 text-sm leading-6 text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                  placeholder="Ăn uống, vận động, biểu hiện bất thường, thuốc đã dùng..."
-                                />
-                              </label>
-                              <div className="grid gap-3 sm:grid-cols-2">
-                                <label className="block">
-                                  <span className="text-xs font-semibold text-foreground-muted">Ăn uống</span>
-                                  <input
-                                    value={healthDraft.appetite}
-                                    onChange={(event) => setHealthDraft((draft) => ({ ...draft, appetite: event.target.value }))}
-                                    disabled={!canUpdateHotel}
-                                    className="mt-2 h-10 w-full rounded-xl border border-border bg-background-secondary/50 px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                    placeholder="Ăn tốt / bỏ ăn..."
-                                  />
-                                </label>
-                                <label className="block">
-                                  <span className="text-xs font-semibold text-foreground-muted">Đi vệ sinh</span>
-                                  <input
-                                    value={healthDraft.stool}
-                                    onChange={(event) => setHealthDraft((draft) => ({ ...draft, stool: event.target.value }))}
-                                    disabled={!canUpdateHotel}
-                                    className="mt-2 h-10 w-full rounded-xl border border-border bg-background-secondary/50 px-3 text-sm text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                    placeholder="Bình thường / lỏng..."
-                                  />
-                                </label>
-                              </div>
-                            </div>
+                        {isAddingCareLog ? (
+                          <div className="mb-4">
+                            <textarea
+                              value={careDraft.content}
+                              onChange={(event) => {
+                                setCareDraft({ content: event.target.value })
+                                autoResizeTextArea(event.currentTarget)
+                              }}
+                              disabled={!canUpdateHotel}
+                              rows={1}
+                              className="min-h-10 w-full resize-none overflow-hidden rounded-xl border border-border bg-background-secondary/50 px-3 py-2 text-sm leading-6 text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+                              placeholder="Nhập ghi chú hoặc tình trạng sức khỏe..."
+                            />
                           </div>
                         ) : null}
 
-                        <div>
-                          <HealthLogList logs={healthLogsQuery.data ?? []} isLoading={healthLogsQuery.isFetching} />
-                        </div>
+                        <CareLogList entries={careEntries} isLoading={healthLogsQuery.isFetching} />
                       </InfoPanel>
-                    ) : null}
+                    </section>
                   </div>
                 </Tabs.Content>
 
                 <Tabs.Content value="history" className="min-h-0 flex-1 overflow-y-auto outline-none">
                   <HistorySection
                     activities={activities}
-                    checkpoints={checkpoints}
                     isLoading={timelineQuery.isFetching}
                   />
                 </Tabs.Content>

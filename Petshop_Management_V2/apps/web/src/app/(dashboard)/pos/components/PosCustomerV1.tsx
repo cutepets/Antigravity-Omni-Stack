@@ -212,15 +212,15 @@ export function PosCustomerV1({ onSelectSuggestedService, callbacks, theme = 'sy
             <div className={`text-[12px] font-bold flex items-center gap-1.5 mb-3 uppercase tracking-wider ${theme === 'pos' ? 'text-slate-500' : 'text-foreground-muted'}`}>
               <PawPrint size={14} /> Thú cưng khách hàng
             </div>
-            <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar pr-4">
+            <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar pr-4">
               {customerDetail?.pets?.map((pet: any) => (
                 <button
                   key={pet.id}
                   type="button"
                   onClick={() => handleOpenPetProfile(pet.id)}
-                  className={`flex min-w-[72px] flex-col items-center gap-1.5 rounded-2xl px-1 py-1.5 transition ${theme === 'pos' ? 'hover:bg-white/70' : 'hover:bg-background'}`}
+                  className={`flex min-w-[60px] sm:min-w-[72px] flex-col items-center gap-1.5 rounded-2xl px-1 py-1.5 transition ${theme === 'pos' ? 'hover:bg-white/70' : 'hover:bg-background'}`}
                 >
-                  <div className={`w-14 h-14 rounded-full overflow-hidden shadow-sm ring-1 ${theme === 'pos' ? 'bg-slate-100 border border-white ring-gray-200' : 'bg-background-tertiary border border-border ring-border/50'}`}>
+                  <div className={`w-11 h-11 sm:w-14 sm:h-14 rounded-full overflow-hidden shadow-sm ring-1 ${theme === 'pos' ? 'bg-slate-100 border border-white ring-gray-200' : 'bg-background-tertiary border border-border ring-border/50'}`}>
                     {pet.avatar ? (
                       <Image src={String(pet.avatar).startsWith('http') ? pet.avatar : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${pet.avatar}`}
                         alt={pet.name}

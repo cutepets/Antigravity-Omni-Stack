@@ -19,7 +19,7 @@ import { RequireModule } from '../../common/decorators/require-module.decorator.
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
-import { CreateCageDto, CreateHotelRateTableDto, CreateHotelStayDto, CreateHotelStayHealthLogDto } from './dto/create-hotel.dto.js'
+import { CreateCageDto, CreateHotelRateTableDto, CreateHotelStayDto, CreateHotelStayHealthLogDto, CreateHotelStayNoteDto } from './dto/create-hotel.dto.js'
 import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateCageDto, UpdateHotelRateTableDto, UpdateHotelStayDto } from './dto/update-hotel.dto.js'
 
 // Commands
@@ -36,6 +36,7 @@ import { UpdateStayPaymentCommand } from './application/commands/update-stay-pay
 import { CheckoutStayCommand } from './application/commands/checkout-stay/checkout-stay.command.js'
 import { DeleteStayCommand } from './application/commands/delete-stay/delete-stay.command.js'
 import { CreateStayHealthLogCommand } from './application/commands/create-stay-health-log/create-stay-health-log.command.js'
+import { CreateStayNoteCommand } from './application/commands/create-stay-note/create-stay-note.command.js'
 
 // Queries
 import { FindAllCagesQuery } from './application/queries/find-all-cages/find-all-cages.query.js'
@@ -167,6 +168,16 @@ export class HotelController {
     @Req() req: AuthenticatedRequest,
   ): Promise<any> {
     return this.commandBus.execute(new CreateStayHealthLogCommand(id, dto, req.user))
+  }
+
+  @Post('stays/:id/notes')
+  @Permissions('hotel.update')
+  createStayNote(
+    @Param('id') id: string,
+    @Body() dto: CreateHotelStayNoteDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.commandBus.execute(new CreateStayNoteCommand(id, dto, req.user))
   }
 
   @Patch('stays/:id')

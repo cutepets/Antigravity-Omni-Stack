@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { CalendarClock, CheckCircle2, Clock3, Scissors, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock3, LogOut, Scissors, XCircle } from "lucide-react";
 import type { GroomingStatus } from "@/lib/api/grooming.api";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +17,7 @@ export const GROOMING_STATUS_ORDER: GroomingStatus[] = [
   "PENDING",
   "IN_PROGRESS",
   "COMPLETED",
+  "RETURNED",
   "CANCELLED",
 ];
 
@@ -51,12 +52,21 @@ export const GROOMING_STATUS_META: Record<GroomingStatus, GroomingStatusMeta> =
   },
   COMPLETED: {
     label: "Hoàn thành",
-    columnTitle: "Hoàn thành (hôm nay)",
+    columnTitle: "Hoàn thành",
     icon: CheckCircle2,
     chipClassName: "border-emerald-500/20 bg-emerald-500/10 text-emerald-500",
     columnClassName: "border-emerald-500/15 bg-emerald-500/[0.04]",
     headerClassName:
       "rounded-t-[28px] border-b border-emerald-500/10 bg-emerald-500/[0.08] text-emerald-500",
+  },
+  RETURNED: {
+    label: "Đã trả",
+    columnTitle: "Đã trả (hôm nay)",
+    icon: LogOut,
+    chipClassName: "border-teal-500/20 bg-teal-500/10 text-teal-500",
+    columnClassName: "border-teal-500/15 bg-teal-500/[0.04]",
+    headerClassName:
+      "rounded-t-[28px] border-b border-teal-500/10 bg-teal-500/[0.08] text-teal-500",
   },
   CANCELLED: {
     label: "Đã hủy",
