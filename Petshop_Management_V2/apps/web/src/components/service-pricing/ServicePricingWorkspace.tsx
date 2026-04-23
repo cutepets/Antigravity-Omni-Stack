@@ -7,6 +7,7 @@ import { customToast as toast } from '@/components/ui/toast-with-copy'
 import {
   pricingApi,
   type HolidayCalendarDate,
+  type HotelDaycareRulePayload,
   type HotelRulePayload,
   type PricingServiceType,
 } from '@/lib/api/pricing.api'
@@ -18,6 +19,8 @@ import {
   buildHotelBandIdMap,
   fillEmptyHotelSkus,
   getCanonicalHotelBands,
+  getHotelDaycareRuleKey,
+  hydrateHotelDaycareDrafts,
   hydrateHotelDrafts,
   hydrateHotelExtraServiceDrafts,
 } from './hotel/hotel-pricing.utils'
@@ -40,6 +43,7 @@ import {
 import type {
   BandDraft,
   HolidayDraft,
+  HotelDaycareDraft,
   HotelDraft,
   HotelExtraServiceDraft,
   PricingMode,
@@ -60,6 +64,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const [flatRateDrafts, setFlatRateDrafts] = useState<FlatRateDraft[]>([])
   const [hotelExtraServiceDrafts, setHotelExtraServiceDrafts] = useState<HotelExtraServiceDraft[]>([])
   const [hotelDrafts, setHotelDrafts] = useState<Record<string, HotelDraft>>({})
+  const [hotelDaycareDrafts, setHotelDaycareDrafts] = useState<Record<string, HotelDaycareDraft>>({})
   const [removedBandIds, setRemovedBandIds] = useState<string[]>([])
   const [newHoliday, setNewHoliday] = useState<HolidayDraft>(() => createHolidayDraft())
   const [editingHolidayId, setEditingHolidayId] = useState<string | null>(null)
@@ -96,6 +101,12 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     enabled: mode === 'HOTEL',
   })
 
+  const hotelDaycareRulesQuery = useQuery({
+    queryKey: ['pricing', 'hotel-daycare-rules', 10],
+    queryFn: () => pricingApi.getHotelDaycareRules({ packageDays: 10, isActive: true }),
+    enabled: mode === 'HOTEL',
+  })
+
   const holidaysQuery = useQuery({
     queryKey: ['pricing', 'holidays', year],
     queryFn: () => pricingApi.getHolidays({ year, isActive: true }),
@@ -111,6 +122,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const rawBands = useMemo(() => bandsQuery.data ?? [], [bandsQuery.data])
   const spaRules = useMemo(() => spaRulesQuery.data ?? [], [spaRulesQuery.data])
   const hotelRules = useMemo(() => hotelRulesQuery.data ?? [], [hotelRulesQuery.data])
+  const hotelDaycareRules = useMemo(() => hotelDaycareRulesQuery.data ?? [], [hotelDaycareRulesQuery.data])
   const holidays = useMemo(() => holidaysQuery.data ?? [], [holidaysQuery.data])
   const hotelExtraServices = useMemo(() => hotelExtraServicesQuery.data ?? [], [hotelExtraServicesQuery.data])
 
@@ -140,6 +152,11 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     if (mode !== 'HOTEL') return
     setHotelDrafts(hydrateHotelDrafts(bands, hotelRules, hotelBandIdMap))
   }, [bands, hotelBandIdMap, hotelRules, mode])
+
+  useEffect(() => {
+    if (mode !== 'HOTEL') return
+    setHotelDaycareDrafts(hydrateHotelDaycareDrafts(bands, hotelDaycareRules, hotelBandIdMap))
+  }, [bands, hotelBandIdMap, hotelDaycareRules, mode])
 
   useEffect(() => {
     if (mode !== 'HOTEL') return
@@ -184,8 +201,9 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       return
     }
 
-    const nextState = fillEmptyHotelSkus(bandDrafts, hotelDrafts, hotelExtraServiceDrafts)
+    const nextState = fillEmptyHotelSkus(bandDrafts, hotelDrafts, hotelDaycareDrafts, hotelExtraServiceDrafts)
     setHotelDrafts(nextState.hotelDrafts)
+    setHotelDaycareDrafts(nextState.hotelDaycareDrafts)
     setHotelExtraServiceDrafts(nextState.hotelExtraServiceDrafts)
     toast.success(nextState.filledCount > 0 ? `Da set SKU tu dong cho ${nextState.filledCount} o trong.` : 'Khong co o SKU trong nao can set.')
   }
@@ -482,6 +500,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
         }
 
         const rules: HotelRulePayload[] = []
+        const daycareRules: HotelDaycareRulePayload[] = []
         for (const band of bandDrafts) {
           for (const option of DAY_TYPE_OPTIONS) {
             for (const speciesOption of SPECIES_OPTIONS) {
@@ -524,6 +543,37 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
               })
             }
           }
+
+          for (const speciesOption of SPECIES_OPTIONS) {
+            const weightBandId = bandIdByKey.get(band.key)
+            if (!weightBandId) continue
+
+            const draft = hotelDaycareDrafts[getHotelDaycareRuleKey(band.key, speciesOption.value)]
+            const price = parseCurrencyInput(draft?.price ?? '')
+            if (price === null || price === 0) {
+              if (!draft?.id) continue
+              daycareRules.push({
+                id: draft.id,
+                species: speciesOption.value,
+                weightBandId,
+                packageDays: 10,
+                sku: draft.sku?.trim() || null,
+                price: 0,
+                isActive: false,
+              })
+              continue
+            }
+
+            daycareRules.push({
+              id: draft?.id,
+              species: speciesOption.value,
+              weightBandId,
+              packageDays: 10,
+              sku: draft?.sku?.trim() || null,
+              price,
+              isActive: true,
+            })
+          }
         }
 
         if (!rules.some((rule) => rule.isActive)) {
@@ -543,6 +593,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
 
         await Promise.all([
           pricingApi.bulkUpsertHotelRules(rules),
+          pricingApi.bulkUpsertHotelDaycareRules(daycareRules),
           pricingApi.bulkUpsertHotelExtraServices(hotelExtraServicesPayload),
         ])
 
@@ -589,6 +640,14 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     })
   }
 
+  const updateHotelDaycareDraft = (bandId: string, nextSpecies: string, patch: Partial<HotelDaycareDraft>) => {
+    setHotelDaycareDrafts((current) => {
+      const key = getHotelDaycareRuleKey(bandId, nextSpecies)
+      const existing = current[key] || { sku: '', price: '' }
+      return { ...current, [key]: { ...existing, ...patch } }
+    })
+  }
+
   return (
     <div className="flex flex-col gap-4 p-4">
       <section className="hidden" />
@@ -621,10 +680,12 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
           <UnifiedHotelPricingPanel
             bands={bandDrafts}
             drafts={hotelDrafts}
+            hotelDaycareDrafts={hotelDaycareDrafts}
             onBandChange={updateBandRow}
             onBandRemove={removeBandRow}
             onAddBand={addBandRow}
             onDraftChange={updateHotelDraft}
+            onHotelDaycareDraftChange={updateHotelDaycareDraft}
             onSave={saveHotelMatrix}
             onFillEmptySkus={fillEmptySkus}
             isSaving={isSavingHotel}

@@ -49,6 +49,12 @@ export type HotelDraft = {
   fullDayPrice: string
 }
 
+export type HotelDaycareDraft = {
+  id?: string
+  sku: string
+  price: string
+}
+
 export type HolidayDraft = {
   startDate: string
   endDate: string

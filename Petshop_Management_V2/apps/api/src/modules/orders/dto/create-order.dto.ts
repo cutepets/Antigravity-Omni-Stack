@@ -99,6 +99,30 @@ export class HotelDetailsDto {
 
   @IsString()
   @IsOptional()
+  careMode?: string;
+
+  @IsString()
+  @IsOptional()
+  packageKind?: string;
+
+  @IsNumber()
+  @IsOptional()
+  packageTotalDays?: number;
+
+  @IsDateString()
+  @IsOptional()
+  packageStartDate?: string;
+
+  @IsDateString()
+  @IsOptional()
+  packageEndDate?: string;
+
+  @IsDateString()
+  @IsOptional()
+  autoCompleteAt?: string;
+
+  @IsString()
+  @IsOptional()
   rateTableId?: string;
 
   @IsNumber()
@@ -152,6 +176,14 @@ export class HotelDetailsDto {
   @IsString()
   @IsOptional()
   chargeWeightBandLabel?: string;
+
+  @IsString()
+  @IsOptional()
+  weightBandId?: string;
+
+  @IsString()
+  @IsOptional()
+  weightBandLabel?: string;
 }
 
 // === Order Item ===

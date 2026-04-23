@@ -152,11 +152,11 @@ export function OrderCartItems({
     return (
         <div className="w-full">
             {/* Table header */}
-            <div className="sticky top-0 z-10 hidden lg:grid grid-cols-[40px_minmax(0,1fr)_80px_100px_110px_110px_120px_44px] gap-2 border-b border-border bg-background-secondary/80 px-4 py-2">
+            <div className="sticky top-0 z-10 hidden lg:grid grid-cols-[40px_minmax(0,1fr)_50px_100px_110px_110px_120px_44px] gap-2 border-b border-border bg-background-secondary/80 px-4 py-2">
                 {['#', 'Sản phẩm', 'ĐVT', 'Số lượng', 'Đơn giá', 'Chiết khấu', 'Thành tiền', ''].map((h, i) => (
                     <div
                         key={i}
-                        className={`text-[11px] font-semibold uppercase tracking-wide text-foreground-muted ${i >= 2 ? 'text-right' : ''} ${i === 0 ? 'text-center' : ''}`}
+                        className={`text-[11px] font-semibold uppercase tracking-wide text-foreground-muted ${i >= 3 ? 'text-right' : ''} ${i === 2 ? 'text-right' : ''} ${i === 0 ? 'text-center' : ''}`}
                     >
                         {h}
                     </div>
@@ -231,7 +231,7 @@ function OrderCartRow({
     const discountedUnitPrice = Math.max(0, (item.unitPrice || 0) - itemDiscountAmount)
     const itemDiscountPercent =
         item.unitPrice && item.unitPrice > 0 ? Math.round((itemDiscountAmount / item.unitPrice) * 100) : 0
-    const baseUnit = (item as any).baseUnit ?? item.unit ?? 'cái'
+    const baseUnit = (item as any).baseUnit ?? item.unit ?? 'Cái'
     const normalizedDescription = normalizeLabel(item.description)
     const displayTrueVariants = trueVariants.filter((v: any) => {
         const lbl = normalizeLabel(getVariantOptionText(item.description, v))
@@ -252,7 +252,7 @@ function OrderCartRow({
             ].join(' ')}
         >
             {/* Desktop row */}
-            <div className="hidden lg:grid grid-cols-[40px_minmax(0,1fr)_80px_100px_110px_110px_120px_44px] gap-2 items-start px-4 py-2.5">
+            <div className="hidden lg:grid grid-cols-[40px_minmax(0,1fr)_50px_100px_110px_110px_120px_44px] gap-2 items-start px-4 py-2.5">
                 {/* # */}
                 <div className="pt-1 text-center text-[13px] font-medium text-foreground-muted">{idx + 1}</div>
 
@@ -276,9 +276,10 @@ function OrderCartRow({
                             )}
                         </div>
 
-                        {/* Name */}
-                        <div className="flex min-w-0 flex-col">
-                            <div className="flex items-center gap-1.5 min-w-0">
+                        {/* Name + inline controls row 1 */}
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                            {/* Dòng 1: Tên – weight – phiên bản – đổi – session */}
+                            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                                 <span className="truncate text-[14px] font-semibold text-foreground" title={item.description}>
                                     {item.description}
                                 </span>
@@ -288,10 +289,15 @@ function OrderCartRow({
                                 {!canSwapTemp && canSwapGrooming && onSwapItem && (
                                     <SwapActionButton onClick={() => onSwapItem(item, 'GROOMING_MAIN')} />
                                 )}
+                                {/* Weight badge */}
+                                {weightBandLabel && (
+                                    <span className="inline-flex items-center rounded bg-primary-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700">{weightBandLabel}</span>
+                                )}
+                                {/* True variant select */}
                                 {displayTrueVariants.length > 0 && (
-                                    <div className="relative inline-flex shrink-0 cursor-pointer items-center group/v">
+                                    <div className="relative inline-flex shrink-0 cursor-pointer items-center">
                                         <select
-                                            className="appearance-none bg-transparent text-primary-600 text-[13px] font-semibold pr-4 pl-0.5 outline-none cursor-pointer hover:text-primary-700 transition-colors"
+                                            className="appearance-none bg-transparent text-primary-600 text-[12px] font-semibold pr-4 pl-0.5 outline-none cursor-pointer hover:text-primary-700 transition-colors"
                                             value={currentTrueVariant?.id || (!isCurrentConversion && item.productVariantId) || ''}
                                             onChange={(e) => {
                                                 const newId = e.target.value
@@ -316,103 +322,100 @@ function OrderCartRow({
                                                 <option key={v.id} value={v.id}>{getVariantOptionText(item.description, v)}</option>
                                             ))}
                                         </select>
-                                        <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 pointer-events-none" size={12} />
+                                        <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 pointer-events-none" size={11} />
                                     </div>
                                 )}
+
+                                {/* Grooming session badge — inline dòng 1 */}
+                                {(item as any).groomingSession && (
+                                    <SpaSessionBadge status={(item as any).groomingSession.status} sessionCode={(item as any).groomingSession.sessionCode} />
+                                )}
                                 <OrderStockInfo item={item} currentTrueVariant={currentTrueVariant} activeBranches={activeBranches} />
+                                {/* Conversion ĐỔI pill — sau stock icon */}
+                                {conversionVariants.length > 0 && (
+                                    <div className="relative inline-flex shrink-0 cursor-pointer items-center">
+                                        <select
+                                            className="appearance-none inline-flex items-center gap-1 rounded border border-border bg-background-secondary px-2 py-0.5 text-[11px] font-medium text-foreground-muted outline-none cursor-pointer hover:border-primary-400 hover:text-primary-600 transition-colors pr-5 pl-5"
+                                            value={isCurrentConversion ? item.productVariantId : 'base'}
+                                            onChange={(e) => {
+                                                if (e.target.value === 'base') updateVariant(currentTrueVariant ? currentTrueVariant.id : 'base')
+                                                else updateVariant(e.target.value)
+                                            }}
+                                        >
+                                            <option value="base">{baseUnit}</option>
+                                            {conversionVariants.map((v: any) => (
+                                                <option key={v.id} value={v.id}>{getVariantOptionText(item.description, v)}</option>
+                                            ))}
+                                        </select>
+                                        <ArrowLeftRight className="absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-foreground-muted/50" size={10} />
+                                        <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-40" size={10} />
+                                    </div>
+                                )}
                             </div>
 
-                            {/* SKU + weight band */}
+                            {/* Dòng 2: SKU – Barcode – Note (cùng hàng) */}
                             <div className="flex items-center gap-2 text-[11px] text-foreground-muted">
-                                <span>{item.sku || 'N/A'}</span>
-                                {weightBandLabel && (
-                                    <span className="rounded bg-primary-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700">{weightBandLabel}</span>
+                                <span className="font-mono">{item.sku || 'N/A'}</span>
+                                {(item as any).barcode ? (
+                                    <span className="font-mono text-[10px] text-foreground-muted/50 border border-border/60 rounded px-1 bg-background-secondary">
+                                        {(item as any).barcode}
+                                    </span>
+                                ) : null}
+                                {/* Note button – inline dòng 2 */}
+                                {noteEditingId === item.id ? (
+                                    <input
+                                        type="text"
+                                        placeholder="Ghi chú..."
+                                        defaultValue={item.itemNotes || ''}
+                                        autoFocus
+                                        onBlur={(e) => {
+                                            if (e.target.value !== item.itemNotes) callbacks.onUpdateItemNotes(item.id, e.target.value)
+                                            setNoteEditingId(null)
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') { callbacks.onUpdateItemNotes(item.id, e.currentTarget.value); setNoteEditingId(null) }
+                                            if (e.key === 'Escape') setNoteEditingId(null)
+                                        }}
+                                        className="h-5 w-40 rounded border border-amber-300 bg-amber-50/20 px-1.5 text-[11px] text-amber-700 placeholder:text-foreground-muted/40 outline-none focus:border-amber-500 transition-colors"
+                                    />
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setNoteEditingId(item.id)}
+                                        className="flex items-center gap-1 transition-colors"
+                                        title={item.itemNotes ? 'Sửa ghi chú' : 'Thêm ghi chú'}
+                                    >
+                                        {item.itemNotes ? (
+                                            <span className="flex items-center gap-1 italic text-amber-600 text-[11px]">
+                                                <FileText size={10} className="shrink-0" />
+                                                <span className="truncate max-w-[180px]">{item.itemNotes}</span>
+                                            </span>
+                                        ) : (
+                                            <FileText size={10} className="text-foreground-muted/30 hover:text-foreground-muted transition-colors" />
+                                        )}
+                                    </button>
                                 )}
                             </div>
-                        </div>
-                    </div>
 
-                    {/* Notes row */}
-                    <div className="pl-11">
-                        {noteEditingId === item.id ? (
-                            <input
-                                type="text"
-                                placeholder="Ghi chú sản phẩm..."
-                                defaultValue={item.itemNotes || ''}
-                                autoFocus
-                                onBlur={(e) => {
-                                    if (e.target.value !== item.itemNotes) callbacks.onUpdateItemNotes(item.id, e.target.value)
-                                    setNoteEditingId(null)
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') { callbacks.onUpdateItemNotes(item.id, e.currentTarget.value); setNoteEditingId(null) }
-                                    if (e.key === 'Escape') setNoteEditingId(null)
-                                }}
-                                className="h-6 w-full max-w-[280px] rounded border border-amber-300 bg-amber-50/20 px-2 text-[11px] text-amber-700 placeholder:text-foreground-muted/40 outline-none focus:border-amber-500 focus:bg-amber-50/40 transition-colors focus-visible:ring-1 focus-visible:ring-amber-400"
-                            />
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => setNoteEditingId(item.id)}
-                                className="flex items-center gap-1 text-[11px] transition-colors"
-                                title={item.itemNotes ? 'Sửa ghi chú' : 'Thêm ghi chú'}
-                            >
-                                {item.itemNotes ? (
-                                    <span className="flex items-center gap-1 italic text-amber-600">
-                                        <FileText size={11} className="shrink-0" />
-                                        <span className="truncate max-w-[220px]">{item.itemNotes}</span>
-                                    </span>
-                                ) : (
-                                    <FileText size={11} className="text-foreground-muted/40 hover:text-foreground-muted transition-colors" />
-                                )}
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Hotel dates */}
-                    {item.hotelDetails && (
-                        <div className="pl-11 text-[10px] text-primary-600 bg-primary-500/8 rounded w-fit px-1.5 py-0.5 mt-0.5">
-                            In: {new Date((item.hotelDetails as any).checkIn).toLocaleDateString()} — Out: {new Date((item.hotelDetails as any).checkOut).toLocaleDateString()}
-                        </div>
-                    )}
-
-                    {/* Grooming: scheduled date + Spa session status badge */}
-                    {item.type === 'grooming' && (
-                        <div className="pl-11 flex items-center gap-2 flex-wrap mt-0.5">
-                            {(item as any).groomingDetails?.scheduledDate && (
-                                <span className="inline-flex items-center gap-1 rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600">
+                            {/* Hotel dates — compact badge dòng 3 nếu có */}
+                            {item.hotelDetails && (
+                                <div className="text-[10px] text-primary-600 bg-primary-500/8 rounded w-fit px-1.5 py-0.5">
+                                    In: {new Date((item.hotelDetails as any).checkIn).toLocaleDateString('vi-VN')} — Out: {new Date((item.hotelDetails as any).checkOut).toLocaleDateString('vi-VN')}
+                                </div>
+                            )}
+                            {/* Grooming scheduled date */}
+                            {item.type === 'grooming' && (item as any).groomingDetails?.scheduledDate && (
+                                <span className="inline-flex items-center gap-1 rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 w-fit">
                                     📅 {new Date((item as any).groomingDetails.scheduledDate).toLocaleDateString('vi-VN')}
                                 </span>
                             )}
-                            {(item as any).groomingSession && (
-                                <SpaSessionBadge status={(item as any).groomingSession.status} sessionCode={(item as any).groomingSession.sessionCode} />
-                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
 
-                {/* ĐVT */}
-                <div className="pt-2 text-right text-[13px] text-foreground-muted">
-                    {conversionVariants.length > 0 ? (
-                        <div className="relative inline-flex cursor-pointer items-center text-foreground hover:text-primary-600 transition-colors">
-                            <select
-                                className="appearance-none bg-transparent text-[13px] outline-none cursor-pointer pr-4"
-                                value={isCurrentConversion ? item.productVariantId : 'base'}
-                                onChange={(e) => {
-                                    if (e.target.value === 'base') updateVariant(currentTrueVariant ? currentTrueVariant.id : 'base')
-                                    else updateVariant(e.target.value)
-                                }}
-                            >
-                                <option value="base">{baseUnit}</option>
-                                {conversionVariants.map((v: any) => (
-                                    <option key={v.id} value={v.id}>{getVariantOptionText(item.description, v)}</option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-40" size={12} />
-                        </div>
-                    ) : (
-                        <span>{item.unit || baseUnit}</span>
-                    )}
+                {/* ĐVT column */}
+                <div className="flex items-start justify-end pt-2">
+                    <span className="text-[12px] font-medium text-foreground-muted">{item.unit || baseUnit}</span>
                 </div>
 
                 {/* Quantity */}

@@ -43,6 +43,18 @@ export interface HotelPriceRule {
   weightBand?: ServiceWeightBand
 }
 
+export interface HotelDaycarePriceRule {
+  id: string
+  species: string | null
+  weightBandId: string
+  packageDays: number
+  sku?: string | null
+  price: number
+  isActive: boolean
+  weightBand?: ServiceWeightBand
+  weightBandLabel?: string | null
+}
+
 export interface HotelExtraService {
   sku?: string | null
   name: string
@@ -97,6 +109,16 @@ export interface HotelRulePayload {
   isActive?: boolean
 }
 
+export interface HotelDaycareRulePayload {
+  id?: string
+  species?: string | null
+  weightBandId: string
+  packageDays: number
+  sku?: string | null
+  price: number
+  isActive?: boolean
+}
+
 export interface HotelExtraServicePayload {
   sku?: string | null
   name: string
@@ -129,6 +151,12 @@ export const pricingApi = {
 
   bulkUpsertHotelRules: (rules: HotelRulePayload[]) =>
     api.put<HotelPriceRule[]>('/pricing/hotel-rules/bulk', { rules }).then((res) => res.data),
+
+  getHotelDaycareRules: (params?: { species?: string; packageDays?: number; isActive?: boolean }) =>
+    api.get<HotelDaycarePriceRule[]>('/pricing/hotel-daycare-rules', { params }).then((res) => res.data),
+
+  bulkUpsertHotelDaycareRules: (rules: HotelDaycareRulePayload[]) =>
+    api.put<HotelDaycarePriceRule[]>('/pricing/hotel-daycare-rules/bulk', { rules }).then((res) => res.data),
 
   getHotelExtraServices: () =>
     api.get<HotelExtraService[]>('/pricing/hotel-extra-services').then((res) => res.data),

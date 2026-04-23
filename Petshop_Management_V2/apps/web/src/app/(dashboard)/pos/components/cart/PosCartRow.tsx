@@ -81,7 +81,7 @@ export function PosCartRow({
                 } ${isFlashing ? 'cart-row-flash' : ''}`}
         >
             {/* Desktop row */}
-            <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-3">
+            <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_120px_120px_120px] gap-2 items-center px-4 py-3">
                 <div className="text-center text-gray-500 text-[15px] font-medium">{idx + 1}</div>
 
                 <div className="flex justify-center">
@@ -112,7 +112,8 @@ export function PosCartRow({
                 </div>
 
                 <div className="flex flex-col pr-2 min-w-0">
-                    <div className="font-semibold text-[15px] text-gray-800 flex items-center gap-2 min-w-0" title={item.description}>
+                    {/* Dòng 1: Tên – Phiên bản – Đổi – Trạng thái */}
+                    <div className="font-semibold text-[15px] text-gray-800 flex items-center gap-1.5 min-w-0 flex-wrap" title={item.description}>
                         {(item as any).isTemp ? (
                             <TempItemNameEditor
                                 description={item.description}
@@ -123,12 +124,12 @@ export function PosCartRow({
                                 }}
                             />
                         ) : (
-                            <span className="truncate shrink">{item.description}</span>
+                            <span className="truncate shrink max-w-[220px]">{item.description}</span>
                         )}
                         {displayTrueVariants.length > 0 ? (
-                            <div className="relative inline-flex items-center shrink-0 group cursor-pointer -ml-1">
+                            <div className="relative inline-flex items-center shrink-0 group cursor-pointer">
                                 <select
-                                    className="appearance-none bg-transparent text-primary-600 text-[15px] font-semibold pr-4 pl-1 outline-none cursor-pointer hover:text-primary-700 transition-colors leading-normal"
+                                    className="appearance-none bg-primary-50 text-primary-600 text-[12px] font-semibold pr-5 pl-1.5 py-0.5 rounded border border-primary-200 outline-none cursor-pointer hover:text-primary-700 transition-colors"
                                     value={currentTrueVariant?.id || (!isCurrentConversion && item.productVariantId) || ''}
                                     onChange={(event) => {
                                         const newTrueVariantId = event.target.value;
@@ -153,15 +154,40 @@ export function PosCartRow({
                                         <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
                                     ))}
                                 </select>
-                                <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 group-hover:text-primary-600 pointer-events-none transition-colors" size={14} />
+                                <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 text-primary-500/50 group-hover:text-primary-600 pointer-events-none transition-colors" size={11} />
                             </div>
                         ) : null}
-
+                        {conversionVariants.length > 0 ? (
+                            <div className="relative inline-flex items-center shrink-0 group cursor-pointer">
+                                <select
+                                    className="appearance-none bg-gray-100 text-gray-600 text-[12px] font-medium pr-5 pl-1.5 py-0.5 rounded border border-gray-200 outline-none cursor-pointer hover:text-primary-600 transition-colors"
+                                    value={isCurrentConversion ? item.productVariantId : 'base'}
+                                    onChange={(event) => {
+                                        if (event.target.value === 'base') updateVariant(currentTrueVariant ? currentTrueVariant.id : 'base');
+                                        else updateVariant(event.target.value);
+                                    }}
+                                >
+                                    <option value="base">{baseUnit}</option>
+                                    {conversionVariants.map((variant: any) => (
+                                        <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 group-hover:opacity-100" size={11} />
+                            </div>
+                        ) : (
+                            <span className="text-[12px] text-gray-400 font-normal">{item.unit || baseUnit}</span>
+                        )}
                         <PosCartStockPopover item={item} currentTrueVariant={currentTrueVariant} activeBranches={activeBranches} />
                     </div>
 
-                    <div className="text-xs flex items-center mt-0.5 mb-1 w-full gap-2 group/note min-h-[20px]">
-                        <span className="text-gray-500 shrink-0 font-medium text-[13px]">{item.sku || 'N/A'}</span>
+                    {/* Dòng 2: SKU – Mã vạch – Ghi chú */}
+                    <div className="text-xs flex items-center mt-1 w-full gap-2 group/note min-h-[20px]">
+                        <span className="text-gray-500 shrink-0 font-medium text-[12px]">{item.sku || 'N/A'}</span>
+                        {(item as any).barcode ? (
+                            <span className="shrink-0 text-[11px] font-mono text-gray-400 border border-gray-200 rounded px-1 bg-gray-50">
+                                {(item as any).barcode}
+                            </span>
+                        ) : null}
                         {weightBandLabel ? (
                             <span className="shrink-0 rounded bg-primary-50 px-1.5 py-0.5 text-[11px] font-semibold text-primary-700">{weightBandLabel}</span>
                         ) : null}
@@ -208,29 +234,6 @@ export function PosCartRow({
                             In: {new Date(item.hotelDetails.checkIn).toLocaleDateString()} {' - '} Out: {new Date(item.hotelDetails.checkOut).toLocaleDateString()}
                         </div>
                     ) : null}
-                </div>
-
-                <div className="text-center text-[15px] font-medium text-gray-700 flex justify-center">
-                    {conversionVariants.length > 0 ? (
-                        <div className="relative inline-flex items-center group cursor-pointer text-gray-700 hover:text-primary-600 transition-colors">
-                            <select
-                                className="appearance-none bg-transparent text-[15px] font-medium outline-none cursor-pointer pr-4 w-full text-center"
-                                value={isCurrentConversion ? item.productVariantId : 'base'}
-                                onChange={(event) => {
-                                    if (event.target.value === 'base') updateVariant(currentTrueVariant ? currentTrueVariant.id : 'base');
-                                    else updateVariant(event.target.value);
-                                }}
-                            >
-                                <option value="base">{baseUnit}</option>
-                                {conversionVariants.map((variant: any) => (
-                                    <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 group-hover:opacity-100" size={14} />
-                        </div>
-                    ) : (
-                        <span className="text-gray-700">{item.unit || baseUnit}</span>
-                    )}
                 </div>
 
                 <div className="flex items-center justify-center">

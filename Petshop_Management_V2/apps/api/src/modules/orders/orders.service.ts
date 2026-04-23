@@ -48,9 +48,27 @@ type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const PAYMENT_INTENT_TTL_MS = 15 * 60 * 1000;
+const DAYCARE_PACKAGE_DAYS = 10;
 
 function normalizeHotelLineType(value?: string | null): 'REGULAR' | 'HOLIDAY' {
   return value === 'HOLIDAY' ? 'HOLIDAY' : 'REGULAR';
+}
+
+function normalizeHotelCareMode(value?: string | null): 'BOARDING' | 'DAYCARE' {
+  return value === 'DAYCARE' ? 'DAYCARE' : 'BOARDING';
+}
+
+function normalizeHotelPackageKind(value?: string | null): 'NONE' | 'COMBO_10_DAYS' {
+  return value === 'COMBO_10_DAYS' ? 'COMBO_10_DAYS' : 'NONE';
+}
+
+function isDaycareHotelDetails(details?: any) {
+  return normalizeHotelCareMode(details?.careMode) === 'DAYCARE';
+}
+
+function resolveDaycarePackageDays(details?: any) {
+  const parsed = Number(details?.packageTotalDays ?? details?.packageDays ?? DAYCARE_PACKAGE_DAYS);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DAYCARE_PACKAGE_DAYS;
 }
 
 function buildHotelOrderItemPricingSnapshot(item: {
@@ -63,6 +81,23 @@ function buildHotelOrderItemPricingSnapshot(item: {
   if (!item.hotelDetails) return undefined;
 
   const details = item.hotelDetails;
+  if (isDaycareHotelDetails(details)) {
+    const packageDays = resolveDaycarePackageDays(details);
+    const totalPrice = item.unitPrice * item.quantity - (item.discountItem ?? 0);
+    return {
+      source: 'DAYCARE_COMBO_10',
+      careMode: 'DAYCARE',
+      packageKind: normalizeHotelPackageKind(details.packageKind || 'COMBO_10_DAYS'),
+      packageDays,
+      packageStartDate: details.packageStartDate ?? details.checkInDate ?? null,
+      packageEndDate: details.packageEndDate ?? details.checkOutDate ?? null,
+      autoCompleteAt: details.autoCompleteAt ?? details.checkOutDate ?? null,
+      weightBandId: details.weightBandId ?? details.chargeWeightBandId ?? null,
+      weightBandLabel: details.weightBandLabel ?? details.chargeWeightBandLabel ?? null,
+      price: totalPrice,
+    };
+  }
+
   const subtotal = details.chargeSubtotal ?? item.unitPrice * item.quantity - (item.discountItem ?? 0);
 
   return {
@@ -1135,6 +1170,77 @@ export class OrdersService {
     return items.reduce((sum, item) => sum + item.unitPrice * item.quantity - (item.discountItem ?? 0), 0);
   }
 
+  private hasDaycareHotelItems(items: Array<{ hotelDetails?: any }>) {
+    return items.some((item) => isDaycareHotelDetails(item.hotelDetails));
+  }
+
+  private assertDaycareOrderPrepaid(total: number, paidAmount: number) {
+    if (paidAmount + 0.0001 < total) {
+      throw new BadRequestException('Goi nha tre yeu cau thanh toan du truoc khi tao hoac cap nhat don');
+    }
+  }
+
+  private buildDaycareStayPayload(params: {
+    details: any;
+    branchId: string;
+    customerId?: string | null;
+    petName: string;
+    orderId: string;
+    totalPrice: number;
+  }) {
+    const { details } = params;
+    const checkInDate = new Date(details.checkInDate);
+    const checkOutDate = new Date(details.checkOutDate);
+    return {
+      petId: details.petId,
+      petName: params.petName,
+      customerId: params.customerId ?? null,
+      branchId: params.branchId,
+      cageId: details.cageId ?? null,
+      checkIn: checkInDate,
+      checkedInAt: checkInDate,
+      checkOut: checkOutDate,
+      estimatedCheckOut: checkOutDate,
+      checkOutActual: null,
+      status: 'CHECKED_IN' as const,
+      lineType: normalizeHotelLineType(details.lineType),
+      careMode: 'DAYCARE' as const,
+      packageKind: normalizeHotelPackageKind(details.packageKind || 'COMBO_10_DAYS'),
+      packageTotalDays: resolveDaycarePackageDays(details),
+      packageStartDate: details.packageStartDate ? new Date(details.packageStartDate) : checkInDate,
+      packageEndDate: details.packageEndDate ? new Date(details.packageEndDate) : checkOutDate,
+      autoCompleteAt: details.autoCompleteAt ? new Date(details.autoCompleteAt) : checkOutDate,
+      price: params.totalPrice,
+      dailyRate: details.dailyRate ?? params.totalPrice,
+      depositAmount: details.depositAmount ?? 0,
+      promotion: details.promotion ?? 0,
+      surcharge: details.surcharge ?? 0,
+      totalPrice: params.totalPrice,
+      rateTableId: details.rateTableId ?? null,
+      notes: details.notes ?? null,
+      orderId: params.orderId,
+      weightBandId: details.weightBandId ?? details.chargeWeightBandId ?? null,
+      pricingSnapshot: {
+        source: 'DAYCARE_COMBO_10',
+        careMode: 'DAYCARE',
+        packageKind: normalizeHotelPackageKind(details.packageKind || 'COMBO_10_DAYS'),
+        packageDays: resolveDaycarePackageDays(details),
+        packageStartDate: details.packageStartDate ?? details.checkInDate ?? null,
+        packageEndDate: details.packageEndDate ?? details.checkOutDate ?? null,
+        autoCompleteAt: details.autoCompleteAt ?? details.checkOutDate ?? null,
+        weightBandId: details.weightBandId ?? details.chargeWeightBandId ?? null,
+        weightBandLabel: details.weightBandLabel ?? details.chargeWeightBandLabel ?? null,
+      } as any,
+      breakdownSnapshot: {
+        source: 'DAYCARE_COMBO_10',
+        totalDays: resolveDaycarePackageDays(details),
+        totalPrice: params.totalPrice,
+        weightBandId: details.weightBandId ?? details.chargeWeightBandId ?? null,
+        weightBandLabel: details.weightBandLabel ?? details.chargeWeightBandLabel ?? null,
+      } as any,
+    };
+  }
+
   private async validateAndNormalizeCreateItems<
     T extends {
       productId?: string;
@@ -1546,6 +1652,49 @@ export class OrdersService {
     const checkOutDate = new Date(details.checkOutDate);
     const branch = await resolveBranchIdentity(tx as any, details.branchId ?? params.branchId ?? null);
     const totalPrice = params.item.unitPrice * params.item.quantity - (params.item.discountItem ?? 0);
+    if (isDaycareHotelDetails(details)) {
+      const payload = this.buildDaycareStayPayload({
+        details,
+        branchId: branch.id,
+        customerId: params.customerId ?? null,
+        petName: pet?.name ?? '',
+        orderId: params.orderId,
+        totalPrice,
+      });
+
+      if (params.existingStayId) {
+        const current = await tx.hotelStay.findUnique({ where: { id: params.existingStayId } });
+        if (current && !['BOOKED', 'CHECKED_IN'].includes(current.status)) {
+          throw new BadRequestException(`Luot luu tru ${current.id} da checkout hoac huy, khong the cap nhat lai tu POS.`);
+        }
+
+        await tx.hotelStay.update({
+          where: { id: params.existingStayId },
+          data: payload as any,
+        });
+
+        await tx.hotelStayChargeLine.deleteMany({ where: { hotelStayId: params.existingStayId } });
+        return params.existingStayId;
+      }
+
+      const codeDate = params.orderCreatedAt ?? new Date();
+      const stayCode = await this.generateHotelStayCode(tx as any, codeDate, branch.code);
+      const created = await tx.hotelStay.create({
+        data: {
+          stayCode,
+          ...payload,
+          paymentStatus: 'UNPAID',
+        } as any,
+      });
+
+      await tx.orderItem.update({
+        where: { id: params.orderItemId },
+        data: { hotelStayId: created.id },
+      });
+
+      return created.id;
+    }
+
     const payload = {
       petId: details.petId,
       petName: pet?.name ?? '',
@@ -1620,6 +1769,42 @@ export class OrdersService {
     const checkInDate = new Date(firstDetails.checkInDate);
     const checkOutDate = new Date(firstDetails.checkOutDate);
     const branch = await resolveBranchIdentity(tx as any, firstDetails.branchId ?? params.branchId ?? null);
+    if (isDaycareHotelDetails(firstDetails)) {
+      const pet = await tx.pet.findUnique({ where: { id: firstDetails.petId } });
+      const totalPrice = sortedGroupItems.reduce(
+        (sum, entry) => sum + entry.item.unitPrice * entry.item.quantity - (entry.item.discountItem ?? 0),
+        0,
+      );
+      const payload = this.buildDaycareStayPayload({
+        details: firstDetails,
+        branchId: branch.id,
+        customerId: params.customerId ?? null,
+        petName: pet?.name ?? '',
+        orderId: params.order.id,
+        totalPrice,
+      });
+      const stayCode = await this.generateHotelStayCode(tx as any, params.order.createdAt, branch.code);
+      const stay = await tx.hotelStay.create({
+        data: {
+          stayCode,
+          ...payload,
+          paymentStatus: 'UNPAID',
+        } as any,
+      });
+
+      await tx.hotelStayChargeLine.deleteMany({ where: { hotelStayId: stay.id } });
+      for (const entry of sortedGroupItems) {
+        await tx.orderItem.update({
+          where: { id: entry.orderItem.id },
+          data: {
+            hotelStayId: stay.id,
+            pricingSnapshot: buildHotelOrderItemPricingSnapshot(entry.item) as any,
+          },
+        });
+      }
+      return [stay.id];
+    }
+
     const stayCode = await this.generateHotelStayCode(tx as any, params.order.createdAt, branch.code);
     const totalPrice = sortedGroupItems.reduce(
       (sum, entry) => sum + entry.item.unitPrice * entry.item.quantity - (entry.item.discountItem ?? 0),
@@ -1843,6 +2028,9 @@ export class OrdersService {
       discount,
       shippingFee,
     });
+    if (this.hasDaycareHotelItems(items)) {
+      this.assertDaycareOrderPrepaid(total, totalPaid);
+    }
     return this.prisma.$transaction(async (tx) => {
       const normalizedItems = await this.validateAndNormalizeCreateItems(tx as any, items);
 
@@ -2104,6 +2292,9 @@ export class OrdersService {
     const subtotal = this.calculateOrderSubtotal(data.items);
     const total = subtotal + shippingFee - discount;
     const paymentStatus = this.calculatePaymentStatus(total, order.paidAmount);
+    if (this.hasDaycareHotelItems(data.items)) {
+      this.assertDaycareOrderPrepaid(total, order.paidAmount);
+    }
 
     await this.prisma.$transaction(async (tx) => {
       const normalizedItems = await this.validateAndNormalizeCreateItems(tx as any, data.items);
@@ -3275,12 +3466,20 @@ export class OrdersService {
               branchId: item.hotelStay.branchId,
               cageId: item.hotelStay.cageId,
               lineType: item.hotelStay.lineType,
+              careMode: item.hotelStay.careMode,
+              packageKind: item.hotelStay.packageKind,
+              packageTotalDays: item.hotelStay.packageTotalDays,
+              packageStartDate: item.hotelStay.packageStartDate,
+              packageEndDate: item.hotelStay.packageEndDate,
+              autoCompleteAt: item.hotelStay.autoCompleteAt,
               rateTableId: item.hotelStay.rateTableId,
               dailyRate: item.hotelStay.dailyRate,
               depositAmount: item.hotelStay.depositAmount,
               promotion: item.hotelStay.promotion,
               surcharge: item.hotelStay.surcharge,
               notes: item.hotelStay.notes,
+              weightBandId: item.hotelStay.weightBandId,
+              weightBandLabel: hotelChargeLine?.weightBandLabel ?? (item.hotelStay.pricingSnapshot as any)?.weightBandLabel ?? undefined,
               bookingGroupKey: itemPricingSnapshot?.bookingGroupKey ?? undefined,
               chargeLineIndex: hotelChargeLine?.index ?? undefined,
               chargeLineLabel: hotelChargeLine?.label ?? undefined,
@@ -3909,10 +4108,11 @@ export class OrdersService {
         data: {
           timeline: {
             create: {
-              action: 'Doi goi dich vu theo don',
+              action: 'Đổi gói dịch vụ theo đơn',
               fromStatus: linkedSession.status,
               toStatus: linkedSession.status,
-              note: `${linkedSession.packageCode ?? item.description} -> ${packageLabel} (don ${order.orderNumber})`,
+              note: `${linkedSession.packageCode ?? item.description} → ${packageLabel} (đơn ${order.orderNumber})` +
+                (dto.note?.trim() ? ` — Lý do: ${dto.note.trim()}` : ''),
               performedBy: staffId,
             },
           },

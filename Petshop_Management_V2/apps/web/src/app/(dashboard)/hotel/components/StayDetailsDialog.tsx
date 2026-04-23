@@ -241,6 +241,21 @@ function getPaymentStatusLabel(status?: string | null) {
   return PAYMENT_STATUS_META[status]?.label ?? status
 }
 
+function isDaycareStay(stay: HotelStay | null) {
+  return stay?.careMode === 'DAYCARE'
+}
+
+function getCareModeLabel(stay: HotelStay | null) {
+  return isDaycareStay(stay) ? 'Nha tre' : 'Luu tru'
+}
+
+function getPackageUsage(stay: HotelStay | null) {
+  const totalDays = stay?.packageTotalDays || 10
+  const consumedDays = Math.min(totalDays, Math.max(0, stay?.consumedDays ?? 0))
+  const remainingDays = Math.max(0, stay?.remainingDays ?? (totalDays - consumedDays))
+  return { totalDays, consumedDays, remainingDays }
+}
+
 function getActionLabel(action?: string | null) {
   if (!action) return 'Thao tác'
   return ACTIVITY_LABELS[action] ?? action
@@ -405,6 +420,21 @@ function PaymentStatusBadge({ status }: { status?: string | null }) {
       className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${meta?.className ?? 'border-border bg-background-secondary text-foreground-muted'}`}
     >
       {getPaymentStatusLabel(status)}
+    </span>
+  )
+}
+
+function CareModeBadge({ stay }: { stay: HotelStay | null }) {
+  const isDaycare = isDaycareStay(stay)
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${isDaycare
+        ? 'border-primary-500/20 bg-primary-500/10 text-primary-600'
+        : 'border-border bg-background-secondary text-foreground-muted'
+        }`}
+    >
+      {getCareModeLabel(stay)}
     </span>
   )
 }
@@ -636,11 +666,14 @@ export default function StayDetailsDialog({
   })
 
   const stay = detailQuery.data ?? currentStay ?? null
+  const isDaycare = isDaycareStay(stay)
+  const packageUsage = getPackageUsage(stay)
   const currentPricingSpecies = stay?.pet?.species
   const currentPricingWeight = stay?.pet?.weight ?? stay?.weightAtBooking
   const canFetchCurrentPreview =
     isOpen &&
     stay?.status === 'CHECKED_IN' &&
+    !isDaycare &&
     Boolean(stay.checkIn && currentPricingSpecies && Number(currentPricingWeight) > 0)
   const currentPriceQuery = useQuery({
     queryKey: [
@@ -703,7 +736,9 @@ export default function StayDetailsDialog({
   const canEditStayDates = Boolean(stay) && canUpdateHotel && hasRole(['SUPER_ADMIN', 'ADMIN']) && stay?.status !== 'CANCELLED'
   const canShowCheckIn = stay?.status === 'BOOKED' && actionSlotIndex != null
   const canShowCancel = stay ? !['CHECKED_OUT', 'CANCELLED'].includes(stay.status) : false
-  const displayTotalDays = stay?.status === 'CHECKED_IN' && currentPriceQuery.data
+  const displayTotalDays = isDaycare
+    ? packageUsage.totalDays
+    : stay?.status === 'CHECKED_IN' && currentPriceQuery.data
     ? currentPriceQuery.data.totalDays
     : totalDays
   const accessoryText = stay?.accessories ?? ''
@@ -850,6 +885,7 @@ export default function StayDetailsDialog({
                     {petName}
                   </Dialog.Title>
                   <HotelStatusBadge status={stay?.status} />
+                  <CareModeBadge stay={stay} />
                   <span className="rounded-full border border-border bg-background-secondary px-2 py-1 font-mono text-[11px] text-foreground-muted">
                     {stay?.stayCode || (stay?.id ? `#${stay.id.slice(-6).toUpperCase()}` : '---')}
                   </span>
@@ -1016,6 +1052,17 @@ export default function StayDetailsDialog({
                         <InlineInfoLine label="Đã thu" value={toMoney(stay.order?.paidAmount ?? 0)} />
                         <InlineInfoLine label="Tổng đơn" value={toMoney(stay.order?.total ?? 0)} />
                       </InfoPanel>
+                    </section>
+
+                    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      <InfoItem label="Che do" value={getCareModeLabel(stay)} />
+                      <InfoItem label="Goi" value={isDaycare ? 'Combo 10 ngay' : 'Tinh theo ngay'} />
+                      <InfoItem label="Bat dau goi" value={isDaycare ? formatStayDate(stay?.packageStartDate) : '---'} />
+                      <InfoItem label="Ket thuc goi" value={isDaycare ? formatStayDate(stay?.packageEndDate) : '---'} />
+                      <InfoItem
+                        label="Su dung"
+                        value={isDaycare ? `${packageUsage.consumedDays}/${packageUsage.totalDays} ngay • con ${packageUsage.remainingDays}` : `${displayTotalDays || 0} ngay`}
+                      />
                     </section>
 
                     <section className="grid gap-3 sm:grid-cols-4">

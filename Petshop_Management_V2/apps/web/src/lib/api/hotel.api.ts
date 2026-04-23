@@ -10,6 +10,8 @@ export type CageStatus = 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE'
 
 export type HotelPaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'COMPLETED'
 export type HotelLineType = 'REGULAR' | 'HOLIDAY'
+export type HotelCareMode = 'BOARDING' | 'DAYCARE'
+export type HotelPackageKind = 'NONE' | 'COMBO_10_DAYS'
 
 export interface HotelRateTable {
   id: string
@@ -56,6 +58,14 @@ export interface HotelStay {
   expectedPickup?: string | null
   status: HotelStatus
   lineType: HotelLineType
+  careMode?: HotelCareMode
+  packageKind?: HotelPackageKind
+  packageTotalDays?: number | null
+  packageStartDate?: string | null
+  packageEndDate?: string | null
+  autoCompleteAt?: string | null
+  consumedDays?: number | null
+  remainingDays?: number | null
   price: number | null
   dailyRate: number
   depositAmount: number
@@ -258,6 +268,13 @@ export interface CreateHotelStayDto {
   checkOut?: string
   estimatedCheckOut?: string
   lineType?: HotelLineType
+  careMode?: HotelCareMode
+  packageKind?: HotelPackageKind
+  packageTotalDays?: number
+  packageStartDate?: string
+  packageEndDate?: string
+  autoCompleteAt?: string
+  weightBandId?: string
   notes?: string
   petNotes?: string
   accessories?: string

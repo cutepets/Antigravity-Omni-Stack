@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { orderApi } from '@/lib/api/order.api';
 import {
   pricingApi,
+  type HotelDaycarePriceRule,
   type HotelExtraService,
   type HotelPriceRule,
   type SpaPriceRule,
@@ -189,6 +190,13 @@ export function usePetPricingSuggestions(pet: any) {
     staleTime: 30_000,
   });
 
+  const hotelDaycareRulesQuery = useQuery({
+    queryKey: ['pos', 'pricing-suggestions', 'hotel-daycare', 10, 'all-active'],
+    queryFn: () => pricingApi.getHotelDaycareRules({ packageDays: 10, isActive: true }),
+    enabled: Boolean(pet?.id),
+    staleTime: 30_000,
+  });
+
   const hotelExtraServicesQuery = useQuery({
     queryKey: ['pos', 'pricing-suggestions', 'hotel-extra-services'],
     queryFn: () => pricingApi.getHotelExtraServices(),
@@ -203,13 +211,14 @@ export function usePetPricingSuggestions(pet: any) {
     species,
     spaRules: spaRulesQuery.data ?? [],
     hotelRules: hotelRulesQuery.data ?? [],
+    hotelDaycareRules: hotelDaycareRulesQuery.data ?? [],
     hotelExtraServices: hotelExtraServicesQuery.data ?? [],
   });
 
   return {
     data: suggestions,
-    isLoading: spaRulesQuery.isLoading || hotelRulesQuery.isLoading,
-    isError: spaRulesQuery.isError || hotelRulesQuery.isError,
+    isLoading: spaRulesQuery.isLoading || hotelRulesQuery.isLoading || hotelDaycareRulesQuery.isLoading,
+    isError: spaRulesQuery.isError || hotelRulesQuery.isError || hotelDaycareRulesQuery.isError,
     hasPricingProfile,
   };
 }
@@ -221,6 +230,7 @@ function buildPricingSuggestions({
   species,
   spaRules,
   hotelRules,
+  hotelDaycareRules,
   hotelExtraServices,
 }: {
   pet: any;
@@ -229,6 +239,7 @@ function buildPricingSuggestions({
   species?: string;
   spaRules: SpaPriceRule[];
   hotelRules: HotelPriceRule[];
+  hotelDaycareRules: HotelDaycarePriceRule[];
   hotelExtraServices: HotelExtraService[];
 }) {
   if (!pet) return [];
@@ -398,6 +409,44 @@ function buildPricingSuggestions({
   }));
 
   // ── Flat-rate hotel suggestions (no weightBand, score 55) ────────────────
+  const matchingHotelDaycareRules = hasPricingProfile
+    ? hotelDaycareRules.filter((rule) => isSpeciesMatch(species, getRuleSpecies(rule)) && isWeightInBand(weight, rule.weightBand))
+    : [];
+  const hotelDaycareSuggestions = matchingHotelDaycareRules.map((rule) => ({
+    id: `pricing:hotel:daycare:${rule.id}`,
+    entryType: 'pricing-hotel',
+    pricingKind: 'HOTEL',
+    type: 'hotel',
+    name: 'Hotel nha tre combo 10 ngay',
+    description: 'Goi giu ban ngay, tu dong ket thuc sau 10 ngay lich.',
+    sku: rule.sku ?? `${getPricingSku('HOTEL', 'Hotel nha tre', rule.weightBand?.label)}-NT`,
+    price: rule.price,
+    sellingPrice: rule.price,
+    duration: undefined,
+    weightBandId: rule.weightBandId,
+    weightBandLabel: rule.weightBand?.label ?? rule.weightBandLabel ?? undefined,
+    pricingRuleId: rule.id,
+    petSnapshot: pet,
+    suggestionKind: 'HOTEL' as const,
+    suggestionGroup: 'PRIMARY' as const,
+    suggestionScore: 88,
+    isWeightMatched: true,
+    careMode: 'DAYCARE' as const,
+    packageKind: 'COMBO_10_DAYS' as const,
+    packageTotalDays: rule.packageDays ?? 10,
+    pricingSnapshot: {
+      source: 'DAYCARE_COMBO_10',
+      careMode: 'DAYCARE',
+      packageKind: 'COMBO_10_DAYS',
+      packageDays: rule.packageDays ?? 10,
+      weightBandId: rule.weightBandId,
+      weightBandLabel: rule.weightBand?.label ?? rule.weightBandLabel ?? null,
+      price: rule.price,
+      sku: rule.sku ?? null,
+    },
+    reason: 'Gia nha tre combo 10 ngay theo hang can.',
+  }));
+
   const hasWeightMatchedHotel = weightMatchedHotelSuggestions.length > 0;
   const flatRateHotelRules = !hasWeightMatchedHotel
     ? hotelRules.filter(
@@ -467,6 +516,7 @@ function buildPricingSuggestions({
   return [
     ...weightMatchedSpaSuggestions,
     ...customRangeSpaSuggestions,
+    ...hotelDaycareSuggestions,
     ...weightMatchedHotelSuggestions,
     ...flatRateSpaSuggestions,
     ...flatRateHotelSuggestions,

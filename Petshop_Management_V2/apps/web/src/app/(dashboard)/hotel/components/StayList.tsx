@@ -21,7 +21,7 @@ import {
 import { Pin, PinOff } from 'lucide-react'
 
 type DisplayColumnId = 'code' | 'pet' | 'customer' | 'checkIn' | 'checkOut' | 'days' | 'status'
-type PinFilterId = 'status'
+type PinFilterId = 'status' | 'careMode'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
   { id: 'code', label: 'Mã lưu trú', sortable: false, width: 'w-24' },
@@ -49,6 +49,7 @@ export default function StayList({
 
   const [search, setSearch] = useState(initialSearch)
   const [stayStatus, setStayStatus] = useState<string>('')
+  const [careMode, setCareMode] = useState<string>('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [selectedStay, setSelectedStay] = useState<HotelStay | null>(null)
@@ -56,7 +57,7 @@ export default function StayList({
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
     initialVisibleColumns: ['code', 'pet', 'customer', 'checkIn', 'checkOut', 'days', 'status'],
-    initialTopFilterVisibility: { status: true }
+    initialTopFilterVisibility: { status: true, careMode: true }
   })
 
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
@@ -89,8 +90,11 @@ export default function StayList({
     if (stayStatus) {
       filtered = filtered.filter((stay) => stay.status === stayStatus)
     }
+    if (careMode) {
+      filtered = filtered.filter((stay) => (stay.careMode ?? 'BOARDING') === careMode)
+    }
     return filtered
-  }, [allStays, search, stayStatus])
+  }, [allStays, search, stayStatus, careMode])
 
   const paginatedStays = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -130,14 +134,28 @@ export default function StayList({
   }
 
   const getDaysCount = (stay: HotelStay) => {
+    if (stay.careMode === 'DAYCARE') {
+      return stay.packageTotalDays || 10
+    }
     const checkIn = new Date(stay.checkIn)
     const checkOut = stay.checkOutActual ? new Date(stay.checkOutActual) : stay.estimatedCheckOut ? new Date(stay.estimatedCheckOut) : null
     if (!checkOut) return 1
     return Math.max(1, differenceInDays(checkOut, checkIn))
   }
 
+  const getDaycareSummary = (stay: HotelStay) => {
+    const totalDays = stay.packageTotalDays || 10
+    const consumedDays = Math.min(totalDays, Math.max(0, stay.consumedDays ?? 0))
+    const remainingDays = Math.max(0, stay.remainingDays ?? (totalDays - consumedDays))
+    return {
+      primary: `${consumedDays}/${totalDays} ngay`,
+      secondary: `Con lai ${remainingDays} ngay`,
+    }
+  }
+
   const clearFilters = () => {
     setStayStatus('')
+    setCareMode('')
     setSearch('')
     setPage(1)
   }
@@ -174,6 +192,20 @@ export default function StayList({
                   <option value="CHECKED_IN">Đang ở</option>
                   <option value="CHECKED_OUT">Đã trả</option>
                   <option value="CANCELLED">Đã hủy</option>
+                </select>
+              )}
+              {topFilterVisibility.careMode && (
+                <select
+                  className={toolbarSelectClass}
+                  value={careMode}
+                  onChange={(e) => {
+                    setCareMode(e.target.value)
+                    setPage(1)
+                  }}
+                >
+                  <option value="">Che do (Tat ca)</option>
+                  <option value="BOARDING">Luu tru</option>
+                  <option value="DAYCARE">Nha tre</option>
                 </select>
               )}
             </>
@@ -222,6 +254,30 @@ export default function StayList({
               <option value="CANCELLED">Đã hủy</option>
             </select>
           </label>
+          <label className="space-y-2">
+            <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
+              <span className="inline-flex items-center gap-2">
+                Che do cham soc
+              </span>
+              <button
+                type="button"
+                onClick={() => dataListState.toggleTopFilterVisibility('careMode')}
+                className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.careMode ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
+                  }`}
+              >
+                {topFilterVisibility.careMode ? <Pin size={12} /> : <PinOff size={12} />}
+              </button>
+            </span>
+            <select
+              value={careMode}
+              onChange={(e) => { setCareMode(e.target.value); setPage(1) }}
+              className={filterSelectClass}
+            >
+              <option value="">Tat ca</option>
+              <option value="BOARDING">Luu tru</option>
+              <option value="DAYCARE">Nha tre</option>
+            </select>
+          </label>
         </DataListFilterPanel>
 
         <DataListTable
@@ -249,7 +305,12 @@ export default function StayList({
                       )}
                       {colId === 'pet' && (
                         <div className="text-sm font-semibold text-foreground">
-                          {stay.pet?.name || stay.petName || '—'}
+                          <div>{stay.pet?.name || stay.petName || '—'}</div>
+                          {stay.careMode === 'DAYCARE' ? (
+                            <span className="mt-1 inline-flex rounded-full bg-primary-500/10 px-2 py-0.5 text-[11px] font-semibold text-primary-500">
+                              Nha tre
+                            </span>
+                          ) : null}
                         </div>
                       )}
                       {colId === 'customer' && (
@@ -283,7 +344,14 @@ export default function StayList({
                       )}
                       {colId === 'days' && (
                         <div className="text-sm font-medium text-foreground">
-                          {getDaysCount(stay)} ngày
+                          {stay.careMode === 'DAYCARE' ? (
+                            <>
+                              <div>{getDaycareSummary(stay).primary}</div>
+                              <div className="text-xs text-foreground-muted">{getDaycareSummary(stay).secondary}</div>
+                            </>
+                          ) : (
+                            `${getDaysCount(stay)} ngày`
+                          )}
                         </div>
                       )}
                       {colId === 'status' && (

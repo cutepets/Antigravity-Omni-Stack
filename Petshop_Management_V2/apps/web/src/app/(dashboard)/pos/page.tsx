@@ -360,7 +360,7 @@ function PosPageContent() {
         >
           <Plus size={15} strokeWidth={2.5} />
         </button>
-            </div>
+      </div>
 
 
       {/* â• â• â•  MAIN POS AREA â• â• â•  */}
@@ -370,12 +370,11 @@ function PosPageContent() {
         <div className="order-3 lg:col-start-1 lg:row-start-1 lg:row-span-3 flex flex-col bg-surface shadow-sm z-10 lg:overflow-hidden min-h-[400px]">
 
           {/* Table Header */}
-          <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_80px_120px_120px_120px] gap-2 items-center px-4 py-2 bg-surface-secondary border-b border-border text-[13px] font-semibold text-foreground-muted uppercase">
+          <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_120px_120px_120px] gap-2 items-center px-4 py-2 bg-surface-secondary border-b border-border text-[13px] font-semibold text-foreground-muted uppercase">
             <div className="text-center">#</div>
             <div></div>
             <div className="text-center">Ảnh</div>
-            <div>Sản phẩm / SKU</div>
-            <div className="text-center">Đơn vị</div>
+            <div>Sản phẩm</div>
             <div className="text-center">Số lượng</div>
             <div className="text-right">Đơn giá</div>
             <div className="text-right">Thành tiền</div>
