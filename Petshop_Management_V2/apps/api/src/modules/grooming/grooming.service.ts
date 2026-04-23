@@ -310,7 +310,7 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         assignedStaff: { select: { id: true, fullName: true, avatar: true } },
-        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
+        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true, staff: { select: { fullName: true } } } },
         branch: { select: { id: true, name: true, code: true } },
       },
     })
@@ -345,7 +345,7 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         assignedStaff: { select: { id: true, fullName: true, avatar: true } },
-        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
+        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true, staff: { select: { fullName: true } } } },
         branch: { select: { id: true, name: true, code: true } },
         orderItems: {
           select: {
@@ -396,7 +396,7 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         assignedStaff: { select: { id: true, fullName: true, avatar: true } },
-        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
+        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true, staff: { select: { fullName: true } } } },
         branch: { select: { id: true, name: true, code: true } },
         orderItems: {
           select: {
@@ -582,7 +582,7 @@ export class GroomingService {
         },
         staff: { select: { id: true, fullName: true, avatar: true } },
         assignedStaff: { select: { id: true, fullName: true, avatar: true } },
-        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true } },
+        order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, total: true, paidAmount: true, remainingAmount: true, staff: { select: { fullName: true } } } },
         branch: { select: { id: true, name: true, code: true } },
       },
     })

@@ -125,6 +125,7 @@ export interface GroomingSession {
     total?: number | null;
     paidAmount?: number | null;
     remainingAmount?: number | null;
+    staff?: { fullName: string } | null;
   } | null;
   orderItems?: GroomingOrderItem[];
   timeline?: GroomingTimelineEntry[];

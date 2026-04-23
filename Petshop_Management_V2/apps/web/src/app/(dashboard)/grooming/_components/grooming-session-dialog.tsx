@@ -8,7 +8,6 @@ import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpRight,
-  CalendarClock,
   ClipboardList,
   PawPrint,
   Save,
@@ -18,9 +17,8 @@ import {
   X,
   RefreshCw,
   Coins,
-  ChevronDown,
 } from "lucide-react";
-import { format } from "date-fns";
+
 import * as Tabs from "@radix-ui/react-tabs";
 import { customToast as toast } from "@/components/ui/toast-with-copy";
 import {
@@ -28,20 +26,16 @@ import {
   type GroomingOrderItem,
   type GroomingSession,
   type GroomingSessionPricingSnapshot,
-  type GroomingStatus,
   type SpaExtraServiceLine,
 } from "@/lib/api/grooming.api";
 import { petApi } from "@/lib/api/pet.api";
-import { staffApi, type Staff } from "@/lib/api/staff.api";
+import { staffApi } from "@/lib/api/staff.api";
 import { pricingApi, type SpaPriceRule } from "@/lib/api/pricing.api";
 import { useAuthorization } from "@/hooks/useAuthorization";
 import { useAuthStore } from "@/stores/auth.store";
 import {
   formatGroomingDateTime,
-  formatGroomingMoney,
   GroomingStatusBadge,
-  GROOMING_STATUS_META,
-  GROOMING_STATUS_ORDER,
   toDateTimeLocalValue,
 } from "./grooming-status";
 import { formatDateTime } from "@/lib/utils";
@@ -125,6 +119,7 @@ type SpaServiceLineRole = "MAIN" | "EXTRA";
 type SpaServiceLineSource = "order" | "snapshot" | "draft";
 
 interface SpaServiceLine {
+  discountItem?: number;
   key: string;
   role: SpaServiceLineRole;
   source: SpaServiceLineSource;
@@ -241,10 +236,7 @@ function buildSpaDraftMainLine(packageName: string, price?: number): SpaServiceL
   };
 }
 
-function buildServiceMeta(line: SpaServiceLine) {
-  const base = `${formatNumber(line.unitPrice)} x ${line.quantity}`;
-  return line.lineDiscount > 0 ? `${base} - CK ${formatNumber(line.lineDiscount)}` : base;
-}
+
 
 function SpaServiceLineRow({
   line,
@@ -300,19 +292,15 @@ function SpaServiceLineRow({
   }
 
   return (
-    <div className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2.5">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2">
       <div className="flex min-w-0 items-center gap-2">
         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-[10px] font-bold text-primary-500">
           {index}
         </span>
-        <div className="min-w-0">
-          <span className="truncate text-sm font-medium text-foreground">{line.name}</span>
-          <p className="mt-0.5 text-[11px] text-foreground-muted">{buildServiceMeta(line)}</p>
-        </div>
+        <span className="truncate text-sm font-medium text-foreground">{line.name}</span>
+        <span className="text-[11px] text-foreground-muted whitespace-nowrap">× {line.quantity}{line.lineDiscount > 0 ? ` · -${formatNumber(line.lineDiscount)}` : ''}</span>
       </div>
-      <div className="shrink-0 text-right">
-        <span className="text-xs font-semibold text-foreground">{formatMoney(line.lineTotal)}</span>
-      </div>
+      <span className="shrink-0 text-xs font-semibold text-foreground">{formatMoney(line.lineTotal)}</span>
     </div>
   );
 }
@@ -437,7 +425,7 @@ export function GroomingSessionDialog({
   const linkedMainBaseAmount = linkedMainOrderItems.length > 0
     ? linkedMainOrderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
     : Number(linkedSessionSnapshot.mainService?.price ?? linkedSessionSnapshot.mainPrice ?? 0)
-      * Number(linkedSessionSnapshot.mainService?.quantity ?? 1);
+    * Number(linkedSessionSnapshot.mainService?.quantity ?? 1);
   const linkedExtraBaseAmount = linkedExtraOrderItems.length > 0
     ? linkedExtraOrderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
     : Number(linkedSessionSnapshot.extraTotal ?? 0);
@@ -842,12 +830,12 @@ export function GroomingSessionDialog({
 
                       <div className="rounded-2xl border border-border bg-card/80 p-4 relative group min-h-[120px]">
                         <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                          <span className="flex items-center gap-2"><ClipboardList size={14} /> Thông tin đơn hàng</span>
+                          <span className="flex items-center gap-2"><ClipboardList size={14} /> Đơn hàng</span>
                           {isEditing && activeSession?.order && canReadOrders && (
                             <Link
                               href={`/orders/${activeSession.order.orderNumber}`}
                               target="_blank"
-                              className="flex items-center gap-1 text-xs text-primary-500 hover:text-primary-400 transition-colors opacity-0 group-hover:opacity-100"
+                              className="flex items-center gap-1 text-xs text-primary-500 hover:text-primary-400 transition-colors"
                             >
                               <ArrowUpRight size={13} />
                               {activeSession.order.orderNumber}
@@ -864,9 +852,9 @@ export function GroomingSessionDialog({
                                 CN: <span className="font-medium text-foreground">{activeSession!.branch.name}</span>
                               </p>
                             )}
-                            {activeSession!.staff && (
+                            {activeSession!.order?.staff && (
                               <p className="text-xs text-foreground-muted">
-                                Người tạo: <span className="font-medium text-foreground">{activeSession!.staff.fullName}</span>
+                                Người thu ngân: <span className="font-medium text-foreground">{activeSession!.order.staff.fullName}</span>
                               </p>
                             )}
                             {!activeSession!.order && (
@@ -887,37 +875,6 @@ export function GroomingSessionDialog({
                       </div>
 
                       <div className="grid gap-4 sm:grid-cols-2">
-                        {isEditing && (
-                          <label className="space-y-2 col-span-1">
-                            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
-                              Trạng thái
-                            </span>
-                            <div className="relative">
-                              <select
-                                value={watchStatus}
-                                onChange={(e) => {
-                                  const status = e.target.value as any;
-                                  if (!canUpdateSession) return;
-                                  if (status === "CANCELLED") {
-                                    setShowCancelModal(true);
-                                  } else {
-                                    setValue("status", status, { shouldDirty: true });
-                                  }
-                                }}
-                                disabled={!canUpdateSession}
-                                className="h-11 w-full appearance-none rounded-xl border border-border bg-background-secondary px-3 pr-10 text-sm text-foreground outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {GROOMING_STATUS_ORDER.map((s) => (
-                                  <option key={s} value={s}>{GROOMING_STATUS_META[s].label}</option>
-                                ))}
-                              </select>
-                              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-foreground-muted">
-                                <ChevronDown size={14} />
-                              </div>
-                            </div>
-                          </label>
-                        )}
-
                         <label className="space-y-2 col-span-1" hidden={isLinkedToOrder}>
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                             Mã gói / Package
@@ -936,26 +893,11 @@ export function GroomingSessionDialog({
                           </select>
                         </label>
 
-                        <div className="space-y-2 sm:col-span-2">
+                        <div className="space-y-2 col-span-1">
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
                             Nhân viên phụ trách
                           </span>
                           <div className="relative">
-                            <div className="flex flex-wrap gap-2 mb-2">
-                              {selectedStaffIds.map((id) => {
-                                const st = staffOptions.find(s => s.id === id);
-                                return st ? (
-                                  <div key={id} className="flex items-center gap-1.5 rounded-full bg-primary-100 text-primary-700 px-3 py-1 text-xs font-medium dark:bg-primary-900/30 dark:text-primary-400">
-                                    <span>{st.fullName}</span>
-                                    {canUpdateSession && (
-                                      <button type="button" onClick={() => setSelectedStaffIds(prev => prev.filter(p => p !== id))} className="mt-0.5 hover:text-primary-900 dark:hover:text-primary-200 focus:outline-none">
-                                        <X size={12} />
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : null;
-                              })}
-                            </div>
                             <input
                               type="text"
                               disabled={!canUpdateSession}
@@ -1043,90 +985,57 @@ export function GroomingSessionDialog({
 
                         <div className="sm:col-span-2 space-y-3 rounded-xl border border-primary-500/20 bg-primary-500/5 px-4 py-3">
                           <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm font-medium text-foreground-muted">Chi tiáº¿t phiáº¿u</span>
+                            <span className="text-sm font-medium text-foreground-muted">Chi tiết phiếu</span>
                             <span className="text-[11px] italic text-foreground-muted">
-                              {isLinkedToOrder ? "Chá»‰ xem â€” sá»­a dá»‹ch vá»¥ táº¡i Ä‘Æ¡n POS" : "Cáº­p nháº­t tá»± Ä‘á»™ng theo phiáº¿u"}
+                              {isLinkedToOrder ? "Chỉ xem — sửa dịch vụ tại đơn POS" : "Cập nhật tự động theo phiếu"}
                             </span>
                           </div>
 
                           {spaServiceLines.length > 0 ? (
                             <div className="space-y-3">
-                              {mainServiceLines.length > 0 ? (
-                                <div className="space-y-2">
-                                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Dá»‹ch vá»¥ chÃ­nh</p>
-                                  {mainServiceLines.map((line, idx) => (
-                                    <SpaServiceLineRow key={line.key} line={line} index={idx + 1} />
-                                  ))}
-                                </div>
-                              ) : null}
-
-                              {extraServiceLines.length > 0 ? (
-                                <div className="space-y-2">
-                                  <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Dá»‹ch vá»¥ phá»¥</p>
-                                  {extraServiceLines.map((line, idx) => (
-                                    <SpaServiceLineRow
-                                      key={line.key}
-                                      line={line}
-                                      index={idx + 1}
-                                      disabled={!canUpdateSession}
-                                      onQuantityChange={!isLinkedToOrder && line.source === "draft"
-                                        ? (quantity) => updateExtraQuantity(line.pricingRuleId, quantity)
-                                        : undefined}
-                                      onRemove={!isLinkedToOrder && line.source === "draft"
-                                        ? () => removeExtraService(line.pricingRuleId)
-                                        : undefined}
-                                    />
-                                  ))}
-                                </div>
-                              ) : null}
+                              {spaServiceLines.map((line, idx) => (
+                                <SpaServiceLineRow
+                                  key={line.key}
+                                  line={line}
+                                  index={idx + 1}
+                                  disabled={!canUpdateSession}
+                                  onQuantityChange={!isLinkedToOrder && line.source === "draft" && line.role === "EXTRA"
+                                    ? (quantity) => updateExtraQuantity(line.pricingRuleId, quantity)
+                                    : undefined}
+                                  onRemove={!isLinkedToOrder && line.source === "draft" && line.role === "EXTRA"
+                                    ? () => removeExtraService(line.pricingRuleId)
+                                    : undefined}
+                                />
+                              ))}
 
                               {hasMultipleMainServices ? (
                                 <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
-                                  Phiáº¿u nÃ y Ä‘ang cÃ³ nhiá»u dÃ²ng dá»‹ch vá»¥ chÃ­nh tá»« dá»¯ liá»‡u Ä‘Æ¡n cÅ©. Há»‡ thá»‘ng hiá»‡n thá»‹ táº¥t cáº£ Ä‘á»ƒ trÃ¡nh máº¥t thÃ´ng tin.
+                                  Phiếu này đang có nhiều dòng dịch vụ chính từ dữ liệu đơn cũ. Hệ thống hiển thị tất cả để tránh mất thông tin.
                                 </p>
                               ) : null}
-
-                              <div className="rounded-xl border border-primary-500/10 bg-background-base/40 px-4 py-3">
-                                <div className="flex items-center justify-between gap-4 text-sm">
-                                  <span className="text-foreground-muted">Táº¡m tÃ­nh dá»‹ch vá»¥</span>
-                                  <span className="font-medium text-foreground">{formatMoney(serviceSubtotal)}</span>
-                                </div>
-                                {serviceSummaryDiscount > 0 ? (
-                                  <div className="mt-2 flex items-center justify-between gap-4 text-sm">
-                                    <span className="text-foreground-muted">Chiáº¿t kháº¥u</span>
-                                    <span className="font-medium text-foreground">-{formatMoney(serviceSummaryDiscount)}</span>
-                                  </div>
-                                ) : null}
-                                {!isLinkedToOrder && standaloneAdjustment > 0 ? (
-                                  <div className="mt-2 flex items-center justify-between gap-4 text-sm">
-                                    <span className="text-foreground-muted">Phá»¥ phÃ­</span>
-                                    <span className="font-medium text-foreground">{formatMoney(standaloneAdjustment)}</span>
-                                  </div>
-                                ) : null}
-                                <div className="mt-3 flex items-center justify-between gap-4 border-t border-primary-500/10 pt-3">
-                                  <span className="text-sm font-medium text-foreground-muted">Tá»•ng phiáº¿u</span>
-                                  <span className="text-base font-semibold text-foreground">{formatMoney(serviceSummaryTotal)}</span>
-                                </div>
-                              </div>
                             </div>
                           ) : (
                             <div className="rounded-xl border border-dashed border-border px-4 py-4 text-center text-sm text-foreground-muted">
-                              {isLinkedToOrder ? "ChÆ°a Ä‘á»“ng bá»™ Ä‘Æ°á»£c dÃ²ng dá»‹ch vá»¥ tá»« Ä‘Æ¡n POS." : "ChÆ°a cÃ³ dá»‹ch vá»¥ nÃ o trÃªn phiáº¿u."}
+                              {isLinkedToOrder ? "Chưa đồng bộ được dòng dịch vụ từ đơn POS." : "Chưa có dịch vụ nào trên phiếu."}
                             </div>
                           )}
                         </div>
 
-                        {false && isLinkedToOrder && (
-                          <div className="sm:col-span-2 rounded-xl border border-primary-500/20 bg-primary-500/5 px-4 py-3">
-                            <div className="flex items-center justify-between gap-4">
-                              <span className="text-sm font-medium text-foreground-muted">Thành tiền</span>
-                              <span className="text-base font-semibold text-foreground">
-                                {new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(linkedOrderTotal)}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs text-foreground-muted">Sửa giá/chiết khấu tại đơn POS.</p>
-                          </div>
-                        )}
+                        <div className="flex flex-wrap gap-2 mt-2 sm:col-span-2">
+                          {selectedStaffIds.map((id) => {
+                            const st = staffOptions.find(s => s.id === id);
+                            return st ? (
+                              <div key={id} className="flex items-center gap-1.5 rounded-full bg-primary-100 text-primary-700 px-3 py-1 text-xs font-medium dark:bg-primary-900/30 dark:text-primary-400">
+                                <span>{st.fullName}</span>
+                                {canUpdateSession && (
+                                  <button type="button" onClick={() => setSelectedStaffIds(prev => prev.filter(p => p !== id))} className="mt-0.5 hover:text-primary-900 dark:hover:text-primary-200 focus:outline-none">
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
 
                         <label className="space-y-2 sm:col-span-2">
                           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
@@ -1145,78 +1054,7 @@ export function GroomingSessionDialog({
                   </>
                 )}
 
-                {/* Section: Dịch vụ từ POS — read-only, POS is source of truth */}
-                {false && isLinkedToOrder && linkedOrderItems.length > 0 && (
-                  <section className="rounded-2xl border border-primary-500/20 bg-primary-500/5 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-500 flex items-center gap-2">
-                        <ClipboardList size={13} />
-                        Dịch vụ từ POS
-                      </p>
-                      <span className="text-[10px] text-foreground-muted italic">Chỉ xem — Sửa tại đơn POS</span>
-                    </div>
-                    <div className="space-y-2">
-                      {linkedMainOrderItems.length > 0 ? (
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Dịch vụ chính</p>
-                      ) : null}
-                      {linkedMainOrderItems.map((item, idx) => (
-                        <div
-                          key={item.id}
-                          className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2.5"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-[10px] font-bold text-primary-500">
-                              {idx + 1}
-                            </span>
-                            <div className="min-w-0">
-                              <span className="truncate text-sm font-medium text-foreground">{item.description}</span>
-                              <p className="mt-0.5 text-[11px] text-foreground-muted">
-                                {new Intl.NumberFormat("vi-VN").format(item.unitPrice)} x {item.quantity}
-                                {(item.discountItem ?? 0) > 0 ? ` - CK ${new Intl.NumberFormat("vi-VN").format(item.discountItem ?? 0)}` : ""}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="shrink-0 text-right">
-                            <span className="text-xs font-semibold text-foreground">
-                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(
-                                item.unitPrice * item.quantity - (item.discountItem ?? 0)
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                      {linkedExtraOrderItems.length > 0 ? (
-                        <p className="pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground-muted">Dịch vụ khác</p>
-                      ) : null}
-                      {linkedExtraOrderItems.map((item, idx) => (
-                        <div
-                          key={item.id}
-                          className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background-base/60 px-3 py-2.5"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-[10px] font-bold text-primary-500">
-                              {idx + 1}
-                            </span>
-                            <div className="min-w-0">
-                              <span className="truncate text-sm font-medium text-foreground">{item.description}</span>
-                              <p className="mt-0.5 text-[11px] text-foreground-muted">
-                                {new Intl.NumberFormat("vi-VN").format(item.unitPrice)} x {item.quantity}
-                                {(item.discountItem ?? 0) > 0 ? ` - CK ${new Intl.NumberFormat("vi-VN").format(item.discountItem ?? 0)}` : ""}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="shrink-0 text-right">
-                            <span className="text-xs font-semibold text-foreground">
-                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(
-                                item.unitPrice * item.quantity - (item.discountItem ?? 0)
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
+
 
                 {!isLinkedToOrder && (mode === "create" || activeSession) && (
                   <section className="rounded-2xl border border-border bg-card/80 p-4 space-y-3">
