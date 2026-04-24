@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable react/no-unescaped-entities */
 
-import { ArrowLeft, Copy, Pencil, Plus, RefreshCw, Save, X } from 'lucide-react'
+import { ArrowLeft, Copy, Download, Pencil, Plus, RefreshCw, Save, Upload, X } from 'lucide-react'
 import { useState } from 'react'
 import type { HolidayCalendarDate, PricingDayType } from '@/lib/api/pricing.api'
 import { cn } from '@/lib/utils'
@@ -22,6 +22,8 @@ export function UnifiedHotelPricingPanel({
   onDraftChange,
   onSave,
   onFillEmptySkus,
+  onExportExcel,
+  onImportExcel,
   isSaving,
   holidays,
   hotelExtraServiceDrafts,
@@ -47,6 +49,8 @@ export function UnifiedHotelPricingPanel({
   onDraftChange: (bandId: string, dayType: PricingDayType, species: string, patch: Partial<HotelDraft>) => void
   onSave: () => Promise<boolean | undefined> | boolean | undefined
   onFillEmptySkus: () => void
+  onExportExcel: () => void
+  onImportExcel: (file: File) => void
   isSaving: boolean
   holidays: HolidayCalendarDate[]
   hotelExtraServiceDrafts: HotelExtraServiceDraft[]
@@ -96,7 +100,7 @@ export function UnifiedHotelPricingPanel({
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-dashed border-primary-500/35 bg-primary-500/5 px-4 text-sm font-bold text-primary-500 transition-colors hover:bg-primary-500/10"
               >
                 <Plus size={15} />
-                + Hạng cân
+                Hạng cân
               </button>
             ) : null}
 
@@ -112,29 +116,54 @@ export function UnifiedHotelPricingPanel({
             ) : null}
 
             {canManagePricing ? (
-              isEditMode ? (
+              <>
                 <button
                   type="button"
-                  onClick={async () => {
-                    const success = await onSave()
-                    if (success) handleExitEditMode()
-                  }}
-                  disabled={isSaving}
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white disabled:opacity-50"
+                  onClick={onExportExcel}
+                  className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-background-base px-3 text-xs font-semibold text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground"
                 >
-                  {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
-                  Lưu bảng giá
+                  <Download size={14} />
+                  Xuất Excel
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsEditMode(true)}
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white"
-                >
-                  <Pencil size={16} />
-                  Sửa bảng giá
-                </button>
-              )
+                <label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/10">
+                  <Upload size={14} />
+                  Nhập Excel
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      e.target.value = ''
+                      onImportExcel(file)
+                    }}
+                  />
+                </label>
+                {isEditMode ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const success = await onSave()
+                      if (success) handleExitEditMode()
+                    }}
+                    disabled={isSaving}
+                    className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                    Lưu bảng giá
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditMode(true)}
+                    className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary-500 px-5 text-sm font-bold text-white"
+                  >
+                    <Pencil size={16} />
+                    Sửa bảng giá
+                  </button>
+                )}
+              </>
             ) : null}
           </div>
         </div>

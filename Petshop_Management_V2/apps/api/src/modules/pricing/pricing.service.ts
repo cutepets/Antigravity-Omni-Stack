@@ -998,4 +998,322 @@ export class PricingService implements OnModuleInit {
       })
     }
   }
+
+  // ─── Excel Export / Import ────────────────────────────────────────────────
+
+  async exportToExcel(type: 'grooming' | 'hotel' | 'all' = 'all'): Promise<Buffer> {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.default.Workbook()
+
+    // Helper: style header row
+    const styleHeader = (sheet: any) => {
+      const row = sheet.getRow(1)
+      row.font = { bold: true, size: 12 }
+      row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }
+      row.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+      row.alignment = { horizontal: 'center' }
+      row.commit()
+    }
+
+    if (type === 'grooming' || type === 'all') {
+      // Weight Bands (Grooming)
+      const groomingBands = await this.db.serviceWeightBand.findMany({
+        where: { serviceType: 'GROOMING', isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { minWeight: 'asc' }],
+      })
+
+      const spaRules = await this.db.spaPriceRule.findMany({
+        where: { isActive: true },
+        include: { weightBand: true },
+        orderBy: [{ packageCode: 'asc' }, { weightBand: { sortOrder: 'asc' } }],
+      })
+
+      // Get unique package codes
+      const packageCodes = Array.from(new Set(spaRules.map((r) => r.packageCode)))
+
+      const groomingSheet = workbook.addWorksheet('Grooming')
+      // Column: Gói dịch vụ | Band1 | Band2 | ...
+      groomingSheet.columns = [
+        { header: 'Gói dịch vụ', key: 'packageCode', width: 20 },
+        { header: 'Tên hiển thị', key: 'label', width: 20 },
+        { header: 'Thời lượng (phút)', key: 'duration', width: 18 },
+        ...groomingBands.map((b) => ({ header: b.label, key: `band_${b.id}`, width: 15 })),
+      ]
+      styleHeader(groomingSheet)
+
+      for (const pkg of packageCodes) {
+        const pkgRules = spaRules.filter((r) => r.packageCode === pkg)
+        const row: any = {
+          packageCode: pkg,
+          label: pkgRules[0]?.label ?? '',
+          duration: pkgRules[0]?.durationMinutes ?? '',
+        }
+        for (const band of groomingBands) {
+          const rule = pkgRules.find((r) => r.weightBandId === band.id)
+          row[`band_${band.id}`] = rule?.price ?? ''
+        }
+        groomingSheet.addRow(row)
+      }
+    }
+
+    if (type === 'hotel' || type === 'all') {
+      const hotelBands = await this.db.serviceWeightBand.findMany({
+        where: { serviceType: 'HOTEL', isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { minWeight: 'asc' }],
+      })
+
+      const year = new Date().getFullYear()
+      const hotelRules = await this.db.hotelPriceRule.findMany({
+        where: { year, isActive: true },
+        include: { weightBand: true },
+        orderBy: [{ dayType: 'asc' }, { weightBand: { sortOrder: 'asc' } }],
+      })
+
+      const hotelSheet = workbook.addWorksheet('Hotel')
+      hotelSheet.columns = [
+        { header: 'Loại ngày', key: 'dayType', width: 18 },
+        { header: 'Loại thú cưng', key: 'species', width: 18 },
+        ...hotelBands.map((b) => ({ header: b.label, key: `band_${b.id}`, width: 15 })),
+      ]
+      styleHeader(hotelSheet)
+
+      // Group by dayType + species
+      const groups = new Map<string, typeof hotelRules>()
+      for (const rule of hotelRules) {
+        const key = `${rule.dayType}:${rule.species ?? 'Chó'}`
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key)!.push(rule)
+      }
+
+      for (const [key, rules] of groups) {
+        const [dayType, species] = key.split(':')
+        const row: any = {
+          dayType: dayType === 'REGULAR' ? 'Thường' : 'Lễ',
+          species,
+        }
+        for (const band of hotelBands) {
+          const rule = rules.find((r) => r.weightBandId === band.id)
+          row[`band_${band.id}`] = rule?.fullDayPrice ?? ''
+        }
+        hotelSheet.addRow(row)
+      }
+
+      // Hotel Daycare
+      const daycareRules = await this.db.hotelDaycarePriceRule.findMany({
+        where: { isActive: true },
+        include: { weightBand: true },
+        orderBy: [{ packageDays: 'asc' }, { weightBand: { sortOrder: 'asc' } }],
+      })
+
+      if (daycareRules.length > 0) {
+        const daycareSheet = workbook.addWorksheet('Hotel Nhà trẻ')
+        daycareSheet.columns = [
+          { header: 'Số ngày gói', key: 'packageDays', width: 18 },
+          { header: 'Loại thú cưng', key: 'species', width: 18 },
+          ...hotelBands.map((b) => ({ header: b.label, key: `band_${b.id}`, width: 15 })),
+        ]
+        styleHeader(daycareSheet)
+
+        const daycareGroups = new Map<string, typeof daycareRules>()
+        for (const rule of daycareRules) {
+          const key = `${rule.packageDays}:${rule.species ?? 'Chó'}`
+          if (!daycareGroups.has(key)) daycareGroups.set(key, [])
+          daycareGroups.get(key)!.push(rule)
+        }
+
+        for (const [key, rules] of daycareGroups) {
+          const [days, species] = key.split(':')
+          const row: any = { packageDays: Number(days), species }
+          for (const band of hotelBands) {
+            const rule = rules.find((r) => r.weightBandId === band.id)
+            row[`band_${band.id}`] = rule?.price ?? ''
+          }
+          daycareSheet.addRow(row)
+        }
+      }
+    }
+
+    // Weight Bands reference sheet
+    const allBands = await this.db.serviceWeightBand.findMany({
+      where: { isActive: true },
+      orderBy: [{ serviceType: 'asc' }, { sortOrder: 'asc' }],
+    })
+    const bandsSheet = workbook.addWorksheet('Hạng cân')
+    bandsSheet.columns = [
+      { header: 'ID', key: 'id', width: 30 },
+      { header: 'Loại dịch vụ', key: 'serviceType', width: 15 },
+      { header: 'Nhãn', key: 'label', width: 15 },
+      { header: 'Min (kg)', key: 'minWeight', width: 12 },
+      { header: 'Max (kg)', key: 'maxWeight', width: 12 },
+    ]
+    styleHeader(bandsSheet)
+    for (const band of allBands) {
+      bandsSheet.addRow({
+        id: band.id,
+        serviceType: band.serviceType,
+        label: band.label,
+        minWeight: band.minWeight,
+        maxWeight: band.maxWeight ?? '∞',
+      })
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    return Buffer.from(buffer)
+  }
+
+  async importFromExcel(buffer: Buffer): Promise<{ imported: number; errors: string[] }> {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.default.Workbook()
+    await workbook.xlsx.load(buffer as any)
+
+    let imported = 0
+    const errors: string[] = []
+
+    // Build band lookup: label → id
+    const allBands = await this.db.serviceWeightBand.findMany({
+      where: { isActive: true },
+    })
+    const bandByLabel = new Map(allBands.map((b) => [b.label, b]))
+
+    // ─── Grooming sheet
+    const groomingSheet = workbook.getWorksheet('Grooming')
+    if (groomingSheet) {
+      const headerRow = groomingSheet.getRow(1)
+      const bandColumns: Array<{ col: number; bandId: string }> = []
+
+      headerRow.eachCell((cell, colNumber) => {
+        if (colNumber <= 3) return // skip packageCode, label, duration
+        const label = String(cell.value ?? '').trim()
+        const band = bandByLabel.get(label)
+        if (band && band.serviceType === 'GROOMING') {
+          bandColumns.push({ col: colNumber, bandId: band.id })
+        }
+      })
+
+      const spaRules: Array<any> = []
+      groomingSheet.eachRow((row, rowNumber) => {
+        if (rowNumber <= 1) return
+        const packageCode = String(row.getCell(1).value ?? '').trim()
+        const label = String(row.getCell(2).value ?? '').trim() || undefined
+        const duration = Number(row.getCell(3).value) || undefined
+        if (!packageCode) return
+
+        for (const { col, bandId } of bandColumns) {
+          const price = Number(row.getCell(col).value)
+          if (!price || price <= 0) continue
+          spaRules.push({
+            packageCode,
+            label,
+            weightBandId: bandId,
+            price,
+            durationMinutes: duration,
+            isActive: true,
+          })
+        }
+      })
+
+      if (spaRules.length > 0) {
+        try {
+          // Group by species (null = all species) for bulk upsert
+          await this.bulkUpsertSpaRules({ rules: spaRules } as any)
+          imported += spaRules.length
+        } catch (e: any) {
+          errors.push(`Grooming: ${e.message}`)
+        }
+      }
+    }
+
+    // ─── Hotel sheet
+    const hotelSheet = workbook.getWorksheet('Hotel')
+    if (hotelSheet) {
+      const headerRow = hotelSheet.getRow(1)
+      const bandColumns: Array<{ col: number; bandId: string }> = []
+
+      headerRow.eachCell((cell, colNumber) => {
+        if (colNumber <= 2) return // skip dayType, species
+        const label = String(cell.value ?? '').trim()
+        const band = bandByLabel.get(label)
+        if (band && band.serviceType === 'HOTEL') {
+          bandColumns.push({ col: colNumber, bandId: band.id })
+        }
+      })
+
+      const hotelRules: Array<any> = []
+      const year = new Date().getFullYear()
+      hotelSheet.eachRow((row, rowNumber) => {
+        if (rowNumber <= 1) return
+        const rawDayType = String(row.getCell(1).value ?? '').trim()
+        const dayType = rawDayType === 'Lễ' || rawDayType === 'HOLIDAY' ? 'HOLIDAY' : 'REGULAR'
+        const species = String(row.getCell(2).value ?? '').trim() || 'Chó'
+
+        for (const { col, bandId } of bandColumns) {
+          const price = Number(row.getCell(col).value)
+          if (!price || price <= 0) continue
+          hotelRules.push({
+            year,
+            species,
+            weightBandId: bandId,
+            dayType,
+            fullDayPrice: price,
+            isActive: true,
+          })
+        }
+      })
+
+      if (hotelRules.length > 0) {
+        try {
+          await this.bulkUpsertHotelRules({ rules: hotelRules } as any)
+          imported += hotelRules.length
+        } catch (e: any) {
+          errors.push(`Hotel: ${e.message}`)
+        }
+      }
+    }
+
+    // ─── Hotel Daycare sheet
+    const daycareSheet = workbook.getWorksheet('Hotel Nhà trẻ')
+    if (daycareSheet) {
+      const headerRow = daycareSheet.getRow(1)
+      const bandColumns: Array<{ col: number; bandId: string }> = []
+
+      headerRow.eachCell((cell, colNumber) => {
+        if (colNumber <= 2) return
+        const label = String(cell.value ?? '').trim()
+        const band = bandByLabel.get(label)
+        if (band && band.serviceType === 'HOTEL') {
+          bandColumns.push({ col: colNumber, bandId: band.id })
+        }
+      })
+
+      const daycareRules: Array<any> = []
+      daycareSheet.eachRow((row, rowNumber) => {
+        if (rowNumber <= 1) return
+        const packageDays = Number(row.getCell(1).value) || 10
+        const species = String(row.getCell(2).value ?? '').trim() || 'Chó'
+
+        for (const { col, bandId } of bandColumns) {
+          const price = Number(row.getCell(col).value)
+          if (!price || price <= 0) continue
+          daycareRules.push({
+            species,
+            weightBandId: bandId,
+            packageDays,
+            price,
+            isActive: true,
+          })
+        }
+      })
+
+      if (daycareRules.length > 0) {
+        try {
+          await this.bulkUpsertHotelDaycareRules({ rules: daycareRules } as any)
+          imported += daycareRules.length
+        } catch (e: any) {
+          errors.push(`Hotel Nhà trẻ: ${e.message}`)
+        }
+      }
+    }
+
+    return { imported, errors }
+  }
 }

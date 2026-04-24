@@ -191,4 +191,35 @@ export const pricingApi = {
       })
       .then((res) => res.data)
   },
+
+  // ─── Excel Export / Import ──────────────────────────────────────────────
+
+  exportExcel: async (type: 'grooming' | 'hotel' | 'all' = 'all') => {
+    const res = await api.get<{ buffer: string; filename: string }>('/pricing/export/xlsx', { params: { type } })
+    const { buffer, filename } = res.data
+    // Convert base64 to blob and trigger download
+    const bytes = atob(buffer)
+    const byteArray = new Uint8Array(bytes.length)
+    for (let i = 0; i < bytes.length; i++) byteArray[i] = bytes.charCodeAt(i)
+    const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    return { filename }
+  },
+
+  importExcel: async (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api
+      .post<{ imported: number; errors: string[] }>('/pricing/import/xlsx', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((res) => res.data)
+  },
 }

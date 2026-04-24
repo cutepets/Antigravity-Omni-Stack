@@ -399,9 +399,9 @@ async function main() {
 
   // Seed phương thức thanh toán hệ thống (không bị xóa khi purge)
   await (prisma as any).paymentMethod.upsert({
-    where: { code: 'CASH' },
+    where: { code: 'SYS_CASH' },
     update: { name: 'Tiền Mặt', type: 'CASH', isSystem: true, isActive: true, isDefault: true, sortOrder: 0, colorKey: 'emerald' },
-    create: { code: 'CASH', name: 'Tiền Mặt', type: 'CASH', isSystem: true, isActive: true, isDefault: true, sortOrder: 0, colorKey: 'emerald' },
+    create: { code: 'SYS_CASH', name: 'Tiền Mặt', type: 'CASH', isSystem: true, isActive: true, isDefault: true, sortOrder: 0, colorKey: 'emerald' },
   })
   await (prisma as any).paymentMethod.upsert({
     where: { code: 'POINTS' },

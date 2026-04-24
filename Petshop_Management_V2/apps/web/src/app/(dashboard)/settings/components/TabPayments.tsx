@@ -311,9 +311,8 @@ function BankCombobox({
                       setOpen(false)
                       setSearch('')
                     }}
-                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
-                      isSelected ? 'bg-primary-500/12' : 'hover:bg-black/10'
-                    }`}
+                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${isSelected ? 'bg-primary-500/12' : 'hover:bg-black/10'
+                      }`}
                   >
                     {bank.logo ? (
                       <Image src={bank.logo} alt={bank.shortName} className="h-8 w-8 rounded-full bg-white object-contain p-1" width={400} height={400} unoptimized />
@@ -336,6 +335,69 @@ function BankCombobox({
           </div>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function TypeSelectDropdown({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: PaymentMethodType
+  onChange: (type: PaymentMethodType, colorKey: PaymentMethodColorKey) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selectedLabel = PAYMENT_METHOD_TYPE_LABELS[value] ?? value
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((c) => !c)}
+        className="flex w-full items-center justify-between rounded-lg border border-border/50 bg-black/20 px-4 py-2.5 text-left text-sm outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span className="truncate text-foreground-base">{selectedLabel}</span>
+        <ChevronDown size={14} className={`shrink-0 text-foreground-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-border/60 bg-background-secondary shadow-xl">
+          {PAYMENT_METHOD_TYPE_OPTIONS.map((option) => {
+            const isSelected = value === option.value
+            const autoColor: PaymentMethodColorKey =
+              option.value === 'CASH' ? 'emerald'
+                : option.value === 'BANK' ? 'sky'
+                  : option.value === 'EWALLET' ? 'orange'
+                    : 'violet'
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value as PaymentMethodType, autoColor)
+                  setOpen(false)
+                }}
+                className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors ${isSelected ? 'bg-primary-500/12 text-primary-400 font-semibold' : 'text-foreground-base hover:bg-black/15'
+                  }`}
+              >
+                {option.label}
+                {isSelected && <Check size={14} className="shrink-0 text-primary-500" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -395,11 +457,11 @@ export function TabPayments() {
     setConditionsEnabled(
       Boolean(
         nextForm.branchIds.length > 0 ||
-          nextForm.weekdays.length > 0 ||
-          nextForm.timeFrom ||
-          nextForm.timeTo ||
-          nextForm.minAmount ||
-          nextForm.maxAmount,
+        nextForm.weekdays.length > 0 ||
+        nextForm.timeFrom ||
+        nextForm.timeTo ||
+        nextForm.minAmount ||
+        nextForm.maxAmount,
       ),
     )
     setIsFormOpen(true)
@@ -700,11 +762,10 @@ export function TabPayments() {
             <button
               type="button"
               onClick={toggleWebhookPanel}
-              className={`rounded-xl border px-4 py-2 text-sm font-bold transition-colors ${
-                isWebhookPanelOpen
-                  ? 'border-sky-500/40 bg-sky-500/12 text-sky-200 hover:bg-sky-500/18'
-                  : 'border-border/60 bg-background-elevated text-foreground-base hover:border-border'
-              }`}
+              className={`rounded-xl border px-4 py-2 text-sm font-bold transition-colors ${isWebhookPanelOpen
+                ? 'border-sky-500/40 bg-sky-500/12 text-sky-200 hover:bg-sky-500/18'
+                : 'border-border/60 bg-background-elevated text-foreground-base hover:border-border'
+                }`}
             >
               Webhook
             </button>
@@ -728,246 +789,246 @@ export function TabPayments() {
 
         {isWebhookPanelOpen ? (
           <div className="rounded-2xl border border-sky-500/20 bg-sky-500/6 p-5">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-bold text-foreground-base">Webhook chuyển khoản chung</div>
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-bold text-foreground-base">Webhook chuyển khoản chung</div>
 
-              {webhookSecretsQuery.isError ? (
-                <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                  {(webhookSecretsQuery.error as any)?.response?.data?.message
-                    ?? (webhookSecretsQuery.error as any)?.message
-                    ?? 'Không tải được danh sách key webhook. Kiểm tra migration và API.'}
+                {webhookSecretsQuery.isError ? (
+                  <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                    {(webhookSecretsQuery.error as any)?.response?.data?.message
+                      ?? (webhookSecretsQuery.error as any)?.message
+                      ?? 'Không tải được danh sách key webhook. Kiểm tra migration và API.'}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-foreground-base">Provider</label>
+                    <input
+                      value={webhookSecretForm.provider}
+                      disabled={!canManage || createWebhookSecretMutation.isPending}
+                      onChange={(event) =>
+                        setWebhookSecretForm((current) => ({
+                          ...current,
+                          provider: event.target.value.toLowerCase().replace(/\s+/g, '-'),
+                        }))
+                      }
+                      className="w-full rounded-lg border border-border/50 bg-background-elevated px-4 py-2.5 font-mono text-sm outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      placeholder="primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-foreground-base">Tác vụ</label>
+                    <button
+                      type="button"
+                      disabled={!canManage || createWebhookSecretMutation.isPending}
+                      onClick={handleCreateWebhookSecret}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-2.5 text-sm font-semibold text-sky-200 transition-colors hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {createWebhookSecretMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
+                      Tạo key mới
+                    </button>
+                  </div>
                 </div>
-              ) : null}
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground-base">Provider</label>
-                  <input
-                    value={webhookSecretForm.provider}
-                    disabled={!canManage || createWebhookSecretMutation.isPending}
-                    onChange={(event) =>
-                      setWebhookSecretForm((current) => ({
-                        ...current,
-                        provider: event.target.value.toLowerCase().replace(/\s+/g, '-'),
-                      }))
-                    }
-                    className="w-full rounded-lg border border-border/50 bg-background-elevated px-4 py-2.5 font-mono text-sm outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                    placeholder="primary"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground-base">Tác vụ</label>
+                <div className="mt-6 flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background-elevated px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">Link webhook</div>
+                    <div className="mt-1 font-mono text-sm text-foreground-base truncate">{buildWebhookUrl(activeWebhookProvider)}</div>
+                  </div>
                   <button
                     type="button"
-                    disabled={!canManage || createWebhookSecretMutation.isPending}
-                    onClick={handleCreateWebhookSecret}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-2.5 text-sm font-semibold text-sky-200 transition-colors hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => copyToClipboard(buildWebhookUrl(activeWebhookProvider), 'Đã copy link webhook')}
+                    className="shrink-0 rounded-lg p-2 text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground-base"
+                    title="Copy link"
                   >
-                    {createWebhookSecretMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
-                    Tạo key mới
+                    <Copy size={18} />
                   </button>
                 </div>
-              </div>
 
-              <div className="mt-6 flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background-elevated px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">Link webhook</div>
-                  <div className="mt-1 font-mono text-sm text-foreground-base truncate">{buildWebhookUrl(activeWebhookProvider)}</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(buildWebhookUrl(activeWebhookProvider), 'Đã copy link webhook')}
-                  className="shrink-0 rounded-lg p-2 text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground-base"
-                  title="Copy link"
-                >
-                  <Copy size={18} />
-                </button>
-              </div>
-
-              {createdWebhookSecret ? (
-                <div className="mt-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-bold text-foreground-base">Key mới vừa tạo, copy ngay</div>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <div className="rounded-xl border border-border/50 bg-background-elevated px-4 py-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">Link webhook</div>
-                          <div className="mt-2 break-all font-mono text-sm text-foreground-base">
-                            {buildWebhookUrl(createdWebhookSecret.provider)}
+                {createdWebhookSecret ? (
+                  <div className="mt-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-bold text-foreground-base">Key mới vừa tạo, copy ngay</div>
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          <div className="rounded-xl border border-border/50 bg-background-elevated px-4 py-3">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">Link webhook</div>
+                            <div className="mt-2 break-all font-mono text-sm text-foreground-base">
+                              {buildWebhookUrl(createdWebhookSecret.provider)}
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-border/50 bg-background-elevated px-4 py-3">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">Secret</div>
+                            <div className="mt-2 break-all font-mono text-sm text-foreground-base">{createdWebhookSecret.secret}</div>
                           </div>
                         </div>
-                        <div className="rounded-xl border border-border/50 bg-background-elevated px-4 py-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">Secret</div>
-                          <div className="mt-2 break-all font-mono text-sm text-foreground-base">{createdWebhookSecret.secret}</div>
-                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(buildWebhookUrl(createdWebhookSecret.provider), 'Đã copy link webhook')}
+                          className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20"
+                        >
+                          Copy link
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(createdWebhookSecret.secret, 'Đã copy secret webhook')}
+                          className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20"
+                        >
+                          Copy secret
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCreatedWebhookSecret(null)}
+                          className="rounded-xl border border-border/60 bg-background-elevated px-4 py-2 text-sm font-semibold text-foreground-base transition-colors hover:border-border"
+                        >
+                          Đóng
+                        </button>
                       </div>
                     </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(buildWebhookUrl(createdWebhookSecret.provider), 'Đã copy link webhook')}
-                        className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20"
-                      >
-                        Copy link
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(createdWebhookSecret.secret, 'Đã copy secret webhook')}
-                        className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20"
-                      >
-                        Copy secret
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCreatedWebhookSecret(null)}
-                        className="rounded-xl border border-border/60 bg-background-elevated px-4 py-2 text-sm font-semibold text-foreground-base transition-colors hover:border-border"
-                      >
-                        Đóng
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="mt-4 space-y-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground-muted">Key đang hoạt động</div>
-                {canManage && webhookSecrets.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border/60 bg-background-elevated px-4 py-4 text-sm text-foreground-muted">
-                    Chưa có key webhook nào. Tạo key mới để cấp cho bên gửi thông báo.
                   </div>
                 ) : null}
 
-                {webhookSecrets.map((secret) => (
-                  <div key={secret.id} className="rounded-2xl border border-border/50 bg-background-elevated p-3">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-sm font-bold text-foreground-base">{secret.name}</div>
-                          <span className="rounded-full border border-border/60 px-2 py-0.5 font-mono text-[10px] text-foreground-muted">
-                            {secret.provider}
-                          </span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-foreground-muted">
-                          <span>Tạo: {formatDate(secret.createdAt)}</span>
-                          <span>Dùng: {secret.lastUsedAt ? formatDate(secret.lastUsedAt) : 'Chưa có'}</span>
-                        </div>
-                      </div>
+                <div className="mt-4 space-y-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground-muted">Key đang hoạt động</div>
+                  {canManage && webhookSecrets.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border/60 bg-background-elevated px-4 py-4 text-sm text-foreground-muted">
+                      Chưa có key webhook nào. Tạo key mới để cấp cho bên gửi thông báo.
+                    </div>
+                  ) : null}
 
-                      <div className="min-w-0 flex-1 flex items-center gap-3 lg:border-l lg:border-border/50 lg:pl-4">
+                  {webhookSecrets.map((secret) => (
+                    <div key={secret.id} className="rounded-2xl border border-border/50 bg-background-elevated p-3">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                         <div className="min-w-0 flex-1">
-                          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-foreground-muted">Secret preview</div>
-                          <div className="mt-0.5 font-mono text-sm text-foreground-base truncate">{secret.secretPreview}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-bold text-foreground-base">{secret.name}</div>
+                            <span className="rounded-full border border-border/60 px-2 py-0.5 font-mono text-[10px] text-foreground-muted">
+                              {secret.provider}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-foreground-muted">
+                            <span>Tạo: {formatDate(secret.createdAt)}</span>
+                            <span>Dùng: {secret.lastUsedAt ? formatDate(secret.lastUsedAt) : 'Chưa có'}</span>
+                          </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(buildWebhookUrl(secret.provider), 'Đã copy link webhook')}
-                            className="rounded-lg p-2 text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground-base"
-                            title="Copy link"
-                          >
-                            <Copy size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!canManage || deleteWebhookSecretMutation.isPending}
-                            onClick={() => handleDeleteWebhookSecret(secret)}
-                            className="rounded-lg p-2 text-rose-500/70 transition-colors hover:bg-rose-500/10 hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
-                            title="Xóa key"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+
+                        <div className="min-w-0 flex-1 flex items-center gap-3 lg:border-l lg:border-border/50 lg:pl-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-foreground-muted">Secret preview</div>
+                            <div className="mt-0.5 font-mono text-sm text-foreground-base truncate">{secret.secretPreview}</div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(buildWebhookUrl(secret.provider), 'Đã copy link webhook')}
+                              className="rounded-lg p-2 text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground-base"
+                              title="Copy link"
+                            >
+                              <Copy size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!canManage || deleteWebhookSecretMutation.isPending}
+                              onClick={() => handleDeleteWebhookSecret(secret)}
+                              className="rounded-lg p-2 text-rose-500/70 transition-colors hover:bg-rose-500/10 hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+                              title="Xóa key"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="xl:w-[460px]">
-              <div className="rounded-2xl border border-border/50 bg-background-elevated p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground-muted">Test webhook</div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(webhookTestPayload || webhookSamplePayload, 'Đã copy JSON webhook')}
-                      className="rounded-xl border border-border/60 bg-background-secondary px-3 py-2 text-xs font-semibold text-foreground-base transition-colors hover:border-border"
-                    >
-                      Copy JSON
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetWebhookTestPayload}
-                      className="rounded-xl border border-border/60 bg-background-secondary px-3 py-2 text-xs font-semibold text-foreground-base transition-colors hover:border-border"
-                    >
-                      Nạp JSON mẫu
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!canManage || testWebhookMutation.isPending}
-                      onClick={handleTestWebhook}
-                      className="flex items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-200 transition-colors hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {testWebhookMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
-                      Test
-                    </button>
-                  </div>
+                  ))}
                 </div>
+              </div>
 
-                <textarea
-                  value={webhookTestPayload}
-                  disabled={!canManage || testWebhookMutation.isPending}
-                  onChange={(event) => setWebhookTestPayload(event.target.value)}
-                  className="mt-3 min-h-[280px] w-full rounded-xl border border-border/50 bg-black/10 p-4 font-mono text-xs leading-6 text-foreground-muted outline-none transition-colors focus:border-sky-500/40 disabled:cursor-not-allowed disabled:opacity-60"
-                  spellCheck={false}
-                />
-
-                {webhookTestResult ? (
-                  <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/8 p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground-muted">Kết quả test</div>
-                      <span className="rounded-full border border-emerald-500/25 px-2 py-0.5 text-[11px] font-semibold uppercase text-emerald-200">
-                        {webhookTestResult.status}
-                      </span>
-                      <span className="rounded-full border border-sky-500/25 px-2 py-0.5 text-[11px] font-semibold uppercase text-sky-200">
-                        inbox {webhookTestResult.bankTransaction.id.slice(0, 8)}
-                      </span>
+              <div className="xl:w-[460px]">
+                <div className="rounded-2xl border border-border/50 bg-background-elevated p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground-muted">Test webhook</div>
                     </div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl border border-border/50 bg-background-secondary px-3 py-3 text-xs">
-                        <div className="font-semibold text-foreground-base">Payload đã chuẩn hóa</div>
-                        <div className="mt-2 space-y-1 text-foreground-muted">
-                          <div>Provider: <span className="font-mono text-foreground-base">{webhookTestResult.normalizedEvent.provider}</span></div>
-                          <div>Số TK: <span className="font-mono text-foreground-base">{webhookTestResult.normalizedEvent.accountNumber}</span></div>
-                          <div>Số tiền: <span className="font-mono text-foreground-base">{webhookTestResult.normalizedEvent.amount.toLocaleString('vi-VN')} VND</span></div>
-                          <div>Hướng giao dịch: <span className="font-mono text-foreground-base">{webhookTestResult.normalizedEvent.direction === 'OUT' ? 'CHI' : 'THU'}</span></div>
-                          <div>Nội dung: <span className="font-mono text-foreground-base">{webhookTestResult.normalizedEvent.normalizedDescription}</span></div>
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-border/50 bg-background-secondary px-3 py-3 text-xs">
-                        <div className="font-semibold text-foreground-base">Kết quả đối soát / lưu inbox</div>
-                        <div className="mt-2 text-foreground-muted">
-                          Đã lưu vào hàng đợi giao dịch ngân hàng.
-                        </div>
-                        {webhookTestResult.matchedPaymentIntent ? (
-                          <div className="mt-2 text-emerald-500">Tìm thấy đơn hàng khớp với mã: <span className="font-mono font-bold text-emerald-400">{webhookTestResult.matchedPaymentIntent.orderNumber ?? webhookTestResult.matchedPaymentIntent.code}</span></div>
-                        ) : (
-                          <div className="mt-2 text-foreground-muted">Chưa tìm thấy đơn hàng tương ứng.</div>
-                        )}
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(webhookTestPayload || webhookSamplePayload, 'Đã copy JSON webhook')}
+                        className="rounded-xl border border-border/60 bg-background-secondary px-3 py-2 text-xs font-semibold text-foreground-base transition-colors hover:border-border"
+                      >
+                        Copy JSON
+                      </button>
+                      <button
+                        type="button"
+                        onClick={resetWebhookTestPayload}
+                        className="rounded-xl border border-border/60 bg-background-secondary px-3 py-2 text-xs font-semibold text-foreground-base transition-colors hover:border-border"
+                      >
+                        Nạp JSON mẫu
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canManage || testWebhookMutation.isPending}
+                        onClick={handleTestWebhook}
+                        className="flex items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-200 transition-colors hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {testWebhookMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+                        Test
+                      </button>
                     </div>
                   </div>
-                ) : null}
+
+                  <textarea
+                    value={webhookTestPayload}
+                    disabled={!canManage || testWebhookMutation.isPending}
+                    onChange={(event) => setWebhookTestPayload(event.target.value)}
+                    className="mt-3 min-h-[280px] w-full rounded-xl border border-border/50 bg-black/10 p-4 font-mono text-xs leading-6 text-foreground-muted outline-none transition-colors focus:border-sky-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                    spellCheck={false}
+                  />
+
+                  {webhookTestResult ? (
+                    <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/8 p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground-muted">Kết quả test</div>
+                        <span className="rounded-full border border-emerald-500/25 px-2 py-0.5 text-[11px] font-semibold uppercase text-emerald-200">
+                          {webhookTestResult.status}
+                        </span>
+                        <span className="rounded-full border border-sky-500/25 px-2 py-0.5 text-[11px] font-semibold uppercase text-sky-200">
+                          inbox {webhookTestResult.bankTransaction.id.slice(0, 8)}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border border-border/50 bg-background-secondary px-3 py-3 text-xs">
+                          <div className="font-semibold text-foreground-base">Payload đã chuẩn hóa</div>
+                          <div className="mt-2 space-y-1 text-foreground-muted">
+                            <div>Provider: <span className="font-mono text-foreground-base">{webhookTestResult.normalizedEvent.provider}</span></div>
+                            <div>Số TK: <span className="font-mono text-foreground-base">{webhookTestResult.normalizedEvent.accountNumber}</span></div>
+                            <div>Số tiền: <span className="font-mono text-foreground-base">{webhookTestResult.normalizedEvent.amount.toLocaleString('vi-VN')} VND</span></div>
+                            <div>Hướng giao dịch: <span className="font-mono text-foreground-base">{webhookTestResult.normalizedEvent.direction === 'OUT' ? 'CHI' : 'THU'}</span></div>
+                            <div>Nội dung: <span className="font-mono text-foreground-base">{webhookTestResult.normalizedEvent.normalizedDescription}</span></div>
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-border/50 bg-background-secondary px-3 py-3 text-xs">
+                          <div className="font-semibold text-foreground-base">Kết quả đối soát / lưu inbox</div>
+                          <div className="mt-2 text-foreground-muted">
+                            Đã lưu vào hàng đợi giao dịch ngân hàng.
+                          </div>
+                          {webhookTestResult.matchedPaymentIntent ? (
+                            <div className="mt-2 text-emerald-500">Tìm thấy đơn hàng khớp với mã: <span className="font-mono font-bold text-emerald-400">{webhookTestResult.matchedPaymentIntent.orderNumber ?? webhookTestResult.matchedPaymentIntent.code}</span></div>
+                          ) : (
+                            <div className="mt-2 text-foreground-muted">Chưa tìm thấy đơn hàng tương ứng.</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
-          </div>
           </div>
         ) : null}
 
@@ -1016,36 +1077,23 @@ export function TabPayments() {
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-foreground-base">Loại</label>
-                <select
+                <TypeSelectDropdown
                   value={formData.type}
-                  disabled={!canManage || (editingId ? methods.find((method) => method.id === editingId)?.isSystem : false)}
-                  onChange={(event) =>
+                  disabled={!canManage || !!(editingId ? methods.find((method) => method.id === editingId)?.isSystem : false)}
+                  onChange={(type, autoColor) =>
                     setFormData((current) => ({
                       ...current,
-                      type: event.target.value as PaymentMethodType,
+                      type,
                       colorKey:
                         current.colorKey === 'emerald' ||
-                        current.colorKey === 'sky' ||
-                        current.colorKey === 'orange' ||
-                        current.colorKey === 'violet'
-                          ? event.target.value === 'CASH'
-                            ? 'emerald'
-                            : event.target.value === 'BANK'
-                              ? 'sky'
-                              : event.target.value === 'EWALLET'
-                                ? 'orange'
-                                : 'violet'
+                          current.colorKey === 'sky' ||
+                          current.colorKey === 'orange' ||
+                          current.colorKey === 'violet'
+                          ? autoColor
                           : current.colorKey,
                     }))
                   }
-                  className="w-full rounded-lg border border-border/50 bg-black/20 px-4 py-2.5 text-sm outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {PAYMENT_METHOD_TYPE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             </div>
 
@@ -1062,9 +1110,8 @@ export function TabPayments() {
                       disabled={!canManage}
                       onClick={() => setFormData((current) => ({ ...current, colorKey: option.value }))}
                       title={option.label}
-                      className={`h-12 w-16 rounded-2xl border transition-all ${
-                        selected ? `${classes.chip} ring-2 ${classes.ring} scale-105` : 'border-border/60 bg-background-secondary hover:border-border'
-                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                      className={`h-12 w-16 rounded-2xl border transition-all ${selected ? `${classes.chip} ring-2 ${classes.ring} scale-105` : 'border-border/60 bg-background-secondary hover:border-border'
+                        } disabled:cursor-not-allowed disabled:opacity-60`}
                     >
                       <span className={`mx-auto block h-6 w-6 rounded-full ${classes.accent}`} />
                     </button>
@@ -1263,11 +1310,10 @@ export function TabPayments() {
                             type="button"
                             disabled={!canManage}
                             onClick={() => toggleWeekday(item.value)}
-                            className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                              active
-                                ? 'border-primary-500 bg-primary-500/12 text-primary-500'
-                                : 'border-border/60 bg-background-secondary text-foreground-muted'
-                            } disabled:cursor-not-allowed disabled:opacity-60`}
+                            className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${active
+                              ? 'border-primary-500 bg-primary-500/12 text-primary-500'
+                              : 'border-border/60 bg-background-secondary text-foreground-muted'
+                              } disabled:cursor-not-allowed disabled:opacity-60`}
                           >
                             {item.label}
                           </button>
@@ -1297,11 +1343,10 @@ export function TabPayments() {
                             type="button"
                             disabled={!canManage}
                             onClick={() => toggleBranch(branch.id)}
-                            className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                              active
-                                ? 'border-primary-500 bg-primary-500/12 text-primary-500'
-                                : 'border-border/60 bg-background-secondary text-foreground-muted'
-                            } disabled:cursor-not-allowed disabled:opacity-60`}
+                            className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${active
+                              ? 'border-primary-500 bg-primary-500/12 text-primary-500'
+                              : 'border-border/60 bg-background-secondary text-foreground-muted'
+                              } disabled:cursor-not-allowed disabled:opacity-60`}
                           >
                             {branch.name}
                           </button>
@@ -1380,11 +1425,10 @@ export function TabPayments() {
                           </span>
                         ) : null}
                         <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                            method.isActive
-                              ? 'bg-emerald-500/12 text-emerald-300'
-                              : 'bg-foreground/10 text-foreground-muted'
-                          }`}
+                          className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${method.isActive
+                            ? 'bg-emerald-500/12 text-emerald-300'
+                            : 'bg-foreground/10 text-foreground-muted'
+                            }`}
                         >
                           {method.isActive ? 'Đang hoạt động' : 'Tạm tắt'}
                         </span>
@@ -1393,7 +1437,7 @@ export function TabPayments() {
                       {method.type === 'BANK' ? (
                         <div className="mt-3 space-y-2 text-sm text-foreground-muted">
                           <div>
-                          {method.bankName} • {method.accountNumber} • {method.accountHolder}
+                            {method.bankName} • {method.accountNumber} • {method.accountHolder}
                           </div>
                         </div>
                       ) : (

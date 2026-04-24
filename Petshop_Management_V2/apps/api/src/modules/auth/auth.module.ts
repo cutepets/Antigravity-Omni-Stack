@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config'
 import { JwtModule } from '@nestjs/jwt'
 import { AuthController } from './auth.controller.js'
 import { AuthService } from './auth.service.js'
+import { BootstrapService } from './bootstrap.service.js'
 import { GoogleAuthService } from './google-auth.service.js'
 import { JwtStrategy } from './strategies/jwt.strategy.js'
 import { TokenCleanupService } from './token-cleanup.service.js'
@@ -26,7 +27,7 @@ import { DatabaseModule } from '../../database/database.module.js'
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, GoogleAuthService, JwtStrategy, TokenCleanupService],
+  providers: [AuthService, BootstrapService, GoogleAuthService, JwtStrategy, TokenCleanupService],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule { }

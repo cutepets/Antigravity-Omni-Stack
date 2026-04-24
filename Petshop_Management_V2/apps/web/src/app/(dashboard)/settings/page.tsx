@@ -46,13 +46,13 @@ type SettingsTabConfig = {
 }
 
 const THEME_COLORS = [
-  { label: 'Xanh la (Mac dinh)', value: '#10b981' },
-  { label: 'Xanh duong', value: '#3b82f6' },
-  { label: 'Tim', value: '#8b5cf6' },
-  { label: 'Hong', value: '#ec4899' },
+  { label: 'Xanh lá (Mặc định)', value: '#10b981' },
+  { label: 'Xanh dương', value: '#3b82f6' },
+  { label: 'Tím', value: '#8b5cf6' },
+  { label: 'Hồng', value: '#ec4899' },
   { label: 'Cam', value: '#f97316' },
-  { label: 'Do', value: '#ef4444' },
-  { label: 'Vang', value: '#eab308' },
+  { label: 'Đỏ', value: '#ef4444' },
+  { label: 'Vàng', value: '#eab308' },
   { label: 'Xanh cyan', value: '#06b6d4' },
 ]
 
@@ -71,25 +71,25 @@ const SETTINGS_PAGE_PERMISSIONS = [
 const SETTINGS_TABS: SettingsTabConfig[] = [
   {
     id: 'general',
-    label: 'Cua hang',
+    label: 'Cửa hàng',
     icon: Store,
     anyPermissions: ['settings.app.read', 'settings.app.update'],
   },
   {
     id: 'branches',
-    label: 'Chi nhanh',
+    label: 'Chi nhánh',
     icon: MapPin,
     anyPermissions: ['branch.read', 'branch.create', 'branch.update', 'branch.delete'],
   },
   {
     id: 'payments',
-    label: 'Thanh toan',
+    label: 'Thanh toán',
     icon: ArrowRightLeft,
     anyPermissions: ['settings.payment.manage'],
   },
   {
     id: 'print-templates',
-    label: 'Mau in',
+    label: 'Mẫu in',
     icon: Printer,
     anyPermissions: ['settings.template.manage'],
   },
@@ -99,16 +99,16 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: Database,
     superAdminOnly: true,
   },
-  { id: 'theme', label: 'Giao dien', icon: Palette },
+  { id: 'theme', label: 'Giao diện', icon: Palette },
   {
     id: 'notifications',
-    label: 'Thong bao',
+    label: 'Thông báo',
     icon: Bell,
     anyPermissions: ['settings.app.read', 'settings.app.update'],
   },
   {
     id: 'history',
-    label: 'Lich su thao tac',
+    label: 'Lịch sử thao tác',
     icon: History,
     anyPermissions: ['settings.audit_log.read'],
   },
@@ -152,7 +152,7 @@ export default function SettingsPage() {
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center text-gray-400">
-        Dang kiem tra quyen truy cap...
+        Đang kiểm tra quyền truy cập...
       </div>
     )
   }
@@ -160,7 +160,7 @@ export default function SettingsPage() {
   if (!canAccessSettings) {
     return (
       <div className="flex h-64 items-center justify-center text-gray-400">
-        Dang chuyen huong...
+        Đang chuyển hướng...
       </div>
     )
   }
@@ -199,10 +199,10 @@ export default function SettingsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground-base">
-            Cai dat he thong
+            Cài đặt hệ thống
           </h1>
           <p className="mt-0.5 text-sm text-foreground-secondary">
-            Quan ly cau hinh chung, giao dien va thong bao he thong
+            Quản lý cấu hình chung, giao diện và thông báo hệ thống
           </p>
         </div>
       </div>
@@ -286,10 +286,10 @@ function ThemeTabComponent() {
             </div>
             <div>
               <h2 className="text-lg font-bold text-foreground-base">
-                Giao dien va trai nghiem
+                Giao diện và trải nghiệm
               </h2>
               <p className="mt-1 text-sm text-foreground-muted">
-                Ca nhan hoa mau sac va che do hien thi he thong.
+                Cá nhân hoá màu sắc và chế độ hiển thị hệ thống.
               </p>
             </div>
           </div>
@@ -299,18 +299,18 @@ function ThemeTabComponent() {
           <div>
             <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-foreground-base">
               <Moon size={16} className="text-primary-500" />
-              Che do nen
+              Chế độ nền
             </h3>
             <div className="flex items-center gap-6 rounded-2xl border border-border/40 bg-black/5 p-5">
               <ThemeTogglePremium />
               <div>
                 <p className="flex items-center gap-2 text-sm font-bold tracking-wide text-foreground-base">
-                  {theme === 'dark' ? 'Trang thai toi' : 'Trang thai sang'}
+                  {theme === 'dark' ? 'Trạng thái tối' : 'Trạng thái sáng'}
                 </p>
                 <p className="mt-1 text-sm text-foreground-muted">
                   {theme === 'dark'
-                    ? 'Giam choi mat khi lam viec buoi toi'
-                    : 'Bo cuc sang ro de quan sat nhanh'}
+                    ? 'Giảm chói mắt khi làm việc buổi tối'
+                    : 'Bố cục sáng rõ để quan sát nhanh'}
                 </p>
               </div>
             </div>
@@ -319,7 +319,7 @@ function ThemeTabComponent() {
           <div>
             <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-foreground-base">
               <Palette size={16} className="text-primary-500" />
-              Mau chu dao
+              Màu chủ đạo
             </h3>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {THEME_COLORS.map((color) => (
@@ -351,34 +351,34 @@ function ThemeTabComponent() {
           <div>
             <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-foreground-base">
               <Zap size={16} className="text-primary-500" />
-              Hieu ung va hoat anh
+              Hiệu ứng và hoạt ảnh
             </h3>
             <p className="mb-4 text-xs text-foreground-muted">
-              Bat tat tung hieu ung. Khi bat, nhap so mili giay de dieu chinh toc do.
+              Bật tắt từng hiệu ứng. Khi bật, nhập số mili giây để điều chỉnh tốc độ.
             </p>
 
             <div className="space-y-3">
               <AnimRow
-                label="Chuyen trang / tab"
-                description="Fade va slide khi doi noi dung trang va tab"
+                label="Chuyển trang / tab"
+                description="Fade và slide khi đổi nội dung trang và tab"
                 config={pageTransition}
                 onChange={(patch: Partial<AnimConfig>) => setAnim('pageTransition', patch)}
               />
               <AnimRow
-                label="Mo modal / drawer"
-                description="Zoom va slide khi mo hop thoai hoac ngan keo"
+                label="Mở modal / drawer"
+                description="Zoom và slide khi mở hộp thoại hoặc ngăn kéo"
                 config={modalAnimation}
                 onChange={(patch: Partial<AnimConfig>) => setAnim('modalAnimation', patch)}
               />
               <AnimRow
-                label="Hover va micro-animation"
-                description="Transition tren nut va hang du lieu"
+                label="Hover và micro-animation"
+                description="Transition trên nút và hàng dữ liệu"
                 config={hoverEffect}
                 onChange={(patch: Partial<AnimConfig>) => setAnim('hoverEffect', patch)}
               />
               <AnimRow
-                label="Chuyen sang / toi"
-                description="Transition body background khi doi che do"
+                label="Chuyển sáng / tối"
+                description="Transition body background khi đổi chế độ"
                 config={themeTransition}
                 onChange={(patch: Partial<AnimConfig>) => setAnim('themeTransition', patch)}
               />
@@ -394,12 +394,12 @@ function ThemeTabComponent() {
               {savedConfig ? (
                 <>
                   <CheckCircle2 size={18} />
-                  Da luu thanh cong
+                  Đã lưu thành công
                 </>
               ) : (
                 <>
                   <Save size={18} />
-                  Luu cai dat
+                  Lưu cài đặt
                 </>
               )}
             </button>
@@ -438,7 +438,7 @@ function AnimRow({
               : 'bg-background-elevated text-foreground-muted',
           )}
         >
-          {config.enabled ? 'Bat' : 'Tat'}
+          {config.enabled ? 'Bật' : 'Tắt'}
         </button>
         <label className="flex items-center gap-2 text-xs text-foreground-muted">
           <span>ms</span>

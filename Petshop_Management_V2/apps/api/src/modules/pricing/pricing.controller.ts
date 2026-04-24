@@ -193,4 +193,52 @@ export class PricingController {
   deactivateHoliday(@Param('id') id: string) {
     return this.pricingService.deactivateHoliday(id)
   }
+
+  // ─── Excel Export / Import ──────────────────────────────────────────────
+
+  @Get('export/xlsx')
+  @Permissions('settings.pricing_policy.manage')
+  async exportExcel(@Query('type') type: string, @Query() _query: any) {
+    const normalizedType = (type === 'grooming' || type === 'hotel') ? type : 'all' as const
+    const buffer = await this.pricingService.exportToExcel(normalizedType)
+    return {
+      buffer: buffer.toString('base64'),
+      filename: `bang-gia-${normalizedType}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    }
+  }
+
+  @Post('import/xlsx')
+  @Permissions('settings.pricing_policy.manage')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      ...createDiskUploadOptions({
+        destination: './uploads/temp',
+        allowedMimeTypes: new Set([
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+        ]),
+        allowedExtensions: new Set(['.xlsx', '.xls']),
+        maxFileSize: 10 * 1024 * 1024,
+        errorMessage: 'Chỉ hỗ trợ file Excel (.xlsx). Kích thước tối đa 10MB.',
+      }),
+    }),
+  )
+  async importExcel(@UploadedFile() file: Express.Multer.File) {
+    validateUploadedFile(file, {
+      allowedMimeTypes: new Set([
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+      ]),
+      allowedExtensions: new Set(['.xlsx', '.xls']),
+      maxFileSize: 10 * 1024 * 1024,
+      errorMessage: 'Chỉ hỗ trợ file Excel (.xlsx)',
+      requireStoredFilename: true,
+    })
+    const fs = await import('fs/promises')
+    const buffer = await fs.readFile(file.path)
+    const result = await this.pricingService.importFromExcel(buffer)
+    // Clean up temp file
+    try { await fs.unlink(file.path) } catch { /* ignore */ }
+    return result
+  }
 }

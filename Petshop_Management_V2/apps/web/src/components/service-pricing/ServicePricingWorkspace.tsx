@@ -685,10 +685,32 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     })
   }
 
+  const handleExportExcel = async () => {
+    try {
+      const exportType = mode === 'GROOMING' ? 'grooming' : mode === 'HOTEL' ? 'hotel' : 'all'
+      await pricingApi.exportExcel(exportType as any)
+      toast.success('Đã tải xuống file Excel bảng giá')
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Không tải được file Excel')
+    }
+  }
+
+  const handleImportExcel = async (file: File) => {
+    try {
+      const result = await pricingApi.importExcel(file)
+      if (result.errors.length > 0) {
+        toast.error(`Có lỗi: ${result.errors.join(', ')}`)
+      } else {
+        toast.success(`Đã nhập ${result.imported} dòng giá từ Excel`)
+      }
+      invalidatePricing()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Không nhập được file Excel')
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4 p-4">
-      <section className="hidden" />
-
       <section className="grid gap-4">
         {mode === 'GROOMING' ? (
           <div className="flex flex-col gap-4">
@@ -706,6 +728,8 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
               onDraftChange={updateSpaDraft}
               onSave={saveGroomingMatrix}
               onFillEmptySkus={fillEmptySkus}
+              onExportExcel={handleExportExcel}
+              onImportExcel={handleImportExcel}
               isSaving={isSavingGrooming}
               canManagePricing={canManagePricing}
               species={species}
@@ -726,6 +750,8 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
             onHotelDaycareDraftChange={updateHotelDaycareDraft}
             onSave={saveHotelMatrix}
             onFillEmptySkus={fillEmptySkus}
+            onExportExcel={handleExportExcel}
+            onImportExcel={handleImportExcel}
             isSaving={isSavingHotel}
             holidays={holidays}
             hotelExtraServiceDrafts={hotelExtraServiceDrafts}
