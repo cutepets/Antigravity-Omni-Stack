@@ -21,7 +21,7 @@ COPY packages/shared/package.json ./packages/shared/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY packages/api-client/package.json ./packages/api-client/package.json
 COPY packages/dataloader/package.json ./packages/dataloader/package.json
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 
 # ── Stage 3: Source ──────────────────────────────────────────
 FROM deps AS source
