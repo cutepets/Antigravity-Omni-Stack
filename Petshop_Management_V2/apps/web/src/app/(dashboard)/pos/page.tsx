@@ -1,19 +1,15 @@
 ﻿'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { usePosStore, useActiveTab, useCartTotal, useCartItemCount } from '@/stores/pos.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePosCart } from './_hooks/use-pos-cart';
 import { usePosPayment } from './_hooks/use-pos-payment';
 import { usePosShiftGuard } from './_hooks/use-pos-shift-guard';
 import { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches';
-import { HotelCheckoutModal } from './components/HotelCheckoutModal';
 import { PosCustomerV1 } from './components/PosCustomerV1';
 import { PosSettingsPanel } from './components/PosSettingsPanel';
-import { PaymentModal } from '@/app/(dashboard)/_shared/payment/components/PaymentModal';
-import { QrPaymentModal } from '@/app/(dashboard)/_shared/payment/components/QrPaymentModal';
-import { PosShiftClosingModal } from './components/PosShiftClosingModal';
-import { PosOrderBookingModal } from './components/PosOrderBookingModal';
 import { PosCartItems } from './components/PosCartItems';
 import { PosCheckoutPanel } from './components/PosCheckoutPanel';
 
@@ -26,7 +22,25 @@ import { Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
 import { moneyRaw } from '@/app/(dashboard)/_shared/payment/payment.utils';
-import { HotelQuickPreviewTool } from '@/components/hotel-quick-preview/HotelQuickPreviewTool';
+
+const HotelCheckoutModal = dynamic(() =>
+  import('./components/HotelCheckoutModal').then((mod) => mod.HotelCheckoutModal),
+)
+const PaymentModal = dynamic(() =>
+  import('@/app/(dashboard)/_shared/payment/components/PaymentModal').then((mod) => mod.PaymentModal),
+)
+const QrPaymentModal = dynamic(() =>
+  import('@/app/(dashboard)/_shared/payment/components/QrPaymentModal').then((mod) => mod.QrPaymentModal),
+)
+const PosShiftClosingModal = dynamic(() =>
+  import('./components/PosShiftClosingModal').then((mod) => mod.PosShiftClosingModal),
+)
+const PosOrderBookingModal = dynamic(() =>
+  import('./components/PosOrderBookingModal').then((mod) => mod.PosOrderBookingModal),
+)
+const HotelQuickPreviewTool = dynamic(() =>
+  import('@/components/hotel-quick-preview/HotelQuickPreviewTool').then((mod) => mod.HotelQuickPreviewTool),
+)
 
 function PosPageContent() {
   const store = usePosStore();
@@ -369,18 +383,7 @@ function PosPageContent() {
         {/* 3. CART VIEW (Mobile: 3rd, Desktop: Left Col, Row 1-3) */}
         <div className="order-3 lg:col-start-1 lg:row-start-1 lg:row-span-3 flex flex-col bg-surface shadow-sm z-10 lg:overflow-hidden min-h-[400px]">
 
-          {/* Table Header */}
-          <div className="hidden lg:grid grid-cols-[40px_30px_60px_1fr_120px_120px_120px] gap-2 items-center px-4 py-2 bg-surface-secondary border-b border-border text-[13px] font-semibold text-foreground-muted uppercase">
-            <div className="text-center">#</div>
-            <div></div>
-            <div className="text-center">Ảnh</div>
-            <div>Sản phẩm</div>
-            <div className="text-center">Số lượng</div>
-            <div className="text-right">Đơn giá</div>
-            <div className="text-right">Thành tiền</div>
-          </div>
-
-          {/* Table Body (Scrollable) */}
+          {/* Table Header + Body — dùng OrderCartItems (shared với orders/new) */}
           <div className="flex-1 overflow-y-auto w-full no-scrollbar">
             <PosCartItems
               cart={activeTab.cart}
@@ -391,7 +394,6 @@ function PosPageContent() {
               setNoteEditingId={setNoteEditingId}
               discountEditingId={discountEditingId}
               setDiscountEditingId={setDiscountEditingId}
-              lastAddedItemId={lastAddedItemId}
             />
           </div>
 

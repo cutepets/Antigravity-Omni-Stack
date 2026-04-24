@@ -1,0 +1,6 @@
+[submodule "claw-code"]
+	path = claw-code
+	url = https://github.com/ultraworkers/claw-code-parity.git
+[submodule "glm-key-monitor"]
+	path = glm-key-monitor
+	url = https://github.com/LaughSmiles/glm-key-monitor.git

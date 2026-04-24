@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common'
 import { DatabaseService } from '../../database/database.service.js'
 import {
   BulkUpsertHotelDaycareRulesDto,
@@ -47,8 +47,20 @@ function getPrismaErrorCode(error: unknown) {
 }
 
 @Injectable()
-export class PricingService {
+export class PricingService implements OnModuleInit {
+  private readonly logger = new Logger(PricingService.name)
   constructor(private readonly db: DatabaseService) { }
+
+  async onModuleInit() {
+    // Ensure the spaServiceImages column exists (idempotent — safe to run on every startup)
+    // Note: actual postgres table is "system_configs" (@@map in schema.prisma)
+    try {
+      await this.db.$executeRawUnsafe(`ALTER TABLE system_configs ADD COLUMN IF NOT EXISTS "spaServiceImages" TEXT`)
+      this.logger.log('spaServiceImages column ensured in system_configs')
+    } catch (err: unknown) {
+      this.logger.warn(`Could not ensure spaServiceImages column: ${String(err)}`)
+    }
+  }
 
   private deriveHalfDayPrice(fullDayPrice: number) {
     return Math.round(fullDayPrice / 2)
@@ -378,6 +390,7 @@ export class PricingService {
       id?: string | undefined
       species: string | null
       packageCode: string
+      label?: string | null
       weightBandId: string | null
       minWeight: number | null
       maxWeight: number | null
@@ -402,6 +415,7 @@ export class PricingService {
           id: rule.id,
           species: normalizedSpecies,
           packageCode: this.normalizeText(rule.packageCode, 'Gói SPA'),
+          label: this.normalizeOptionalText(rule.label),
           weightBandId: rule.weightBandId ?? null,
           minWeight: null,
           maxWeight: null,
@@ -417,6 +431,7 @@ export class PricingService {
         id: rule.id,
         species: ruleSpecies,
         packageCode: this.normalizeText(rule.packageCode, 'Gói SPA'),
+        label: this.normalizeOptionalText(rule.label),
         weightBandId: rule.weightBandId ?? null,
         minWeight,
         maxWeight,
@@ -448,6 +463,7 @@ export class PricingService {
         const data: any = {
           species: rule.species,
           packageCode: rule.packageCode,
+          label: rule.label,
           weightBandId: rule.weightBandId ?? null,
           minWeight: rule.minWeight,
           maxWeight: rule.maxWeight,
@@ -601,14 +617,14 @@ export class PricingService {
         }
         const savedRule = matchedRule
           ? await tx.hotelPriceRule.update({
-              where: { id: matchedRule.id },
-              data,
-              include: { weightBand: true },
-            })
+            where: { id: matchedRule.id },
+            data,
+            include: { weightBand: true },
+          })
           : await tx.hotelPriceRule.create({
-              data,
-              include: { weightBand: true },
-            })
+            data,
+            include: { weightBand: true },
+          })
 
         await tx.hotelPriceRule.updateMany({
           where: {
@@ -724,14 +740,14 @@ export class PricingService {
 
         const savedRule = matchedRule
           ? await tx.hotelDaycarePriceRule.update({
-              where: { id: matchedRule.id },
-              data,
-              include: { weightBand: true },
-            })
+            where: { id: matchedRule.id },
+            data,
+            include: { weightBand: true },
+          })
           : await tx.hotelDaycarePriceRule.create({
-              data,
-              include: { weightBand: true },
-            })
+            data,
+            include: { weightBand: true },
+          })
 
         await tx.hotelDaycarePriceRule.updateMany({
           where: {
@@ -896,5 +912,90 @@ export class PricingService {
     const current = await this.db.holidayCalendarDate.findUnique({ where: { id } })
     if (!current) throw new NotFoundException('Không tìm thấy ngày lễ')
     return this.db.holidayCalendarDate.update({ where: { id }, data: { isActive: false } })
+  }
+
+  // ─── Spa Service Images ───────────────────────────────────────────────────
+
+  private parseSpaServiceImages(rawValue: string | null | undefined): Array<{ packageCode: string; imageUrl: string; label?: string }> {
+    if (!rawValue) return []
+    try {
+      const parsed = JSON.parse(rawValue)
+      if (!Array.isArray(parsed)) return []
+      return parsed.filter(
+        (item) =>
+          item &&
+          typeof item === 'object' &&
+          typeof item.packageCode === 'string' &&
+          typeof item.imageUrl === 'string',
+      )
+        .map((item) => ({
+          packageCode: item.packageCode,
+          imageUrl: item.imageUrl,
+          ...(typeof item.label === 'string' && item.label.trim() ? { label: item.label } : {}),
+        }))
+    } catch {
+      return []
+    }
+  }
+
+  async listSpaServiceImages(): Promise<Array<{ packageCode: string; imageUrl: string; label?: string }>> {
+    const config = await (this.db as any).systemConfig.findFirst({
+      select: { spaServiceImages: true },
+    })
+    const images = this.parseSpaServiceImages(config?.spaServiceImages)
+    if (images.length === 0) return images
+
+    const rules = await this.db.spaPriceRule.findMany({
+      where: { packageCode: { in: images.map((item) => item.packageCode) } },
+      select: { packageCode: true, label: true },
+      distinct: ['packageCode'],
+    })
+    const labelByPackageCode = new Map(rules.map((rule) => [rule.packageCode, rule.label]))
+    return images.map((image) => ({
+      ...image,
+      label: labelByPackageCode.get(image.packageCode) ?? image.label,
+    }))
+  }
+
+  async uploadSpaServiceImage(packageCode: string, imageUrl: string, label?: string): Promise<{ packageCode: string; imageUrl: string; label?: string }> {
+    const normalizedCode = this.normalizeText(packageCode, 'Tên dịch vụ')
+    const normalizedLabel = this.normalizeOptionalText(label)
+    const existing = await this.listSpaServiceImages()
+    const updated = existing.filter((item) => item.packageCode !== normalizedCode)
+    const entry: { packageCode: string; imageUrl: string; label?: string } = { packageCode: normalizedCode, imageUrl }
+    if (normalizedLabel) entry.label = normalizedLabel
+    updated.push(entry)
+    await this.saveSpaServiceImages(updated)
+    if (normalizedLabel) {
+      await this.db.spaPriceRule.updateMany({
+        where: { packageCode: normalizedCode },
+        data: { label: normalizedLabel },
+      })
+    }
+    return entry
+  }
+
+  async bulkUpdateSpaServiceImages(images: Array<{ packageCode: string; imageUrl: string }>) {
+    const normalized = images.map((item) => ({
+      packageCode: this.normalizeText(item.packageCode, 'Tên dịch vụ'),
+      imageUrl: this.normalizeText(item.imageUrl, 'URL ảnh dịch vụ'),
+    }))
+    await this.saveSpaServiceImages(normalized)
+    return normalized
+  }
+
+  private async saveSpaServiceImages(images: Array<{ packageCode: string; imageUrl: string; label?: string }>) {
+    const payload = JSON.stringify(images)
+    const existing = await (this.db as any).systemConfig.findFirst({ select: { id: true } })
+    if (existing) {
+      await (this.db as any).systemConfig.update({
+        where: { id: existing.id },
+        data: { spaServiceImages: payload },
+      })
+    } else {
+      await (this.db as any).systemConfig.create({
+        data: { spaServiceImages: payload },
+      })
+    }
   }
 }

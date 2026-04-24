@@ -1,8 +1,8 @@
 'use client'
 /* eslint-disable react/no-unescaped-entities */
 
-import { ArrowLeft, Copy, Pencil, Plus, RefreshCw, Save, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ArrowLeft, Camera, Copy, Pencil, Plus, RefreshCw, Save, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { PriceInput } from '../shared/PriceInput'
 import { SPECIES_OPTIONS } from '../shared/pricing-constants'
@@ -10,6 +10,29 @@ import { createDraftKey, getSpaRuleKey } from '../shared/pricing-helpers'
 import type { BandDraft, FlatRateDraft, SpaDraft, SpaServiceColumn } from '../shared/pricing-types'
 
 const OTHER_SERVICES_TAB = '__OTHER_SERVICES__'
+
+// Map packageCode → icon (emoji) for service column headers
+const SERVICE_ICON_MAP: Record<string, string> = {
+  BATH: '🛁',
+  BATH_CLEAN: '🧼',
+  SHAVE: '✂️',
+  BATH_SHAVE_CLEAN: '🪄',
+  SPA: '💆',
+}
+
+function getServiceIcon(packageCode: string): string {
+  const raw = packageCode?.trim() ?? ''
+  const upper = raw.toUpperCase()
+  // Direct code match first
+  if (SERVICE_ICON_MAP[upper]) return SERVICE_ICON_MAP[upper]
+  // Keyword match for Vietnamese display names
+  if (/spa/i.test(raw)) return '💆'
+  if (/cạo|shave/i.test(raw) && /tắm|bath/i.test(raw) && /vệ|clean/i.test(raw)) return '🪄' // Tắm+Cạo+VS
+  if (/cạo|shave/i.test(raw)) return '✂️'
+  if (/vệ|clean/i.test(raw)) return '🧼'
+  if (/tắm|bath/i.test(raw)) return '🛁'
+  return '🐾'
+}
 
 function createEmptyFlatRateDraft(): FlatRateDraft {
   return {
@@ -36,6 +59,7 @@ export function GroomingPricingMatrix({
   onDraftChange,
   onSave,
   onFillEmptySkus,
+  onServiceImageUpload,
   isSaving,
   canManagePricing,
   species,
@@ -55,6 +79,7 @@ export function GroomingPricingMatrix({
   onDraftChange: (bandKey: string, serviceKey: string, patch: Partial<SpaDraft>) => void
   onSave: () => Promise<boolean | undefined> | boolean | undefined
   onFillEmptySkus: () => void
+  onServiceImageUpload?: (column: SpaServiceColumn, file: File) => void
   isSaving: boolean
   canManagePricing: boolean
   species: string
@@ -64,9 +89,22 @@ export function GroomingPricingMatrix({
 }) {
   const [isEditMode, setIsEditMode] = useState(false)
   const [activeTab, setActiveTab] = useState<string>(species)
+  const [columnAvatars, setColumnAvatars] = useState<Record<string, string>>({})
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const totalColumns = Math.max(1, serviceColumns.length * 2 + 1)
   const canEditPricing = canManagePricing && isEditMode
   const isOtherServicesTab = activeTab === OTHER_SERVICES_TAB
+
+  const handleAvatarChange = (column: SpaServiceColumn, file: File) => {
+    // Immediate local preview (dataURL)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setColumnAvatars((prev) => ({ ...prev, [column.key]: e.target?.result as string }))
+    }
+    reader.readAsDataURL(file)
+    // Delegate upload + persist to parent (workspace has queryClient)
+    onServiceImageUpload?.(column, file)
+  }
 
   useEffect(() => {
     if (activeTab === OTHER_SERVICES_TAB) return
@@ -209,31 +247,91 @@ export function GroomingPricingMatrix({
                       Dịch vụ
                     </th>
                   ) : serviceColumns.map((column) => (
-                    <th key={column.key} className="min-w-[240px] border-b border-r border-border px-3 py-2">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <div className="flex items-center justify-center gap-2">
-                          {canEditPricing ? (
-                            <input
-                              value={column.packageCode}
-                              onChange={(event) => onServiceChange(column.key, event.target.value)}
-                              placeholder="Tên dịch vụ"
-                              className="h-8 w-full min-w-[100px] rounded-lg border border-border bg-background-base px-2 text-xs font-bold text-foreground outline-none focus:border-primary-500"
-                            />
-                          ) : (
-                            <span className="truncate text-xs font-black text-foreground">{column.packageCode || 'Dịch vụ mới'}</span>
-                          )}
+                    <th key={column.key} className="min-w-[240px] border-b border-r border-border px-3 py-2.5">
+                      {/* 2-column header: avatar left | name + subtitle right */}
+                      <div className="flex items-center gap-2.5">
 
-                          {canEditPricing ? (
-                            <button
-                              type="button"
-                              onClick={() => onServiceRemove(column.key)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
-                            >
-                              <X size={13} />
-                            </button>
-                          ) : null}
+                        {/* Avatar square */}
+                        <div className="relative shrink-0">
+                          {/* Hidden file input */}
+                          <input
+                            ref={(el) => { fileInputRefs.current[column.key] = el }}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) handleAvatarChange(column, file)
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={!canEditPricing}
+                            onClick={() => canEditPricing && fileInputRefs.current[column.key]?.click()}
+                            title={canEditPricing ? 'Đổi ảnh dịch vụ' : undefined}
+                            className={cn(
+                              'group relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border transition-colors',
+                              (columnAvatars[column.key] ?? column.imageUrl)
+                                ? 'border-border/60 bg-transparent'
+                                : 'border-dashed border-border bg-background-secondary',
+                              canEditPricing && 'cursor-pointer hover:border-primary-500/70 hover:bg-primary-500/10 active:scale-[0.97]',
+                            )}
+                          >
+                            {/* Avatar display: local preview > DB imageUrl > no-image hint > emoji */}
+                            {(columnAvatars[column.key] ?? column.imageUrl) ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={columnAvatars[column.key] ?? column.imageUrl!}
+                                alt={column.packageCode}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center gap-0.5 text-foreground-muted/50">
+                                <Camera size={13} />
+                                <span className="text-[9px] font-medium leading-none">Ảnh</span>
+                              </div>
+                            )}
+                            {/* Camera overlay on hover in edit mode */}
+                            {canEditPricing && (
+                              <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background-base/70 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                                <Camera size={14} className="text-primary-500" />
+                              </div>
+                            )}
+                          </button>
                         </div>
-                        <span className="text-[9px] font-semibold uppercase tracking-widest text-foreground-muted/60">SKU · Giá · Thời gian</span>
+
+                        {/* Right: name row + subtitle row */}
+                        <div className="min-w-0 flex-1">
+                          {/* Row 1: service name + delete */}
+                          <div className="flex items-center gap-1.5">
+                            {canEditPricing ? (
+                              <input
+                                value={column.packageCode}
+                                onChange={(event) => onServiceChange(column.key, event.target.value)}
+                                placeholder="Tên dịch vụ"
+                                className="h-7 w-full min-w-[80px] rounded-lg border border-border bg-background-base px-2 text-xs font-bold text-foreground outline-none focus:border-primary-500"
+                              />
+                            ) : (
+                              <span className="truncate text-xs font-black text-foreground leading-snug">
+                                {column.packageCode || 'Dịch vụ mới'}
+                              </span>
+                            )}
+                            {canEditPricing && (
+                              <button
+                                type="button"
+                                onClick={() => onServiceRemove(column.key)}
+                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-rose-400 transition-colors hover:bg-rose-500/10"
+                              >
+                                <X size={11} />
+                              </button>
+                            )}
+                          </div>
+                          {/* Row 2: subtitle */}
+                          <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-widest text-foreground-muted/60 leading-none">
+                            SKU · Giá · Thời gian
+                          </p>
+                        </div>
+
                       </div>
                     </th>
                   ))}

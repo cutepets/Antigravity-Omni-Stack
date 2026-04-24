@@ -1,6 +1,27 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import {
+  createDiskUploadOptions,
+  deleteUploadedFile,
+  IMAGE_UPLOAD_EXTENSIONS,
+  IMAGE_UPLOAD_MIME_TYPES,
+  validateUploadedFile,
+} from '../../common/utils/upload.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import {
   BulkUpsertHotelDaycareRulesDto,
@@ -14,10 +35,19 @@ import {
 } from './dto/pricing.dto.js'
 import { PricingService } from './pricing.service.js'
 
+const MAX_SERVICE_IMAGE_SIZE = 5 * 1024 * 1024
+
+const serviceImageUploadOptions = {
+  allowedMimeTypes: IMAGE_UPLOAD_MIME_TYPES,
+  allowedExtensions: IMAGE_UPLOAD_EXTENSIONS,
+  maxFileSize: MAX_SERVICE_IMAGE_SIZE,
+  errorMessage: 'Định dạng ảnh không hợp lệ. Chấp nhận: jpg, png, webp, gif, svg',
+}
+
 @Controller('pricing')
 @UseGuards(JwtGuard, PermissionsGuard)
 export class PricingController {
-  constructor(private readonly pricingService: PricingService) {}
+  constructor(private readonly pricingService: PricingService) { }
 
   @Get('weight-bands')
   @Permissions('hotel.read', 'grooming.read', 'settings.pricing_policy.manage')
@@ -54,6 +84,55 @@ export class PricingController {
   bulkUpsertSpaRules(@Body() dto: BulkUpsertSpaRulesDto) {
     return this.pricingService.bulkUpsertSpaRules(dto)
   }
+
+  // ─── Spa Service Images ───────────────────────────────────────────────────
+
+  @Get('spa-service-images')
+  @Permissions('grooming.read', 'settings.pricing_policy.manage')
+  listSpaServiceImages() {
+    return this.pricingService.listSpaServiceImages()
+  }
+
+  @Post('spa-service-images/:packageCode')
+  @Permissions('grooming.update', 'settings.pricing_policy.manage')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      ...createDiskUploadOptions({
+        destination: './uploads/spa-services',
+        ...serviceImageUploadOptions,
+      }),
+    }),
+  )
+  async uploadSpaServiceImage(
+    @Param('packageCode') packageCode: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('label') label?: string,
+  ) {
+    validateUploadedFile(file, { ...serviceImageUploadOptions, requireStoredFilename: true })
+    const imageUrl = `/uploads/spa-services/${file.filename}`
+
+    try {
+      return await this.pricingService.uploadSpaServiceImage(packageCode, imageUrl, label?.trim())
+    } catch (error) {
+      try {
+        await deleteUploadedFile(imageUrl, {
+          publicPrefix: '/uploads/spa-services/',
+          rootDir: './uploads/spa-services',
+        })
+      } catch {
+        // Preserve original error when cleanup fails
+      }
+      throw error
+    }
+  }
+
+  @Put('spa-service-images')
+  @Permissions('grooming.update', 'settings.pricing_policy.manage')
+  bulkUpdateSpaServiceImages(@Body() body: { images: Array<{ packageCode: string; imageUrl: string }> }) {
+    return this.pricingService.bulkUpdateSpaServiceImages(body.images ?? [])
+  }
+
+  // ─── Hotel Rules ──────────────────────────────────────────────────────────
 
   @Get('hotel-rules')
   @Permissions('hotel.read', 'settings.pricing_policy.manage')

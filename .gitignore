@@ -21,3 +21,8 @@ node_modules/
 check-gsd.js
 gsd-boot.js
 skill-audit.js
+
+# Temporary local artifacts
+diff*.txt
+_tmp_*
+*.orig

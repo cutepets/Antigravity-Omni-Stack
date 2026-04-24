@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useQuery } from '@tanstack/react-query'
 import type { CartItem } from '@petshop/shared'
 import { getProductVariantOptionLabel } from '@petshop/shared'
 import {
@@ -18,6 +19,7 @@ import {
     Trash2,
     X,
 } from 'lucide-react'
+import { pricingApi } from '@/lib/api/pricing.api'
 import { money, moneyRaw } from '@/app/(dashboard)/_shared/payment/payment.utils'
 import {
     formatCartQuantityInput,
@@ -72,6 +74,31 @@ export type OrderCartItemsProps = {
 
 type OrderCartSwapProps = {
     onSwapItem?: (item: CartItem, swapKind: 'TEMP_PRODUCT' | 'GROOMING_MAIN') => void
+}
+
+// ── useSpaServiceImageMap ─────────────────────────────────────────────────────
+// Fetches the packageCode→imageUrl map once (globally cached, never refetches).
+// Also indexes by label (service name) so cart items can lookup by item.description.
+function useSpaServiceImageMap() {
+    const { data } = useQuery({
+        queryKey: ['pricing', 'spa-service-images'],
+        queryFn: () => pricingApi.getSpaServiceImages(),
+        staleTime: Infinity,
+        gcTime: Infinity,
+    })
+    return useMemo(() => {
+        const map = new Map<string, string>()
+        if (Array.isArray(data)) {
+            for (const item of data) {
+                if (item.packageCode && item.imageUrl) {
+                    map.set(item.packageCode, item.imageUrl)
+                    // Also key by label (service name) for cart lookup
+                    if ((item as any).label) map.set((item as any).label, item.imageUrl)
+                }
+            }
+        }
+        return map
+    }, [data])
 }
 
 const normalizeLabel = (value?: string | null) => `${value ?? ''}`.trim().toLowerCase()
@@ -152,11 +179,11 @@ export function OrderCartItems({
     return (
         <div className="w-full">
             {/* Table header */}
-            <div className="sticky top-0 z-10 hidden lg:grid grid-cols-[40px_minmax(0,1fr)_50px_100px_110px_110px_120px_44px] gap-2 border-b border-border bg-background-secondary/80 px-4 py-2">
-                {['#', 'Sản phẩm', 'ĐVT', 'Số lượng', 'Đơn giá', 'Chiết khấu', 'Thành tiền', ''].map((h, i) => (
+            <div className="sticky top-0 z-10 hidden lg:grid grid-cols-[40px_32px_minmax(0,1fr)_50px_100px_110px_110px_120px] gap-2 border-b border-border bg-background-secondary/80 px-4 py-2">
+                {['#', '', 'Sản phẩm', 'ĐVT', 'Số lượng', 'Đơn giá', 'Chiết khấu', 'Thành tiền'].map((h, i) => (
                     <div
                         key={i}
-                        className={`text-[11px] font-semibold uppercase tracking-wide text-foreground-muted ${i >= 3 ? 'text-right' : ''} ${i === 2 ? 'text-right' : ''} ${i === 0 ? 'text-center' : ''}`}
+                        className={`text-[11px] font-semibold uppercase tracking-wide text-foreground-muted ${i >= 4 ? 'text-right' : ''} ${i === 3 ? 'text-right' : ''} ${i === 0 ? 'text-center' : ''}`}
                     >
                         {h}
                     </div>
@@ -215,6 +242,7 @@ function OrderCartRow({
     callbacks,
     onSwapItem,
 }: OrderCartRowProps) {
+    const spaImageMap = useSpaServiceImageMap()
     const {
         trueVariants,
         allConversionVariants,
@@ -252,9 +280,20 @@ function OrderCartRow({
             ].join(' ')}
         >
             {/* Desktop row */}
-            <div className="hidden lg:grid grid-cols-[40px_minmax(0,1fr)_50px_100px_110px_110px_120px_44px] gap-2 items-start px-4 py-2.5">
+            <div className="hidden lg:grid grid-cols-[40px_32px_minmax(0,1fr)_50px_100px_110px_110px_120px] gap-2 items-start px-4 py-2.5">
                 {/* # */}
                 <div className="pt-1 text-center text-[13px] font-medium text-foreground-muted">{idx + 1}</div>
+
+                {/* Delete — trước ảnh */}
+                <div className="flex justify-center pt-1.5">
+                    <button
+                        onClick={() => callbacks.onRemoveItem(item.id)}
+                        className="rounded p-1 text-foreground-muted/40 opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-primary-500"
+                        title="Xóa"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                </div>
 
                 {/* Product */}
                 <div className="flex min-w-0 flex-col gap-0.5">
@@ -269,6 +308,13 @@ function OrderCartRow({
                                         <Image src={item.image} alt={item.description} width={180} height={180} unoptimized className="h-full w-full object-cover" />
                                     </div>
                                 </>
+                            ) : (item.type === 'service' || item.type === 'grooming') && spaImageMap.get(item.description.trim()) ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                    src={spaImageMap.get(item.description.trim())!}
+                                    alt={item.description}
+                                    className="h-full w-full rounded object-cover"
+                                />
                             ) : item.type === 'service' || item.type === 'grooming' ? (
                                 <Scissors size={16} />
                             ) : (
@@ -351,10 +397,22 @@ function OrderCartRow({
                                         <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-40" size={10} />
                                     </div>
                                 )}
+                                {/* Hotel dates — cuối dòng 1 */}
+                                {item.hotelDetails && (
+                                    <span className="text-[10px] text-primary-600 bg-primary-500/8 rounded px-1.5 py-0.5 font-medium">
+                                        In: {new Date((item.hotelDetails as any).checkIn).toLocaleDateString('vi-VN')} — Out: {new Date((item.hotelDetails as any).checkOut).toLocaleDateString('vi-VN')}
+                                    </span>
+                                )}
+                                {/* Grooming scheduled date — cuối dòng 1 */}
+                                {item.type === 'grooming' && (item as any).groomingDetails?.scheduledDate && (
+                                    <span className="inline-flex items-center gap-1 rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600">
+                                        📅 {new Date((item as any).groomingDetails.scheduledDate).toLocaleDateString('vi-VN')}
+                                    </span>
+                                )}
                             </div>
 
                             {/* Dòng 2: SKU – Barcode – Note (cùng hàng) */}
-                            <div className="flex items-center gap-2 text-[11px] text-foreground-muted">
+                            <div className="flex items-center gap-2 text-[11px] text-foreground-muted flex-wrap">
                                 <span className="font-mono">{item.sku || 'N/A'}</span>
                                 {(item as any).barcode ? (
                                     <span className="font-mono text-[10px] text-foreground-muted/50 border border-border/60 rounded px-1 bg-background-secondary">
@@ -396,19 +454,6 @@ function OrderCartRow({
                                     </button>
                                 )}
                             </div>
-
-                            {/* Hotel dates — compact badge dòng 3 nếu có */}
-                            {item.hotelDetails && (
-                                <div className="text-[10px] text-primary-600 bg-primary-500/8 rounded w-fit px-1.5 py-0.5">
-                                    In: {new Date((item.hotelDetails as any).checkIn).toLocaleDateString('vi-VN')} — Out: {new Date((item.hotelDetails as any).checkOut).toLocaleDateString('vi-VN')}
-                                </div>
-                            )}
-                            {/* Grooming scheduled date */}
-                            {item.type === 'grooming' && (item as any).groomingDetails?.scheduledDate && (
-                                <span className="inline-flex items-center gap-1 rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 w-fit">
-                                    📅 {new Date((item as any).groomingDetails.scheduledDate).toLocaleDateString('vi-VN')}
-                                </span>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -446,17 +491,6 @@ function OrderCartRow({
                 <div className={`pt-2 text-right text-[14px] font-bold ${isOverSellableQty ? 'text-rose-500' : 'text-foreground'}`}>
                     {moneyRaw(discountedUnitPrice * currentQuantity)}
                 </div>
-
-                {/* Delete */}
-                <div className="flex justify-center pt-1.5">
-                    <button
-                        onClick={() => callbacks.onRemoveItem(item.id)}
-                        className="rounded p-1 text-foreground-muted/40 opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-primary-500"
-                        title="Xóa"
-                    >
-                        <Trash2 size={14} />
-                    </button>
-                </div>
             </div>
 
             {/* Mobile card */}
@@ -464,6 +498,13 @@ function OrderCartRow({
                 <div className="relative h-14 w-14 shrink-0 rounded border border-border bg-background-secondary flex items-center justify-center text-foreground-muted">
                     {item.image ? (
                         <Image src={item.image} alt={item.description} width={56} height={56} unoptimized className="h-full w-full rounded object-cover" />
+                    ) : (item.type === 'service' || item.type === 'grooming') && spaImageMap.get(item.description.trim()) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                            src={spaImageMap.get(item.description.trim())!}
+                            alt={item.description}
+                            className="h-full w-full rounded object-cover"
+                        />
                     ) : item.type === 'service' || item.type === 'grooming' ? (
                         <Scissors size={22} />
                     ) : (

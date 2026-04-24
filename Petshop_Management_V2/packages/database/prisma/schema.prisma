@@ -863,6 +863,7 @@ model SpaPriceRule {
   sku             String?           // Editable SKU
   species         String?
   packageCode     String
+  label           String?
   weightBandId    String?
   minWeight       Float?
   maxWeight       Float?
@@ -1844,6 +1845,7 @@ model SystemConfig {
   petTemperaments            String?
   petVaccineOpts             String?
   hotelExtraServices         String?
+  spaServiceImages           String?
 
   @@map("system_configs")
 }

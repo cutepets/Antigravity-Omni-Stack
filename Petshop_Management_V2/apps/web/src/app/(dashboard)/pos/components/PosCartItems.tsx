@@ -2,12 +2,12 @@
 
 import { useMemo } from 'react';
 import type { CartItem } from '@petshop/shared';
-import { ShoppingCart } from 'lucide-react';
 import { usePosStore } from '@/stores/pos.store';
-import { PosCartRow } from './cart/PosCartRow';
+import { OrderCartItems } from '@/app/(dashboard)/orders/_components/order/OrderCartItems';
+import type { CartItemCallbacks } from '@/app/(dashboard)/_shared/cart/cart.types';
 
 // ── Re-exports để giữ back-compat cho các module khác ──────────────────────────
-export type { CartItemCallbacks } from './cart/PosCartTypes';
+export type { CartItemCallbacks } from '@/app/(dashboard)/_shared/cart/cart.types';
 export { PosCartQuantityControl } from './cart/PosCartQuantityControl';
 export { PosCartDiscountEditor } from './cart/PosCartDiscountEditor';
 export { PosCartStockPopover } from './cart/PosCartStockPopover';
@@ -25,11 +25,11 @@ type PosCartItemsProps = {
   discountEditingId: string | null;
   setDiscountEditingId: (id: string | null) => void;
   lastAddedItemId?: string | null;
-  /** Optional — khi cung cấp sẽ bypass usePosStore (dùng cho OrderWorkspace) */
-  callbacks?: import('./cart/PosCartTypes').CartItemCallbacks;
+  /** Optional — khi cung cấp sẽ bypass usePosStore */
+  callbacks?: CartItemCallbacks;
 };
 
-// ── PosCartItems: container duy nhất ─────────────────────────────────────────
+// ── PosCartItems: thin wrapper → OrderCartItems ───────────────────────────────
 
 export function PosCartItems({
   cart,
@@ -40,42 +40,34 @@ export function PosCartItems({
   setNoteEditingId,
   discountEditingId,
   setDiscountEditingId,
-  lastAddedItemId,
   callbacks,
 }: PosCartItemsProps) {
   const store = usePosStore();
-  const activeBranches = useMemo(() => branches.filter((branch: any) => branch.isActive), [branches]);
 
-  if (cart.length === 0) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-4">
-        <ShoppingCart size={64} className="opacity-20" />
-        <p className="text-lg">Đơn hàng trống</p>
-        <p className="text-sm hidden sm:block">Hãy tìm kiếm sản phẩm hoặc quét mã vạch (F1)</p>
-        <p className="text-sm sm:hidden">Tìm kiếm sản phẩm để thêm vào đơn</p>
-      </div>
-    );
-  }
+  // Build callbacks từ POS store nếu không truyền vào ngoài
+  const resolvedCallbacks: CartItemCallbacks = useMemo(
+    () =>
+      callbacks ?? {
+        onRemoveItem: (id) => store.removeItem(id),
+        onUpdateQuantity: (id, qty) => store.updateQuantity(id, qty),
+        onUpdateDiscountItem: (id, discount) => store.updateDiscountItem(id, discount),
+        onUpdateItemVariant: (id, variantId) => store.updateItemVariant(id, variantId),
+        onUpdateItemNotes: (id, notes) => store.updateItemNotes(id, notes),
+      },
+    [callbacks, store],
+  );
 
   return (
-    <>
-      {[...cart].reverse().map((item, idx) => (
-        <PosCartRow
-          key={item.id}
-          item={item}
-          idx={cart.length - 1 - idx}
-          branchId={branchId}
-          activeBranches={activeBranches}
-          selectedRowIndex={selectedRowIndex}
-          noteEditingId={noteEditingId}
-          setNoteEditingId={setNoteEditingId}
-          discountEditingId={discountEditingId}
-          setDiscountEditingId={setDiscountEditingId}
-          store={store}
-          callbacks={callbacks}
-          isFlashing={lastAddedItemId === item.id}
-        />
-      ))}
-    </>
+    <OrderCartItems
+      cart={cart}
+      branchId={branchId}
+      branches={branches}
+      selectedRowIndex={selectedRowIndex}
+      noteEditingId={noteEditingId}
+      setNoteEditingId={setNoteEditingId}
+      discountEditingId={discountEditingId}
+      setDiscountEditingId={setDiscountEditingId}
+      callbacks={resolvedCallbacks}
+    />
   );
 }

@@ -119,6 +119,20 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     enabled: mode === 'HOTEL',
   })
 
+  const spaServiceImagesQuery = useQuery({
+    queryKey: ['pricing', 'spa-service-images'],
+    queryFn: () => pricingApi.getSpaServiceImages(),
+    enabled: mode === 'GROOMING',
+  })
+
+  const spaServiceImagesMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const item of spaServiceImagesQuery.data ?? []) {
+      map.set(item.packageCode, item.imageUrl)
+    }
+    return map
+  }, [spaServiceImagesQuery.data])
+
   const rawBands = useMemo(() => bandsQuery.data ?? [], [bandsQuery.data])
   const spaRules = useMemo(() => spaRulesQuery.data ?? [], [spaRulesQuery.data])
   const hotelRules = useMemo(() => hotelRulesQuery.data ?? [], [hotelRulesQuery.data])
@@ -143,10 +157,14 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   useEffect(() => {
     if (mode !== 'GROOMING') return
     const nextState = createGroomingPricingState(spaRules, species)
-    setSpaServiceColumns(nextState.serviceColumns)
+    const columnsWithImages = nextState.serviceColumns.map((col) => ({
+      ...col,
+      imageUrl: spaServiceImagesMap.get(col.packageCode) ?? null,
+    }))
+    setSpaServiceColumns(columnsWithImages)
     setSpaDrafts(nextState.spaDrafts)
     setFlatRateDrafts(nextState.flatRateDrafts)
-  }, [mode, spaRules, species])
+  }, [mode, spaRules, species, spaServiceImagesMap])
 
   useEffect(() => {
     if (mode !== 'HOTEL') return
@@ -275,6 +293,23 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     setSpaServiceColumns((current) => current.map((column) => (column.key === serviceKey ? { ...column, packageCode } : column)))
   }
 
+  const handleSpaServiceImageUpload = async (column: SpaServiceColumn, file: File) => {
+    if (!column.packageCode.trim()) return
+    try {
+      const result = await pricingApi.uploadSpaServiceImage(column.packageCode.trim(), file, column.packageCode.trim())
+      // Update local state immediately
+      setSpaServiceColumns((current) =>
+        current.map((col) => (col.key === column.key ? { ...col, imageUrl: result.imageUrl } : col)),
+      )
+      // Invalidate query so F5 / next load shows persisted image
+      queryClient.invalidateQueries({ queryKey: ['pricing', 'spa-service-images'] })
+      toast.success('Đã lưu ảnh dịch vụ')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(`Lưu ảnh thất bại: ${msg}`)
+    }
+  }
+
   const removeSpaServiceColumn = (serviceKey: string) => {
     setSpaServiceColumns((current) => current.filter((column) => column.key !== serviceKey))
     setSpaDrafts((current) =>
@@ -387,6 +422,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
             id: draft?.id,
             species,
             packageCode: column.packageCode,
+            label: column.packageCode,
             weightBandId,
             sku: draft?.sku?.trim() || null,
             price,
@@ -402,6 +438,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
           id: draft.id,
           species: null,
           packageCode: draft.name.trim(),
+          label: draft.name.trim(),
           weightBandId: undefined,
           minWeight: parseWeightInput(draft.minWeight),
           maxWeight: parseWeightInput(draft.maxWeight),
@@ -665,6 +702,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
               onServiceChange={updateSpaServiceColumn}
               onServiceRemove={removeSpaServiceColumn}
               onAddService={addSpaServiceColumn}
+              onServiceImageUpload={handleSpaServiceImageUpload}
               onDraftChange={updateSpaDraft}
               onSave={saveGroomingMatrix}
               onFillEmptySkus={fillEmptySkus}

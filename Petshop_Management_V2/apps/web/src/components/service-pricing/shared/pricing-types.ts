@@ -14,6 +14,7 @@ export type BandDraft = {
 export type SpaServiceColumn = {
   key: string
   packageCode: string
+  imageUrl?: string | null
 }
 
 export type SpaDraft = {

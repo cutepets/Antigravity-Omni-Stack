@@ -1,7 +1,11 @@
 import type { Metadata } from 'next'
+import dynamic from 'next/dynamic'
 import { Suspense } from 'react'
 import { PageContainer } from '@/components/layout/PageLayout'
-import { ReportsWorkspace } from './_components/reports-workspace'
+
+const ReportsWorkspace = dynamic(() =>
+  import('./_components/reports-workspace').then((mod) => mod.ReportsWorkspace),
+)
 
 export const metadata: Metadata = {
   title: 'Báo cáo | Petshop',

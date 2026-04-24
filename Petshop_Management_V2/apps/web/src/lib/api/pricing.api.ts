@@ -20,6 +20,7 @@ export interface SpaPriceRule {
   id: string
   species: string | null
   packageCode: string
+  label?: string | null
   weightBandId: string | null
   minWeight?: number | null
   maxWeight?: number | null
@@ -89,6 +90,7 @@ export interface SpaRulePayload {
   id?: string
   species?: string | null
   packageCode: string
+  label?: string | null
   weightBandId?: string | null
   minWeight?: number | null
   maxWeight?: number | null
@@ -175,4 +177,18 @@ export const pricingApi = {
 
   deactivateHoliday: (id: string) =>
     api.delete<HolidayCalendarDate>(`/pricing/holidays/${id}`).then((res) => res.data),
+
+  getSpaServiceImages: () =>
+    api.get<Array<{ packageCode: string; imageUrl: string; label?: string }>>('/pricing/spa-service-images').then((res) => res.data),
+
+  uploadSpaServiceImage: (packageCode: string, file: File, label?: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (label) formData.append('label', label)
+    return api
+      .post<{ packageCode: string; imageUrl: string; label?: string }>(`/pricing/spa-service-images/${encodeURIComponent(packageCode)}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((res) => res.data)
+  },
 }

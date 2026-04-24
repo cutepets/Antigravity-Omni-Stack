@@ -379,18 +379,25 @@ function buildPricingSuggestions({
       reason: 'Dịch vụ giá cố định (không phân loại theo cân nặng).',
     }));
 
-  // ── Weight-matched hotel suggestions (score 85 REGULAR, 80 HOLIDAY) ────────
+  // ── Weight-matched hotel suggestions (score 85, REGULAR only) ──────────────
+  // Chỉ hiện 1 dòng "Hotel lưu trú" per weight band. Giá ngày lễ/thường tự tính
+  // theo ngày check-in/out khi nhập — không cần chọn riêng "Ngày lễ".
   const matchingHotelRules = hasPricingProfile
-    ? hotelRules.filter((rule) => isSpeciesMatch(species, getRuleSpecies(rule)) && isWeightInBand(weight, rule.weightBand))
+    ? hotelRules.filter(
+      (rule) =>
+        rule.dayType !== 'HOLIDAY' &&
+        isSpeciesMatch(species, getRuleSpecies(rule)) &&
+        isWeightInBand(weight, rule.weightBand),
+    )
     : [];
   const weightMatchedHotelSuggestions = matchingHotelRules.map((rule) => ({
     id: `pricing:hotel:${rule.id}`,
     entryType: 'pricing-hotel',
     pricingKind: 'HOTEL',
     type: 'hotel',
-    name: rule.dayType === 'HOLIDAY' ? 'Hotel lưu trú (Ngày lễ)' : 'Hotel lưu trú',
-    description: rule.dayType === 'HOLIDAY' ? 'Áp dụng cho ngày lễ/Tết' : 'Chọn ngày để tính lễ/ngày thường',
-    sku: getPricingSku('HOTEL', rule.dayType === 'HOLIDAY' ? 'Hotel lưu trú Ngày lễ' : 'Hotel lưu trú', rule.weightBand?.label),
+    name: 'Hotel lưu trú',
+    description: 'Giá tính theo ngày — tự động áp giá lễ/thường theo lịch',
+    sku: getPricingSku('HOTEL', 'Hotel lưu trú', rule.weightBand?.label),
     price: rule.fullDayPrice,
     sellingPrice: rule.fullDayPrice,
     duration: undefined,
@@ -401,11 +408,9 @@ function buildPricingSuggestions({
     petSnapshot: pet,
     suggestionKind: 'HOTEL' as const,
     suggestionGroup: 'PRIMARY' as const,
-    suggestionScore: rule.dayType === 'REGULAR' ? 85 : 80,
+    suggestionScore: 85,
     isWeightMatched: true,
-    reason: rule.dayType === 'HOLIDAY'
-      ? 'Giá hotel ngày lễ theo hạng cân.'
-      : 'Tính giá hotel theo ngày nhận/trả, tự tách ngày lễ và ngày thường.',
+    reason: 'Tính giá hotel theo ngày nhận/trả, tự tách ngày lễ và ngày thường.',
   }));
 
   // ── Flat-rate hotel suggestions (no weightBand, score 55) ────────────────
@@ -448,9 +453,11 @@ function buildPricingSuggestions({
   }));
 
   const hasWeightMatchedHotel = weightMatchedHotelSuggestions.length > 0;
+  // Flat-rate hotel: chỉ lấy REGULAR, bỏ HOLIDAY (giá lễ tự tính theo ngày)
   const flatRateHotelRules = !hasWeightMatchedHotel
     ? hotelRules.filter(
       (rule) =>
+        rule.dayType !== 'HOLIDAY' &&
         !rule.weightBand &&
         !rule.weightBandId &&
         isSpeciesMatch(species, getRuleSpecies(rule)),
@@ -461,9 +468,9 @@ function buildPricingSuggestions({
     entryType: 'pricing-hotel',
     pricingKind: 'HOTEL',
     type: 'hotel',
-    name: rule.dayType === 'HOLIDAY' ? 'Hotel lưu trú (Ngày lễ)' : 'Hotel lưu trú',
-    description: 'Chọn ngày để tính giá',
-    sku: getPricingSku('HOTEL', rule.dayType === 'HOLIDAY' ? 'Hotel lưu trú Ngày lễ' : 'Hotel lưu trú', undefined),
+    name: 'Hotel lưu trú',
+    description: 'Giá tính theo ngày — tự động áp giá lễ/thường theo lịch',
+    sku: getPricingSku('HOTEL', 'Hotel lưu trú', undefined),
     price: rule.fullDayPrice,
     sellingPrice: rule.fullDayPrice,
     duration: undefined,
@@ -474,9 +481,9 @@ function buildPricingSuggestions({
     petSnapshot: pet,
     suggestionKind: 'HOTEL' as const,
     suggestionGroup: 'PRIMARY' as const,
-    suggestionScore: rule.dayType === 'REGULAR' ? 55 : 50,
+    suggestionScore: 55,
     isWeightMatched: false,
-    reason: 'Dịch vụ khách sạn giá cố định.',
+    reason: 'Dịch vụ khách sạn giá cố định, tự tính giá lễ/thường theo ngày.',
   }));
 
   // ── Hotel extra services (score 70) ─────────────────────────────────────

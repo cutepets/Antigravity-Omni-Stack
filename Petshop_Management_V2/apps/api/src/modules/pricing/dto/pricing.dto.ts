@@ -80,6 +80,10 @@ export class SpaRuleInputDto {
 
   @IsString()
   @IsOptional()
+  label?: string | null
+
+  @IsString()
+  @IsOptional()
   weightBandId?: string | null
 
   @IsNumber()

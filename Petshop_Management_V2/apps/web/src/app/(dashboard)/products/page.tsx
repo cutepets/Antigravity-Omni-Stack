@@ -1,6 +1,10 @@
 import { Metadata } from 'next'
-import { ProductList } from './_components/product-list'
+import dynamic from 'next/dynamic'
 import { PageContainer } from '@/components/layout/PageLayout'
+
+const ProductList = dynamic(() =>
+  import('./_components/product-list').then((mod) => mod.ProductList),
+)
 
 export const metadata: Metadata = {
   title: 'Sản phẩm | Petshop',
