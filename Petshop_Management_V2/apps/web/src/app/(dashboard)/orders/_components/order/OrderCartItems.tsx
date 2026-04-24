@@ -30,6 +30,7 @@ import {
 import { resolveCartItemStockState } from '@/app/(dashboard)/_shared/cart/stock.utils'
 import type { CartItemCallbacks } from '@/app/(dashboard)/_shared/cart/cart.types'
 import { getCartItemWeightBandLabel } from '@/app/(dashboard)/pos/utils/pos.utils'
+import { buildServiceImageMap, resolveCartServiceImage } from './service-image.utils'
 
 // Re-export so consumers only need to import from here
 export type { CartItemCallbacks }
@@ -86,19 +87,7 @@ function useSpaServiceImageMap() {
         staleTime: Infinity,
         gcTime: Infinity,
     })
-    return useMemo(() => {
-        const map = new Map<string, string>()
-        if (Array.isArray(data)) {
-            for (const item of data) {
-                if (item.packageCode && item.imageUrl) {
-                    map.set(item.packageCode, item.imageUrl)
-                    // Also key by label (service name) for cart lookup
-                    if ((item as any).label) map.set((item as any).label, item.imageUrl)
-                }
-            }
-        }
-        return map
-    }, [data])
+    return useMemo(() => buildServiceImageMap(Array.isArray(data) ? data : []), [data])
 }
 
 const normalizeLabel = (value?: string | null) => `${value ?? ''}`.trim().toLowerCase()
@@ -270,6 +259,7 @@ function OrderCartRow({
     const isSelected = idx === selectedRowIndex
     const canSwapTemp = canSwapTempProduct(item, orderStatus)
     const canSwapGrooming = canSwapGroomingMain(item, orderStatus)
+    const serviceImage = resolveCartServiceImage(item, spaImageMap)
 
     return (
         <div
@@ -301,20 +291,13 @@ function OrderCartRow({
                     <div className="flex items-center gap-2 min-w-0">
                         {/* Thumbnail */}
                         <div className="relative shrink-0 h-9 w-9 rounded border border-border bg-background-secondary flex items-center justify-center text-foreground-muted group/img">
-                            {item.image ? (
+                            {serviceImage ? (
                                 <>
-                                    <Image src={item.image} alt={item.description} width={36} height={36} unoptimized className="h-full w-full rounded object-cover" />
+                                    <Image src={serviceImage} alt={item.description} width={36} height={36} unoptimized className="h-full w-full rounded object-cover" />
                                     <div className="absolute top-1/2 left-full ml-2 w-[180px] h-[180px] -translate-y-1/2 shadow-2xl rounded-lg border-2 border-border overflow-hidden opacity-0 invisible group-hover/img:opacity-100 group-hover/img:visible pointer-events-none transition-all z-50 origin-left">
-                                        <Image src={item.image} alt={item.description} width={180} height={180} unoptimized className="h-full w-full object-cover" />
+                                        <Image src={serviceImage} alt={item.description} width={180} height={180} unoptimized className="h-full w-full object-cover" />
                                     </div>
                                 </>
-                            ) : (item.type === 'service' || item.type === 'grooming') && spaImageMap.get(item.description.trim()) ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                    src={spaImageMap.get(item.description.trim())!}
-                                    alt={item.description}
-                                    className="h-full w-full rounded object-cover"
-                                />
                             ) : item.type === 'service' || item.type === 'grooming' ? (
                                 <Scissors size={16} />
                             ) : (
@@ -496,15 +479,8 @@ function OrderCartRow({
             {/* Mobile card */}
             <div className="flex lg:hidden gap-3 p-3 relative">
                 <div className="relative h-14 w-14 shrink-0 rounded border border-border bg-background-secondary flex items-center justify-center text-foreground-muted">
-                    {item.image ? (
-                        <Image src={item.image} alt={item.description} width={56} height={56} unoptimized className="h-full w-full rounded object-cover" />
-                    ) : (item.type === 'service' || item.type === 'grooming') && spaImageMap.get(item.description.trim()) ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                            src={spaImageMap.get(item.description.trim())!}
-                            alt={item.description}
-                            className="h-full w-full rounded object-cover"
-                        />
+                    {serviceImage ? (
+                        <Image src={serviceImage} alt={item.description} width={56} height={56} unoptimized className="h-full w-full rounded object-cover" />
                     ) : item.type === 'service' || item.type === 'grooming' ? (
                         <Scissors size={22} />
                     ) : (

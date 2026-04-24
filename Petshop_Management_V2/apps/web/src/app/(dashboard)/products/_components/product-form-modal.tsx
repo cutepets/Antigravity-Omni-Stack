@@ -6,6 +6,7 @@ import { X, Save, ImagePlus, Plus, Trash2, ChevronDown, ChevronUp, Tag, Loader2 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { buildProductVariantName, resolveProductVariantLabels } from '@petshop/shared'
 import { inventoryApi } from '@/lib/api/inventory.api'
+import { PRICE_BOOK_QUERY_KEY, extractPriceBooks } from '@/lib/price-books'
 import { toast } from 'sonner'
 import { NumericFormat } from 'react-number-format'
 import { VariantTable } from './variant-table'
@@ -138,10 +139,10 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
   const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: () => inventoryApi.getCategories() })
   const { data: brands } = useQuery({ queryKey: ['brands'], queryFn: () => inventoryApi.getBrands() })
   const { data: unitsRes } = useQuery({ queryKey: ['units'], queryFn: () => inventoryApi.getUnits() })
-  const { data: priceBooksRes } = useQuery({ queryKey: ['priceBooks'], queryFn: () => inventoryApi.getPriceBooks() })
+  const { data: priceBooksRes } = useQuery({ queryKey: PRICE_BOOK_QUERY_KEY, queryFn: () => inventoryApi.getPriceBooks() })
 
   const units = unitsRes?.data || []
-  const priceBooks = priceBooksRes?.data || []
+  const priceBooks = extractPriceBooks(priceBooksRes)
   const retailPriceBook = priceBooks.find((pb: any) => pb.name.toLowerCase().includes('lẻ') || pb.name.toLowerCase() === 'retail price')
 
   const [formData, setFormData] = useState({

@@ -49,7 +49,7 @@ export function LoginForm() {
     if (googleError !== 'google_auth_failed') {
       return null
     }
-    return googleMessage || 'Dang nhap Google that bai'
+    return googleMessage || 'Đăng nhập Google thất bại'
   }, [googleError, googleMessage])
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -58,7 +58,7 @@ export function LoginForm() {
 
     try {
       await login(username, password)
-      toast.success('Dang nhap thanh cong')
+      toast.success('Đăng nhập thành công')
       window.location.href = redirect
     } catch {
       // store handles the error message
@@ -108,10 +108,10 @@ export function LoginForm() {
           🐾
         </motion.div>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--color-foreground-base)', marginBottom: 6, letterSpacing: '-0.02em' }}>
-          Dang nhap
+          Đăng nhập
         </h1>
         <p style={{ color: 'var(--color-foreground-muted)', fontSize: 15 }}>
-          Dang nhap bang tai khoan noi bo hoac Google.
+          Đăng nhập bằng tài khoản nội bộ hoặc Google.
         </p>
       </div>
 
@@ -139,7 +139,7 @@ export function LoginForm() {
       {googleStatusQuery.isLoading ? (
         <div className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm text-foreground-muted">
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-border/60 border-t-foreground-muted" />
-          Dang tai Google login...
+          Đang tải Google login...
         </div>
       ) : canUseGoogleLogin ? (
         <button
@@ -149,23 +149,23 @@ export function LoginForm() {
           className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm font-semibold text-foreground-base transition-colors hover:bg-background-elevated disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="text-base">G</span>
-          Dang nhap voi Google
+          Đăng nhập với Google
         </button>
       ) : (
         <div className="mb-4 rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm text-foreground-muted">
-          Dang nhap Google hien chua san sang.
+          Đăng nhập Google hiện chưa sẵn sàng.
           {googleStatus?.enabled && !googleStatus?.configured ? (
-            <span className="mt-1 block">Admin can hoan tat client ID, client secret va redirect URI.</span>
+            <span className="mt-1 block">Admin cần hoàn tất client ID, client secret và redirect URI.</span>
           ) : null}
           {googleStatus?.allowedDomain ? (
-            <span className="mt-1 block">Domain duoc phep: {googleStatus.allowedDomain}</span>
+            <span className="mt-1 block">Domain được phép: {googleStatus.allowedDomain}</span>
           ) : null}
         </div>
       )}
 
       <div className="mb-4 flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-foreground-muted">
         <span className="h-px flex-1 bg-border/50" />
-        <span>Noi bo</span>
+        <span>Nội bộ</span>
         <span className="h-px flex-1 bg-border/50" />
       </div>
 
@@ -175,14 +175,14 @@ export function LoginForm() {
             htmlFor="username"
             style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-foreground-secondary)', marginBottom: 8 }}
           >
-            Ten dang nhap
+            Tên đăng nhập
           </label>
           <input
             id="username"
             type="text"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
-            placeholder="Nhap ten dang nhap"
+            placeholder="Nhập tên đăng nhập"
             autoComplete="username"
             required
             disabled={loading}
@@ -195,7 +195,7 @@ export function LoginForm() {
             htmlFor="password"
             style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-foreground-secondary)', marginBottom: 8 }}
           >
-            Mat khau
+            Mật khẩu
           </label>
           <div style={{ position: 'relative' }}>
             <input
@@ -203,7 +203,7 @@ export function LoginForm() {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Nhap mat khau"
+              placeholder="Nhập mật khẩu"
               autoComplete="current-password"
               required
               disabled={loading}
@@ -225,7 +225,7 @@ export function LoginForm() {
                 lineHeight: 1,
                 padding: 4,
               }}
-              aria-label={showPassword ? 'An mat khau' : 'Hien mat khau'}
+              aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
             >
               {showPassword ? '🙈' : '👁️'}
             </button>
@@ -267,10 +267,10 @@ export function LoginForm() {
                 }}
                 className="animate-spin"
               />
-              Dang dang nhap...
+              Đang đăng nhập...
             </>
           ) : (
-            'Dang nhap he thong'
+            'Đăng nhập hệ thống'
           )}
         </button>
       </form>

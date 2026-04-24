@@ -4,6 +4,7 @@ import React, { useMemo, useState, useTransition } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Cloud,
   Database,
@@ -11,6 +12,7 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  Trash2,
   Upload,
 } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
@@ -137,21 +139,21 @@ export function TabBackup() {
         anchor.download = result.fileName
         anchor.click()
         URL.revokeObjectURL(href)
-        toast.success('Da tao file backup .appbak de tai xuong')
+        toast.success('Đã tạo file backup .appbak để tải xuống')
         return
       }
 
-      toast.success(`Da luu backup len Google Drive: ${result.data.fileName}`)
+      toast.success(`Đã lưu backup lên Google Drive: ${result.data.fileName}`)
     },
     onError: (error: any) => {
-      toast.error(error?.message || 'Khong tao duoc file backup')
+      toast.error(error?.message || 'Không tạo được file backup')
     },
   })
 
   const inspectMutation = useMutation({
     mutationFn: async () => {
       if (!backupFile) {
-        throw new Error('Can chon file backup de kiem tra')
+        throw new Error('Cần chọn file backup để kiểm tra')
       }
       return settingsApi.inspectBackup(backupFile, restorePassword)
     },
@@ -164,19 +166,19 @@ export function TabBackup() {
             .map((entry) => entry.moduleId),
         )
       })
-      toast.success('Da giai ma file backup va doc duoc manifest')
+      toast.success('Đã giải mã file backup và đọc được manifest')
     },
     onError: (error: any) => {
       setInspectedBackup(null)
       setRestoreModules([])
-      toast.error(error?.message || 'Khong doc duoc file backup')
+      toast.error(error?.message || 'Không đọc được file backup')
     },
   })
 
   const restoreMutation = useMutation({
     mutationFn: async () => {
       if (!backupFile) {
-        throw new Error('Can chon file backup de khoi phuc')
+        throw new Error('Cần chọn file backup để khôi phục')
       }
 
       return settingsApi.restoreBackup({
@@ -187,10 +189,10 @@ export function TabBackup() {
       })
     },
     onSuccess: (result) => {
-      toast.success(`Da khoi phuc ${result.restoredModules.length} module`)
+      toast.success(`Đã khôi phục ${result.restoredModules.length} module`)
     },
     onError: (error: any) => {
-      toast.error(error?.message || 'Khoi phuc that bai')
+      toast.error(error?.message || 'Khôi phục thất bại')
     },
   })
 
@@ -215,19 +217,19 @@ export function TabBackup() {
   const handleExport = () => {
     if (!canManageBackup) return
     if (exportModules.length === 0) {
-      toast.error('Can chon it nhat 1 module de backup')
+      toast.error('Cần chọn ít nhất 1 module để backup')
       return
     }
     if (exportPassword.length < 8) {
-      toast.error('Mat khau backup phai co it nhat 8 ky tu')
+      toast.error('Mật khẩu backup phải có ít nhất 8 ký tự')
       return
     }
     if (exportPassword !== exportPasswordConfirm) {
-      toast.error('Mat khau xac nhan chua khop')
+      toast.error('Mật khẩu xác nhận chưa khớp')
       return
     }
     if (destination === 'google_drive' && !configQuery.data?.googleDriveEnabled) {
-      toast.error('Google Drive chua duoc bat trong cau hinh he thong')
+      toast.error('Google Drive chưa được bật trong cấu hình hệ thống')
       return
     }
 
@@ -237,11 +239,11 @@ export function TabBackup() {
   const handleInspect = () => {
     if (!canManageBackup) return
     if (!backupFile) {
-      toast.error('Can chon file .appbak')
+      toast.error('Cần chọn file .appbak')
       return
     }
     if (restorePassword.length < 8) {
-      toast.error('Mat khau backup phai co it nhat 8 ky tu')
+      toast.error('Mật khẩu backup phải có ít nhất 8 ký tự')
       return
     }
 
@@ -251,19 +253,19 @@ export function TabBackup() {
   const handleRestore = () => {
     if (!canManageBackup) return
     if (!inspectedBackup) {
-      toast.error('Can inspect file backup truoc khi khoi phuc')
+      toast.error('Cần inspect file backup trước khi khôi phục')
       return
     }
     if (restoreModules.length === 0) {
-      toast.error('Can chon it nhat 1 module de khoi phuc')
+      toast.error('Cần chọn ít nhất 1 module để khôi phục')
       return
     }
     if (restoreBlockers.length > 0) {
-      toast.error('Tap module khoi phuc hien tai chua hop le vi thieu module phu thuoc nguoc')
+      toast.error('Tập module khôi phục hiện tại chưa hợp lệ vì thiếu module phụ thuộc ngược')
       return
     }
     if (incompatibleRestoreModules.length > 0) {
-      toast.error('Co module khong tuong thich voi app hien tai')
+      toast.error('Có module không tương thích với app hiện tại')
       return
     }
 
@@ -274,7 +276,7 @@ export function TabBackup() {
     return (
       <div className="flex h-40 items-center justify-center gap-3 text-foreground-muted">
         <AlertCircle size={18} />
-        Tinh nang backup chi danh cho SUPER_ADMIN.
+        Tính năng backup chỉ dành cho SUPER_ADMIN.
       </div>
     )
   }
@@ -286,10 +288,10 @@ export function TabBackup() {
           <div>
             <h2 className="flex items-center gap-3 text-lg font-bold text-foreground-base">
               <Database className="text-primary-500" size={24} />
-              Backup va khoi phuc mot-file
+              Backup và khôi phục một-file
             </h2>
             <p className="mt-1 text-sm text-foreground-muted">
-              Tao file `.appbak` da nen + ma hoa. Khong bao gom anh hoac tai lieu nhi phan.
+              Tạo file `.appbak` đã nén + mã hóa. Không bao gồm ảnh hoặc tài liệu nhị phân.
             </p>
           </div>
 
@@ -303,9 +305,9 @@ export function TabBackup() {
         <section className="space-y-6 rounded-2xl border border-border/50 bg-background-elevated/60 p-6">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h3 className="text-sm font-bold text-foreground-base">Tao backup</h3>
+              <h3 className="text-sm font-bold text-foreground-base">Tạo backup</h3>
               <p className="mt-1 text-xs text-foreground-muted">
-                Chon module can dong goi. He thong tu dong kem module tien de bat buoc.
+                Chọn module cần đóng gói. Hệ thống tự động kèm module tiền đề bắt buộc.
               </p>
             </div>
 
@@ -315,14 +317,14 @@ export function TabBackup() {
               className="inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-sm font-semibold text-foreground-base transition-colors hover:bg-background-secondary"
             >
               <RefreshCw size={16} className={catalogQuery.isFetching ? 'animate-spin' : ''} />
-              Lam moi danh muc
+              Làm mới danh mục
             </button>
           </div>
 
           {catalogQuery.isLoading ? (
             <div className="flex items-center gap-3 text-sm text-foreground-muted">
               <RefreshCw size={16} className="animate-spin" />
-              Dang tai danh muc module backup...
+              Đang tải danh mục module backup...
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
@@ -347,7 +349,7 @@ export function TabBackup() {
                         {entry.moduleId} • v{entry.moduleVersion}
                       </div>
                       <div className="mt-2 text-xs text-foreground-muted">
-                        Phu thuoc: {entry.dependencies.length > 0 ? entry.dependencies.join(', ') : 'Khong co'}
+                        Phụ thuộc: {entry.dependencies.length > 0 ? entry.dependencies.join(', ') : 'Không có'}
                       </div>
                     </div>
                   </label>
@@ -357,23 +359,22 @@ export function TabBackup() {
           )}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <Field label="Dich den backup">
+            <Field label="Đích đến backup">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setDestination('download')}
-                  className={`rounded-2xl border px-4 py-4 text-left ${
-                    destination === 'download'
-                      ? 'border-primary-500 bg-primary-500/10'
-                      : 'border-border/40 bg-background-base'
-                  }`}
+                  className={`rounded-2xl border px-4 py-4 text-left ${destination === 'download'
+                    ? 'border-primary-500 bg-primary-500/10'
+                    : 'border-border/40 bg-background-base'
+                    }`}
                 >
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground-base">
                     <Download size={16} />
-                    Tai xuong may
+                    Tải xuống máy
                   </div>
                   <div className="mt-2 text-xs text-foreground-muted">
-                    Nhan 1 file `.appbak` de luu tru ngoai he thong.
+                    Nhận 1 file `.appbak` để lưu trữ ngoài hệ thống.
                   </div>
                 </button>
 
@@ -381,61 +382,60 @@ export function TabBackup() {
                   type="button"
                   onClick={() => setDestination('google_drive')}
                   disabled={!configQuery.data?.googleDriveEnabled}
-                  className={`rounded-2xl border px-4 py-4 text-left disabled:cursor-not-allowed disabled:opacity-60 ${
-                    destination === 'google_drive'
-                      ? 'border-primary-500 bg-primary-500/10'
-                      : 'border-border/40 bg-background-base'
-                  }`}
+                  className={`rounded-2xl border px-4 py-4 text-left disabled:cursor-not-allowed disabled:opacity-60 ${destination === 'google_drive'
+                    ? 'border-primary-500 bg-primary-500/10'
+                    : 'border-border/40 bg-background-base'
+                    }`}
                 >
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground-base">
                     <Cloud size={16} />
-                    Luu Google Drive
+                    Lưu Google Drive
                   </div>
                   <div className="mt-2 text-xs text-foreground-muted">
-                    Dung folder backup da cau hinh trong he thong.
+                    Dùng folder backup đã cấu hình trong hệ thống.
                   </div>
                 </button>
               </div>
             </Field>
 
-            <Field label="Module se duoc dong goi">
+            <Field label="Module sẽ được đóng gói">
               <div className="rounded-2xl border border-border/40 bg-background-base px-4 py-4 text-sm text-foreground-base">
                 {exportModulePreview.length > 0 ? (
                   <div className="space-y-2">
                     <div>{exportModulePreview.join(', ')}</div>
                     <div className="text-xs text-foreground-muted">
-                      He thong tu dong mo rong dependency de file backup co the dung lai an toan hon.
+                      Hệ thống tự động mở rộng dependency để file backup có thể dùng lại an toàn hơn.
                     </div>
                   </div>
                 ) : (
-                  <div className="text-foreground-muted">Chua chon module nao.</div>
+                  <div className="text-foreground-muted">Chưa chọn module nào.</div>
                 )}
               </div>
             </Field>
 
-            <Field label="Mat khau backup">
+            <Field label="Mật khẩu backup">
               <input
                 type="password"
                 value={exportPassword}
                 onChange={(event) => setExportPassword(event.target.value)}
                 className={inputClassName}
-                placeholder="Nhap mat khau de ma hoa file .appbak"
+                placeholder="Nhập mật khẩu để mã hóa file .appbak"
               />
             </Field>
 
-            <Field label="Xac nhan mat khau">
+            <Field label="Xác nhận mật khẩu">
               <input
                 type="password"
                 value={exportPasswordConfirm}
                 onChange={(event) => setExportPasswordConfirm(event.target.value)}
                 className={inputClassName}
-                placeholder="Nhap lai mat khau"
+                placeholder="Nhập lại mật khẩu"
               />
             </Field>
           </div>
 
           <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100">
-            File backup chi giu du lieu va tham chieu URL/path. Anh, tai lieu upload, va noi dung file tren Google Drive khong nam trong `.appbak`.
+            File backup chỉ giữ dữ liệu và tham chiếu URL/path. Ảnh, tài liệu upload, và nội dung file trên Google Drive không nằm trong `.appbak`.
           </div>
 
           <div className="flex justify-end">
@@ -450,29 +450,29 @@ export function TabBackup() {
               ) : (
                 <Save size={16} />
               )}
-              Tao backup
+              Tạo backup
             </button>
           </div>
         </section>
 
         <section className="space-y-6 rounded-2xl border border-border/50 bg-background-elevated/60 p-6">
           <div>
-            <h3 className="text-sm font-bold text-foreground-base">Khoi phuc tu file `.appbak`</h3>
+            <h3 className="text-sm font-bold text-foreground-base">Khôi phục từ file `.appbak`</h3>
             <p className="mt-1 text-xs text-foreground-muted">
-              Kiem tra manifest truoc, sau do chon module can replace.
+              Kiểm tra manifest trước, sau đó chọn module cần replace.
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <Field label="Chon file backup">
+            <Field label="Chọn file backup">
               <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border/40 bg-background-base px-4 py-4">
                 <Upload size={18} className="text-foreground-muted" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-foreground-base">
-                    {backupFile?.name || 'Bam de chon file .appbak'}
+                    {backupFile?.name || 'Bấm để chọn file .appbak'}
                   </div>
                   <div className="mt-1 text-xs text-foreground-muted">
-                    Chi doc file backup mot-file da ma hoa.
+                    Chỉ đọc file backup một-file đã mã hóa.
                   </div>
                 </div>
                 <input
@@ -489,13 +489,13 @@ export function TabBackup() {
               </label>
             </Field>
 
-            <Field label="Mat khau backup">
+            <Field label="Mật khẩu backup">
               <input
                 type="password"
                 value={restorePassword}
                 onChange={(event) => setRestorePassword(event.target.value)}
                 className={inputClassName}
-                placeholder="Nhap mat khau de inspect va restore"
+                placeholder="Nhập mật khẩu để inspect và restore"
               />
             </Field>
           </div>
@@ -521,11 +521,11 @@ export function TabBackup() {
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
                 <InfoTile label="Ung dung" value={`${inspectedBackup.manifest.appId} • v${inspectedBackup.manifest.appVersion}`} />
                 <InfoTile label="Format" value={`${inspectedBackup.manifest.formatName} • v${inspectedBackup.manifest.formatVersion}`} />
-                <InfoTile label="Tao luc" value={new Date(inspectedBackup.manifest.createdAt).toLocaleString()} />
+                <InfoTile label="Tạo lúc" value={new Date(inspectedBackup.manifest.createdAt).toLocaleString()} />
               </div>
 
               <div className="space-y-3 rounded-2xl border border-border/40 bg-background-base p-4">
-                <div className="text-sm font-semibold text-foreground-base">Canh bao tu file backup</div>
+                <div className="text-sm font-semibold text-foreground-base">Cảnh báo từ file backup</div>
                 {inspectedBackup.warnings.length > 0 ? (
                   inspectedBackup.warnings.map((warning) => (
                     <div key={warning} className="flex items-start gap-2 text-sm text-amber-100">
@@ -534,12 +534,12 @@ export function TabBackup() {
                     </div>
                   ))
                 ) : (
-                  <div className="text-sm text-foreground-muted">Khong co canh bao bo sung.</div>
+                  <div className="text-sm text-foreground-muted">Không có cảnh báo bổ sung.</div>
                 )}
               </div>
 
               <div className="space-y-3">
-                <div className="text-sm font-semibold text-foreground-base">Chon module can khoi phuc</div>
+                <div className="text-sm font-semibold text-foreground-base">Chọn module cần khôi phục</div>
                 <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                   {inspectedBackup.modules.map((entry) => {
                     const checked = restoreModules.includes(entry.moduleId)
@@ -547,11 +547,10 @@ export function TabBackup() {
                     return (
                       <label
                         key={entry.moduleId}
-                        className={`flex items-start gap-3 rounded-2xl border px-4 py-4 ${
-                          checked
-                            ? 'border-primary-500 bg-primary-500/10'
-                            : 'border-border/40 bg-background-base'
-                        }`}
+                        className={`flex items-start gap-3 rounded-2xl border px-4 py-4 ${checked
+                          ? 'border-primary-500 bg-primary-500/10'
+                          : 'border-border/40 bg-background-base'
+                          }`}
                       >
                         <input
                           type="checkbox"
@@ -576,7 +575,7 @@ export function TabBackup() {
                             {entry.moduleId} • file v{entry.fileModuleVersion} • app v{entry.moduleVersion}
                           </div>
                           <div className="mt-2 text-xs text-foreground-muted">
-                            {totalRecords} ban ghi • Phu thuoc: {entry.dependencies.length > 0 ? entry.dependencies.join(', ') : 'Khong co'}
+                            {totalRecords} bản ghi • Phụ thuộc: {entry.dependencies.length > 0 ? entry.dependencies.join(', ') : 'Không có'}
                           </div>
                           {entry.compatibilityReason ? (
                             <div className="mt-2 text-xs text-rose-300">
@@ -593,40 +592,40 @@ export function TabBackup() {
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <div className="rounded-2xl border border-border/40 bg-background-base p-4">
                   <div className="text-sm font-semibold text-foreground-base">
-                    Tap module se duoc restore
+                    Tập module sẽ được restore
                   </div>
                   <div className="mt-2 text-sm text-foreground-base">
                     {restoreModulePreview.length > 0
                       ? restoreModulePreview.join(', ')
-                      : 'Chua chon module nao.'}
+                      : 'Chưa chọn module nào.'}
                   </div>
                   <div className="mt-2 text-xs text-foreground-muted">
-                    Backend se tu dong mo rong dependency truoc khi xoa/nap lai du lieu.
+                    Backend sẽ tự động mở rộng dependency trước khi xóa/nạp lại dữ liệu.
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-border/40 bg-background-base p-4">
                   <div className="text-sm font-semibold text-foreground-base">
-                    Dieu kien truoc khi restore
+                    Điều kiện trước khi restore
                   </div>
                   {restoreBlockers.length > 0 ? (
                     <div className="mt-2 space-y-2 text-sm text-rose-300">
                       {restoreBlockers.map((entry) => (
                         <div key={entry.moduleId}>
-                          {entry.moduleId} can chon kem: {entry.blockers.join(', ')}
+                          {entry.moduleId} cần chọn kèm: {entry.blockers.join(', ')}
                         </div>
                       ))}
                     </div>
                   ) : incompatibleRestoreModules.length > 0 ? (
                     <div className="mt-2 space-y-2 text-sm text-rose-300">
                       {incompatibleRestoreModules.map((moduleId) => (
-                        <div key={moduleId}>{moduleId} chua co adapter import tu version trong file.</div>
+                        <div key={moduleId}>{moduleId} chưa có adapter import từ version trong file.</div>
                       ))}
                     </div>
                   ) : (
                     <div className="mt-2 flex items-center gap-2 text-sm text-emerald-300">
                       <CheckCircle2 size={16} />
-                      Tap module restore hop le theo ranh gioi version va dependency hien tai.
+                      Tập module restore hợp lệ theo ranh giới version và dependency hiện tại.
                     </div>
                   )}
                 </div>
@@ -644,12 +643,15 @@ export function TabBackup() {
                   ) : (
                     <RotateCcw size={16} />
                   )}
-                  Khoi phuc du lieu
+                  Khôi phục dữ liệu
                 </button>
               </div>
             </div>
           ) : null}
         </section>
+
+        {/* ─── Purge Section ─── */}
+        <PurgeSection catalog={catalogQuery.data ?? []} />
       </div>
     </div>
   )
@@ -686,3 +688,200 @@ function InfoTile({
     </div>
   )
 }
+
+function PurgeSection({ catalog }: { catalog: BackupCatalogEntry[] }) {
+  const [purgeModules, setPurgeModules] = useState<string[]>([])
+  const [confirmPhrase, setConfirmPhrase] = useState('')
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+
+  const purgeModulePreview = useMemo(
+    () => expandModules(purgeModules, catalog),
+    [catalog, purgeModules],
+  )
+
+  const togglePurgeModule = (moduleId: string) => {
+    setPurgeModules((current) =>
+      current.includes(moduleId)
+        ? current.filter((entry) => entry !== moduleId)
+        : [...current, moduleId],
+    )
+  }
+
+  const purgeMutation = useMutation({
+    mutationFn: () => settingsApi.purgeData(purgeModules, confirmPhrase),
+    onSuccess: (result) => {
+      toast.success(`Đã xóa dữ liệu ${result.purgedModules.length} module`)
+      setPurgeModules([])
+      setConfirmPhrase('')
+      setShowConfirmDialog(false)
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || 'Xóa dữ liệu thất bại')
+    },
+  })
+
+  const handlePurge = () => {
+    if (purgeModules.length === 0) {
+      toast.error('Cần chọn ít nhất 1 module để xóa dữ liệu')
+      return
+    }
+    setShowConfirmDialog(true)
+  }
+
+  const handleConfirmPurge = () => {
+    if (confirmPhrase !== 'XOA DU LIEU') {
+      toast.error('Cụm xác nhận không chính xác. Nhập "XOA DU LIEU" để xác nhận.')
+      return
+    }
+    purgeMutation.mutate()
+  }
+
+  return (
+    <section className="space-y-6 rounded-2xl border border-rose-500/30 bg-rose-500/5 p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h3 className="flex items-center gap-2 text-sm font-bold text-rose-400">
+            <Trash2 size={16} />
+            Xóa dữ liệu demo
+          </h3>
+          <p className="mt-1 text-xs text-foreground-muted">
+            Xóa toàn bộ dữ liệu của module được chọn. Hành động không thể hoàn tác.
+          </p>
+        </div>
+        <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-400">
+          SUPER_ADMIN
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        {catalog.map((entry) => {
+          const checked = purgeModules.includes(entry.moduleId)
+          return (
+            <label
+              key={entry.moduleId}
+              className={`flex items-start gap-3 rounded-2xl border px-4 py-4 transition-colors ${checked
+                  ? 'border-rose-500/40 bg-rose-500/10'
+                  : 'border-border/40 bg-background-base'
+                }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => togglePurgeModule(entry.moduleId)}
+                className="mt-1 h-4 w-4 rounded border-border/50 accent-rose-500"
+              />
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground-base">
+                  {entry.label}
+                </div>
+                <div className="mt-1 text-xs text-foreground-muted">
+                  {entry.moduleId} • Phụ thuộc:{' '}
+                  {entry.dependencies.length > 0
+                    ? entry.dependencies.join(', ')
+                    : 'Không có'}
+                </div>
+              </div>
+            </label>
+          )
+        })}
+      </div>
+
+      {purgeModulePreview.length > 0 ? (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-300" />
+            <div>
+              <span className="font-bold">Sẽ xóa dữ liệu các module (bao gồm dependency):</span>{' '}
+              {purgeModulePreview.join(', ')}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={handlePurge}
+          disabled={purgeModules.length === 0 || purgeMutation.isPending}
+          className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Trash2 size={16} />
+          Xóa dữ liệu
+        </button>
+      </div>
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-5 rounded-3xl border border-rose-500/30 bg-background-secondary p-6 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-rose-500/15 p-3">
+                <AlertTriangle size={24} className="text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground-base">
+                  Xác nhận xóa dữ liệu
+                </h3>
+                <p className="mt-1 text-xs text-foreground-muted">
+                  Hành động không thể hoàn tác
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm text-foreground-secondary">
+              Sẽ xóa toàn bộ dữ liệu của{' '}
+              <span className="font-bold text-rose-400">
+                {purgeModulePreview.length} module
+              </span>
+              : {purgeModulePreview.join(', ')}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground-base">
+                Nhập <span className="font-bold text-rose-400">XOA DU LIEU</span> để
+                xác nhận
+              </label>
+              <input
+                type="text"
+                value={confirmPhrase}
+                onChange={(e) => setConfirmPhrase(e.target.value)}
+                className={inputClassName}
+                placeholder="XOA DU LIEU"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmDialog(false)
+                  setConfirmPhrase('')
+                }}
+                className="rounded-xl border border-border/60 px-4 py-2 text-sm font-semibold text-foreground-base transition-colors hover:bg-background-secondary"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPurge}
+                disabled={
+                  confirmPhrase !== 'XOA DU LIEU' || purgeMutation.isPending
+                }
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {purgeMutation.isPending ? (
+                  <RefreshCw size={16} className="animate-spin" />
+                ) : (
+                  <Trash2 size={16} />
+                )}
+                Xóa dữ liệu
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+

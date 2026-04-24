@@ -209,24 +209,24 @@ export type BackupExportPayload = {
 
 export type BackupExportResult =
   | {
-      kind: 'download'
-      fileName: string
-      blob: Blob
-      manifest: BackupInspectResult['manifest'] | null
-    }
+    kind: 'download'
+    fileName: string
+    blob: Blob
+    manifest: BackupInspectResult['manifest'] | null
+  }
   | {
-      kind: 'google_drive'
-      data: {
-        fileName: string
-        size: number
-        asset: {
-          id: string
-          url: string
-          originalName: string
-        }
-        manifest: BackupInspectResult['manifest']
+    kind: 'google_drive'
+    data: {
+      fileName: string
+      size: number
+      asset: {
+        id: string
+        url: string
+        originalName: string
       }
+      manifest: BackupInspectResult['manifest']
     }
+  }
 
 function parseFileNameFromDisposition(disposition: string | null) {
   if (!disposition) return null
@@ -523,5 +523,17 @@ export const settingsApi = {
   deleteBankTransferAccount: async (id: string) => {
     const { data } = await api.delete(`/settings/bank-transfer-accounts/${id}`)
     return data
+  },
+
+  getAbout: async (): Promise<{ version: string; nodeEnv: string; buildDate: string | null }> => {
+    const { data } = await api.get('/settings/about')
+    return data.data
+  },
+
+  purgeData: async (modules: string[], confirmPhrase: string) => {
+    const { data } = await api.delete('/settings/purge', {
+      data: { modules, confirmPhrase },
+    })
+    return data.data as { purgedModules: string[] }
   },
 }

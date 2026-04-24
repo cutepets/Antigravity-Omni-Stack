@@ -8,6 +8,7 @@ import { Check, Loader2, Pencil, Save, Star, Tag, Trash2, Trophy, Users, X, Sett
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { api } from '@/lib/api'
 import { customerApi } from '@/lib/api/customer.api'
+import { PRICE_BOOK_QUERY_KEY, extractPriceBooks, type PriceBookOption } from '@/lib/price-books'
 
 type LoyaltyTierRule = {
   tier: 'BRONZE' | 'SILVER' | 'GOLD' | 'DIAMOND'
@@ -139,10 +140,10 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
   })
 
   const { data: priceBooks = [] } = useQuery({
-    queryKey: ['inventory', 'price-books'],
+    queryKey: PRICE_BOOK_QUERY_KEY,
     queryFn: async () => {
       const res = await api.get('/inventory/price-books')
-      return (res.data.data ?? res.data ?? []) as Array<{ id: string; name: string }>
+      return extractPriceBooks(res) as PriceBookOption[]
     },
     enabled: isOpen,
   })

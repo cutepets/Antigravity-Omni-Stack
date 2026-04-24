@@ -119,14 +119,14 @@ export function TabGeneral() {
     mutationFn: async (payload: Partial<SettingsFormData>) => {
       const response = await api.put('/settings/configs', payload)
       if (!response.data?.success) {
-        throw new Error(response.data?.message || 'Luu that bai')
+        throw new Error(response.data?.message || 'Lưu thất bại')
       }
       return response.data
     },
     onMutate: () => setIsSaving(true),
     onSuccess: () => {
       setSavedState(true)
-      toast.success('Da luu cau hinh he thong')
+      toast.success('Đã lưu cấu hình hệ thống')
       queryClient.invalidateQueries({ queryKey: ['settings', 'configs'] })
       setTimeout(() => {
         setSavedState(false)
@@ -135,8 +135,8 @@ export function TabGeneral() {
     },
     onError: (mutationError: any) => {
       setIsSaving(false)
-      const message = mutationError?.response?.data?.message || mutationError?.message || 'Loi khong xac dinh'
-      toast.error(`Loi khi luu: ${message}`)
+      const message = mutationError?.response?.data?.message || mutationError?.message || 'Lỗi không xác định'
+      toast.error(`Lỗi khi lưu: ${message}`)
     },
   })
 
@@ -146,10 +146,10 @@ export function TabGeneral() {
       return response.data
     },
     onSuccess: () => {
-      toast.success('Ket noi Google Drive hop le')
+      toast.success('Kết nối Google Drive hợp lệ')
     },
     onError: (mutationError: any) => {
-      const message = mutationError?.response?.data?.message || mutationError?.message || 'Khong test duoc ket noi'
+      const message = mutationError?.response?.data?.message || mutationError?.message || 'Không test được kết nối'
       toast.error(`Google Drive test fail: ${message}`)
     },
   })
@@ -191,7 +191,7 @@ export function TabGeneral() {
     if (!file) return
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File qua lon. Toi da 5MB')
+      toast.error('File quá lớn. Tối đa 5MB')
       return
     }
 
@@ -199,10 +199,10 @@ export function TabGeneral() {
     try {
       const imageUrl = await uploadApi.uploadImage(file)
       setFormData((current) => ({ ...current, shopLogo: imageUrl }))
-      toast.success('Tai logo thanh cong')
+      toast.success('Tải logo thành công')
     } catch (uploadError: any) {
       const message = uploadError?.response?.data?.message || uploadError?.message || 'Loi upload'
-      toast.error(`Khong tai duoc logo: ${message}`)
+      toast.error(`Không tải được logo: ${message}`)
     } finally {
       setUploadingLogo(false)
       event.target.value = ''
@@ -221,7 +221,7 @@ export function TabGeneral() {
     return (
       <div className="flex h-40 items-center justify-center gap-3 text-foreground-muted">
         <span className="h-5 w-5 animate-spin rounded-full border-2 border-foreground-muted/30 border-t-foreground-muted" />
-        Dang tai cau hinh...
+        Đang tải cấu hình...
       </div>
     )
   }
@@ -230,7 +230,7 @@ export function TabGeneral() {
     return (
       <div className="flex h-40 items-center justify-center gap-3 text-red-400">
         <AlertCircle size={20} />
-        Khong the tai cau hinh. Vui long kiem tra ket noi API.
+        Không thể tải cấu hình. Vui lòng kiểm tra kết nối API.
       </div>
     )
   }
@@ -244,16 +244,16 @@ export function TabGeneral() {
           <div>
             <h2 className="flex items-center gap-3 text-lg font-bold text-foreground-base">
               <Store className="text-primary-500" size={24} />
-              Cau hinh cua hang va Google integrations
+              Cấu hình cửa hàng và Google integrations
             </h2>
             <p className="mt-1 text-sm text-foreground-muted">
-              Cua hang, Google Login, Google Drive shared storage.
+              Cửa hàng, Google Login, Google Drive shared storage.
             </p>
           </div>
 
           {!canUpdateSettings ? (
             <span className="rounded-full border border-border/60 bg-background-elevated px-3 py-1 text-xs font-semibold text-foreground-muted">
-              Che do chi xem
+              Chế độ chỉ xem
             </span>
           ) : null}
         </div>
@@ -262,7 +262,7 @@ export function TabGeneral() {
       <div className="space-y-8 p-8">
         <section className="space-y-6">
           <div>
-            <h3 className="mb-3 text-sm font-bold text-foreground-base">Logo cua hang</h3>
+            <h3 className="mb-3 text-sm font-bold text-foreground-base">Logo cửa hàng</h3>
             <div className="flex items-center gap-6">
               <div className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border/50 bg-black/10">
                 {uploadingLogo ? (
@@ -280,14 +280,13 @@ export function TabGeneral() {
 
               <div>
                 <label
-                  className={`inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-sm font-medium ${
-                    canUpdateSettings
+                  className={`inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-sm font-medium ${canUpdateSettings
                       ? 'cursor-pointer bg-background-tertiary transition-colors hover:bg-background-elevated'
                       : 'cursor-not-allowed bg-background-tertiary/60 text-foreground-muted'
-                  }`}
+                    }`}
                 >
                   <Upload size={16} className="text-foreground-muted" />
-                  {uploadingLogo ? 'Dang tai...' : 'Tai logo len'}
+                  {uploadingLogo ? 'Đang tải...' : 'Tải logo lên'}
                   <input
                     type="file"
                     className="hidden"
@@ -296,16 +295,16 @@ export function TabGeneral() {
                     disabled={!canUpdateSettings || uploadingLogo}
                   />
                 </label>
-                <p className="mt-2 text-xs text-foreground-muted">PNG, JPG, WebP, toi da 5MB</p>
+                <p className="mt-2 text-xs text-foreground-muted">PNG, JPG, WebP, tối đa 5MB</p>
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <Field label="Ten cua hang">
+            <Field label="Tên cửa hàng">
               <input name="shopName" value={formData.shopName} onChange={handleTextChange} disabled={isDisabled} className={inputClassName} />
             </Field>
-            <Field label="So dien thoai">
+            <Field label="Số điện thoại">
               <input name="shopPhone" value={formData.shopPhone} onChange={handleTextChange} disabled={isDisabled} className={inputClassName} />
             </Field>
             <Field label="Email">
@@ -314,7 +313,7 @@ export function TabGeneral() {
             <Field label="Website">
               <input name="website" value={formData.website} onChange={handleTextChange} disabled={isDisabled} className={inputClassName} />
             </Field>
-            <Field label="Dia chi" className="md:col-span-2">
+            <Field label="Địa chỉ" className="md:col-span-2">
               <input name="shopAddress" value={formData.shopAddress} onChange={handleTextChange} disabled={isDisabled} className={inputClassName} />
             </Field>
           </div>
@@ -328,7 +327,7 @@ export function TabGeneral() {
                 Google Login
               </h3>
               <p className="mt-1 text-xs text-foreground-muted">
-                User login bang Google, van tra cookie/session nhu login thuong.
+                User đăng nhập bằng Google, vẫn trả cookie/session như đăng nhập thường.
               </p>
             </div>
             <StatusBadge active={Boolean(formData.googleAuthEnabled)} configured={integrationBadges.googleAuthSecret} />
@@ -336,7 +335,7 @@ export function TabGeneral() {
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <ToggleField
-              label="Bat Google Login"
+              label="Bật Google Login"
               checked={formData.googleAuthEnabled}
               name="googleAuthEnabled"
               onChange={handleToggleChange}
@@ -368,7 +367,7 @@ export function TabGeneral() {
                 name="googleAuthClientSecret"
                 value={formData.googleAuthClientSecret}
                 onChange={handleTextChange}
-                placeholder={integrationBadges.googleAuthSecret ? 'Da luu secret. Nhap de thay moi.' : 'Nhap client secret'}
+                placeholder={integrationBadges.googleAuthSecret ? 'Đã lưu secret. Nhập để thay mới.' : 'Nhập client secret'}
                 disabled={isDisabled}
                 className={inputClassName}
               />
@@ -390,14 +389,14 @@ export function TabGeneral() {
           </div>
 
           <div className="mt-4 rounded-2xl border border-border/50 bg-background-base p-4 text-xs text-foreground-muted">
-            <p className="font-semibold text-foreground-base">Huong dan Google Cloud</p>
-            <p className="mt-2">1. Tao OAuth Client ID loai Web application.</p>
-            <p className="mt-1">2. Add JavaScript origin va redirect URI dung nhu 2 o ben tren.</p>
-            <p className="mt-1">3. Scope chi can: openid, email, profile.</p>
+            <p className="font-semibold text-foreground-base">Hướng dẫn Google Cloud</p>
+            <p className="mt-2">1. Tạo OAuth Client ID loại Web application.</p>
+            <p className="mt-1">2. Thêm JavaScript origin và redirect URI đúng như 2 ô bên trên.</p>
+            <p className="mt-1">3. Scope chỉ cần: openid, email, profile.</p>
             {googleAuthStatusQuery.data?.allowedDomain ? (
-              <p className="mt-1">4. App dang gioi han domain: {googleAuthStatusQuery.data.allowedDomain}.</p>
+              <p className="mt-1">4. App đang giới hạn domain: {googleAuthStatusQuery.data.allowedDomain}.</p>
             ) : (
-              <p className="mt-1">4. Neu muon gioi han email cong ty, dien Allowed domain.</p>
+              <p className="mt-1">4. Nếu muốn giới hạn email công ty, điền Allowed domain.</p>
             )}
           </div>
         </section>
@@ -410,7 +409,7 @@ export function TabGeneral() {
                 Google Drive shared storage
               </h3>
               <p className="mt-1 text-xs text-foreground-muted">
-                App luu file len shared drive. DB chi giu metadata va link hien thi.
+                App lưu file lên shared drive. DB chỉ giữ metadata và link hiển thị.
               </p>
             </div>
             <StatusBadge active={Boolean(formData.googleDriveEnabled)} configured={integrationBadges.googleDriveSecret} />
@@ -430,7 +429,7 @@ export function TabGeneral() {
               </select>
             </Field>
             <ToggleField
-              label="Bat Google Drive"
+              label="Bật Google Drive"
               checked={formData.googleDriveEnabled}
               name="googleDriveEnabled"
               onChange={handleToggleChange}
@@ -501,13 +500,13 @@ export function TabGeneral() {
                 name="googleDriveServiceAccountJson"
                 value={formData.googleDriveServiceAccountJson}
                 onChange={handleTextChange}
-                placeholder={integrationBadges.googleDriveSecret ? 'Da luu service account. Dan JSON moi neu can thay.' : '{"client_email":"...","private_key":"..."}'}
+                placeholder={integrationBadges.googleDriveSecret ? 'Đã lưu service account. Dán JSON mới nếu cần thay.' : '{"client_email":"...","private_key":"..."}'}
                 disabled={isDisabled}
                 rows={8}
                 className={`${inputClassName} min-h-40 resize-y`}
               />
               <p className="mt-2 text-xs text-foreground-muted">
-                Secret duoc ma hoa trong DB. Can co env `APP_SECRET_ENCRYPTION_KEY` de luu va doc.
+                Secret được mã hóa trong DB. Cần có env `APP_SECRET_ENCRYPTION_KEY` để lưu và đọc.
               </p>
             </Field>
           </div>
@@ -541,12 +540,12 @@ export function TabGeneral() {
             ) : savedState ? (
               <>
                 <CheckCircle2 size={18} />
-                Da xong
+                Đã xong
               </>
             ) : (
               <>
                 <Save size={18} />
-                Luu thay doi
+                Lưu thay đổi
               </>
             )}
           </button>
@@ -598,7 +597,7 @@ function ToggleField({
           disabled={disabled}
           className="h-4 w-4 rounded border-border/50"
         />
-        <span>{checked ? 'Enabled' : 'Disabled'}</span>
+        <span>{checked ? 'Bật' : 'Tắt'}</span>
       </label>
     </div>
   )
@@ -614,10 +613,10 @@ function StatusBadge({
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className={`rounded-full px-3 py-1 font-semibold ${active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-500/15 text-slate-400'}`}>
-        {active ? 'Enabled' : 'Disabled'}
+        {active ? 'Hoạt động' : 'Tắt'}
       </span>
       <span className={`rounded-full px-3 py-1 font-semibold ${configured ? 'bg-sky-500/15 text-sky-400' : 'bg-amber-500/15 text-amber-400'}`}>
-        {configured ? 'Secret saved' : 'Secret missing'}
+        {configured ? 'Đã có secret' : 'Thiếu secret'}
       </span>
     </div>
   )

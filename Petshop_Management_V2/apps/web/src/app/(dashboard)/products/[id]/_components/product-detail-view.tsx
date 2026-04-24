@@ -9,6 +9,7 @@ import { ArrowLeft, Box, Copy, History, Layers, Package, Pencil, RefreshCw, Tras
 import dayjs from 'dayjs'
 import { toast } from 'sonner'
 import { inventoryApi } from '@/lib/api/inventory.api'
+import { PRICE_BOOK_QUERY_KEY, extractPriceBooks } from '@/lib/price-books'
 import { findParentTrueVariant, getDisplayBranchStocks, getResolvedVariantLabels, groupVariantsWithConversions, parseConversionRate } from '@/lib/inventory-conversion-stock'
 import { ProductFormModal } from '../../_components/product-form-modal'
 import { settingsApi } from '@/lib/api'
@@ -241,7 +242,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
     queryFn: () => inventoryApi.getProduct(productId),
   })
   const { data: pbData } = useQuery({
-    queryKey: ['inventory', 'price-books'],
+    queryKey: PRICE_BOOK_QUERY_KEY,
     queryFn: inventoryApi.getPriceBooks,
     staleTime: 5 * 60 * 1000,
   })
@@ -308,7 +309,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
       .filter((branch: any) => branch?.id && branch?.name)
       .map((branch: any) => ({ id: branch.id, name: branch.name } satisfies BranchOption))
     : []
-  const priceBooks = pbData?.data || []
+  const priceBooks = extractPriceBooks(pbData)
 
   const activeStockRows = mergeBranchRowsWithBranches(activeItem.branchStocks, branches)
   const activeUnit = activeItem.displayUnit || product.unit || '—'

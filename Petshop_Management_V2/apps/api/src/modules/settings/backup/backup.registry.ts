@@ -202,7 +202,7 @@ const registry = [
     models: [
       { dataset: 'cashbookCategory', delegate: 'cashbookCategory' },
       { dataset: 'bankTransferAccount', delegate: 'bankTransferAccount' },
-      { dataset: 'paymentMethod', delegate: 'paymentMethod' },
+      { dataset: 'paymentMethod', delegate: 'paymentMethod', where: { isSystem: false } },
       { dataset: 'paymentWebhookSecret', delegate: 'paymentWebhookSecret' },
     ],
   }),

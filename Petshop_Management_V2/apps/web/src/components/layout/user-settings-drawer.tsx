@@ -67,9 +67,9 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
 
     if (googleLinkStatus === 'success') {
       void fetchMe()
-      toast.success('Lien ket Google thanh cong')
+      toast.success('Liên kết Google thành công')
     } else {
-      toast.error(message || 'Lien ket Google that bai')
+      toast.error(message || 'Liên kết Google thất bại')
     }
 
     currentUrl.searchParams.delete('google_link')
@@ -114,7 +114,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
             <div className="flex items-center justify-between border-b border-white/5 p-5">
               <div className="flex items-center gap-2 text-primary-400">
                 <Settings className="h-5 w-5" />
-                <h2 className="text-lg font-semibold text-foreground-base">Cai dat tai khoan</h2>
+                <h2 className="text-lg font-semibold text-foreground-base">Cài đặt tài khoản</h2>
               </div>
               <button
                 onClick={onClose}
@@ -143,14 +143,14 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate text-base font-bold text-foreground-base">{user.fullName}</h3>
                   <p className="truncate text-sm text-foreground-muted">@{user.username}</p>
-                  <p className="mt-0.5 text-xs text-primary-400">{currentBranch?.name || 'Chua chon nhanh'}</p>
+                  <p className="mt-0.5 text-xs text-primary-400">{currentBranch?.name || 'Chưa chọn nhánh'}</p>
                 </div>
                 <button
                   onClick={() => {
                     onClose()
                     window.location.href = `/staff/${user.username}`
                   }}
-                  title="Chinh sua tai khoan"
+                  title="Chỉnh sửa tài khoản"
                   className="absolute right-4 top-4 rounded-lg p-1.5 text-foreground-muted opacity-0 transition-all hover:bg-white/10 hover:text-white group-hover:opacity-100"
                 >
                   <Edit2 className="h-4 w-4" />
@@ -162,10 +162,10 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                   <div className="rounded-lg bg-orange-500/10 p-2 text-orange-400">
                     <Shield className="h-4 w-4" />
                   </div>
-                  <span className="text-sm font-medium text-foreground-base">Bao mat tai khoan</span>
+                  <span className="text-sm font-medium text-foreground-base">Bảo mật tài khoản</span>
                 </div>
                 <button className="text-sm font-medium text-primary-400 transition-colors hover:text-primary-300">
-                  Doi mat khau
+                  Đổi mật khẩu
                 </button>
               </div>
 
@@ -179,31 +179,30 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                       <p className="text-sm font-medium text-foreground-base">Google login</p>
                       <p className="text-xs text-foreground-muted">
                         {user.googleLinked
-                          ? user.googleEmail || 'Tai khoan Google da duoc lien ket'
-                          : 'Lien ket de dang nhap bang Google o nhung lan sau'}
+                          ? user.googleEmail || 'Tài khoản Google đã được liên kết'
+                          : 'Liên kết để đăng nhập bằng Google ở những lần sau'}
                       </p>
                     </div>
                   </div>
                   <span
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                      user.googleLinked
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${user.googleLinked
                         ? 'bg-emerald-500/10 text-emerald-300'
                         : 'bg-white/10 text-foreground-muted'
-                    }`}
+                      }`}
                   >
-                    {user.googleLinked ? 'Da lien ket' : 'Chua lien ket'}
+                    {user.googleLinked ? 'Đã liên kết' : 'Chưa liên kết'}
                   </span>
                 </div>
 
                 {googleStatusQuery.isLoading ? (
                   <div className="rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm text-foreground-muted">
-                    Dang tai trang thai Google...
+                    Đang tải trạng thái Google...
                   </div>
                 ) : canUseGoogleLink ? (
                   <>
                     {googleStatus?.allowedDomain ? (
                       <p className="text-xs text-foreground-muted">
-                        Domain duoc phep: <span className="font-medium text-foreground-base">{googleStatus.allowedDomain}</span>
+                        Domain được phép: <span className="font-medium text-foreground-base">{googleStatus.allowedDomain}</span>
                       </p>
                     ) : null}
                     <button
@@ -214,15 +213,15 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                     >
                       <span className="text-base">G</span>
                       {isConnectingGoogle
-                        ? 'Dang chuyen sang Google...'
+                        ? 'Đang chuyển sang Google...'
                         : user.googleLinked
-                          ? 'Ket noi lai Google'
-                          : 'Ket noi Google'}
+                          ? 'Kết nối lại Google'
+                          : 'Kết nối Google'}
                     </button>
                   </>
                 ) : (
                   <div className="rounded-xl border border-border/60 bg-background-base px-4 py-3 text-sm text-foreground-muted">
-                    Google login hien chua san sang. Lien he admin de hoan tat cau hinh OAuth.
+                    Google login hiện chưa sẵn sàng. Liên hệ admin để hoàn tất cấu hình OAuth.
                   </div>
                 )}
               </div>
@@ -232,22 +231,20 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                   <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400">
                     <Monitor className="h-4 w-4" />
                   </div>
-                  <span className="text-sm font-medium text-foreground-base">Giao dien</span>
+                  <span className="text-sm font-medium text-foreground-base">Giao diện</span>
                 </div>
                 <div className="flex items-center rounded-full border border-white/10 bg-background p-1">
                   <button
                     onClick={() => setTheme('light')}
-                    className={`flex items-center justify-center rounded-full p-1.5 transition-all ${
-                      theme === 'light' ? 'bg-white/10 text-primary-400' : 'text-foreground-muted hover:text-white'
-                    }`}
+                    className={`flex items-center justify-center rounded-full p-1.5 transition-all ${theme === 'light' ? 'bg-white/10 text-primary-400' : 'text-foreground-muted hover:text-white'
+                      }`}
                   >
                     <Sun className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => setTheme('dark')}
-                    className={`flex items-center justify-center rounded-full p-1.5 transition-all ${
-                      theme === 'dark' ? 'bg-white/10 text-primary-400' : 'text-foreground-muted hover:text-white'
-                    }`}
+                    className={`flex items-center justify-center rounded-full p-1.5 transition-all ${theme === 'dark' ? 'bg-white/10 text-primary-400' : 'text-foreground-muted hover:text-white'
+                      }`}
                   >
                     <Moon className="h-3.5 w-3.5" />
                   </button>
@@ -257,7 +254,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
               <div className="space-y-3 rounded-2xl border border-white/5 bg-black/20 p-4">
                 <div className="mb-1 flex items-center gap-2">
                   <Monitor className="h-4 w-4 text-primary-400" />
-                  <span className="text-sm font-medium text-foreground-base">Thong tin he thong</span>
+                  <span className="text-sm font-medium text-foreground-base">Thông tin hệ thống</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-foreground-muted">Phien ban:</span>
@@ -268,7 +265,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                   <span className="font-medium text-foreground-base">{currentBranch?.name || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-foreground-muted">Vai tro:</span>
+                  <span className="text-foreground-muted">Vai trò:</span>
                   <span className="font-medium text-foreground-base">{user.role}</span>
                 </div>
               </div>
@@ -284,7 +281,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-error/30 py-3 font-medium text-error transition-all hover:border-error/50 hover:bg-error/10"
               >
                 <LogOut className="h-4 w-4" />
-                Dang xuat
+                Đăng xuất
               </button>
             </div>
           </motion.div>

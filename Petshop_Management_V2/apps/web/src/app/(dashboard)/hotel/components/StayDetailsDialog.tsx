@@ -246,7 +246,7 @@ function isDaycareStay(stay: HotelStay | null) {
 }
 
 function getCareModeLabel(stay: HotelStay | null) {
-  return isDaycareStay(stay) ? 'Nha tre' : 'Luu tru'
+  return isDaycareStay(stay) ? 'Nhà trẻ' : 'Lưu trú'
 }
 
 function getPackageUsage(stay: HotelStay | null) {
@@ -739,8 +739,8 @@ export default function StayDetailsDialog({
   const displayTotalDays = isDaycare
     ? packageUsage.totalDays
     : stay?.status === 'CHECKED_IN' && currentPriceQuery.data
-    ? currentPriceQuery.data.totalDays
-    : totalDays
+      ? currentPriceQuery.data.totalDays
+      : totalDays
   const accessoryText = stay?.accessories ?? ''
   const careEntries = getStayCareEntries(stay, healthLogsQuery.data ?? [], stay?.notes ?? '')
   const noteSource = stay ? `${stay.id}:${stay.updatedAt}:${accessoryText}` : ''
@@ -791,7 +791,7 @@ export default function StayDetailsDialog({
 
   const saveStayDatesMutation = useMutation({
     mutationFn: () => {
-      if (!stay) throw new Error('Khong tim thay luu tru')
+      if (!stay) throw new Error('Không tìm thấy lưu trú')
       return hotelApi.updateStay(stay.id, buildStayDatePayload(stay, dateDraft))
     },
     onSuccess: (updatedStay) => {
@@ -1054,16 +1054,18 @@ export default function StayDetailsDialog({
                       </InfoPanel>
                     </section>
 
-                    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                      <InfoItem label="Che do" value={getCareModeLabel(stay)} />
-                      <InfoItem label="Goi" value={isDaycare ? 'Combo 10 ngay' : 'Tinh theo ngay'} />
-                      <InfoItem label="Bat dau goi" value={isDaycare ? formatStayDate(stay?.packageStartDate) : '---'} />
-                      <InfoItem label="Ket thuc goi" value={isDaycare ? formatStayDate(stay?.packageEndDate) : '---'} />
-                      <InfoItem
-                        label="Su dung"
-                        value={isDaycare ? `${packageUsage.consumedDays}/${packageUsage.totalDays} ngay • con ${packageUsage.remainingDays}` : `${displayTotalDays || 0} ngay`}
-                      />
-                    </section>
+                    {isDaycare ? (
+                      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                        <InfoItem label="Chế độ" value={getCareModeLabel(stay)} />
+                        <InfoItem label="Gói" value="Combo 10 ngày" />
+                        <InfoItem label="Bắt đầu gói" value={formatStayDate(stay?.packageStartDate)} />
+                        <InfoItem label="Kết thúc gói" value={formatStayDate(stay?.packageEndDate)} />
+                        <InfoItem
+                          label="Sử dụng"
+                          value={`${packageUsage.consumedDays}/${packageUsage.totalDays} ngày • còn ${packageUsage.remainingDays}`}
+                        />
+                      </section>
+                    ) : null}
 
                     <section className="grid gap-3 sm:grid-cols-4">
                       {isEditingStayDates && canEditStayDates ? (

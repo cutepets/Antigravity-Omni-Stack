@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { api } from '@/lib/api'
+import { PRICE_BOOK_QUERY_KEY, invalidatePriceBookQueries } from '@/lib/price-books'
 import { useAuthorization } from '@/hooks/useAuthorization'
 
 type DictionaryItem = {
@@ -545,7 +546,7 @@ function PriceBookCard({
 }) {
   const queryClient = useQueryClient()
   const endpoint = '/inventory/price-books'
-  const queryKey = ['settings', 'inventory', 'price-books']
+  const queryKey = PRICE_BOOK_QUERY_KEY
   const [draftName, setDraftName] = useState('')
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -583,7 +584,7 @@ function PriceBookCard({
     },
     onSuccess: () => {
       toast.success('Đã thêm bảng giá')
-      queryClient.invalidateQueries({ queryKey })
+      invalidatePriceBookQueries(queryClient)
       setDraftName('')
     },
     onError: (error: any) => {
@@ -601,7 +602,7 @@ function PriceBookCard({
     },
     onSuccess: () => {
       toast.success('Đã cập nhật bảng giá')
-      queryClient.invalidateQueries({ queryKey })
+      invalidatePriceBookQueries(queryClient)
       setEditingItemId(null)
       setEditingName('')
     },
@@ -630,7 +631,7 @@ function PriceBookCard({
     },
     onSuccess: () => {
       toast.success('Đã xóa bảng giá')
-      queryClient.invalidateQueries({ queryKey })
+      invalidatePriceBookQueries(queryClient)
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message || 'Không thể xóa bảng giá')
@@ -653,7 +654,7 @@ function PriceBookCard({
     },
     onSuccess: () => {
       toast.success('Đã cập nhật thứ tự bảng giá')
-      queryClient.invalidateQueries({ queryKey })
+      invalidatePriceBookQueries(queryClient)
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message || 'Không thể cập nhật thứ tự bảng giá')

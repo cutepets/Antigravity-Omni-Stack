@@ -19,7 +19,9 @@ import { FileInterceptor } from '@nestjs/platform-express'
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { memoryStorage } from 'multer'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
+import { Roles } from '../../common/decorators/roles.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { RolesGuard } from '../../common/guards/roles.guard.js'
 import {
   createMemoryUploadOptions,
   deleteUploadedFile,
@@ -590,5 +592,46 @@ export class SettingsController {
     @Body('isActive') isActive: boolean,
   ) {
     return this.settingsService.toggleModule(key, isActive)
+  }
+
+  // ─── About ──────────────────────────────────────────────────────────────────
+
+  @Get('settings/about')
+  @ApiOperation({ summary: 'Thong tin phien ban he thong' })
+  getAbout() {
+    const meta = this.backupService.getAppMetadata()
+    return {
+      success: true,
+      data: {
+        appId: meta.appId,
+        version: meta.appVersion,
+        nodeEnv: process.env['NODE_ENV'] ?? 'development',
+        buildDate: process.env['BUILD_DATE'] ?? null,
+      },
+    }
+  }
+
+  // ─── Purge (Data Reset) ─────────────────────────────────────────────────────
+
+  @Delete('settings/purge')
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'Xoa du lieu demo theo module (chi SUPER_ADMIN)' })
+  async purgeData(
+    @Body() dto: { modules: string[]; confirmPhrase: string },
+  ) {
+    if (dto.confirmPhrase !== 'XOA DU LIEU') {
+      throw new BadRequestException('Cum xac nhan khong chinh xac. Nhap "XOA DU LIEU" de xac nhan.')
+    }
+
+    if (!dto.modules?.length) {
+      throw new BadRequestException('Can chon it nhat 1 module de xoa du lieu')
+    }
+
+    const result = await this.backupService.purgeModules(
+      this.parseBackupModules(dto.modules),
+    )
+
+    return { success: true, data: result }
   }
 }

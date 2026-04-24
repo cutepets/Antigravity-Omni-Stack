@@ -22,8 +22,10 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { petApi } from '@/lib/api/pet.api';
+import { pricingApi } from '@/lib/api/pricing.api';
 import type { PetProfile } from '@petshop/shared';
 import { usePetPricingSuggestions } from '@/app/(dashboard)/pos/_hooks/use-pos-queries';
+import { buildServiceImageMap, resolveCartServiceImage } from '@/app/(dashboard)/orders/_components/order/service-image.utils';
 import { PetFormModal } from '@/app/(dashboard)/pets/_components/pet-form-modal';
 import { QuickVaccinationModal } from './QuickVaccinationModal';
 import { usePosStore } from '@/stores/pos.store';
@@ -180,6 +182,17 @@ export function UnifiedPetProfile({
 
   const pet = petQuery.data as PetProfile | undefined;
   const pricingSuggestionsQuery = usePetPricingSuggestions(pet);
+  const serviceImagesQuery = useQuery({
+    queryKey: ['pricing', 'spa-service-images'],
+    queryFn: () => pricingApi.getSpaServiceImages(),
+    enabled: isOpen && !hideSuggestions,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  const serviceImageMap = useMemo(
+    () => buildServiceImageMap(Array.isArray(serviceImagesQuery.data) ? serviceImagesQuery.data : []),
+    [serviceImagesQuery.data],
+  );
   const avatarUrl =
     pet?.avatar && !String(pet.avatar).startsWith('data:')
       ? String(pet.avatar).startsWith('http')
@@ -289,20 +302,40 @@ export function UnifiedPetProfile({
     }
   };
 
-  const renderSuggestedServiceCard = (service: any) => (
+  const renderSuggestedServiceCard = (service: any) => {
+    const serviceImage = resolveCartServiceImage(service, serviceImageMap);
+
+    return (
     <div
       key={service.id}
       onClick={() => canSelectSuggestedService(service) && onSelectService?.(service, pet!.id, pet!.name)}
-      className={`group relative flex ${canSelectSuggestedService(service) ? 'cursor-pointer hover:bg-background' : ''} ${isInCart(service) ? 'ring-2 ring-[#0089A1] bg-[#0089A1]/10' : 'bg-background-secondary'} flex-col justify-between rounded-xl p-4 transition-colors`}
+      className={`group relative flex ${canSelectSuggestedService(service) ? 'cursor-pointer hover:bg-background' : ''} ${isInCart(service) ? 'ring-2 ring-[#0089A1] bg-[#0089A1]/10' : 'bg-background-secondary'} items-stretch gap-3 rounded-xl p-3 transition-colors`}
     >
       {isInCart(service) && (
-        <div className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0089A1] shadow-sm">
+        <div className="absolute top-2 right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-[#0089A1] shadow-sm">
           <Check size={12} className="text-white" />
         </div>
       )}
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-h-[50px] flex-col justify-between">
+      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-border bg-background-tertiary text-foreground-muted">
+        {serviceImage ? (
+          <Image
+            src={serviceImage}
+            alt={service.name}
+            className="h-full w-full object-cover"
+            width={160}
+            height={160}
+            unoptimized
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            {service.suggestionKind === 'HOTEL' ? <Hotel size={22} /> : <Scissors size={22} />}
+          </div>
+        )}
+      </div>
+
+      <div className="flex min-w-0 flex-1 items-start justify-between gap-4 py-1 pr-1">
+        <div className="flex min-h-[62px] min-w-0 flex-col justify-between">
           <span
             className={`inline-flex w-fit rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${service.suggestionKind === 'HOTEL'
               ? 'bg-primary-500/10 text-primary-500'
@@ -314,7 +347,7 @@ export function UnifiedPetProfile({
             {service.suggestionKind}
           </span>
 
-          <div className="mt-4 flex flex-wrap items-center gap-1.5">
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <h3 className={`truncate text-[15px] font-bold text-foreground transition-colors ${onSelectService ? 'group-hover:text-primary-500' : ''}`}>
               {service.name}
             </h3>
@@ -340,7 +373,8 @@ export function UnifiedPetProfile({
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

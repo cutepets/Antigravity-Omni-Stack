@@ -1,29 +1,29 @@
 import type { PaymentMethod, PaymentMethodColorKey, PaymentMethodType } from '@/lib/api/settings.api'
 
 export const PAYMENT_METHOD_TYPE_LABELS: Record<PaymentMethodType, string> = {
-  CASH: 'Tien mat',
-  BANK: 'Chuyen khoan',
-  EWALLET: 'Vi dien tu',
-  CARD: 'Quet the',
-  POINTS: 'Diem tich luy',
+  CASH: 'Tiền mặt',
+  BANK: 'Chuyển khoản',
+  EWALLET: 'Ví điện tử',
+  CARD: 'Quẹt thẻ',
+  POINTS: 'Điểm tích lũy',
 }
 
 export const PAYMENT_METHOD_TYPE_OPTIONS: Array<{ value: PaymentMethodType; label: string }> = [
-  { value: 'CASH', label: 'Tien mat' },
-  { value: 'BANK', label: 'Chuyen khoan' },
-  { value: 'EWALLET', label: 'Vi dien tu' },
-  { value: 'CARD', label: 'Quet the' },
+  { value: 'CASH', label: 'Tiền mặt' },
+  { value: 'BANK', label: 'Chuyển khoản' },
+  { value: 'EWALLET', label: 'Ví điện tử' },
+  { value: 'CARD', label: 'Quẹt thẻ' },
 ]
 
 export const PAYMENT_METHOD_COLOR_OPTIONS: Array<{ value: PaymentMethodColorKey; label: string }> = [
-  { value: 'emerald', label: 'Xanh la' },
-  { value: 'sky', label: 'Xanh duong' },
-  { value: 'amber', label: 'Vang cam' },
+  { value: 'emerald', label: 'Xanh lá' },
+  { value: 'sky', label: 'Xanh dương' },
+  { value: 'amber', label: 'Vàng cam' },
   { value: 'orange', label: 'Cam' },
-  { value: 'violet', label: 'Tim' },
-  { value: 'rose', label: 'Hong do' },
+  { value: 'violet', label: 'Tím' },
+  { value: 'rose', label: 'Hồng đỏ' },
   { value: 'cyan', label: 'Cyan' },
-  { value: 'slate', label: 'Slate' },
+  { value: 'slate', label: 'Xám' },
 ]
 
 export const WEEKDAY_OPTIONS = [
@@ -231,8 +231,8 @@ export function summarizePaymentMethodConditions(method: PaymentMethod, branches
 
   if (method.minAmount !== null || method.maxAmount !== null) {
     const min = method.minAmount !== null && method.minAmount !== undefined ? new Intl.NumberFormat('vi-VN').format(method.minAmount) : '0'
-    const max = method.maxAmount !== null && method.maxAmount !== undefined ? new Intl.NumberFormat('vi-VN').format(method.maxAmount) : 'khong gioi han'
-    parts.push(`Tien: ${min} - ${max}`)
+    const max = method.maxAmount !== null && method.maxAmount !== undefined ? new Intl.NumberFormat('vi-VN').format(method.maxAmount) : 'không giới hạn'
+    parts.push(`Tiền: ${min} - ${max}`)
   }
 
   if (method.timeFrom || method.timeTo) {

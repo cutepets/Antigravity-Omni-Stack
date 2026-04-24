@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Database,
   History,
+  Info,
   MapPin,
   Moon,
   Package,
@@ -34,6 +35,7 @@ import { TabHistory } from './components/TabHistory'
 import { TabNotifications } from './components/TabNotifications'
 import { TabPrintTemplates } from './components/TabPrintTemplates'
 import { TabModules } from './components/TabModules'
+import { TabAbout } from './components/TabAbout'
 
 type SettingsTabConfig = {
   id: string
@@ -111,6 +113,7 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
     anyPermissions: ['settings.audit_log.read'],
   },
   { id: 'modules', label: 'Module', icon: Package, superAdminOnly: true },
+  { id: 'about', label: 'Giới thiệu', icon: Info },
 ]
 
 export default function SettingsPage() {
@@ -180,6 +183,8 @@ export default function SettingsPage() {
         return <TabHistory />
       case 'modules':
         return <TabModules />
+      case 'about':
+        return <TabAbout />
       case 'theme':
       default:
         return <ThemeTabComponent />

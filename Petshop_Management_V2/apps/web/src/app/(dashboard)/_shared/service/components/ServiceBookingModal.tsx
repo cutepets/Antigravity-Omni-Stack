@@ -98,19 +98,19 @@ export function ServiceBookingModal({
 
   const handleConfirm = () => {
     if (!selectedPet) {
-      toast.error('Vui long chon thu cung');
+      toast.error('Vui lòng chọn thú cưng');
       return;
     }
     if (!checkIn || (!isDaycare && !checkOut)) {
-      toast.error(isDaycare ? 'Vui long chon ngay bat dau goi nha tre' : 'Vui long chon ngay nhan va tra thu cung');
+      toast.error(isDaycare ? 'Vui lòng chọn ngày bắt đầu gói nhà trẻ' : 'Vui lòng chọn ngày nhận và trả thú cưng');
       return;
     }
     if (!hasHotelProfile) {
-      toast.error('Thu cung can co species va can nang de tinh gia');
+      toast.error('Thú cưng cần có species và cân nặng để tính giá');
       return;
     }
     if (!hasValidRange) {
-      toast.error('Ngay tra phai lon hon ngay nhan');
+      toast.error('Ngày trả phải lớn hơn ngày nhận');
       return;
     }
 
@@ -132,17 +132,17 @@ export function ServiceBookingModal({
         weightBandLabel: isDaycare ? service?.weightBandLabel ?? null : hotelPreviewQuery.data?.weightBand?.label ?? null,
         pricingPreview: isDaycare
           ? {
-              source: 'DAYCARE_COMBO_10',
-              totalDays: DAYCARE_PACKAGE_DAYS,
-              totalPrice: daycarePrice,
-              averageDailyRate: daycarePrice,
-              weightBand: service?.weightBandLabel
-                ? {
-                    id: service?.weightBandId ?? null,
-                    label: service.weightBandLabel,
-                  }
-                : undefined,
-            }
+            source: 'DAYCARE_COMBO_10',
+            totalDays: DAYCARE_PACKAGE_DAYS,
+            totalPrice: daycarePrice,
+            averageDailyRate: daycarePrice,
+            weightBand: service?.weightBandLabel
+              ? {
+                id: service?.weightBandId ?? null,
+                label: service.weightBandLabel,
+              }
+              : undefined,
+          }
           : hotelPreviewQuery.data,
       },
     });
@@ -154,7 +154,7 @@ export function ServiceBookingModal({
         <div className="flex items-center justify-between border-b border-border p-4">
           <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
             <Calendar size={18} className="text-primary-500" />
-            {isDaycare ? 'Dat goi nha tre' : 'Dat lich hotel'}: {service.name}
+            {isDaycare ? 'Đặt gói nhà trẻ' : 'Đặt lịch hotel'}: {service.name}
           </h2>
           <button onClick={onClose} className="rounded-lg p-1 text-foreground-muted hover:bg-background-tertiary">
             <X size={20} />
@@ -169,18 +169,18 @@ export function ServiceBookingModal({
               </label>
               {!customerId ? (
                 <div className="rounded-lg bg-warning/10 p-3 text-sm text-warning">
-                  Vui long chon khach hang truoc khi chon thu cung.
+                  Vui lòng chọn khách hàng trước khi chọn thú cưng.
                 </div>
               ) : pets.length === 0 ? (
                 <div className="rounded-lg bg-background-tertiary p-3 text-sm text-foreground-muted">
-                  Khach hang nay chua co thu cung tren he thong.
+                  Khách hàng này chưa có thú cưng trên hệ thống.
                 </div>
               ) : (
                 <select className="form-input" value={selectedPet} onChange={(event) => setSelectedPet(event.target.value)}>
-                  <option value="">-- Chon thu cung --</option>
+                  <option value="">-- Chọn thú cưng --</option>
                   {(pets as PetProfile[]).map((pet) => (
                     <option key={pet.id} value={pet.id}>
-                      {pet.name} ({pet.species || 'Khong ro'} - {pet.weight ?? '?'}kg)
+                      {pet.name} ({pet.species || 'Không rõ'} - {pet.weight ?? '?'}kg)
                     </option>
                   ))}
                 </select>
@@ -191,13 +191,13 @@ export function ServiceBookingModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-foreground-muted">
-                {isDaycare ? 'Bat dau goi' : 'Nhan phong'}
+                {isDaycare ? 'Bắt đầu gói' : 'Nhận phòng'}
               </label>
               <input type="date" className="form-input" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-foreground-muted">
-                {isDaycare ? 'Ket thuc goi' : 'Tra phong'}
+                {isDaycare ? 'Kết thúc gói' : 'Trả phòng'}
               </label>
               <input
                 type="date"
@@ -211,19 +211,19 @@ export function ServiceBookingModal({
 
           {selectedPetProfile && !hasHotelProfile ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-              Thu cung nay dang thieu species hoac can nang, chua the preview gia.
+              Thú cưng này đang thiếu species hoặc cân nặng, chưa thể preview giá.
             </div>
           ) : null}
 
           {selectedPetProfile && hasValidRange && hotelPreviewQuery.isLoading ? (
             <div className="rounded-xl border border-border bg-background-base p-4 text-sm text-foreground-muted">
-              Dang tinh bang gia hotel...
+              Đang tính bảng giá hotel...
             </div>
           ) : null}
 
           {selectedPetProfile && !hasValidRange && checkIn && effectiveCheckOut ? (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-600">
-              Ngay tra phai lon hon ngay nhan.
+              Ngày trả phải lớn hơn ngày nhận.
             </div>
           ) : null}
 
@@ -231,18 +231,18 @@ export function ServiceBookingModal({
             <div className="rounded-xl border border-primary-100 bg-primary-50/70 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Preview nha tre</p>
+                  <p className="text-sm font-semibold text-foreground">Preview nhà trẻ</p>
                   <p className="mt-1 text-xs text-foreground-muted">
-                    Hang can: <strong className="text-foreground">{service?.weightBandLabel ?? 'Chua xac dinh'}</strong>
+                    Hạng cân: <strong className="text-foreground">{service?.weightBandLabel ?? 'Chưa xác định'}</strong>
                     {' · '}
                     Combo <strong className="text-foreground">{DAYCARE_PACKAGE_DAYS} ngay</strong>
                   </p>
                   <p className="mt-1 text-xs text-foreground-muted">
-                    Tu {checkIn || '--'} den {effectiveCheckOut || '--'}
+                    Từ {checkIn || '--'} đến {effectiveCheckOut || '--'}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-foreground-muted">Tam tinh</p>
+                  <p className="text-xs text-foreground-muted">Tạm tính</p>
                   <p className="text-lg font-bold text-primary-700">
                     {formatCurrency(Number(service?.sellingPrice ?? service?.price ?? 0))}
                   </p>
@@ -258,14 +258,14 @@ export function ServiceBookingModal({
                   <p className="text-sm font-semibold text-foreground">Preview hotel</p>
                   <p className="mt-1 text-xs text-foreground-muted">
                     Hang can:{' '}
-                    <strong className="text-foreground">{hotelPreviewQuery.data.weightBand?.label ?? 'Chua xac dinh'}</strong>
+                    <strong className="text-foreground">{hotelPreviewQuery.data.weightBand?.label ?? 'Chưa xác định'}</strong>
                     {' · '}
-                    Tong ngay tinh tien:{' '}
+                    Tổng ngày tính tiền:{' '}
                     <strong className="text-foreground">{hotelPreviewQuery.data.totalDays}</strong>
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-foreground-muted">Tam tinh</p>
+                  <p className="text-xs text-foreground-muted">Tạm tính</p>
                   <p className="text-lg font-bold text-primary-700">{formatCurrency(hotelPreviewQuery.data.totalPrice)}</p>
                 </div>
               </div>
@@ -289,13 +289,13 @@ export function ServiceBookingModal({
 
         <div className="flex justify-end gap-3 border-t border-border bg-background-tertiary p-4">
           <button onClick={onClose} className="rounded-lg px-4 py-2 font-medium text-foreground transition-colors hover:bg-background-base">
-            Huy
+            Hủy
           </button>
           <button
             onClick={handleConfirm}
             className="flex items-center gap-2 rounded-lg bg-primary-500 px-6 py-2 font-bold text-white transition-colors hover:bg-primary-600"
           >
-            Them vao gio
+            Thêm vào giỏ
           </button>
         </div>
       </div>

@@ -397,7 +397,12 @@ async function main() {
     } as any,
   })
 
-  // Seed phương thức thanh toán điểm tích lũy
+  // Seed phương thức thanh toán hệ thống (không bị xóa khi purge)
+  await (prisma as any).paymentMethod.upsert({
+    where: { code: 'CASH' },
+    update: { name: 'Tiền Mặt', type: 'CASH', isSystem: true, isActive: true, isDefault: true, sortOrder: 0, colorKey: 'emerald' },
+    create: { code: 'CASH', name: 'Tiền Mặt', type: 'CASH', isSystem: true, isActive: true, isDefault: true, sortOrder: 0, colorKey: 'emerald' },
+  })
   await (prisma as any).paymentMethod.upsert({
     where: { code: 'POINTS' },
     update: { name: 'Điểm tích lũy', type: 'POINTS', isSystem: true, isActive: true, isDefault: false, sortOrder: 99, colorKey: 'violet' },
@@ -526,7 +531,7 @@ async function main() {
 
   await prisma.category.createMany({ data: ['Thức ăn', 'Vệ sinh', 'Phụ kiện', 'Chăm sóc', 'Thuốc'].map((name) => ({ name, description: `${name} standard demo category` })) as any[] })
   await prisma.brand.createMany({ data: ['Royal Canin', 'SmartHeart', 'Orijen', 'Happy Bark Foods', 'VitaCraft', 'PetBar', 'Acana', 'Me O', 'Whiskas', 'Purina', 'Temptations', 'Ciao', 'Hill\'s', 'Natural Cat Litter', 'Crystal Sand', 'Bio Care', 'PetStyle', 'PawScent', 'FunPet', 'Dr Pet', 'NutriPet', 'PetDent', 'Virbac', 'Vetcare'].map((name) => ({ name })) as any[] })
-  await prisma.unit.createMany({ data: ['gói', 'chai', 'hộp', 'cái', 'thanh', 'tuýp'].map((name) => ({ name, description: `${name} unit` })) as any[] })
+  await prisma.unit.createMany({ data: ['Gói', 'Chai', 'Hộp', 'Cái', 'Thanh', 'Tuýp', 'Lần'].map((name) => ({ name, description: `${name} unit` })) as any[] })
   await prisma.priceBook.createMany({
     data: [
       { name: 'Giá lẻ toàn hệ thống', channel: 'POS', isDefault: true, isActive: true, sortOrder: 1 },

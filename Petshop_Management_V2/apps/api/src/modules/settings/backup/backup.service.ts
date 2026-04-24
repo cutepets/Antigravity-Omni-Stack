@@ -37,7 +37,7 @@ export class BackupService {
   constructor(
     private readonly db: DatabaseService,
     private readonly storageService: StorageService,
-  ) {}
+  ) { }
 
   getCatalog() {
     return {
@@ -74,8 +74,8 @@ export class BackupService {
     }
 
     const manifest: BackupManifest = {
-      appId: this.readAppMetadata().appId,
-      appVersion: this.readAppMetadata().appVersion,
+      appId: this.getAppMetadata().appId,
+      appVersion: this.getAppMetadata().appVersion,
       formatName: APP_BACKUP_FORMAT_NAME,
       formatVersion: APP_BACKUP_FORMAT_VERSION,
       createdAt: new Date().toISOString(),
@@ -225,10 +225,43 @@ export class BackupService {
         warnings: schemaMatches
           ? this.buildWarnings(archive.manifest)
           : [
-              ...this.buildWarnings(archive.manifest),
-              'Schema fingerprint khac voi app hien tai; du lieu da restore dua tren tuong thich version cua module.',
-            ],
+            ...this.buildWarnings(archive.manifest),
+            'Schema fingerprint khac voi app hien tai; du lieu da restore dua tren tuong thich version cua module.',
+          ],
       },
+    }
+  }
+
+  async purgeModules(moduleIds: string[]) {
+    const validated = this.validateRequestedModules(moduleIds)
+
+    // Expand REVERSE dependencies: find all modules that depend on selected ones
+    const toPurge = new Set<string>(validated)
+    const expandReverse = (id: string) => {
+      const rdeps = getReverseDependencies(id)
+      for (const rdep of rdeps) {
+        if (!toPurge.has(rdep)) {
+          toPurge.add(rdep)
+          expandReverse(rdep)
+        }
+      }
+    }
+    for (const id of validated) expandReverse(id)
+
+    // Now expand forward dependencies and get topological order
+    const resolvedModules = this.expandDependencies([...toPurge])
+    // Reverse = clear dependents first, then their dependencies
+    const clearOrder = [...resolvedModules].reverse()
+
+    await this.db.$transaction(async (tx) => {
+      for (const moduleId of clearOrder) {
+        const definition = this.requireDefinition(moduleId)
+        await definition.clearForRestore(tx as any)
+      }
+    }, { timeout: 60_000 })
+
+    return {
+      purgedModules: clearOrder,
     }
   }
 
@@ -358,7 +391,7 @@ export class BackupService {
     return warnings
   }
 
-  private readAppMetadata(): AppMetadata {
+  getAppMetadata(): AppMetadata {
     const fallback = {
       appId: 'application',
       appVersion: '0.0.0',

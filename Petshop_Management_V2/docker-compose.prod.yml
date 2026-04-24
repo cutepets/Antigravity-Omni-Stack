@@ -1,0 +1,103 @@
+# ═══════════════════════════════════════════════════════════════
+# Petshop Management V2 — Production Docker Compose
+# ═══════════════════════════════════════════════════════════════
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml exec api npx prisma migrate deploy
+#   docker compose -f docker-compose.prod.yml exec api npx prisma db seed
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  # ── PostgreSQL 16 ────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: petshop_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-petshop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-petshop_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-petshop_db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - petshop-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-petshop} -d ${POSTGRES_DB:-petshop_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis 7 ──────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: petshop_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - petshop-net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── NestJS API ───────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api-runner
+    container_name: petshop_api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-petshop}:${POSTGRES_PASSWORD:-petshop_secret}@postgres:5432/${POSTGRES_DB:-petshop_db}
+      REDIS_URL: redis://redis:6379
+      API_PORT: 3001
+    ports:
+      - "127.0.0.1:3003:3001"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - petshop-net
+
+  # ── Next.js Web ──────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web-runner
+      args:
+        NEXT_PUBLIC_API_URL: https://app.petshophanoi.com
+    container_name: petshop_web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOSTNAME: "0.0.0.0"
+      PORT: 3000
+    ports:
+      - "127.0.0.1:3002:3000"
+    depends_on:
+      - api
+    networks:
+      - petshop-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+
+
+networks:
+  petshop-net:
+    driver: bridge
