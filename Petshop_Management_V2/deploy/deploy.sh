@@ -31,7 +31,9 @@ echo '════════════════════════�
 echo ''
 echo '🔄 Step 1/6: Pulling latest code...'
 cd "$APP_DIR" && git pull origin "$BRANCH" || fail 'Git pull failed'
-log "Code updated from branch: $BRANCH"
+VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo 'unknown')
+COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
+log "Code updated: v$VERSION ($COMMIT) from branch: $BRANCH"
 
 # Step 2: Build Docker images
 echo ''
@@ -79,6 +81,11 @@ fi
 
 echo ''
 echo '═══════════════════════════════════════════'
+echo "📦 Version: v$VERSION"
+echo "🔖 Commit:  $COMMIT"
+echo "🌿 Branch:  $BRANCH"
+echo "📅 Date:    $(date '+%Y-%m-%d %H:%M:%S')"
+echo '───────────────────────────────────────────'
 docker ps --filter name=petshop --format 'table {{.Names}}\t{{.Status}}'
 echo '═══════════════════════════════════════════'
 echo '🎉 Deploy complete!'
