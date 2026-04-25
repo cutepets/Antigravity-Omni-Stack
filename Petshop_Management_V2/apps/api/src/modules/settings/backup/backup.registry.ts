@@ -33,7 +33,7 @@ export interface BackupModuleDefinition {
 function getDelegate(db: BackupDbClient, delegate: string) {
   const target = db[delegate]
   if (!target) {
-    throw new BadRequestException(`Khong tim thay delegate Prisma cho ${delegate}`)
+    throw new BadRequestException(`Không tìm thấy delegate Prisma cho ${delegate}`)
   }
   return target
 }
@@ -102,7 +102,7 @@ function createPrismaBackedModule(config: {
     async restore(db, moduleVersion, datasets) {
       if (!definition.supportedImportVersions.includes(moduleVersion)) {
         throw new BadRequestException(
-          `Module ${config.moduleId} version ${moduleVersion} khong duoc ho tro`,
+          `Module ${config.moduleId} version ${moduleVersion} không được hỗ trợ`,
         )
       }
 
@@ -169,7 +169,7 @@ function restoreSystemConfig(record: any) {
 const registry = [
   createPrismaBackedModule({
     moduleId: 'core.settings',
-    label: 'Cau hinh he thong',
+    label: 'Cấu hình hệ thống',
     moduleVersion: 1,
     dependencies: [],
     keepsFileRefs: true,
@@ -195,7 +195,7 @@ const registry = [
   }),
   createPrismaBackedModule({
     moduleId: 'finance.configuration',
-    label: 'Cau hinh tai chinh',
+    label: 'Cấu hình tài chính',
     moduleVersion: 1,
     dependencies: [],
     keepsFileRefs: false,
@@ -208,7 +208,7 @@ const registry = [
   }),
   createPrismaBackedModule({
     moduleId: 'core.organization',
-    label: 'To chuc va nguoi dung',
+    label: 'Tổ chức và người dùng',
     moduleVersion: 1,
     dependencies: [],
     keepsFileRefs: true,
@@ -220,7 +220,7 @@ const registry = [
   }),
   createPrismaBackedModule({
     moduleId: 'crm.contacts',
-    label: 'Khach hang va doi tuong',
+    label: 'Khách hàng và đối tượng',
     moduleVersion: 1,
     dependencies: ['core.organization'],
     keepsFileRefs: true,
@@ -236,7 +236,7 @@ const registry = [
   }),
   createPrismaBackedModule({
     moduleId: 'catalog.items',
-    label: 'Danh muc va dich vu',
+    label: 'Danh mục và dịch vụ',
     moduleVersion: 1,
     dependencies: [],
     keepsFileRefs: true,
@@ -257,7 +257,7 @@ const registry = [
   }),
   createPrismaBackedModule({
     moduleId: 'inventory.stock',
-    label: 'Ton kho va nhap xuat',
+    label: 'Tồn kho và nhập xuất',
     moduleVersion: 1,
     dependencies: ['core.organization', 'catalog.items'],
     keepsFileRefs: true,
@@ -284,7 +284,7 @@ const registry = [
   }),
   createPrismaBackedModule({
     moduleId: 'operations.commerce',
-    label: 'Van hanh giao dich',
+    label: 'Vận hành giao dịch',
     moduleVersion: 1,
     dependencies: [
       'finance.configuration',
@@ -317,7 +317,7 @@ const registry = [
   }),
   createPrismaBackedModule({
     moduleId: 'hr.workforce',
-    label: 'Nhan su va cong luong',
+    label: 'Nhân sự và công lương',
     moduleVersion: 1,
     dependencies: ['core.organization'],
     keepsFileRefs: true,
@@ -334,7 +334,7 @@ const registry = [
   }),
   createPrismaBackedModule({
     moduleId: 'assets.equipment',
-    label: 'Tai san va thiet bi',
+    label: 'Tài sản và thiết bị',
     moduleVersion: 1,
     dependencies: ['core.organization'],
     keepsFileRefs: true,

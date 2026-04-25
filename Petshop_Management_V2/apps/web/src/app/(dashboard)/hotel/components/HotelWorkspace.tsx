@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LayoutGrid, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -40,9 +40,16 @@ function HotelWorkspaceContent() {
     }
   }, [])
 
+  const wasDeepLinkedRef = useRef(false)
+
   useEffect(() => {
     if (initialSearch || focusStayId) {
+      wasDeepLinkedRef.current = true
       setViewMode('list')
+    } else if (wasDeepLinkedRef.current) {
+      // Return to kanban when deep-link params are cleared (e.g. dialog closed)
+      wasDeepLinkedRef.current = false
+      setViewMode('kanban')
     }
   }, [focusStayId, initialSearch])
 
@@ -62,17 +69,17 @@ function HotelWorkspaceContent() {
           <div className="mb-4 flex items-center justify-end gap-3">
             <HotelQuickPreviewTool triggerClassName="bg-background-secondary text-foreground hover:bg-background-secondary/80" />
             <div className="inline-flex items-center p-1 border rounded-2xl border-border bg-background-secondary">
-              <button 
-                type="button" 
-                onClick={() => setViewMode('kanban')} 
+              <button
+                type="button"
+                onClick={() => setViewMode('kanban')}
                 className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'kanban' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}
               >
                 <LayoutGrid size={15} />
                 Sơ đồ
               </button>
-              <button 
-                type="button" 
-                onClick={() => setViewMode('list')} 
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
                 className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'list' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}
               >
                 <List size={15} />

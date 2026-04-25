@@ -412,7 +412,7 @@ function PosPageContent() {
                 className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap"
                 onClick={() => {
                   const url = authUser?.id ? `/orders?staffId=${authUser.id}` : '/orders';
-                  router.push(url);
+                  window.open(url, '_blank');
                 }}
               >Xem đơn hàng</button>
               <button

@@ -1229,6 +1229,7 @@ export class HotelService {
     if (data.notes !== undefined) updateData.notes = data.notes;
     if (data.petNotes !== undefined) updateData.petNotes = data.petNotes;
     if (data.accessories !== undefined) updateData.accessories = data.accessories;
+    if (data.secondaryPhone !== undefined) updateData.secondaryPhone = data.secondaryPhone;
     if (data.slotIndex !== undefined) updateData.slotIndex = data.slotIndex;
     if (data.price !== undefined) updateData.price = data.price;
     if (data.dailyRate !== undefined) updateData.dailyRate = data.dailyRate;
@@ -1258,7 +1259,7 @@ export class HotelService {
     const changedKeys = Object.keys(data);
     const isNotesOnlyUpdate =
       changedKeys.length > 0 &&
-      changedKeys.every((key) => ['notes', 'petNotes', 'accessories'].includes(key));
+      changedKeys.every((key) => ['notes', 'petNotes', 'accessories', 'secondaryPhone'].includes(key));
 
     if (isNotesOnlyUpdate) {
       const updated = await this.prisma.$transaction(async (tx) => {

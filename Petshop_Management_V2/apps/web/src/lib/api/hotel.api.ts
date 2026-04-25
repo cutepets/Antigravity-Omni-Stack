@@ -97,6 +97,7 @@ export interface HotelStay {
   } | null
   slotIndex?: number | null
   accessories?: string | null
+  secondaryPhone?: string | null
   pet?: {
     id: string
     petCode?: string | null
@@ -262,6 +263,7 @@ export interface CreateHotelStayDto {
   notes?: string
   petNotes?: string
   accessories?: string
+  secondaryPhone?: string
   slotIndex?: number
   adjustments?: Array<{
     id?: string

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Download,
   ImagePlus,
@@ -30,6 +30,7 @@ import { getPaymentMethodColorClasses } from '@/lib/payment-methods'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { exportOrdersToExcel } from '@/lib/order-export'
 import { OrderStatusBadge, PaymentStatusBadge } from './order/order-badges'
+import { useAuthorization } from '@/hooks/useAuthorization'
 import {
   DataListShell,
   DataListToolbar,
@@ -159,6 +160,8 @@ function StockStatusBadge({ stockExportedAt, status }: { stockExportedAt?: strin
 
 export function OrderList() {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const { isSuperAdmin } = useAuthorization()
   const searchParams = useSearchParams()
   const urlProductId = searchParams.get('productId') ?? ''
   const urlStaffId = searchParams.get('staffId') ?? ''
@@ -216,6 +219,11 @@ export function OrderList() {
     allVisibleSelected,
   } = useDataListSelection(visibleRowIds)
 
+  const selectedOrderIds = useMemo(
+    () => Array.from(selectedRowIds).map((id) => id.replace('o:', '')),
+    [selectedRowIds],
+  )
+
   const toggleColumnSort = (columnId: DisplayColumnId) => {
     if (!SORTABLE_COLUMNS.has(columnId)) return
     dataListState.toggleColumnSort(columnId)
@@ -249,6 +257,34 @@ export function OrderList() {
     onSuccess: () => toast.success(`Đã export ${selectedRowIds.size} đơn hàng`),
     onError: () => toast.error('Lỗi khi export'),
   })
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: (orderId: string) => orderApi.delete(orderId),
+    onSuccess: (result: any) => {
+      const deletedCount = Array.isArray(result?.deletedIds) ? result.deletedIds.length : 1
+      toast.success(`Đã xóa ${deletedCount} đơn hàng`)
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      clearSelection()
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Không thể xóa đơn hàng')
+    },
+  })
+
+  const bulkDeleteOrdersMutation = useMutation({
+    mutationFn: (ids: string[]) => orderApi.bulkDelete(ids),
+    onSuccess: (result) => {
+      if (result.deletedIds.length > 0) toast.success(`Đã xóa ${result.deletedIds.length} đơn hàng`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} đơn hàng không thể xóa`)
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      clearSelection()
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Không thể xóa các đơn hàng đã chọn')
+    },
+  })
+
+  const canDeleteOrders = isSuperAdmin()
 
   const clearFilters = () => {
     setPaymentStatus('')
@@ -427,6 +463,20 @@ export function OrderList() {
               >
                 <Download size={13} /> Export {selectedRowIds.size} đơn
               </button>
+              {canDeleteOrders ? (
+                <button
+                  type="button"
+                  className="flex h-8 items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-50 px-3 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={bulkDeleteOrdersMutation.isPending}
+                  onClick={() => {
+                    if (window.confirm(`Xóa vĩnh viễn ${selectedOrderIds.length} đơn hàng đã chọn và toàn bộ chứng từ liên quan?`)) {
+                      bulkDeleteOrdersMutation.mutate(selectedOrderIds)
+                    }
+                  }}
+                >
+                  <Trash2 size={13} /> Xóa {selectedOrderIds.length} đơn
+                </button>
+              ) : null}
             </DataListBulkBar>
           ) : undefined
         }
@@ -451,11 +501,30 @@ export function OrderList() {
                 switch (columnId) {
                   case 'code': return (
                     <td key={columnId} className="px-3 py-3 w-24">
-                      <span
-                        className="font-mono text-xs font-bold text-foreground transition-colors group-hover:text-primary-500"
-                      >
-                        {o.orderNumber || '--'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="font-mono text-xs font-bold text-foreground transition-colors group-hover:text-primary-500"
+                        >
+                          {o.orderNumber || '--'}
+                        </span>
+                        {canDeleteOrders ? (
+                          <button
+                            type="button"
+                            title="Xóa vĩnh viễn đơn hàng"
+                            aria-label={`Xóa vĩnh viễn đơn ${o.orderNumber || o.id}`}
+                            disabled={deleteOrderMutation.isPending}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              if (window.confirm(`Xóa vĩnh viễn đơn ${o.orderNumber || o.id} và toàn bộ chứng từ liên quan?`)) {
+                                deleteOrderMutation.mutate(o.id)
+                              }
+                            }}
+                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   );
                   case 'customer': return (

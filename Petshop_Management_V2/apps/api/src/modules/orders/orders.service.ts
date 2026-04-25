@@ -13,6 +13,21 @@ import {
   createOrderTimelineEntry,
   createStockExportTimelineEntry,
 } from './application/order-timeline.application.js';
+import {
+  buildExchangeOrderData,
+  calculateExchangeOrderSubtotal,
+  buildCurrentReturnQuantityMap,
+  buildReturnedQuantityMap,
+  buildReturnItemSummary,
+  calculateReturnCreditBreakdown,
+  getReturnableQuantity,
+  hasRemainingReturnableProductQuantity,
+  isReturnAction,
+  isOrderReturnWindowExpired,
+  validateExchangeOrderItems,
+  resolveReturnRefundAmount,
+  resolveOrderReturnWindowDays,
+} from './application/order-return.application.js';
 import { buildOrderPaymentUpdate } from './application/order-payment.application.js';
 import { buildCreateOrderDraft } from './application/order-workflow.application.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
@@ -33,6 +48,7 @@ import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
 import { buildVietQrDataUrl, buildVietQrPayload } from '../../common/utils/vietqr.util.js';
 import { resolveInventoryLedgerMovement } from '../../common/utils/inventory-ledger.util.js';
+import { runBulkDelete } from '../../common/utils/bulk-delete.util.js';
 import { mapOrderPaymentIntentView } from './mappers/payment-intent.mapper.js';
 import {
   assertHasPositivePayments,
@@ -674,7 +690,19 @@ export class OrdersService {
         customerName?: string | null;
         branchId?: string | null;
         paymentStatus?: string | null;
-        items?: Array<{ groomingSessionId?: string | null; hotelStayId?: string | null }>;
+        status?: string | null;
+        stockExportedAt?: Date | null;
+        items?: Array<{
+          id?: string;
+          type?: string | null;
+          productId?: string | null;
+          productVariantId?: string | null;
+          quantity?: number;
+          isTemp?: boolean | null;
+          stockExportedAt?: Date | null;
+          groomingSessionId?: string | null;
+          hotelStayId?: string | null;
+        }>;
         hotelStays?: Array<{ id: string; stayCode?: string | null }>;
       };
       payments: Array<{
@@ -740,14 +768,76 @@ export class OrdersService {
 
     await this.expirePendingPaymentIntents(tx as any, { orderId: params.order.id });
 
+    const now = new Date();
+    const orderItems = params.order.items ?? [];
+    const hasServiceItems = orderItems.some((item) => (
+      item.type === 'service' ||
+      item.type === 'grooming' ||
+      item.type === 'hotel' ||
+      Boolean(item.groomingSessionId) ||
+      Boolean(item.hotelStayId)
+    ));
+    const autoExportItems = paymentStatus === 'PAID' && Boolean(params.staffId) && !params.order.stockExportedAt && !hasServiceItems
+      ? orderItems.filter((item) => (
+        item.type === 'product' &&
+        Boolean(item.id) &&
+        Boolean(item.productId) &&
+        item.isTemp !== true &&
+        !item.stockExportedAt
+      ))
+      : [];
+
+    for (const item of autoExportItems) {
+      await this.deductProductBranchStock(tx as any, {
+        branchId: params.order.branchId ?? null,
+        productId: item.productId!,
+        productVariantId: item.productVariantId ?? null,
+        quantity: Number(item.quantity ?? 0),
+        orderId: params.order.id,
+        staffId: params.staffId!,
+        reason: `Xuat kho don doi #${params.order.orderNumber}`,
+      });
+      await (tx as any).orderItem.update({
+        where: { id: item.id! },
+        data: {
+          stockExportedAt: now,
+          stockExportedBy: params.staffId!,
+        } as any,
+      });
+    }
+
+    const shouldAutoComplete = autoExportItems.length > 0;
     return tx.order.update({
       where: { id: params.order.id },
       data: {
         paidAmount: totalPaid,
         remainingAmount: remaining,
         paymentStatus: paymentStatus as any,
+        ...(shouldAutoComplete
+          ? {
+            status: 'COMPLETED' as any,
+            completedAt: now,
+            stockExportedAt: now,
+            stockExportedBy: params.staffId ?? null,
+          }
+          : {}),
       },
       include: { items: true, payments: true, customer: true },
+    }).then(async (updatedOrder: any) => {
+      if (shouldAutoComplete) {
+        const pendingTempCount = orderItems.filter((item) => item.type === 'product' && item.isTemp === true).length;
+        await createStockExportTimelineEntry(tx.orderTimeline as any, {
+          orderId: params.order.id,
+          fromStatus: params.order.status ?? null,
+          toStatus: 'COMPLETED',
+          performedBy: params.staffId!,
+          occurredAt: now,
+          exportedItemCount: autoExportItems.length,
+          pendingTempCount,
+          metadata: { source: 'PAYMENT_AUTO_EXPORT' },
+        });
+      }
+      return updatedOrder;
     });
   }
 
@@ -1722,6 +1812,30 @@ export class OrdersService {
     };
     const pet = await tx.pet.findUnique({ where: { id: firstDetails.petId } });
 
+    // Validate: prevent duplicate active stays for the same pet
+    const overlap = await tx.hotelStay.findFirst({
+      where: {
+        petId: firstDetails.petId,
+        status: { in: ['BOOKED', 'CHECKED_IN'] },
+        checkIn: { lt: checkOutDate },
+        OR: [
+          { estimatedCheckOut: null },
+          { estimatedCheckOut: { gt: checkInDate } },
+          { checkOutActual: { gt: checkInDate } },
+          { checkOut: { gt: checkInDate } },
+        ],
+      },
+      select: { id: true, stayCode: true },
+    });
+    if (overlap) {
+      throw new BadRequestException(
+        `Thú cưng đã có lượt lưu trú trùng thời gian${overlap.stayCode ? ` (${overlap.stayCode})` : ''}.`,
+      );
+    }
+
+    // Auto-checkin if checkIn is now or in the past (POS flow)
+    const resolvedStatus = checkInDate <= new Date() ? 'CHECKED_IN' : 'BOOKED';
+
     const stay = await tx.hotelStay.create({
       data: {
         stayCode,
@@ -1732,7 +1846,7 @@ export class OrdersService {
         cageId: firstDetails.cageId ?? null,
         checkIn: checkInDate,
         estimatedCheckOut: checkOutDate,
-        status: 'BOOKED',
+        status: resolvedStatus,
         lineType: displayLineType as any,
         price: totalPrice,
         dailyRate: firstDetails.dailyRate ?? (totalDays > 0 ? totalPrice / totalDays : first.item.unitPrice),
@@ -2507,8 +2621,8 @@ export class OrdersService {
   }
 
   async createPaymentIntent(id: string, dto: CreatePaymentIntentDto, user?: AccessUser): Promise<OrderPaymentIntentView> {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+    const order = await this.prisma.order.findFirst({
+      where: { OR: [{ id }, { orderNumber: id }] },
       select: {
         id: true,
         orderNumber: true,
@@ -2744,6 +2858,13 @@ export class OrdersService {
           select: {
             groomingSessionId: true,
             hotelStayId: true,
+            id: true,
+            type: true,
+            productId: true,
+            productVariantId: true,
+            quantity: true,
+            isTemp: true,
+            stockExportedAt: true,
           },
         },
         hotelStays: {
@@ -2769,6 +2890,8 @@ export class OrdersService {
         order: {
           id: order.id,
           orderNumber: order.orderNumber,
+          status: order.status,
+          stockExportedAt: order.stockExportedAt,
           total: order.total,
           paidAmount: order.paidAmount,
           customerId: order.customerId ?? null,
@@ -2787,8 +2910,8 @@ export class OrdersService {
   // completeOrder
   // Finalize SERVICE order: validate sessions, deduct stock, update customer
   async completeOrder(id: string, dto: CompleteOrderDto, staffId: string, user?: AccessUser): Promise<any> {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+    const order = await this.prisma.order.findFirst({
+      where: { OR: [{ id }, { orderNumber: id }] },
       include: {
         items: {
           include: {
@@ -2852,7 +2975,7 @@ export class OrdersService {
         if (!item.productId) continue;
         await this.deductProductBranchStock(tx as any, {
           branchId: order.branchId ?? null,
-          productId: item.productId,
+          productId: item.productId!,
           productVariantId: item.productVariantId ?? null,
           quantity: item.quantity,
           orderId: order.id,
@@ -2969,7 +3092,7 @@ export class OrdersService {
         completedAt: completed.completedAt ?? now,
         branchId: completed.branchId ?? null,
         items: completed.items.map((item) => ({
-          productId: item.productId,
+          productId: item.productId!,
           productVariantId: item.productVariantId,
           quantity: item.quantity,
           subtotal: item.subtotal,
@@ -3048,6 +3171,350 @@ export class OrdersService {
   }
 
   // â”€â”€â”€ refundOrder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  private assertCanPermanentlyDeleteOrder(user?: AccessUser) {
+    if (user?.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Chi SUPER_ADMIN moi duoc xoa vinh vien don hang');
+    }
+  }
+
+  private async collectOrderDeleteGraph(
+    tx: Pick<DatabaseService, 'order' | 'orderReturnRequest'>,
+    seedOrderIds: string[],
+  ): Promise<{ orderIds: string[]; returnRequestIds: string[] }> {
+    const orderIds = new Set(seedOrderIds.filter(Boolean));
+    const returnRequestIds = new Set<string>();
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+      const currentOrderIds = [...orderIds];
+      const currentReturnRequestIds = [...returnRequestIds];
+
+      const orders = currentOrderIds.length > 0
+        ? await (tx as any).order.findMany({
+          where: { id: { in: currentOrderIds } },
+          select: { id: true, linkedReturnId: true },
+        })
+        : [];
+
+      for (const order of orders) {
+        if (order.linkedReturnId && !returnRequestIds.has(order.linkedReturnId)) {
+          returnRequestIds.add(order.linkedReturnId);
+          changed = true;
+        }
+      }
+
+      const returnWhere: any[] = [];
+      if (currentOrderIds.length > 0) returnWhere.push({ orderId: { in: currentOrderIds } });
+      if (currentReturnRequestIds.length > 0) returnWhere.push({ id: { in: currentReturnRequestIds } });
+
+      const returnRequests = returnWhere.length > 0
+        ? await (tx as any).orderReturnRequest.findMany({
+          where: { OR: returnWhere },
+          select: { id: true, orderId: true },
+        })
+        : [];
+
+      for (const request of returnRequests) {
+        if (!returnRequestIds.has(request.id)) {
+          returnRequestIds.add(request.id);
+          changed = true;
+        }
+        if (request.orderId && !orderIds.has(request.orderId)) {
+          orderIds.add(request.orderId);
+          changed = true;
+        }
+      }
+
+      const nextReturnRequestIds = [...returnRequestIds];
+      const exchangeOrders = nextReturnRequestIds.length > 0
+        ? await (tx as any).order.findMany({
+          where: { linkedReturnId: { in: nextReturnRequestIds } },
+          select: { id: true },
+        })
+        : [];
+
+      for (const order of exchangeOrders) {
+        if (!orderIds.has(order.id)) {
+          orderIds.add(order.id);
+          changed = true;
+        }
+      }
+    }
+
+    return { orderIds: [...orderIds], returnRequestIds: [...returnRequestIds] };
+  }
+
+  private async reverseOrderStockTransactions(tx: DatabaseService, orderIds: string[]) {
+    const stockTransactions = await (tx as any).stockTransaction.findMany({
+      where: {
+        referenceType: 'ORDER',
+        referenceId: { in: orderIds },
+      },
+      select: {
+        id: true,
+        productId: true,
+        productVariantId: true,
+        sourceProductVariantId: true,
+        branchId: true,
+        type: true,
+        quantity: true,
+        sourceQuantity: true,
+        actionQuantity: true,
+      },
+    });
+
+    for (const movement of stockTransactions) {
+      const type = String(movement.type ?? '').toUpperCase();
+      if (type !== 'IN' && type !== 'OUT') continue;
+
+      const quantity = Math.abs(Number(movement.sourceQuantity ?? movement.quantity ?? movement.actionQuantity ?? 0));
+      if (!Number.isFinite(quantity) || quantity <= 0) continue;
+      if (!movement.branchId) {
+        throw new BadRequestException('Khong the dao ton kho cua giao dich thieu chi nhanh');
+      }
+
+      const productVariantId = movement.sourceProductVariantId ?? movement.productVariantId ?? null;
+      let branchStock = await (tx as any).branchStock.findFirst({
+        where: {
+          branchId: movement.branchId,
+          productId: movement.productId,
+          productVariantId,
+        },
+      });
+
+      if (!branchStock && productVariantId !== null) {
+        branchStock = await (tx as any).branchStock.findFirst({
+          where: {
+            branchId: movement.branchId,
+            productId: movement.productId,
+            productVariantId: null,
+          },
+        });
+      }
+
+      if (!branchStock && productVariantId === null) {
+        branchStock = await (tx as any).branchStock.findFirst({
+          where: {
+            branchId: movement.branchId,
+            productId: movement.productId,
+          },
+        });
+      }
+
+      if (type === 'OUT') {
+        if (branchStock) {
+          await (tx as any).branchStock.update({
+            where: { id: branchStock.id },
+            data: { stock: { increment: quantity } },
+          });
+        } else {
+          await (tx as any).branchStock.create({
+            data: {
+              branchId: movement.branchId,
+              productId: movement.productId,
+              productVariantId,
+              stock: quantity,
+              reservedStock: 0,
+              minStock: 5,
+            } as any,
+          });
+        }
+      } else {
+        if (!branchStock || Number(branchStock.stock ?? 0) < quantity) {
+          throw new BadRequestException('Ton kho khong du de dao giao dich nhap kho cua don hang');
+        }
+        await (tx as any).branchStock.update({
+          where: { id: branchStock.id },
+          data: { stock: { decrement: quantity } },
+        });
+      }
+    }
+
+    if (stockTransactions.length > 0) {
+      await (tx as any).stockTransaction.deleteMany({
+        where: { id: { in: stockTransactions.map((movement: any) => movement.id) } },
+      });
+    }
+  }
+
+  private async rollbackOrderCustomerAndSales(
+    tx: DatabaseService,
+    params: {
+      orders: any[];
+      paymentsByOrderId: Map<string, any[]>;
+      transactionsByOrderId: Map<string, any[]>;
+      loyaltyPointValue: number;
+    },
+  ) {
+    for (const order of params.orders) {
+      if (!order.customerId) continue;
+
+      const isCompletedOrder = Boolean(order.completedAt) || ['COMPLETED', 'PARTIALLY_REFUNDED', 'FULLY_REFUNDED'].includes(String(order.status ?? ''));
+      const pointsEarned = isCompletedOrder ? Math.floor(Number(order.total ?? 0) / 1000) : 0;
+      const pointPaymentTotal = (params.paymentsByOrderId.get(order.id) ?? [])
+        .filter((payment) => String(payment.method ?? '').toUpperCase() === 'POINTS')
+        .reduce((sum, payment) => sum + Math.max(0, Number(payment.amount ?? 0)), 0);
+      const pointsToRestore = pointPaymentTotal > 0
+        ? Math.ceil(pointPaymentTotal / params.loyaltyPointValue)
+        : 0;
+      const pointDelta = pointsToRestore - pointsEarned;
+
+      const transactions = params.transactionsByOrderId.get(order.id) ?? [];
+      const refundedOverpayment = transactions
+        .filter((transaction) => (
+          String(transaction.type ?? '').toUpperCase() === 'EXPENSE' &&
+          String(transaction.source ?? '') === 'ORDER_ADJUSTMENT'
+        ))
+        .reduce((sum, transaction) => sum + Math.max(0, Number(transaction.amount ?? 0)), 0);
+      const creditRollback = Math.max(0, Number(order.paidAmount ?? 0) - Number(order.total ?? 0) - refundedOverpayment);
+
+      const data: Record<string, unknown> = {};
+      if (isCompletedOrder) {
+        data.totalSpent = { decrement: Number(order.total ?? 0) };
+        data.totalOrders = { decrement: 1 };
+      }
+      if (pointDelta > 0) data.points = { increment: pointDelta };
+      if (pointDelta < 0) data.points = { decrement: Math.abs(pointDelta) };
+      if (pointsToRestore > 0) data.pointsUsed = { decrement: pointsToRestore };
+      if (creditRollback > 0) data.debt = { increment: creditRollback };
+
+      if (Object.keys(data).length > 0) {
+        await (tx as any).customer.update({
+          where: { id: order.customerId },
+          data,
+        });
+      }
+
+      if (isCompletedOrder) {
+        await this.applyCompletedProductSalesDelta(tx as any, {
+          completedAt: order.completedAt ?? order.createdAt ?? new Date(),
+          branchId: order.branchId ?? null,
+          multiplier: -1,
+          items: (order.items ?? []).map((item: any) => ({
+            productId: item.productId ?? null,
+            productVariantId: item.productVariantId ?? null,
+            quantity: Number(item.quantity ?? 0),
+            subtotal: Number(item.subtotal ?? 0),
+          })),
+        });
+      }
+    }
+  }
+
+  async deleteOrderCascade(id: string, staffId: string, user?: AccessUser): Promise<{ success: true; deletedIds: string[]; deletedOrderNumbers: string[] }> {
+    void staffId;
+    this.assertCanPermanentlyDeleteOrder(user);
+
+    const rootOrder = await this.prisma.order.findFirst({
+      where: { OR: [{ id }, { orderNumber: id }] },
+      select: { id: true },
+    });
+    if (!rootOrder) throw new NotFoundException('Khong tim thay don hang');
+
+    return this.prisma.$transaction(async (tx) => {
+      const graph = await this.collectOrderDeleteGraph(tx as any, [rootOrder.id]);
+      const orders = await (tx as any).order.findMany({
+        where: { id: { in: graph.orderIds } },
+        include: { items: true },
+      });
+
+      const orderIds = orders.map((order: any) => order.id);
+      const orderNumbers = orders.map((order: any) => order.orderNumber).filter(Boolean);
+      if (orderIds.length === 0) throw new NotFoundException('Khong tim thay don hang');
+
+      const [payments, transactions, paymentIntents, systemConfig] = await Promise.all([
+        (tx as any).orderPayment.findMany({ where: { orderId: { in: orderIds } } }),
+        (tx as any).transaction.findMany({
+          where: {
+            OR: [
+              { orderId: { in: orderIds } },
+              { refType: 'ORDER', refId: { in: orderIds } },
+            ],
+          },
+        }),
+        (tx as any).paymentIntent.findMany({
+          where: { orderId: { in: orderIds } },
+          select: { id: true },
+        }),
+        (tx as any).systemConfig.findFirst({ select: { loyaltyPointValue: true } }),
+      ]);
+
+      const paymentsByOrderId = new Map<string, any[]>();
+      for (const payment of payments) {
+        const entries = paymentsByOrderId.get(payment.orderId) ?? [];
+        entries.push(payment);
+        paymentsByOrderId.set(payment.orderId, entries);
+      }
+
+      const transactionsByOrderId = new Map<string, any[]>();
+      for (const transaction of transactions) {
+        const transactionOrderId = transaction.orderId ?? (transaction.refType === 'ORDER' ? transaction.refId : null);
+        if (!transactionOrderId) continue;
+        const entries = transactionsByOrderId.get(transactionOrderId) ?? [];
+        entries.push(transaction);
+        transactionsByOrderId.set(transactionOrderId, entries);
+      }
+
+      await this.reverseOrderStockTransactions(tx as any, orderIds);
+      await this.rollbackOrderCustomerAndSales(tx as any, {
+        orders,
+        paymentsByOrderId,
+        transactionsByOrderId,
+        loyaltyPointValue: Number(systemConfig?.loyaltyPointValue ?? 1000) || 1000,
+      });
+
+      const paymentIntentIds = paymentIntents.map((intent: any) => intent.id);
+      const webhookConditions: any[] = [{ matchedOrderId: { in: orderIds } }];
+      const bankConditions: any[] = [{ matchedOrderId: { in: orderIds } }];
+      if (paymentIntentIds.length > 0) {
+        webhookConditions.push({ matchedPaymentIntentId: { in: paymentIntentIds } });
+        bankConditions.push({ matchedPaymentIntentId: { in: paymentIntentIds } });
+      }
+
+      await (tx as any).paymentWebhookEvent.deleteMany({ where: { OR: webhookConditions } });
+      await (tx as any).bankTransaction.deleteMany({ where: { OR: bankConditions } });
+
+      if (paymentIntentIds.length > 0) {
+        await (tx as any).paymentIntent.deleteMany({ where: { id: { in: paymentIntentIds } } });
+      }
+
+      await (tx as any).transaction.deleteMany({
+        where: {
+          OR: [
+            { orderId: { in: orderIds } },
+            { refType: 'ORDER', refId: { in: orderIds } },
+          ],
+        },
+      });
+
+      if (graph.returnRequestIds.length > 0) {
+        await (tx as any).orderReturnItem.deleteMany({
+          where: { returnRequestId: { in: graph.returnRequestIds } },
+        });
+        await (tx as any).orderReturnRequest.deleteMany({
+          where: { id: { in: graph.returnRequestIds } },
+        });
+      }
+
+      await (tx as any).orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
+      await (tx as any).groomingSession.deleteMany({ where: { orderId: { in: orderIds } } });
+      await (tx as any).hotelStay.deleteMany({ where: { orderId: { in: orderIds } } });
+      await (tx as any).order.deleteMany({ where: { id: { in: orderIds } } });
+
+      return {
+        success: true,
+        deletedIds: orderIds,
+        deletedOrderNumbers: orderNumbers,
+      };
+    });
+  }
+
+  async bulkDeleteOrders(ids: string[], staffId: string, user?: AccessUser) {
+    this.assertCanPermanentlyDeleteOrder(user);
+    return runBulkDelete(ids, (orderId) => this.deleteOrderCascade(orderId, staffId, user));
+  }
+
   // Refund order: update status to PARTIALLY_REFUNDED or FULLY_REFUNDED
   async refundOrder(id: string, dto: RefundOrderDto, staffId: string, user?: AccessUser): Promise<any> {
     const order = await this.prisma.order.findUnique({
@@ -3273,6 +3740,14 @@ export class OrdersService {
       : [];
 
     const groomingById = new Map(groomingSessions.map((session) => [session.id, session]));
+    const approvedReturnRequests = await (this.prisma as any).orderReturnRequest.findMany({
+      where: {
+        orderId: order.id,
+        status: 'APPROVED',
+      },
+      include: { items: true },
+    });
+    const returnedQuantityByItemId = buildReturnedQuantityMap(approvedReturnRequests);
 
     return {
       ...order,
@@ -3283,6 +3758,10 @@ export class OrdersService {
 
         return {
           ...item,
+          returnAvailability: {
+            returnedQuantity: returnedQuantityByItemId.get(item.id) ?? 0,
+            returnableQuantity: getReturnableQuantity(item as any, returnedQuantityByItemId),
+          },
           groomingSession: groomingSession
             ? {
               id: groomingSession.id,
@@ -3408,8 +3887,8 @@ export class OrdersService {
   // =============================================================================
 
   async approveOrder(id: string, dto: { note?: string }, staffId: string, user: AccessUser) {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+    const order = await this.prisma.order.findFirst({
+      where: { OR: [{ id }, { orderNumber: id }] },
       include: { items: true },
     });
 
@@ -3418,6 +3897,8 @@ export class OrdersService {
     }
 
     this.assertOrderScope(order, user);
+    id = order.id;
+    id = order.id;
 
     if (order.status !== 'PENDING') {
       throw new BadRequestException(`Cannot approve order with status ${order.status}. Only PENDING orders can be approved.`);
@@ -3484,8 +3965,8 @@ export class OrdersService {
   }
 
   async exportStock(id: string, dto: { note?: string }, staffId: string, user: AccessUser) {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+    const order = await this.prisma.order.findFirst({
+      where: { OR: [{ id }, { orderNumber: id }] },
       include: {
         items: {
           include: {
@@ -3501,14 +3982,24 @@ export class OrdersService {
     }
 
     this.assertOrderScope(order, user);
+    id = order.id;
+
+    const isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'COMPLETED';
+    const hasServiceItems = order.items.some((item: any) => (
+      item.type === 'service' ||
+      item.type === 'grooming' ||
+      item.type === 'hotel' ||
+      Boolean(item.groomingSession) ||
+      Boolean(item.hotelStay)
+    ));
+    const canExportPendingPaidProductOrder = order.status === 'PENDING' && isPaid && !hasServiceItems;
 
     // Check if order can be exported
-    if (!['CONFIRMED', 'PROCESSING'].includes(order.status)) {
+    if (!['CONFIRMED', 'PROCESSING'].includes(order.status) && !canExportPendingPaidProductOrder) {
       throw new BadRequestException(`Cannot export stock for order with status ${order.status}.`);
     }
 
     // For service orders, check if all grooming/hotel sessions are completed
-    const hasServiceItems = order.items.some((item: any) => item.type === 'grooming' || item.type === 'hotel');
     if (hasServiceItems) {
       const groomingSessions = order.items
         .filter((item: any) => item.groomingSession)
@@ -3529,11 +4020,11 @@ export class OrdersService {
 
     const now = new Date();
 
-    // Option B: export only real items (isTemp=false) with productVariantId not yet exported
+    // Option B: export only real items (isTemp=false) not yet exported
     const exportableItems = order.items.filter(
       (item: any) =>
         item.type === 'product' &&
-        item.productVariantId &&
+        item.productId &&
         !(item as any).isTemp &&
         !(item as any).stockExportedAt,
     );
@@ -3543,19 +4034,31 @@ export class OrdersService {
       (item: any) => item.type === 'product' && (item as any).isTemp,
     ).length;
 
+    if (exportableItems.length === 0 && pendingTempCount === 0) {
+      throw new BadRequestException('Khong co san pham nao can xuat kho.');
+    }
+
     // Determine next status
-    const isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'COMPLETED';
     const nextStatus = isPaid ? 'COMPLETED' : 'PROCESSING';
 
     await this.prisma.$transaction(async (tx) => {
       // Deduct stock for each real item (Option B - item-level tracking)
       for (const item of exportableItems) {
-        await this._decrementStockForItem(tx, {
-          orderItemId: item.id,
-          productVariantId: item.productVariantId!,
-          quantity: item.quantity,
-          exportedBy: staffId,
-          exportedAt: now,
+        await this.deductProductBranchStock(tx as any, {
+          branchId: order.branchId ?? null,
+          productId: item.productId!,
+          productVariantId: item.productVariantId ?? null,
+          quantity: Number(item.quantity ?? 0),
+          orderId: id,
+          staffId,
+          reason: order.linkedReturnId ? `Xuat kho don doi #${order.orderNumber}` : `Xuat kho don #${order.orderNumber}`,
+        });
+        await (tx as any).orderItem.update({
+          where: { id: item.id },
+          data: {
+            stockExportedAt: now,
+            stockExportedBy: staffId,
+          } as any,
         });
       }
 
@@ -4034,7 +4537,7 @@ export class OrdersService {
     this.assertOrderScope(order, user);
     orderId = order.id;
 
-    if (order.status !== 'COMPLETED') {
+    if (!['COMPLETED', 'PARTIALLY_REFUNDED'].includes(order.status)) {
       throw new BadRequestException('Chỉ có thể đổi/trả hàng cho đơn đã hoàn thành');
     }
 
@@ -4042,41 +4545,66 @@ export class OrdersService {
       throw new BadRequestException('Phải chọn ít nhất một sản phẩm đổi/trả');
     }
 
+    const now = new Date();
+    const returnConfig = await (this.prisma as any).systemConfig.findFirst({
+      select: { orderReturnWindowDays: true },
+    });
+    const returnWindowDays = resolveOrderReturnWindowDays(returnConfig?.orderReturnWindowDays);
+    if (isOrderReturnWindowExpired({
+      completedAt: order.completedAt ?? order.createdAt,
+      windowDays: returnWindowDays,
+      now,
+    })) {
+      throw new BadRequestException(`Don hang da qua thoi han doi/tra ${returnWindowDays} ngay`);
+    }
+
+    const approvedReturnRequests = await (this.prisma as any).orderReturnRequest.findMany({
+      where: {
+        orderId,
+        status: 'APPROVED',
+      },
+      include: { items: true },
+    });
+    const returnedQuantityByItemId = buildReturnedQuantityMap(approvedReturnRequests);
+
     // Validate items belong to the order
     const orderItemMap = new Map(order.items.map((item: any) => [item.id, item]));
     for (const reqItem of dto.items) {
+      if (!isReturnAction(reqItem.action)) {
+        throw new BadRequestException('Hanh dong doi/tra khong hop le');
+      }
       if (!orderItemMap.has(reqItem.orderItemId)) {
         throw new BadRequestException(`Sản phẩm ${reqItem.orderItemId} không thuộc đơn này`);
       }
       const orderItem = orderItemMap.get(reqItem.orderItemId) as any;
-      if (reqItem.quantity > orderItem.quantity) {
+      const returnableQuantity = getReturnableQuantity(orderItem, returnedQuantityByItemId);
+      if (reqItem.quantity > returnableQuantity) {
         throw new BadRequestException(`Số lượng trả không thể vượt quá số lượng đã mua (${orderItem.quantity})`);
       }
     }
 
-    // Calculate credit = total value of exchanged/returned items (by unit price)
-    let totalCredit = 0;
-    for (const reqItem of dto.items) {
-      const orderItem = orderItemMap.get(reqItem.orderItemId) as any;
-      // Calculate prorated credit: (unitPrice - discountItem/qty) * qty_return
-      const effectiveUnitPrice =
-        orderItem.unitPrice - (orderItem.discountItem ?? 0) / orderItem.quantity;
-      totalCredit += Math.max(0, effectiveUnitPrice * reqItem.quantity);
-    }
+    const creditBreakdown = calculateReturnCreditBreakdown(dto.items, orderItemMap as any);
 
     const hasExchange = dto.items.some((item) => item.action === 'EXCHANGE');
     const hasReturn = dto.items.some((item) => item.action === 'RETURN');
+    const exchangeItems = Array.isArray(dto.exchangeItems) ? dto.exchangeItems : [];
+    if (!hasExchange && exchangeItems.length > 0) {
+      throw new BadRequestException('Chi duoc chon san pham doi moi khi co hang doi');
+    }
+    try {
+      validateExchangeOrderItems(exchangeItems);
+    } catch (error: any) {
+      throw new BadRequestException(error?.message || 'San pham doi moi khong hop le');
+    }
     const returnType = dto.type; // 'PARTIAL' | 'FULL'
+    const refundAmount = resolveReturnRefundAmount({
+      hasReturn,
+      requestedRefundAmount: dto.refundAmount,
+      returnCredit: creditBreakdown.returnCredit,
+    });
 
-    const itemSummary = dto.items
-      .map((item) => {
-        const oi = orderItemMap.get(item.orderItemId) as any;
-        const action = item.action === 'EXCHANGE' ? 'ĐỔI' : 'TRẢ';
-        return `${action}: ${oi?.description ?? item.orderItemId} x${item.quantity}`;
-      })
-      .join(', ');
-
-    const now = new Date();
+    const totalCredit = creditBreakdown.totalCredit;
+    const itemSummary = buildReturnItemSummary(dto.items, orderItemMap as any);
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Create OrderReturnRequest
@@ -4085,9 +4613,9 @@ export class OrdersService {
           orderId,
           type: returnType,
           reason: dto.reason ?? null,
-          refundAmount: hasReturn ? (dto.refundAmount ?? totalCredit) : 0,
+          refundAmount,
           refundMethod: hasReturn ? (dto.refundMethod ?? null) : null,
-          status: 'PENDING',
+          status: 'APPROVED',
           performedBy: staffId,
           items: {
             create: dto.items.map((item) => ({
@@ -4107,14 +4635,15 @@ export class OrdersService {
       for (const reqItem of dto.items) {
         if (reqItem.action !== 'RETURN') continue;
         const orderItem = orderItemMap.get(reqItem.orderItemId) as any;
-        if (!orderItem?.productVariantId) continue;
-        // Stock = BranchStock (branchId + productVariantId), field = 'stock'
-        await (tx as any).branchStock.updateMany({
-          where: {
-            branchId: order.branchId,
-            productVariantId: orderItem.productVariantId,
-          },
-          data: { stock: { increment: reqItem.quantity } },
+        if (!orderItem?.productId) continue;
+        await this.restoreProductBranchStock(tx as any, {
+          branchId: order.branchId ?? null,
+          productId: orderItem.productId,
+          productVariantId: orderItem.productVariantId ?? null,
+          quantity: reqItem.quantity,
+          orderId,
+          staffId,
+          reason: `Tra hang don #${order.orderNumber}`,
         });
         stockRestoredItems.push(
           `+${reqItem.quantity} × ${orderItem.description ?? orderItem.sku ?? orderItem.productVariantId}`,
@@ -4122,33 +4651,37 @@ export class OrdersService {
       }
 
       // 2. Update original order status
-      const newStatus = returnType === 'FULL' ? 'FULLY_REFUNDED' : 'PARTIALLY_REFUNDED';
+      const currentReturnQuantityByItemId = buildCurrentReturnQuantityMap(dto.items);
+      const newStatus = hasRemainingReturnableProductQuantity(order.items as any, returnedQuantityByItemId, currentReturnQuantityByItemId)
+        ? 'PARTIALLY_REFUNDED'
+        : 'FULLY_REFUNDED';
       await (tx as any).order.update({
         where: { id: orderId },
         data: { status: newStatus, updatedAt: now },
       });
 
       // 3. Ghi timeline Ä‘Æ¡n gá»‘c
-      await (tx as any).orderTimeline.create({
-        data: {
-          orderId,
-          action: 'RETURN_REQUESTED',
-          fromStatus: 'COMPLETED',
-          toStatus: newStatus,
-          note: `Đổi/trả: ${itemSummary}` +
-            (dto.reason ? ` — Lý do: ${dto.reason}` : '') +
-            `. Credit: ${totalCredit.toLocaleString('vi-VN')}đ` +
-            (stockRestoredItems.length > 0 ? ` | Hoàn kho: ${stockRestoredItems.join(', ')}` : ''),
-          performedBy: staffId,
-          metadata: {
-            returnRequestId: returnRequest.id,
-            type: returnType,
-            totalCredit,
-            hasExchange,
-            hasReturn,
-            stockRestored: stockRestoredItems,
-          },
-          createdAt: now,
+      await createOrderTimelineEntry((tx as any).orderTimeline, {
+        orderId,
+        action: 'REFUNDED',
+        fromStatus: 'COMPLETED',
+        toStatus: newStatus,
+        note: `Đổi/trả: ${itemSummary}` +
+          (dto.reason ? ` — Lý do: ${dto.reason}` : '') +
+          `. Credit: ${totalCredit.toLocaleString('vi-VN')}đ` +
+          (stockRestoredItems.length > 0 ? ` | Hoàn kho: ${stockRestoredItems.join(', ')}` : ''),
+        performedBy: staffId,
+        metadata: {
+          returnRequestId: returnRequest.id,
+          returnFlow: 'ORDER_RETURN_EXCHANGE',
+          type: returnType,
+          totalCredit,
+          returnCredit: creditBreakdown.returnCredit,
+          exchangeCredit: creditBreakdown.exchangeCredit,
+          refundAmount,
+          hasExchange,
+          hasReturn,
+          stockRestored: stockRestoredItems,
         },
       });
 
@@ -4156,17 +4689,27 @@ export class OrdersService {
       let exchangeOrder: any = null;
       if (hasExchange) {
         const exchangeOrderNumber = await this.generateOrderNumber();
-        const creditForExchange = dto.items
-          .filter((item) => item.action === 'EXCHANGE')
-          .reduce((sum, item) => {
-            const oi = orderItemMap.get(item.orderItemId) as any;
-            const effectiveUnitPrice =
-              oi.unitPrice - (oi.discountItem ?? 0) / oi.quantity;
-            return sum + Math.max(0, effectiveUnitPrice * item.quantity);
-          }, 0);
+        const creditForExchange = creditBreakdown.exchangeCredit;
+        const normalizedExchangeItems = exchangeItems.length > 0
+          ? await this.validateAndNormalizeCreateItems(tx as any, exchangeItems as any)
+          : [];
+        const exchangeSubtotal = calculateExchangeOrderSubtotal(normalizedExchangeItems as any);
+        const exchangeOrderData = buildExchangeOrderData({
+          orderNumber: exchangeOrderNumber,
+          sourceOrder: order as any,
+          staffId,
+          returnRequestId: returnRequest.id,
+          creditAmount: creditForExchange,
+          subtotal: exchangeSubtotal,
+          createdAt: now,
+        });
 
         exchangeOrder = await (tx as any).order.create({
           data: {
+            ...exchangeOrderData,
+            ...(normalizedExchangeItems.length > 0
+              ? { items: { create: normalizedExchangeItems.map((item: any) => this.buildOrderItemData(item)) } }
+              : {}),
             orderNumber: exchangeOrderNumber,
             customerId: order.customerId,
             customerName: (order.customer as any)?.fullName ??
@@ -4175,21 +4718,74 @@ export class OrdersService {
               'Khách lẻ',
             staffId,
             branchId: order.branchId ?? null,
-            status: 'DRAFT',
-            paymentStatus: 'UNPAID',
-            subtotal: 0,
+            status: 'PENDING',
+            paymentStatus: exchangeOrderData.paymentStatus,
+            subtotal: exchangeOrderData.subtotal,
             discount: 0,
             shippingFee: 0,
-            total: 0,
+            total: exchangeOrderData.total,
             paidAmount: creditForExchange,
-            remainingAmount: 0,
+            remainingAmount: exchangeOrderData.remainingAmount,
             creditAmount: creditForExchange,
             linkedReturnId: returnRequest.id,
             notes: `Đơn đổi hàng từ #${order.orderNumber}. Credit được áp dụng: ${creditForExchange.toLocaleString('vi-VN')}đ`,
             createdAt: now,
             updatedAt: now,
           } as any,
+          include: { items: true },
         });
+
+        const autoExportExchangeItems = exchangeOrderData.paymentStatus === 'PAID'
+          ? (exchangeOrder.items ?? []).filter((item: any) => (
+            item.type === 'product' &&
+            item.productId &&
+            item.isTemp !== true &&
+            !item.stockExportedAt
+          ))
+          : [];
+
+        if (autoExportExchangeItems.length > 0) {
+          for (const item of autoExportExchangeItems) {
+            await this.deductProductBranchStock(tx as any, {
+              branchId: order.branchId ?? null,
+              productId: item.productId,
+              productVariantId: item.productVariantId ?? null,
+              quantity: Number(item.quantity ?? 0),
+              orderId: exchangeOrder.id,
+              staffId,
+              reason: `Xuat kho don doi #${exchangeOrder.orderNumber ?? exchangeOrderNumber}`,
+            });
+            await (tx as any).orderItem.update({
+              where: { id: item.id },
+              data: {
+                stockExportedAt: now,
+                stockExportedBy: staffId,
+              } as any,
+            });
+          }
+
+          await (tx as any).order.update({
+            where: { id: exchangeOrder.id },
+            data: {
+              status: 'COMPLETED',
+              completedAt: now,
+              stockExportedAt: now,
+              stockExportedBy: staffId,
+              updatedAt: now,
+            } as any,
+          });
+
+          await createStockExportTimelineEntry((tx as any).orderTimeline, {
+            orderId: exchangeOrder.id,
+            fromStatus: 'PENDING',
+            toStatus: 'COMPLETED',
+            performedBy: staffId,
+            occurredAt: now,
+            exportedItemCount: autoExportExchangeItems.length,
+            pendingTempCount: 0,
+            metadata: { source: 'EXCHANGE_CREDIT_AUTO_EXPORT', returnRequestId: returnRequest.id },
+          });
+        }
 
         // Create payment record for credit from old order
         if (creditForExchange > 0) {
@@ -4200,27 +4796,29 @@ export class OrdersService {
               amount: creditForExchange,
               note: `Credit từ đơn #${order.orderNumber}`,
               paymentAccountId: null,
-              paymentAccountLabel: `Đổi hàng từ ${order.orderNumber}`,
+              paymentAccountLabel: `Đổi hàng từ DH${order.orderNumber.replace(/^DH/i, '')}`,
               createdAt: now,
             } as any,
           });
 
           // Create timeline entry for new order
-          await (tx as any).orderTimeline.create({
-            data: {
-              orderId: exchangeOrder.id,
-              action: 'CREATED',
-              fromStatus: null,
-              toStatus: 'DRAFT',
-              note: `Đơn đổi hàng từ #${order.orderNumber}. Credit ${creditForExchange.toLocaleString('vi-VN')}đ đã được áp dụng.`,
-              performedBy: staffId,
-              metadata: {
-                sourceOrderId: orderId,
-                sourceOrderNumber: order.orderNumber,
-                returnRequestId: returnRequest.id,
-                creditAmount: creditForExchange,
+          await createOrderTimelineEntry((tx as any).orderTimeline, {
+            orderId: exchangeOrder.id,
+            action: 'CREATED',
+            fromStatus: null,
+            toStatus: 'PENDING',
+            note: `Đơn đổi hàng từ #${order.orderNumber}. Credit ${creditForExchange.toLocaleString('vi-VN')}đ đã được áp dụng.`,
+            performedBy: staffId,
+            metadata: {
+              sourceOrderId: orderId,
+              sourceOrderNumber: order.orderNumber,
+              returnRequestId: returnRequest.id,
+              returnFlow: 'ORDER_RETURN_EXCHANGE',
+              creditAmount: creditForExchange,
+              historyLink: {
+                label: `#${order.orderNumber}`,
+                href: `/orders/${orderId}`,
               },
-              createdAt: now,
             },
           });
         }
@@ -4231,7 +4829,7 @@ export class OrdersService {
         exchangeOrderId: exchangeOrder?.id ?? null,
         exchangeOrderNumber: exchangeOrder?.orderNumber ?? null,
         totalCredit,
-        refundAmount: hasReturn ? (dto.refundAmount ?? (hasExchange ? 0 : totalCredit)) : 0,
+        refundAmount,
       };
     });
   }

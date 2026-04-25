@@ -18,6 +18,8 @@ import type { Request } from 'express'
 import type { JwtPayload } from '@petshop/shared'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
+import { normalizeBulkDeleteIds } from '../../common/utils/bulk-delete.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CancelOrderDto } from './dto/cancel-order.dto.js'
 import { RefundOrderDto } from './dto/refund-order.dto.js'
@@ -55,6 +57,13 @@ export class OrdersController {
     const products = await this.ordersService.getProducts()
     const services = await this.ordersService.getServices()
     return { products, services }
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(SuperAdminGuard)
+  bulkDeleteOrders(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest): Promise<any> {
+    const ids = normalizeBulkDeleteIds(body?.ids)
+    return this.ordersService.bulkDeleteOrders(ids, this.getStaffId(req), req.user)
   }
 
   @Post()
@@ -169,6 +178,12 @@ export class OrdersController {
     @Req() req: AuthenticatedRequest,
   ): Promise<any> {
     return this.ordersService.removeOrderItem(id, itemId, req.user)
+  }
+
+  @Delete(':id')
+  @UseGuards(SuperAdminGuard)
+  deleteOrder(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<any> {
+    return this.ordersService.deleteOrderCascade(id, this.getStaffId(req), req.user)
   }
 
   @Get()

@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { hotelApi, type HotelStay, type HotelStayHealthLog, type HotelStayOrderItem, type UpdateHotelStayDto } from '@/lib/api/hotel.api'
@@ -162,6 +162,23 @@ function getStayOrderItems(stay: HotelStay | null): HotelStayOrderItem[] {
 }
 
 function getDisplayPriceLines(stay: HotelStay | null): DisplayPriceLine[] {
+  if (!stay) return []
+
+  // Prefer chargeLines — they have accurate quantityDays and per-day unitPrice.
+  // orderItems from POS store quantity=1 and unitPrice=line total, which is wrong for display.
+  const chargeLines = getBreakdownChargeLines(stay)
+  if (chargeLines.length > 0) {
+    return chargeLines.map((line, index) => ({
+      id: line.id ?? `${line.label ?? 'hotel'}-${index}`,
+      label: String(line.label ?? 'Hotel'),
+      quantityDays: Number(line.quantityDays ?? 0),
+      unitPrice: Number(line.unitPrice ?? 0),
+      discount: 0,
+      subtotal: Number(line.subtotal ?? 0),
+    }))
+  }
+
+  // Fallback to orderItems only when no chargeLines exist
   const orderItems = getStayOrderItems(stay)
   if (orderItems.length > 0) {
     return orderItems.map((item) => ({
@@ -174,15 +191,7 @@ function getDisplayPriceLines(stay: HotelStay | null): DisplayPriceLine[] {
     }))
   }
 
-  if (!stay) return []
-  return getBreakdownChargeLines(stay).map((line, index) => ({
-    id: line.id ?? `${line.label ?? 'hotel'}-${index}`,
-    label: String(line.label ?? 'Hotel'),
-    quantityDays: Number(line.quantityDays ?? 0),
-    unitPrice: Number(line.unitPrice ?? 0),
-    discount: 0,
-    subtotal: Number(line.subtotal ?? 0),
-  }))
+  return []
 }
 
 function getSnapshotNumber(source: BreakdownSnapshot | null | undefined, key: keyof BreakdownSnapshot): number | null {
@@ -688,15 +697,57 @@ export default function StayDetailsDialog({
     priceLines.reduce((sum: number, line: DisplayPriceLine) => sum + Number(line.quantityDays ?? 0), 0)
   const customer = stay?.customer ?? stay?.pet?.customer ?? stay?.receiver ?? null
   const primaryPhone = customer?.phone ?? null
+  // Prioritize stay-level secondaryPhone (stored directly on hotel stay)
+  const staySecondaryPhone = stay?.secondaryPhone ?? null
   const rawCustomerSecondaryPhone =
     customer && 'representativePhone' in customer ? customer.representativePhone : null
   const customerSecondaryPhone = typeof rawCustomerSecondaryPhone === 'string' ? rawCustomerSecondaryPhone : null
   const secondaryPhone =
-    customerSecondaryPhone && customerSecondaryPhone !== primaryPhone
-      ? customerSecondaryPhone
-      : stay?.receiver?.phone && stay.receiver.phone !== primaryPhone
-        ? stay.receiver.phone
-        : null
+    staySecondaryPhone
+      ? staySecondaryPhone
+      : customerSecondaryPhone && customerSecondaryPhone !== primaryPhone
+        ? customerSecondaryPhone
+        : stay?.receiver?.phone && stay.receiver.phone !== primaryPhone
+          ? stay.receiver.phone
+          : null
+
+  // Inline edit state for secondary phone
+  const [isEditingSecondaryPhone, setIsEditingSecondaryPhone] = useState(false)
+  const [secondaryPhoneDraft, setSecondaryPhoneDraft] = useState(secondaryPhone ?? '')
+  const secondaryPhoneInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!isEditingSecondaryPhone) {
+      setSecondaryPhoneDraft(secondaryPhone ?? '')
+    }
+  }, [secondaryPhone, isEditingSecondaryPhone])
+
+  useEffect(() => {
+    if (isEditingSecondaryPhone && secondaryPhoneInputRef.current) {
+      secondaryPhoneInputRef.current.focus()
+    }
+  }, [isEditingSecondaryPhone])
+
+  const saveSecondaryPhoneMutation = useMutation({
+    mutationFn: (phone: string) =>
+      hotelApi.updateStay(stay?.id as string, {
+        secondaryPhone: phone.trim() || '',
+      }),
+    onSuccess: (updatedStay) => {
+      setIsEditingSecondaryPhone(false)
+      queryClient.invalidateQueries({ queryKey: ['stays'] })
+      queryClient.invalidateQueries({ queryKey: ['hotel-stay', updatedStay.id] })
+      toast.success('Đã lưu SĐT phụ')
+    },
+    onError: () => {
+      toast.error('Không lưu được SĐT phụ')
+    },
+  })
+
+  const handleSaveSecondaryPhone = useCallback(() => {
+    if (!stay?.id) return
+    saveSecondaryPhoneMutation.mutate(secondaryPhoneDraft)
+  }, [stay?.id, secondaryPhoneDraft, saveSecondaryPhoneMutation])
   const petName = stay?.petName || stay?.pet?.name || 'Chi tiết lưu trú'
   const petCode = stay?.pet?.petCode || stay?.pet?.id || stay?.petId || '---'
   const petDescription = [stay?.pet?.breed, stay?.pet?.species].filter(Boolean).join(' • ')
@@ -718,8 +769,8 @@ export default function StayDetailsDialog({
   const canShowCheckIn = stay?.status === 'BOOKED' && actionSlotIndex != null
   const canShowCancel = stay ? !['CHECKED_OUT', 'CANCELLED'].includes(stay.status) : false
   const displayTotalDays = stay?.status === 'CHECKED_IN' && currentPriceQuery.data
-      ? currentPriceQuery.data.totalDays
-      : totalDays
+    ? currentPriceQuery.data.totalDays
+    : totalDays
   const accessoryText = stay?.accessories ?? ''
   const careEntries = getStayCareEntries(stay, healthLogsQuery.data ?? [], stay?.notes ?? '')
   const noteSource = stay ? `${stay.id}:${stay.updatedAt}:${accessoryText}` : ''
@@ -987,16 +1038,55 @@ export default function StayDetailsDialog({
                         />
                         <PhoneLine label="SĐT chính" phone={primaryPhone} />
                         <div className="flex items-center justify-between gap-2">
-                          <PhoneLine label="SĐT phụ" phone={secondaryPhone} />
-                          {customerId ? (
-                            <Link
-                              href={`/customers/${customerId}`}
-                              title="Chỉnh SĐT phụ trong hồ sơ khách hàng"
-                              className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-border/60 text-foreground-muted transition-colors hover:border-primary-500/40 hover:bg-primary-500/10 hover:text-primary-500"
-                            >
-                              <Pencil size={11} />
-                            </Link>
-                          ) : null}
+                          {isEditingSecondaryPhone ? (
+                            <div className="flex flex-1 items-center gap-1.5">
+                              <span className="shrink-0 text-xs text-foreground-muted">SĐT phụ:</span>
+                              <input
+                                ref={secondaryPhoneInputRef}
+                                type="tel"
+                                value={secondaryPhoneDraft}
+                                onChange={(e) => setSecondaryPhoneDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveSecondaryPhone()
+                                  if (e.key === 'Escape') setIsEditingSecondaryPhone(false)
+                                }}
+                                placeholder="Nhập SĐT phụ..."
+                                maxLength={11}
+                                className="h-7 w-28 rounded-lg border border-primary-500/40 bg-background-base px-2 text-sm text-foreground outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/30"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleSaveSecondaryPhone}
+                                disabled={saveSecondaryPhoneMutation.isPending}
+                                className="shrink-0 inline-flex h-7 items-center gap-1 rounded-lg bg-primary-500 px-2.5 text-xs font-medium text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
+                              >
+                                <Save size={11} />
+                                Lưu
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingSecondaryPhone(false)}
+                                className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border/60 text-foreground-muted transition-colors hover:bg-background-secondary"
+                              >
+                                <X size={11} />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <PhoneLine label="SĐT phụ" phone={secondaryPhone} />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSecondaryPhoneDraft(secondaryPhone ?? '')
+                                  setIsEditingSecondaryPhone(true)
+                                }}
+                                title="Sửa SĐT phụ"
+                                className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-border/60 text-foreground-muted transition-colors hover:border-primary-500/40 hover:bg-primary-500/10 hover:text-primary-500"
+                              >
+                                <Pencil size={11} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </InfoPanel>
 

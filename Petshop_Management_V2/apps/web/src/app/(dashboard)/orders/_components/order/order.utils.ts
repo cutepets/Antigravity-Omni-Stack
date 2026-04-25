@@ -215,9 +215,22 @@ export function canCancelCurrentOrder(order: any, hasCancelPermission: boolean) 
 
 
 export function canExportCurrentOrder(order: any, canExportStock: boolean) {
+  const hasServiceItems = Array.isArray(order?.items)
+    ? order.items.some((item: any) => (
+      item?.type === 'service' ||
+      item?.type === 'grooming' ||
+      item?.type === 'hotel' ||
+      Boolean(item?.groomingSessionId) ||
+      Boolean(item?.hotelStayId)
+    ))
+    : false
+  const isPaid = ['PAID', 'COMPLETED'].includes(order?.paymentStatus ?? '')
   return Boolean(
     canExportStock &&
-    ['CONFIRMED', 'PROCESSING'].includes(order?.status ?? '') &&
+    (
+      ['CONFIRMED', 'PROCESSING'].includes(order?.status ?? '') ||
+      (order?.status === 'PENDING' && isPaid && !hasServiceItems)
+    ) &&
     !order?.stockExportedAt,
   )
 }
@@ -245,5 +258,9 @@ export function canRefundCurrentOrder(order: any, canRefundOrder: boolean) {
 }
 
 export function canReturnCurrentOrder(order: any, hasPermission: boolean) {
-  return Boolean(hasPermission && order?.status === 'COMPLETED')
+  const hasReturnableProduct = (order?.items ?? []).some((item: any) => (
+    item?.type === 'product' &&
+    Number(item?.returnAvailability?.returnableQuantity ?? item?.quantity ?? 0) > 0
+  ))
+  return Boolean(hasPermission && ['COMPLETED', 'PARTIALLY_REFUNDED'].includes(order?.status ?? '') && hasReturnableProduct)
 }

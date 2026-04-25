@@ -138,6 +138,10 @@ function shouldHideHistoryPart(part: string) {
 }
 
 function getHistoryActionLabel(entry: any) {
+  if (entry?.action === 'REFUNDED' && entry?.metadata?.returnRequestId) {
+    return 'Đổi/trả hàng'
+  }
+
   if (entry?.action !== 'ITEM_SWAPPED') {
     return ORDER_ACTION_LABELS[entry?.action] ?? entry?.action
   }
@@ -148,6 +152,29 @@ function getHistoryActionLabel(entry: any) {
   return 'Đổi sản phẩm / dịch vụ'
 }
 
+function renderPartWithLink(text: string, link: { label: string; href: string }, key: string) {
+  const idx = text.indexOf(link.label)
+  if (idx === -1) return <span key={key}>{text}</span>
+
+  const before = text.slice(0, idx)
+  const after = text.slice(idx + link.label.length)
+
+  return (
+    <span key={key}>
+      {before}
+      <a
+        href={link.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-semibold text-primary-500 underline decoration-primary-500/30 underline-offset-2 transition-colors hover:text-primary-400 hover:decoration-primary-400/50"
+      >
+        {link.label}
+      </a>
+      {after}
+    </span>
+  )
+}
+
 function renderHistoryNote(entry: any, note: string) {
   if (!note) return null
 
@@ -155,8 +182,9 @@ function renderHistoryNote(entry: any, note: string) {
   if (parts.length === 0) return null
 
   const historyLink = getHistoryLink(entry)
+  const hasLinkInFirstPart = historyLink && parts[0]?.includes(historyLink.label)
   const paymentLabelIndex = isPaymentHistoryAction(entry?.action)
-    ? historyLink && parts[0] === historyLink.label
+    ? hasLinkInFirstPart
       ? 1
       : 0
     : -1
@@ -166,16 +194,8 @@ function renderHistoryNote(entry: any, note: string) {
       {parts.map((part, index) => {
         const content = index > 0 ? `• ${part}` : part
 
-        if (historyLink && index === 0 && part === historyLink.label) {
-          return (
-            <a
-              key={`${part}-${index}`}
-              href={historyLink.href}
-              className="font-semibold text-primary-500 transition-colors hover:text-primary-400"
-            >
-              {content}
-            </a>
-          )
+        if (historyLink && part.includes(historyLink.label)) {
+          return renderPartWithLink(content, historyLink, `${part}-${index}`)
         }
 
         if (index === paymentLabelIndex) {

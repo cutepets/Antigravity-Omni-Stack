@@ -31,6 +31,7 @@ export interface UpdateConfigDto {
   loyaltyPointExpiryMonths?: number
   loyaltyTierRetentionMonths?: number
   loyaltyTierRules?: string
+  orderReturnWindowDays?: number
   storageProvider?: StorageProviderKind
   googleAuthEnabled?: boolean
   googleAuthClientId?: string
@@ -955,6 +956,15 @@ export class SettingsService {
     return value
   }
 
+  private normalizeOrderReturnWindowDays(value: number | undefined) {
+    if (value === undefined) return undefined
+    const normalized = Number(value)
+    if (!Number.isInteger(normalized) || normalized < 0) {
+      throw new BadRequestException('Thoi han doi/tra phai la so ngay nguyen khong am')
+    }
+    return normalized
+  }
+
   private normalizeGoogleAuthAllowedDomain(value: string | null | undefined) {
     if (value === undefined) return undefined
     const raw = String(value ?? '').trim()
@@ -1034,6 +1044,7 @@ export class SettingsService {
     if (dto.loyaltyPointExpiryMonths !== undefined) data.loyaltyPointExpiryMonths = dto.loyaltyPointExpiryMonths
     if (dto.loyaltyTierRetentionMonths !== undefined) data.loyaltyTierRetentionMonths = dto.loyaltyTierRetentionMonths
     if (dto.loyaltyTierRules !== undefined) data.loyaltyTierRules = dto.loyaltyTierRules
+    if (dto.orderReturnWindowDays !== undefined) data.orderReturnWindowDays = this.normalizeOrderReturnWindowDays(dto.orderReturnWindowDays)
     if (dto.storageProvider !== undefined) data.storageProvider = this.normalizeStorageProvider(dto.storageProvider)
     if (dto.googleAuthEnabled !== undefined) data.googleAuthEnabled = Boolean(dto.googleAuthEnabled)
     if (dto.googleAuthClientId !== undefined) data.googleAuthClientId = dto.googleAuthClientId?.trim() || null

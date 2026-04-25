@@ -181,6 +181,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { code: 'order.update', label: 'Sửa đơn hàng' },
       { code: 'order.approve', label: 'Duyệt đơn hàng' },
       { code: 'order.cancel', label: 'Hủy đơn hàng' },
+      { code: 'order.delete', label: 'Xóa vĩnh viễn đơn hàng' },
       { code: 'order.ship', label: 'Đóng gói và giao hàng' },
       { code: 'order.pay', label: 'Thanh toán đơn hàng' },
       { code: 'order.export_stock', label: 'Xuất kho đơn hàng' },

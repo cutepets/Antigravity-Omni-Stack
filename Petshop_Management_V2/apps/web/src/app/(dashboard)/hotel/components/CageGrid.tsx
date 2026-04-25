@@ -265,8 +265,18 @@ export default function CageGrid() {
   // Build slot→stay map for boarding stays
   const slotStayMap = useMemo(() => {
     const map = new Map<number, HotelStay>()
+    const unassigned: HotelStay[] = []
     for (const stay of boardingStays) {
-      if (stay.slotIndex != null) map.set(stay.slotIndex, stay)
+      if (stay.slotIndex != null) {
+        map.set(stay.slotIndex, stay)
+      } else {
+        unassigned.push(stay)
+      }
+    }
+    // Auto-assign empty slots for stays without slotIndex (e.g. created from POS)
+    for (const stay of unassigned) {
+      const emptySlot = SLOTS.find((i) => !map.has(i))
+      if (emptySlot !== undefined) map.set(emptySlot, stay)
     }
     return map
   }, [boardingStays])
@@ -338,8 +348,8 @@ export default function CageGrid() {
         setSelectedStay(bookedStay)
         setIsCheckInDialogOpen(true)
       } else if (draggedData.type === 'slot') {
-        // Move an existing stay to a new slot
-        const sourceStay = boardingStays.find(s => s.slotIndex === draggedData.slotIndex)
+        // Move an existing stay to a new slot (supports auto-assigned stays too)
+        const sourceStay = slotStayMap.get(draggedData.slotIndex)
         if (sourceStay && !slotStayMap.has(targetSlotIndex)) {
           updateStayMutation.mutate({ id: sourceStay.id, data: { slotIndex: targetSlotIndex } })
         } else if (sourceStay) {
@@ -349,7 +359,7 @@ export default function CageGrid() {
 
       setDraggedData(null)
     },
-    [draggedData, bookedStays, boardingStays, slotStayMap, updateStayMutation],
+    [draggedData, bookedStays, slotStayMap, updateStayMutation],
   )
 
   const handleSlotClick = useCallback(

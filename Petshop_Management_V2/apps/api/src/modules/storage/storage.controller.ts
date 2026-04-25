@@ -23,6 +23,8 @@ export class StorageController {
 
     res.setHeader('Content-Type', asset.mimeType)
     res.setHeader('Cache-Control', 'public, max-age=300')
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+    res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader(
       'Content-Disposition',
       `inline; filename*=UTF-8''${encodeURIComponent(asset.originalName)}`,

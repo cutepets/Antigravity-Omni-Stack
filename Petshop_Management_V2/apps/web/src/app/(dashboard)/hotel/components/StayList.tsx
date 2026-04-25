@@ -381,7 +381,13 @@ export default function StayList({
       <StayDetailsDialog
         stay={selectedStay}
         isOpen={!!selectedStay}
-        onClose={() => setSelectedStay(null)}
+        onClose={() => {
+          setSelectedStay(null)
+          // If opened via deep-link (focusStayId), clear URL params so workspace returns to kanban
+          if (focusStayId) {
+            router.replace('/hotel', { scroll: false })
+          }
+        }}
       />
     </>
   )

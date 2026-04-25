@@ -153,15 +153,30 @@ export function buildDisplayTimeline(
         } else {
             payments.forEach((payment: any, index: number) => {
                 if (!payment?.createdAt) return
+                // For ORDER_CREDIT payments (exchange), extract source order reference
+                let paymentHistoryLink = null
+                if (payment.method === 'ORDER_CREDIT') {
+                    const noteText = String(payment.note ?? payment.paymentAccountLabel ?? '')
+                    const orderMatch = noteText.match(/#?(DH\d+)/i)
+                    if (orderMatch) {
+                        paymentHistoryLink = {
+                            label: `DH${orderMatch[1].replace(/^DH/i, '')}`,
+                            href: `/orders?search=${orderMatch[1].replace(/^DH/i, '')}`,
+                        }
+                    }
+                }
                 createSyntheticEntry({
                     id: `synthetic-payment-${payment.id ?? index}`,
                     action: 'PAYMENT_ADDED',
                     createdAt: payment.createdAt,
                     note: formatTimelineParts([
-                        payment.paymentAccountLabel ?? payment.method,
+                        paymentHistoryLink?.label ?? payment.paymentAccountLabel ?? payment.method,
                         formatTimelineAmount(payment.amount),
                         payment.note,
                     ]),
+                    metadata: paymentHistoryLink
+                        ? { historyLink: paymentHistoryLink }
+                        : null,
                 })
             })
         }

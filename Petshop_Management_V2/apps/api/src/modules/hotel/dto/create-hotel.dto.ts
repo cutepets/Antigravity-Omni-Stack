@@ -130,6 +130,10 @@ export class CreateHotelStayDto {
   @IsOptional()
   accessories?: string;
 
+  @IsString()
+  @IsOptional()
+  secondaryPhone?: string;
+
   @IsNumber()
   @IsOptional()
   slotIndex?: number;

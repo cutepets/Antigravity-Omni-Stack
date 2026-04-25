@@ -30,6 +30,7 @@ export type PaymentQrProvider = 'VIETQR'
 export type PaymentOptions = {
   allowMultiPayment: boolean
   loyaltyPointValue?: number
+  orderReturnWindowDays?: number
 }
 
 export type PaymentWebhookSecret = {

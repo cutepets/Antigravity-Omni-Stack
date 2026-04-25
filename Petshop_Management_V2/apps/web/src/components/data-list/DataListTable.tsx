@@ -50,13 +50,15 @@ export function DataListTable({
           <thead className="sticky top-0 z-20 bg-background-secondary/95 backdrop-blur">
             {/* Overlay Bulk Bar over the header */}
             {bulkBar && (
-              <div className="absolute inset-0 z-30 flex items-center bg-background-secondary/95 backdrop-blur">
-                <div className="w-full h-full flex items-center">
-                  {bulkBar}
-                </div>
-              </div>
+              <tr className="absolute inset-0 z-30">
+                <th colSpan={colSpan} className="p-0">
+                  <div className="flex h-full w-full items-center bg-background-secondary/95 backdrop-blur">
+                    {bulkBar}
+                  </div>
+                </th>
+              </tr>
             )}
-            
+
             <tr className="border-b border-border relative z-10">
               {/* Select-all checkbox */}
               <th className="w-12 px-4 py-3 text-left">

@@ -179,6 +179,12 @@ export interface OrderListParams {
   dateTo?: string;
 }
 
+export interface BulkDeleteResult {
+  success: true;
+  deletedIds: string[];
+  blocked: Array<{ id: string; reason: string }>;
+}
+
 export const orderApi = {
   getCatalog: () => api.get('/orders/catalog').then((r) => r.data),
 
@@ -218,6 +224,12 @@ export const orderApi = {
   get: (id: string) =>
     api.get(`/orders/${id}`).then((r) => r.data),
 
+  delete: (id: string) =>
+    api.delete(`/orders/${id}`).then((r) => r.data),
+
+  bulkDelete: (ids: string[]): Promise<BulkDeleteResult> =>
+    api.post('/orders/bulk-delete', { ids }).then((r) => r.data),
+
   approve: (id: string, data?: ApproveOrderPayload) =>
     api.post(`/orders/${id}/approve`, data ?? {}).then((r) => r.data),
 
@@ -249,10 +261,25 @@ export interface ReturnItemPayload {
   reason?: string;
 }
 
+export interface ExchangeOrderItemPayload {
+  productId?: string;
+  productVariantId?: string;
+  sku?: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discountItem?: number;
+  vatRate?: number;
+  type: 'product';
+  isTemp?: boolean;
+  tempLabel?: string;
+}
+
 export interface CreateReturnRequestPayload {
   type: 'PARTIAL' | 'FULL';
   reason?: string;
   refundAmount?: number;
   refundMethod?: string;
   items: ReturnItemPayload[];
+  exchangeItems?: ExchangeOrderItemPayload[];
 }

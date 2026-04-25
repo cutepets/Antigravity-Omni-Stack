@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Loader2, ArrowLeftRight, CornerUpLeft, Info } from 'lucide-react'
-import type { CreateReturnRequestPayload, ReturnItemPayload } from '@/lib/api/order.api'
+import { X, Loader2, ArrowLeftRight, CornerUpLeft, Info, Trash2 } from 'lucide-react'
+import type { CreateReturnRequestPayload, ExchangeOrderItemPayload, ReturnItemPayload } from '@/lib/api/order.api'
+import { PosProductSearch } from '@/app/(dashboard)/pos/components/PosProductSearch'
+import { buildProductCartItem } from '@/app/(dashboard)/_shared/cart/cart.builders'
 
 interface OrderReturnModalProps {
     open: boolean
@@ -24,6 +26,27 @@ const PAYMENT_METHODS = [
     { value: 'POINTS', label: 'Điểm thưởng' },
 ]
 
+function getReturnableQuantity(item: any) {
+    return Math.max(0, Number(item?.returnAvailability?.returnableQuantity ?? item?.quantity ?? 0))
+}
+
+function getVariantLabel(item: any) {
+    const raw = item?.variantName ?? item?.variantLabel ?? item?.productVariant?.variantLabel ?? item?.productVariant?.name
+    const label = typeof raw === 'string' ? raw.trim() : ''
+    const description = typeof item?.description === 'string' ? item.description.trim() : ''
+    return label && label !== description ? label : ''
+}
+
+function getUnitLabel(item: any) {
+    const raw = item?.unitLabel ?? item?.unit ?? item?.productVariant?.unitLabel
+    return typeof raw === 'string' ? raw.trim() : ''
+}
+
+function getItemMetaParts(item: any) {
+    return [item?.sku, getVariantLabel(item), getUnitLabel(item)]
+        .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+}
+
 export function OrderReturnModal({
     open,
     onClose,
@@ -33,13 +56,13 @@ export function OrderReturnModal({
 }: OrderReturnModalProps) {
     const allItems: any[] = order?.items ?? []
     // Fix 1: Chỉ hiện sản phẩm vật lý — backend không xử lý đổi/trả cho dịch vụ
-    const items: any[] = allItems.filter((item: any) => item.type === 'product')
+    const items: any[] = allItems.filter((item: any) => item.type === 'product' && getReturnableQuantity(item) > 0)
 
     const initStates = () =>
         Object.fromEntries(
             items.map((item: any) => [
                 item.id,
-                { selected: false, qty: item.quantity, action: 'RETURN' as const },
+                { selected: false, qty: getReturnableQuantity(item), action: 'RETURN' as const },
             ]),
         )
 
@@ -47,6 +70,7 @@ export function OrderReturnModal({
     const [globalReason, setGlobalReason] = useState('')
     const [refundAmount, setRefundAmount] = useState('')
     const [refundMethod, setRefundMethod] = useState('CASH')
+    const [exchangeItems, setExchangeItems] = useState<any[]>([])
 
     useEffect(() => {
         if (open) {
@@ -54,6 +78,7 @@ export function OrderReturnModal({
             setGlobalReason('')
             setRefundAmount('')
             setRefundMethod('CASH')
+            setExchangeItems([])
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open])
@@ -82,6 +107,11 @@ export function OrderReturnModal({
         }, 0)
 
     const calculatedCredit = exchangeCredit + returnRefund
+    const exchangeOrderSubtotal = exchangeItems.reduce((sum, item) => {
+        return sum + Number(item.unitPrice || 0) * Number(item.quantity || 0) - Number(item.discountItem || 0)
+    }, 0)
+    const exchangeRemaining = Math.max(0, exchangeOrderSubtotal - exchangeCredit)
+    const exchangeSurplus = Math.max(0, exchangeCredit - exchangeOrderSubtotal)
 
     const fmt = (n: number) => n.toLocaleString('vi-VN')
 
@@ -99,14 +129,41 @@ export function OrderReturnModal({
         }))
     }
 
+    function mergeExchangeItem(item: any) {
+        const cartItem = buildProductCartItem(item)
+        setExchangeItems((current) => {
+            const existingIndex = current.findIndex((entry) => entry.id === cartItem.id)
+            if (existingIndex >= 0) {
+                const nextItems = [...current]
+                nextItems[existingIndex] = {
+                    ...nextItems[existingIndex],
+                    quantity: Number(nextItems[existingIndex].quantity || 0) + 1,
+                }
+                return nextItems
+            }
+            return [...current, cartItem]
+        })
+    }
+
+    function updateExchangeItem(index: number, patch: Record<string, number>) {
+        setExchangeItems((current) => current.map((item, itemIndex) => (
+            itemIndex === index ? { ...item, ...patch } : item
+        )))
+    }
+
+    function removeExchangeItem(index: number) {
+        setExchangeItems((current) => current.filter((_, itemIndex) => itemIndex !== index))
+    }
+
     function handleConfirm() {
         if (selectedItems.length === 0) return
 
         const returnItems: ReturnItemPayload[] = selectedItems.map((item) => {
             const state = itemStates[item.id]!
+            const returnableQuantity = getReturnableQuantity(item)
             return {
                 orderItemId: item.id,
-                quantity: Math.min(state.qty, item.quantity),
+                quantity: Math.min(state.qty, returnableQuantity),
                 action: state.action,
             }
         })
@@ -116,14 +173,29 @@ export function OrderReturnModal({
         const isFullReturn =
             allSameAction &&
             selectedItems.length === items.length &&
-            selectedItems.every((item) => itemStates[item.id]?.qty >= item.quantity)
+            selectedItems.every((item) => itemStates[item.id]?.qty >= getReturnableQuantity(item))
 
         const payload: CreateReturnRequestPayload = {
             type: isFullReturn ? 'FULL' : 'PARTIAL',
             reason: globalReason.trim() || undefined,
-            refundAmount: hasReturn ? (Number(refundAmount) || calculatedCredit) : undefined,
+            refundAmount: hasReturn ? (Number(refundAmount) || returnRefund) : undefined,
             refundMethod: hasReturn ? refundMethod : undefined,
             items: returnItems,
+            exchangeItems: hasExchange && exchangeItems.length > 0
+                ? exchangeItems.map((item): ExchangeOrderItemPayload => ({
+                    productId: item.productId,
+                    productVariantId: item.productVariantId,
+                    sku: item.sku,
+                    description: item.description,
+                    quantity: Number(item.quantity) || 1,
+                    unitPrice: Number(item.unitPrice) || 0,
+                    discountItem: Number(item.discountItem) || 0,
+                    vatRate: Number(item.vatRate) || 0,
+                    type: 'product',
+                    isTemp: item.isTemp ?? false,
+                    tempLabel: item.tempLabel,
+                }))
+                : undefined,
         }
 
         onConfirm(payload)
@@ -131,7 +203,7 @@ export function OrderReturnModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in">
-            <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-background shadow-xl">
+            <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-background shadow-xl">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
                     <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -155,6 +227,8 @@ export function OrderReturnModal({
                         <div className="rounded-xl border border-border overflow-hidden">
                             {items.map((item: any, idx: number) => {
                                 const state = itemStates[item.id]!
+                                const variantLabel = getVariantLabel(item)
+                                const unitLabel = getUnitLabel(item)
                                 return (
                                     <div
                                         key={item.id}
@@ -172,6 +246,12 @@ export function OrderReturnModal({
                                                     <span className="text-sm font-medium text-foreground truncate">
                                                         {item.description}
                                                     </span>
+                                                    {variantLabel && (
+                                                        <span className="rounded-md bg-sky-500/10 px-1.5 py-0.5 text-xs font-semibold text-sky-500">{variantLabel}</span>
+                                                    )}
+                                                    {unitLabel && (
+                                                        <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-xs font-semibold text-emerald-500">{unitLabel}</span>
+                                                    )}
                                                     {item.sku && (
                                                         <span className="text-xs text-foreground-muted">{item.sku}</span>
                                                     )}
@@ -187,11 +267,11 @@ export function OrderReturnModal({
                                                             <input
                                                                 type="number"
                                                                 min={1}
-                                                                max={item.quantity}
+                                                                max={getReturnableQuantity(item)}
                                                                 value={state.qty}
                                                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                                                                     updateItem(item.id, {
-                                                                        qty: Math.min(Number(e.target.value), item.quantity),
+                                                                        qty: Math.min(Number(e.target.value), getReturnableQuantity(item)),
                                                                     })
                                                                 }
                                                                 className="mt-1 h-8 w-full rounded-lg border border-border bg-background-secondary px-2 text-sm text-foreground outline-none focus:border-amber-500/70"
@@ -268,6 +348,93 @@ export function OrderReturnModal({
                                     Cần hoàn {fmt(returnRefund)}đ cho khách.
                                 </p>
                             )}
+                        </div>
+                    )}
+
+                    {hasExchange && (
+                        <div className="rounded-xl border border-sky-500/25 bg-sky-500/5 px-4 py-3 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-sky-500">Sản phẩm đổi mới</p>
+                                <span className="text-xs font-semibold text-foreground-muted">{exchangeItems.length} dòng</span>
+                            </div>
+
+                            <PosProductSearch
+                                onSelect={mergeExchangeItem}
+                                branchId={order?.branchId}
+                                cartItems={exchangeItems}
+                                outOfStockHidden
+                                resultsVariant="order"
+                                inputClassName="bg-background border border-border focus-within:border-sky-500/70"
+                                panelClassName="fixed inset-0 z-[60] bg-background flex flex-col lg:block lg:absolute lg:top-full lg:left-0 lg:mt-1 lg:w-[500px] lg:bg-background lg:border lg:border-border lg:rounded-lg lg:shadow-xl lg:h-auto lg:max-h-[550px] lg:right-auto"
+                            />
+
+                            {exchangeItems.length > 0 && (
+                                <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
+                                    {exchangeItems.map((item, index) => (
+                                        <div
+                                            key={item.id}
+                                            className={`grid grid-cols-[1fr_72px_96px_96px_32px] items-center gap-2 px-3 py-2 ${index > 0 ? 'border-t border-border/60' : ''}`}
+                                        >
+                                            <div className="min-w-0">
+                                                <div className="truncate text-sm font-semibold text-foreground">{item.description}</div>
+                                                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-foreground-muted">
+                                                    {getItemMetaParts(item).length > 0
+                                                        ? getItemMetaParts(item).map((part, partIndex) => (
+                                                            <span key={`${part}-${partIndex}`} className="rounded-md bg-background-secondary px-1.5 py-0.5">{part}</span>
+                                                        ))
+                                                        : <span>Không có SKU</span>}
+                                                </div>
+                                            </div>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={item.quantity}
+                                                onChange={(event) => updateExchangeItem(index, { quantity: Math.max(1, Number(event.target.value) || 1) })}
+                                                className="h-8 rounded-lg border border-border bg-background-secondary px-2 text-sm text-foreground outline-none focus:border-sky-500/70"
+                                            />
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={item.unitPrice}
+                                                onChange={(event) => updateExchangeItem(index, { unitPrice: Math.max(0, Number(event.target.value) || 0) })}
+                                                className="h-8 rounded-lg border border-border bg-background-secondary px-2 text-sm text-foreground outline-none focus:border-sky-500/70"
+                                            />
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={item.discountItem ?? 0}
+                                                onChange={(event) => updateExchangeItem(index, { discountItem: Math.max(0, Number(event.target.value) || 0) })}
+                                                className="h-8 rounded-lg border border-border bg-background-secondary px-2 text-sm text-foreground outline-none focus:border-sky-500/70"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeExchangeItem(index)}
+                                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-foreground-muted transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-500"
+                                                title="Xóa"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="rounded-lg border border-sky-500/20 bg-background/70 px-3 py-2 space-y-1.5 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="text-foreground-muted">Credit đổi hàng</span>
+                                    <span className="font-semibold text-sky-500">{fmt(exchangeCredit)}đ</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-foreground-muted">Giá trị hàng đổi mới</span>
+                                    <span className="font-semibold text-foreground">{fmt(exchangeOrderSubtotal)}đ</span>
+                                </div>
+                                <div className="flex justify-between border-t border-border/60 pt-1.5">
+                                    <span className="font-semibold text-foreground">{exchangeRemaining > 0 ? 'Còn phải thu' : 'Dư credit'}</span>
+                                    <span className={`font-bold ${exchangeRemaining > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                        {fmt(exchangeRemaining > 0 ? exchangeRemaining : exchangeSurplus)}đ
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     )}
 

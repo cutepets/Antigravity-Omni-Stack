@@ -39,4 +39,60 @@ describe('SettingsService google auth config', () => {
     ).rejects.toBeInstanceOf(BadRequestException)
     expect(db.systemConfig.update).not.toHaveBeenCalled()
   })
+
+  it('saves a valid order return window in days', async () => {
+    const db = {
+      systemConfig: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'config-1' }),
+        update: jest.fn(async ({ data }) => ({ id: 'config-1', ...data })),
+      },
+    } as any
+    const service = new SettingsService(db)
+
+    const result = await service.updateConfigs({
+      orderReturnWindowDays: 7,
+    })
+
+    expect(db.systemConfig.update).toHaveBeenCalledWith({
+      where: { id: 'config-1' },
+      data: {
+        orderReturnWindowDays: 7,
+      },
+    })
+    expect((result.data as any).orderReturnWindowDays).toBe(7)
+  })
+
+  it('rejects negative order return window days', async () => {
+    const db = {
+      systemConfig: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'config-1' }),
+        update: jest.fn(),
+      },
+    } as any
+    const service = new SettingsService(db)
+
+    await expect(
+      service.updateConfigs({
+        orderReturnWindowDays: -1,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    expect(db.systemConfig.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-integer order return window days', async () => {
+    const db = {
+      systemConfig: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'config-1' }),
+        update: jest.fn(),
+      },
+    } as any
+    const service = new SettingsService(db)
+
+    await expect(
+      service.updateConfigs({
+        orderReturnWindowDays: 1.5,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    expect(db.systemConfig.update).not.toHaveBeenCalled()
+  })
 })
