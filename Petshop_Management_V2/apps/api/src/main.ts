@@ -10,6 +10,7 @@ import { NestExpressApplication } from '@nestjs/platform-express'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { json, urlencoded } from 'express'
 import type { NextFunction, Request, Response } from 'express'
+import helmet from 'helmet'
 import { join } from 'path'
 import { AppModule } from './app.module.js'
 
@@ -17,6 +18,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log'],
   })
+
+  app.use(helmet())
 
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.setHeader('Content-Type', 'application/json; charset=utf-8')

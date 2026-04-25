@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
+import { APP_GUARD } from '@nestjs/core'
 import { ConfigModule } from '@nestjs/config'
-import { ThrottlerModule } from '@nestjs/throttler'
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
 import { AuthModule } from './modules/auth/auth.module.js'
 import { UsersModule } from './modules/staff/staff.module.js'
 import { RolesModule } from './modules/roles/roles.module.js'
@@ -64,5 +65,9 @@ import { StorageModule } from './modules/storage/storage.module.js'
     EquipmentModule,
   ],
   controllers: [HealthController],
+  providers: [
+    // Bind ThrottlerGuard globally — every endpoint is rate-limited by default
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule { }

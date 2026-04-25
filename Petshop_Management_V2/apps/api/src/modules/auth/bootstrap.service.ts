@@ -84,7 +84,8 @@ export class BootstrapService implements OnModuleInit {
             }
 
             // 3. Tạo user superadmin
-            const passwordHash = await bcrypt.hash('Admin@123', 12)
+            const defaultPassword = process.env['BOOTSTRAP_ADMIN_PASSWORD'] ?? 'Admin@123'
+            const passwordHash = await bcrypt.hash(defaultPassword, 12)
             await tx.user.create({
                 data: {
                     username: 'superadmin',
