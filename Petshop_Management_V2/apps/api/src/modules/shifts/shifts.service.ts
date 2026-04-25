@@ -145,7 +145,7 @@ function calculateReserveMetrics(shift: any, summary: any, closeAmount?: number 
 
 @Injectable()
 export class ShiftsService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   private normalizeShift(shift: any, summary?: any) {
     return {
@@ -195,7 +195,7 @@ export class ShiftsService {
   }
 
   private async findShiftOrThrow(id: string) {
-    const shift = await (this.db as any).shiftSession.findUnique({
+    const shift = await this.db.shiftSession.findUnique({
       where: { id },
       include: {
         branch: { select: { id: true, name: true } },
@@ -254,14 +254,14 @@ export class ShiftsService {
       where.id = { not: options.excludeId }
     }
 
-    return (this.db as any).cashVaultEntry.findFirst({
+    return this.db.cashVaultEntry.findFirst({
       where,
       orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
     })
   }
 
   private async upsertShiftCloseVaultEntry(shift: any, closeAmount: number, performedById?: string, occurredAt = new Date()) {
-    const existing = await (this.db as any).cashVaultEntry.findUnique({
+    const existing = await this.db.cashVaultEntry.findUnique({
       where: { shiftSessionId: shift.id },
     })
     const previous = await this.findLatestVaultEntry(shift.branchId, {
@@ -277,7 +277,7 @@ export class ShiftsService {
       ? cashAfterAmount
       : cashAfterAmount - toMoney(cashBeforeAmount)
 
-    await (this.db as any).cashVaultEntry.upsert({
+    await this.db.cashVaultEntry.upsert({
       where: { shiftSessionId: shift.id },
       create: {
         branchId: shift.branchId,
@@ -309,7 +309,7 @@ export class ShiftsService {
       throw new BadRequestException('Vui long chon chi nhanh')
     }
 
-    const openShift = await (this.db as any).shiftSession.findFirst({
+    const openShift = await this.db.shiftSession.findFirst({
       where: { branchId, staffId, status: 'OPEN' },
       include: {
         branch: { select: { id: true, name: true } },
@@ -322,7 +322,7 @@ export class ShiftsService {
       return { success: true, data: this.normalizeShift(openShift, await this.buildShiftSummary(openShift)) }
     }
 
-    const todayClosedShift = await (this.db as any).shiftSession.findFirst({
+    const todayClosedShift = await this.db.shiftSession.findFirst({
       where: {
         branchId,
         staffId,
@@ -349,7 +349,7 @@ export class ShiftsService {
       throw new BadRequestException('Vui long chon chi nhanh')
     }
 
-    const existingOpen = await (this.db as any).shiftSession.findFirst({
+    const existingOpen = await this.db.shiftSession.findFirst({
       where: { branchId, staffId, status: 'OPEN' },
       select: { id: true },
     })
@@ -358,7 +358,7 @@ export class ShiftsService {
       throw new BadRequestException('Nhan vien dang co ca tien mat dang mo tai chi nhanh nay')
     }
 
-    const existingTodayUnapproved = await (this.db as any).shiftSession.findFirst({
+    const existingTodayUnapproved = await this.db.shiftSession.findFirst({
       where: {
         branchId,
         staffId,
@@ -373,7 +373,7 @@ export class ShiftsService {
       throw new BadRequestException('Nhan vien da co ca trong ngay. Hay chot lai ca hien tai neu co phat sinh them')
     }
 
-    const branch = await (this.db as any).branch.findUnique({
+    const branch = await this.db.branch.findUnique({
       where: { id: branchId },
       select: { id: true, cashReserveTargetAmount: true },
     })
@@ -383,7 +383,7 @@ export class ShiftsService {
 
     const reserveTargetAmount = toMoney(branch.cashReserveTargetAmount ?? DEFAULT_TARGET_RESERVE_AMOUNT)
 
-    const shift = await (this.db as any).shiftSession.create({
+    const shift = await this.db.shiftSession.create({
       data: {
         branchId,
         staffId,
@@ -424,7 +424,7 @@ export class ShiftsService {
     const differenceAmount = closeAmount - expectedCloseAmount
     const reserveMetrics = calculateReserveMetrics(shift, summary, closeAmount)
 
-    const updated = await (this.db as any).shiftSession.update({
+    const updated = await this.db.shiftSession.update({
       where: { id },
       data: {
         closeAmount,
@@ -494,7 +494,7 @@ export class ShiftsService {
     }
 
     const [rows, total] = await Promise.all([
-      (this.db as any).shiftSession.findMany({
+      this.db.shiftSession.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
@@ -504,7 +504,7 @@ export class ShiftsService {
           staff: { select: { id: true, fullName: true } },
         },
       }),
-      (this.db as any).shiftSession.count({ where }),
+      this.db.shiftSession.count({ where }),
     ])
 
     return {
@@ -566,7 +566,7 @@ export class ShiftsService {
       }
     }
 
-    const updated = await (this.db as any).shiftSession.update({
+    const updated = await this.db.shiftSession.update({
       where: { id },
       data,
       include: {
@@ -593,8 +593,8 @@ export class ShiftsService {
       throw new BadRequestException('Chi duoc xoa ca da chot')
     }
 
-    await (this.db as any).cashVaultEntry.deleteMany({ where: { shiftSessionId: id } })
-    await (this.db as any).shiftSession.delete({ where: { id } })
+    await this.db.cashVaultEntry.deleteMany({ where: { shiftSessionId: id } })
+    await this.db.shiftSession.delete({ where: { id } })
     return { success: true, data: { id } }
   }
 
@@ -605,7 +605,7 @@ export class ShiftsService {
       branchWhere.id = scopedBranchIds.length === 1 ? scopedBranchIds[0] : { in: scopedBranchIds }
     }
 
-    const branches = await (this.db as any).branch.findMany({
+    const branches = await this.db.branch.findMany({
       where: branchWhere,
       orderBy: { name: 'asc' },
       select: { id: true, name: true, cashReserveTargetAmount: true },
@@ -634,7 +634,7 @@ export class ShiftsService {
     }
 
     const [latestEntries, collectionEntries] = await Promise.all([
-      (this.db as any).cashVaultEntry.findMany({
+      this.db.cashVaultEntry.findMany({
         where: entryWhere,
         orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
         include: {
@@ -642,7 +642,7 @@ export class ShiftsService {
           performedBy: { select: { id: true, fullName: true } },
         },
       }),
-      (this.db as any).shiftSession.groupBy({
+      this.db.shiftSession.groupBy({
         by: ['branchId'],
         where: { branchId: { in: branchIds }, status: 'CLOSED' },
         _sum: {
@@ -713,7 +713,7 @@ export class ShiftsService {
     }
 
     const [rows, total] = await Promise.all([
-      (this.db as any).cashVaultEntry.findMany({
+      this.db.cashVaultEntry.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
@@ -736,7 +736,7 @@ export class ShiftsService {
           },
         },
       }),
-      (this.db as any).cashVaultEntry.count({ where }),
+      this.db.cashVaultEntry.count({ where }),
     ])
 
     return {
@@ -755,7 +755,7 @@ export class ShiftsService {
     let remainingAmount = toMoney(amount)
     if (remainingAmount <= 0) return
 
-    const pendingShifts = await (this.db as any).shiftSession.findMany({
+    const pendingShifts = await this.db.shiftSession.findMany({
       where: {
         branchId,
         status: 'CLOSED',
@@ -775,7 +775,7 @@ export class ShiftsService {
       const allocatedAmount = Math.min(remainingAmount, pendingAmount)
       if (allocatedAmount <= 0) continue
 
-      await (this.db as any).shiftSession.update({
+      await this.db.shiftSession.update({
         where: { id: shift.id },
         data: {
           collectedAmount: toMoney(shift.collectedAmount) + allocatedAmount,
@@ -801,12 +801,12 @@ export class ShiftsService {
       throw new BadRequestException('So tien thu phai lon hon 0')
     }
 
-    const branchExists = await (this.db as any).branch.findUnique({ where: { id: branchId }, select: { id: true } })
+    const branchExists = await this.db.branch.findUnique({ where: { id: branchId }, select: { id: true } })
     if (!branchExists) {
       throw new NotFoundException('Khong tim thay chi nhanh')
     }
 
-    const pendingAggregate = await (this.db as any).shiftSession.aggregate({
+    const pendingAggregate = await this.db.shiftSession.aggregate({
       where: { branchId, status: 'CLOSED' },
       _sum: { pendingCollectionAmount: true },
     })
@@ -817,7 +817,7 @@ export class ShiftsService {
 
     const [latest, branchConfig] = await Promise.all([
       this.findLatestVaultEntry(branchId),
-      (this.db as any).branch.findUnique({
+      this.db.branch.findUnique({
         where: { id: branchId },
         select: { id: true, cashReserveTargetAmount: true },
       }),
@@ -839,7 +839,7 @@ export class ShiftsService {
     }
 
     const cashAfterAmount = actualCashBefore - amount
-    const entry = await (this.db as any).cashVaultEntry.create({
+    const entry = await this.db.cashVaultEntry.create({
       data: {
         branchId,
         entryType: 'VAULT_COLLECTION',
@@ -878,7 +878,7 @@ export class ShiftsService {
 
   private async buildShiftSummary(shift: any, overrideEndAt?: Date) {
     const endAt = overrideEndAt ?? shift.closedAt ?? new Date()
-    const cashPaymentMethods = await (this.db as any).paymentMethod.findMany({
+    const cashPaymentMethods = await this.db.paymentMethod.findMany({
       where: { type: 'CASH' },
       select: { id: true, name: true },
     })

@@ -33,7 +33,7 @@ export class GoogleDriveStorageProvider {
   }
 
   private async loadRuntimeConfig(): Promise<GoogleDriveRuntimeConfig> {
-    const config = await (this.db as any).systemConfig.findFirst({
+    const config = await this.db.systemConfig.findFirst({
       select: {
         googleDriveServiceAccountEnc: true,
         googleDriveAuthMode: true,
@@ -211,10 +211,10 @@ export class GoogleDriveStorageProvider {
         isServiceAccountQuotaError
           ? ' — Service account không có dung lượng lưu trữ My Drive. Hãy tạo Shared Drive, thêm service account vào Shared Drive với quyền Content manager/Manager, đặt Root folder nằm trong Shared Drive và nhập Shared Drive ID; hoặc dùng OAuth delegation thay cho service account.'
           : httpCode === 403
-          ? ` — Service account thiếu quyền Editor trên folder "${folderId}".`
-          : httpCode === 404
-            ? ` — Folder ID "${folderId}" không tồn tại.`
-            : ''
+            ? ` — Service account thiếu quyền Editor trên folder "${folderId}".`
+            : httpCode === 404
+              ? ` — Folder ID "${folderId}" không tồn tại.`
+              : ''
       throw new BadRequestException(`Google Drive upload: ${googleMsg}${hint}`)
     }
 

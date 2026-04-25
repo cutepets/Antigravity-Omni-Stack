@@ -77,6 +77,7 @@ export function TabGeneral() {
   const [savedState, setSavedState] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [formData, setFormData] = useState<SettingsFormData>(DEFAULT_FORM)
+  const [showGoogleOAuthConfig, setShowGoogleOAuthConfig] = useState(false)
   const [showGoogleAuthConfig, setShowGoogleAuthConfig] = useState(false)
   const [showGoogleDriveConfig, setShowGoogleDriveConfig] = useState(false)
   const [driveTestError, setDriveTestError] = useState<string | null>(null)
@@ -328,6 +329,14 @@ export function TabGeneral() {
       ? integrationBadges.googleDriveOAuth
       : integrationBadges.googleDriveSecret || hasGoogleDriveDraftSecret
   const driveOAuthCallbackUrl = `${API_URL}/api/settings/google-drive/oauth/callback`
+  const googleDriveAccountLabel =
+    formData.googleDriveAuthMode === 'OAUTH'
+      ? integrationBadges.googleDriveOAuth
+        ? formData.googleDriveOAuthEmail || formData.googleDriveClientEmail || 'Google account'
+        : 'Chưa kết nối'
+      : integrationBadges.googleDriveSecret || formData.googleDriveClientEmail
+        ? formData.googleDriveClientEmail || 'Service account đã lưu'
+        : 'Chưa có service account'
 
   if (isLoading) {
     return (
@@ -455,16 +464,35 @@ export function TabGeneral() {
                 </p>
               </div>
             </div>
-            {integrationBadges.googleAuthSecret ? (
-              <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-400">Đã cấu hình</span>
-            ) : hasGoogleAuthDraftSecret ? (
-              <span className="rounded-full bg-sky-500/15 px-2.5 py-1 text-xs font-semibold text-sky-300">Chưa lưu</span>
-            ) : (
-              <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-400">Chưa có credential</span>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {integrationBadges.googleAuthSecret ? (
+                <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-400">Đã cấu hình</span>
+              ) : hasGoogleAuthDraftSecret ? (
+                <span className="rounded-full bg-sky-500/15 px-2.5 py-1 text-xs font-semibold text-sky-300">Chưa lưu</span>
+              ) : (
+                <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-400">Chưa có credential</span>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowGoogleOAuthConfig((v) => !v)}
+                className="inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-secondary"
+              >
+                <Settings size={14} />
+                Cập nhật cấu hình
+                <ChevronDown size={14} className={`transition-transform ${showGoogleOAuthConfig ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-3 text-xs text-foreground-muted md:grid-cols-3">
+            <SummaryItem label="Client ID" value={formData.googleAuthClientId || 'Chưa nhập'} />
+            <SummaryItem label="Secret" value={integrationBadges.googleAuthSecret ? 'Đã lưu trong DB' : hasGoogleAuthDraftSecret ? 'Có secret mới chưa lưu' : 'Chưa có'} />
+            <SummaryItem label="Redirect URIs" value="Login, Link, Drive" />
+          </div>
+
+          {showGoogleOAuthConfig && (
+            <div className="mt-5 space-y-5 rounded-2xl border border-border/40 bg-background-base p-5">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <Field label="Google OAuth Client ID">
               <input
                 name="googleAuthClientId"
@@ -562,13 +590,15 @@ export function TabGeneral() {
             </Field>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-border/50 bg-background-base p-4 text-xs text-foreground-muted">
+          <div className="rounded-2xl border border-border/50 bg-background-base p-4 text-xs text-foreground-muted">
             <p className="font-semibold text-foreground-base">Google Cloud cần cấu hình</p>
             <p className="mt-2">1. OAuth Client loại Web application.</p>
             <p className="mt-1">2. Authorized JavaScript origin: URL web app, ví dụ <code className="rounded bg-black/20 px-1">http://localhost:3000</code>.</p>
             <p className="mt-1">3. Authorized redirect URIs: thêm Google Login redirect URI, Google Link redirect URI và Google Drive redirect URI ở trên.</p>
             <p className="mt-1">4. Nếu dùng Google Drive, OAuth consent screen phải có scope <code className="rounded bg-black/20 px-1">https://www.googleapis.com/auth/drive</code>.</p>
           </div>
+            </div>
+          )}
         </section>
 
         <section className="rounded-2xl border border-border/50 bg-background-elevated/60 p-6">
@@ -606,7 +636,7 @@ export function TabGeneral() {
                   className="inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-secondary"
                 >
                   <Settings size={14} />
-                  Cài đặt
+                  Cập nhật cấu hình
                   <ChevronDown size={14} className={`transition-transform ${showGoogleAuthConfig ? 'rotate-180' : ''}`} />
                 </button>
               </div>
@@ -676,6 +706,15 @@ export function TabGeneral() {
 
           {formData.googleDriveEnabled && (
             <>
+              <div className="mt-5 grid grid-cols-1 gap-3 text-xs text-foreground-muted md:grid-cols-4">
+                <SummaryItem label="Nơi lưu" value={formData.storageProvider === 'GOOGLE_DRIVE' ? 'Google Drive' : 'Server local'} />
+                <SummaryItem label="Kiểu kết nối" value={formData.googleDriveAuthMode === 'OAUTH' ? 'Tài khoản Google' : 'Service Account'} />
+                <SummaryItem label="Tài khoản" value={googleDriveAccountLabel} />
+                <SummaryItem label="Root folder" value={formData.googleDriveRootFolderId || 'Chưa nhập'} />
+              </div>
+
+              {showGoogleDriveConfig && (
+              <>
               <div className="mt-5 rounded-2xl border border-border/40 bg-background-base p-4">
                 <Field label="Nơi lưu trữ file">
                   <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -688,7 +727,7 @@ export function TabGeneral() {
                         : 'border-border/40 bg-black/10 hover:bg-black/20'
                         } disabled:cursor-not-allowed disabled:opacity-60`}
                     >
-                      <div className="text-sm font-semibold text-foreground-base">💾 Lưu trên server (Local)</div>
+                      <div className="text-sm font-semibold text-foreground-base">Lưu trên server (Local)</div>
                       <div className="mt-1 text-xs text-foreground-muted">File lưu trực tiếp trên ổ đĩa server.</div>
                     </button>
                     <button
@@ -700,7 +739,7 @@ export function TabGeneral() {
                         : 'border-border/40 bg-black/10 hover:bg-black/20'
                         } disabled:cursor-not-allowed disabled:opacity-60`}
                     >
-                      <div className="text-sm font-semibold text-foreground-base">☁️ Lưu lên Google Drive</div>
+                      <div className="text-sm font-semibold text-foreground-base">Lưu lên Google Drive</div>
                       <div className="mt-1 text-xs text-foreground-muted">File upload lên Drive, DB chỉ giữ link.</div>
                     </button>
                   </div>
@@ -739,6 +778,8 @@ export function TabGeneral() {
                   </Field>
                 </div>
               )}
+              </>
+              )}
 
               <div className="mt-4 flex items-center justify-between">
                 <button
@@ -747,7 +788,7 @@ export function TabGeneral() {
                   className="inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-secondary"
                 >
                   <Settings size={14} />
-                  Cài đặt kết nối
+                  Cập nhật cấu hình
                   <ChevronDown size={14} className={`transition-transform ${showGoogleDriveConfig ? 'rotate-180' : ''}`} />
                 </button>
                 <button
@@ -802,8 +843,10 @@ export function TabGeneral() {
                           Cần lưu Google OAuth Client ID/Secret ở section phía trên trước khi kết nối Drive.
                         </p>
                       )}
-                      <div className="mt-4 rounded-xl border border-primary-400/20 bg-background-base/70 p-4 text-xs text-foreground-muted">
-                        <p className="font-semibold text-foreground-base">Hướng dẫn tích hợp tài khoản Google cá nhân</p>
+                      <details className="mt-4 rounded-xl border border-primary-400/20 bg-background-base/70 p-4 text-xs text-foreground-muted">
+                        <summary className="cursor-pointer select-none font-semibold text-foreground-base">
+                          Hướng dẫn tích hợp tài khoản Google cá nhân
+                        </summary>
                         <ol className="mt-3 list-decimal space-y-2.5 pl-4">
                           <li>Cấu hình <strong className="text-foreground-base">Client ID</strong> và <strong className="text-foreground-base">Client secret</strong> trong section <strong className="text-foreground-base">Google OAuth Client</strong> phía trên rồi bấm lưu.</li>
                           <li>
@@ -841,14 +884,16 @@ export function TabGeneral() {
                           <li>Tạo hoặc chọn thư mục trong My Drive của tài khoản đó, copy Folder ID từ URL rồi dán vào ô bên dưới.</li>
                           <li>Bấm <strong className="text-foreground-base">Lưu thay đổi</strong>, sau đó bấm <strong className="text-foreground-base">Kiểm tra kết nối</strong>.</li>
                         </ol>
-                      </div>
+                      </details>
                     </div>
                   )}
 
                   {formData.googleDriveAuthMode === 'SERVICE_ACCOUNT' && (
-                  <div className="rounded-2xl border border-border/40 bg-background-elevated/50 p-4 text-xs text-foreground-muted">
-                    <p className="mb-3 font-semibold text-foreground-base">Hướng dẫn kết nối (5 bước)</p>
-                    <ol className="list-decimal space-y-2.5 pl-4">
+                  <details className="rounded-2xl border border-border/40 bg-background-elevated/50 p-4 text-xs text-foreground-muted">
+                    <summary className="cursor-pointer select-none font-semibold text-foreground-base">
+                      Hướng dẫn kết nối Service Account
+                    </summary>
+                    <ol className="mt-3 list-decimal space-y-2.5 pl-4">
                       <li>
                         Vào{' '}
                         <a
@@ -912,7 +957,7 @@ export function TabGeneral() {
                         và dán vào ô bên dưới.
                       </li>
                     </ol>
-                  </div>
+                  </details>
                   )}
 
                   {driveTestError && (
@@ -1043,7 +1088,7 @@ export function TabGeneral() {
 
                   <details className="rounded-xl border border-border/40 bg-background-elevated/50">
                     <summary className="cursor-pointer select-none px-4 py-3 text-xs font-semibold text-foreground-muted hover:text-foreground-base">
-                      ⚙️ Cấu hình nâng cao (tùy chọn)
+                      Cấu hình nâng cao (tùy chọn)
                     </summary>
                     <div className="grid grid-cols-1 gap-6 p-4 md:grid-cols-2">
                       <Field label="Image folder ID">
@@ -1135,6 +1180,17 @@ function Field({
     <div className={`space-y-2 ${className ?? ''}`}>
       <label className="text-sm font-bold text-foreground-base">{label}</label>
       {children}
+    </div>
+  )
+}
+
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-border/40 bg-background-base px-3 py-2.5">
+      <p className="text-[11px] font-semibold uppercase text-foreground-muted">{label}</p>
+      <p className="mt-1 truncate text-xs font-semibold text-foreground-base" title={value}>
+        {value}
+      </p>
     </div>
   )
 }

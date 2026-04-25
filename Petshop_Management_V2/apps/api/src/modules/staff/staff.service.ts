@@ -2,7 +2,7 @@ import { Injectable, ConflictException, NotFoundException, BadRequestException }
 import * as bcrypt from 'bcryptjs'
 import { DatabaseService } from '../../database/database.service.js'
 import type { AuthUser } from '@petshop/shared'
-import type { DocumentType } from '@petshop/database'
+import { type DocumentType, EmploymentType, StaffStatus } from '@petshop/database'
 import {
   DOCUMENT_UPLOAD_EXTENSIONS,
   DOCUMENT_UPLOAD_MIME_TYPES,
@@ -132,7 +132,7 @@ export class StaffService {
         shiftEnd: dto.shiftEnd || null,
         baseSalary: dto.baseSalary ? Number(dto.baseSalary) : null,
         spaCommissionRate: dto.spaCommissionRate ? Number(dto.spaCommissionRate) : null,
-        employmentType: (dto.employmentType as any) || 'FULL_TIME',
+        employmentType: (dto.employmentType as EmploymentType) || EmploymentType.FULL_TIME,
         joinDate: dto.joinDate ? new Date(dto.joinDate) : null,
       },
       select: {
@@ -164,7 +164,7 @@ export class StaffService {
         ...(passwordHash && { passwordHash }),
         ...('fullName' in dto && dto.fullName !== undefined && { fullName: dto.fullName }),
         ...('role' in dto && { roleId: dto.role || null }),
-        ...('status' in dto && dto.status !== undefined && { status: dto.status as any }),
+        ...('status' in dto && dto.status !== undefined && { status: dto.status as StaffStatus }),
         ...('phone' in dto && { phone: dto.phone || null }),
         ...('email' in dto && { email: dto.email || null }),
         ...('branchId' in dto && { branchId: dto.branchId || null }),
@@ -184,7 +184,7 @@ export class StaffService {
         ...('shiftEnd' in dto && { shiftEnd: dto.shiftEnd || null }),
         ...('baseSalary' in dto && { baseSalary: dto.baseSalary ? Number(dto.baseSalary) : null }),
         ...('spaCommissionRate' in dto && { spaCommissionRate: dto.spaCommissionRate ? Number(dto.spaCommissionRate) : null }),
-        ...('employmentType' in dto && { employmentType: dto.employmentType as any }),
+        ...('employmentType' in dto && { employmentType: dto.employmentType as EmploymentType }),
         ...('joinDate' in dto && { joinDate: dto.joinDate ? new Date(dto.joinDate) : null }),
       },
       select: {
@@ -199,7 +199,7 @@ export class StaffService {
     await this.findById(id) // Ensure exists
     return this.db.user.update({
       where: { id },
-      data: { status: 'RESIGNED' as any }, // Soft delete by marking as RESIGNED or QUIT
+      data: { status: StaffStatus.RESIGNED },
       select: { id: true, staffCode: true, status: true }
     })
   }
@@ -535,7 +535,7 @@ export class StaffService {
       // JS Date will automatically handle month underflows correctly (e.g., month -1 becomes previous year)
       const dStart = new Date(targetYear, targetMonth - 1 - i, 1)
       const dEnd = new Date(targetYear, targetMonth - i, 0, 23, 59, 59, 999)
-      
+
       const m = dStart.getMonth() + 1
       const y = dStart.getFullYear()
 
