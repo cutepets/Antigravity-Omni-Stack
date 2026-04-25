@@ -6,6 +6,7 @@ import {
   PAYMENT_STATUS_LABEL,
 } from './order.constants'
 import type { OrderDraft } from './order.types'
+import { buildOrderRequestPayload } from '@/app/(dashboard)/_shared/order/order-payload.builder'
 
 // ─── Re-exports from shared layer ────────────────────────────────────────────
 // These were duplicated here — now the source of truth lives in _shared/cart/
@@ -135,70 +136,15 @@ export function buildDraftFromOrder(order: any): OrderDraft {
 }
 
 export function buildOrderPayload(draft: OrderDraft): CreateOrderPayload | UpdateOrderPayload {
-  return {
-    customerId: draft.customerId || undefined,
-    customerName: draft.customerName.trim() || 'Khach le',
-    branchId: draft.branchId || undefined,
-    items: draft.items.map((item) => ({
-      id: (item as any).orderItemId,
-      productId: item.productId,
-      productVariantId: item.productVariantId,
-      sku: item.sku,
-      serviceId: item.serviceId,
-      serviceVariantId: item.serviceVariantId,
-      petId: item.petId,
-      description: item.description,
-      quantity: Number(item.quantity) || 1,
-      unitPrice: Number(item.unitPrice) || 0,
-      discountItem: Number(item.discountItem) || 0,
-      vatRate: Number(item.vatRate) || 0,
-      type: item.type,
-      isTemp: (item as any).isTemp ?? false,
-      tempLabel: (item as any).tempLabel ?? undefined,
-      groomingDetails: item.groomingDetails
-        ? {
-          petId: item.groomingDetails.petId,
-          performerId: item.groomingDetails.performerId,
-          startTime: item.groomingDetails.startTime,
-          scheduledDate: item.groomingDetails.scheduledDate,
-          notes: item.groomingDetails.notes,
-          serviceItems: item.groomingDetails.serviceItems,
-          packageCode: item.groomingDetails.packageCode,
-          serviceRole: item.groomingDetails.serviceRole,
-          pricingRuleId: item.groomingDetails.pricingRuleId,
-          durationMinutes: item.groomingDetails.durationMinutes,
-          weightAtBooking: item.groomingDetails.weightAtBooking,
-          weightBandId: item.groomingDetails.weightBandId,
-          weightBandLabel: item.groomingDetails.weightBandLabel,
-          pricingPrice: item.groomingDetails.pricingPrice,
-          pricingSnapshot: item.groomingDetails.pricingSnapshot,
-        }
-        : undefined,
-      hotelDetails: item.hotelDetails
-        ? {
-          petId: item.hotelDetails.petId,
-          checkInDate: item.hotelDetails.checkIn,
-          checkOutDate: item.hotelDetails.checkOut,
-          branchId: draft.branchId,
-          lineType: item.hotelDetails.lineType,
-          weightBandId: item.hotelDetails.weightBandId ?? undefined,
-          weightBandLabel: item.hotelDetails.weightBandLabel ?? undefined,
-          bookingGroupKey: item.hotelDetails.bookingGroupKey,
-          chargeLineIndex: item.hotelDetails.chargeLineIndex,
-          chargeLineLabel: item.hotelDetails.chargeLineLabel,
-          chargeDayType: item.hotelDetails.chargeDayType,
-          chargeQuantityDays: item.hotelDetails.chargeQuantityDays,
-          chargeUnitPrice: item.hotelDetails.chargeUnitPrice,
-          chargeSubtotal: item.hotelDetails.chargeSubtotal,
-          chargeWeightBandId: item.hotelDetails.chargeWeightBandId ?? undefined,
-          chargeWeightBandLabel: item.hotelDetails.chargeWeightBandLabel ?? undefined,
-        }
-        : undefined,
-    })),
-    discount: Number(draft.discount) || 0,
-    shippingFee: Number(draft.shippingFee) || 0,
-    notes: draft.notes.trim() || undefined,
-  }
+  return buildOrderRequestPayload({
+    customerId: draft.customerId,
+    customerName: draft.customerName,
+    branchId: draft.branchId,
+    items: draft.items,
+    discount: draft.discount,
+    shippingFee: draft.shippingFee,
+    notes: draft.notes,
+  })
 }
 
 export function isOrderReadonly(status?: string) {

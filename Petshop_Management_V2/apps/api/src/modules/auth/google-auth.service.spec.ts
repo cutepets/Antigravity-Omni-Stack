@@ -80,7 +80,7 @@ describe('GoogleAuthService', () => {
     } as any
 
     const service = new GoogleAuthService(db, { createSessionForUserId: jest.fn() } as any)
-    jest.spyOn(service as any, 'resolveGoogleUserFromCode').mockResolvedValue({
+    const resolveSpy = jest.spyOn(service as any, 'resolveGoogleUserFromCode').mockResolvedValue({
       googleId: 'google-1',
       email: 'admin@example.com',
       avatar: 'https://avatar.test/a.png',
@@ -88,6 +88,7 @@ describe('GoogleAuthService', () => {
 
     const result = await service.linkUserWithAuthorizationCode('user-1', 'code')
 
+    expect(resolveSpy).toHaveBeenCalledWith('code', 'link')
     expect(db.user.findFirst).toHaveBeenCalledWith({
       where: {
         googleId: 'google-1',
@@ -171,6 +172,7 @@ describe('GoogleAuthService', () => {
       apiBaseUrl: 'http://localhost:3001',
       webAppBaseUrl: 'http://localhost:3000',
       callbackUrl: 'http://localhost:3001/api/auth/google/callback',
+      linkCallbackUrl: 'http://localhost:3001/api/auth/google/link/callback',
     })
   })
 

@@ -2,11 +2,11 @@
 
 import Image from 'next/image'
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle2, ChevronDown, Cloud, Copy, KeyRound, RefreshCw, Save, Settings, Store, Upload } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ChevronDown, Cloud, Copy, ExternalLink, KeyRound, RefreshCw, Save, Settings, Store, Upload } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { useAuthorization } from '@/hooks/useAuthorization'
-import { api, uploadApi } from '@/lib/api'
+import { API_URL, api, uploadApi } from '@/lib/api'
 
 type SettingsFormData = {
   shopName: string
@@ -22,8 +22,10 @@ type SettingsFormData = {
   googleAuthClientSecret: string
   googleAuthAllowedDomain: string
   googleDriveEnabled: boolean
+  googleDriveAuthMode: 'SERVICE_ACCOUNT' | 'OAUTH'
   googleDriveServiceAccountJson: string
   googleDriveClientEmail: string
+  googleDriveOAuthEmail: string
   googleDriveSharedDriveId: string
   googleDriveRootFolderId: string
   googleDriveImageFolderId: string
@@ -38,6 +40,7 @@ type GoogleAuthStatus = {
   apiBaseUrl: string
   webAppBaseUrl: string
   callbackUrl: string
+  linkCallbackUrl: string
 }
 
 const DEFAULT_FORM: SettingsFormData = {
@@ -54,8 +57,10 @@ const DEFAULT_FORM: SettingsFormData = {
   googleAuthClientSecret: '',
   googleAuthAllowedDomain: '',
   googleDriveEnabled: false,
+  googleDriveAuthMode: 'OAUTH',
   googleDriveServiceAccountJson: '',
   googleDriveClientEmail: '',
+  googleDriveOAuthEmail: '',
   googleDriveSharedDriveId: '',
   googleDriveRootFolderId: '',
   googleDriveImageFolderId: '',
@@ -74,6 +79,7 @@ export function TabGeneral() {
   const [formData, setFormData] = useState<SettingsFormData>(DEFAULT_FORM)
   const [showGoogleAuthConfig, setShowGoogleAuthConfig] = useState(false)
   const [showGoogleDriveConfig, setShowGoogleDriveConfig] = useState(false)
+  const [driveTestError, setDriveTestError] = useState<string | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['settings', 'configs'],
@@ -94,7 +100,35 @@ export function TabGeneral() {
   })
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const params = new URLSearchParams(window.location.search)
+    const driveStatus = params.get('google_drive')
+    if (!driveStatus) return
+
+    const message = params.get('message') || ''
+    if (driveStatus === 'success') {
+      toast.success('Da ket noi Google Drive thanh cong')
+      queryClient.invalidateQueries({ queryKey: ['settings', 'configs'] })
+    } else if (driveStatus === 'error') {
+      toast.error(`Google Drive: ${message || 'Khong ket noi duoc tai khoan Google'}`)
+    }
+
+    params.delete('google_drive')
+    params.delete('message')
+    const nextQuery = params.toString()
+    window.history.replaceState(null, '', `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}`)
+  }, [queryClient])
+
+  useEffect(() => {
     if (!data) return
+
+    const resolvedGoogleDriveAuthMode =
+      data.googleDriveAuthMode === 'OAUTH'
+        ? 'OAUTH'
+        : data.googleDriveAuthMode === 'SERVICE_ACCOUNT' && data.googleDriveServiceAccountConfigured
+          ? 'SERVICE_ACCOUNT'
+          : 'OAUTH'
 
     setFormData({
       shopName: data.shopName || '',
@@ -110,8 +144,10 @@ export function TabGeneral() {
       googleAuthClientSecret: '',
       googleAuthAllowedDomain: data.googleAuthAllowedDomain || '',
       googleDriveEnabled: Boolean(data.googleDriveEnabled),
+      googleDriveAuthMode: resolvedGoogleDriveAuthMode,
       googleDriveServiceAccountJson: '',
       googleDriveClientEmail: data.googleDriveClientEmail || '',
+      googleDriveOAuthEmail: data.googleDriveOAuthEmail || '',
       googleDriveSharedDriveId: data.googleDriveSharedDriveId || '',
       googleDriveRootFolderId: data.googleDriveRootFolderId || '',
       googleDriveImageFolderId: data.googleDriveImageFolderId || '',
@@ -150,12 +186,32 @@ export function TabGeneral() {
       const response = await api.post('/settings/google-drive/test')
       return response.data
     },
+    onMutate: () => {
+      setDriveTestError(null)
+    },
     onSuccess: () => {
-      toast.success('Kết nối Google Drive hợp lệ')
+      setDriveTestError(null)
+      toast.success('✅ Kết nối Google Drive thành công!')
     },
     onError: (mutationError: any) => {
       const message = mutationError?.response?.data?.message || mutationError?.message || 'Không test được kết nối'
-      toast.error(`Google Drive test fail: ${message}`)
+      setDriveTestError(message)
+      toast.error(`Google Drive: ${message}`)
+    },
+  })
+
+  const disconnectDriveOAuthMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/settings/google-drive/oauth/disconnect')
+      return response.data
+    },
+    onSuccess: () => {
+      toast.success('Da ngat ket noi Google Drive')
+      queryClient.invalidateQueries({ queryKey: ['settings', 'configs'] })
+    },
+    onError: (mutationError: any) => {
+      const message = mutationError?.response?.data?.message || mutationError?.message || 'Khong ngat ket noi duoc'
+      toast.error(`Google Drive: ${message}`)
     },
   })
 
@@ -175,6 +231,11 @@ export function TabGeneral() {
     setFormData((current) => ({ ...current, [name]: checked }))
   }
 
+  const handleDriveOAuthConnect = () => {
+    if (!canUpdateSettings) return
+    window.location.href = `${API_URL}/api/settings/google-drive/oauth/start`
+  }
+
   const handleCopy = async (value: string, label: string) => {
     if (!value) return
 
@@ -190,14 +251,37 @@ export function TabGeneral() {
     if (!canUpdateSettings) return
 
     const payload: Record<string, unknown> = {
-      ...formData,
+      shopName: formData.shopName,
+      shopPhone: formData.shopPhone,
+      email: formData.email,
+      website: formData.website,
+      shopAddress: formData.shopAddress,
+      shopLogo: formData.shopLogo,
       orderReturnWindowDays: Number(formData.orderReturnWindowDays || 0),
+      storageProvider: formData.storageProvider,
+      googleAuthEnabled: formData.googleAuthEnabled,
+      googleAuthClientId: formData.googleAuthClientId,
+      googleAuthAllowedDomain: formData.googleAuthAllowedDomain,
+      googleDriveEnabled: formData.googleDriveEnabled,
+    }
+    if (formData.googleDriveEnabled) {
+      payload.googleDriveAuthMode = formData.googleDriveAuthMode
+      payload.googleDriveClientEmail = formData.googleDriveClientEmail
+      payload.googleDriveSharedDriveId = formData.googleDriveSharedDriveId
+      payload.googleDriveRootFolderId = formData.googleDriveRootFolderId
+      payload.googleDriveImageFolderId = formData.googleDriveImageFolderId
+      payload.googleDriveDocumentFolderId = formData.googleDriveDocumentFolderId
+      payload.googleDriveBackupFolderId = formData.googleDriveBackupFolderId
     }
     if (!formData.googleAuthClientSecret.trim()) {
       delete payload.googleAuthClientSecret
+    } else {
+      payload.googleAuthClientSecret = formData.googleAuthClientSecret
     }
     if (!formData.googleDriveServiceAccountJson.trim()) {
       delete payload.googleDriveServiceAccountJson
+    } else if (formData.googleDriveEnabled && formData.googleDriveAuthMode === 'SERVICE_ACCOUNT') {
+      payload.googleDriveServiceAccountJson = formData.googleDriveServiceAccountJson
     }
 
     mutation.mutate(payload)
@@ -232,9 +316,18 @@ export function TabGeneral() {
     () => ({
       googleAuthSecret: Boolean(data?.googleAuthClientSecretConfigured),
       googleDriveSecret: Boolean(data?.googleDriveServiceAccountConfigured),
+      googleDriveOAuth: Boolean(data?.googleDriveOAuthConnected),
     }),
     [data],
   )
+  const hasGoogleAuthDraftSecret = formData.googleAuthClientSecret.trim().length > 0
+  const hasSavedGoogleOAuthClient = Boolean(formData.googleAuthClientId.trim()) && integrationBadges.googleAuthSecret
+  const hasGoogleDriveDraftSecret = formData.googleDriveServiceAccountJson.trim().length > 0
+  const hasGoogleDriveCredential =
+    formData.googleDriveAuthMode === 'OAUTH'
+      ? integrationBadges.googleDriveOAuth
+      : integrationBadges.googleDriveSecret || hasGoogleDriveDraftSecret
+  const driveOAuthCallbackUrl = `${API_URL}/api/settings/google-drive/oauth/callback`
 
   if (isLoading) {
     return (
@@ -356,6 +449,133 @@ export function TabGeneral() {
             <div className="flex items-center gap-3">
               <KeyRound size={16} className="text-primary-500" />
               <div>
+                <h3 className="text-sm font-bold text-foreground-base">Google OAuth Client</h3>
+                <p className="mt-0.5 text-xs text-foreground-muted">
+                  Một bộ Client ID/Secret dùng chung cho Google Login và Google Drive.
+                </p>
+              </div>
+            </div>
+            {integrationBadges.googleAuthSecret ? (
+              <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-400">Đã cấu hình</span>
+            ) : hasGoogleAuthDraftSecret ? (
+              <span className="rounded-full bg-sky-500/15 px-2.5 py-1 text-xs font-semibold text-sky-300">Chưa lưu</span>
+            ) : (
+              <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-400">Chưa có credential</span>
+            )}
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2">
+            <Field label="Google OAuth Client ID">
+              <input
+                name="googleAuthClientId"
+                value={formData.googleAuthClientId}
+                onChange={handleTextChange}
+                placeholder="1507...apps.googleusercontent.com"
+                disabled={isDisabled}
+                className={inputClassName}
+              />
+              <p className="mt-1 text-xs text-foreground-muted">
+                Copy từ mục Client ID trong Google Cloud OAuth Client.
+              </p>
+            </Field>
+            <Field label="Google OAuth Client Secret">
+              <input
+                type="password"
+                name="googleAuthClientSecret"
+                value={formData.googleAuthClientSecret}
+                onChange={handleTextChange}
+                placeholder={integrationBadges.googleAuthSecret ? 'Đã lưu secret. Nhập để thay mới.' : 'Nhập client secret'}
+                disabled={isDisabled}
+                className={inputClassName}
+              />
+              <p className="mt-1 text-xs text-foreground-muted">
+                Secret được mã hóa trong DB. Nhập mới chỉ khi cần thay.
+              </p>
+            </Field>
+            <Field label="Authorized JavaScript origin" className="md:col-span-2">
+              <div className="flex gap-2">
+                <input
+                  value={googleAuthStatusQuery.data?.webAppBaseUrl || ''}
+                  disabled
+                  className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCopy(googleAuthStatusQuery.data?.webAppBaseUrl || '', 'JavaScript origin')}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background-tertiary px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-elevated"
+                >
+                  <Copy size={14} />
+                  Copy
+                </button>
+              </div>
+            </Field>
+            <Field label="Google Login redirect URI" className="md:col-span-2">
+              <div className="flex gap-2">
+                <input
+                  value={googleAuthStatusQuery.data?.callbackUrl || ''}
+                  disabled
+                  className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCopy(googleAuthStatusQuery.data?.callbackUrl || '', 'Google Login redirect URI')}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background-tertiary px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-elevated"
+                >
+                  <Copy size={14} />
+                  Copy
+                </button>
+              </div>
+            </Field>
+            <Field label="Google Link redirect URI" className="md:col-span-2">
+              <div className="flex gap-2">
+                <input
+                  value={googleAuthStatusQuery.data?.linkCallbackUrl || ''}
+                  disabled
+                  className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCopy(googleAuthStatusQuery.data?.linkCallbackUrl || '', 'Google Link redirect URI')}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background-tertiary px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-elevated"
+                >
+                  <Copy size={14} />
+                  Copy
+                </button>
+              </div>
+            </Field>
+            <Field label="Google Drive redirect URI" className="md:col-span-2">
+              <div className="flex gap-2">
+                <input
+                  value={driveOAuthCallbackUrl}
+                  disabled
+                  className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCopy(driveOAuthCallbackUrl, 'Google Drive redirect URI')}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background-tertiary px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-elevated"
+                >
+                  <Copy size={14} />
+                  Copy
+                </button>
+              </div>
+            </Field>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-border/50 bg-background-base p-4 text-xs text-foreground-muted">
+            <p className="font-semibold text-foreground-base">Google Cloud cần cấu hình</p>
+            <p className="mt-2">1. OAuth Client loại Web application.</p>
+            <p className="mt-1">2. Authorized JavaScript origin: URL web app, ví dụ <code className="rounded bg-black/20 px-1">http://localhost:3000</code>.</p>
+            <p className="mt-1">3. Authorized redirect URIs: thêm Google Login redirect URI, Google Link redirect URI và Google Drive redirect URI ở trên.</p>
+            <p className="mt-1">4. Nếu dùng Google Drive, OAuth consent screen phải có scope <code className="rounded bg-black/20 px-1">https://www.googleapis.com/auth/drive</code>.</p>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border/50 bg-background-elevated/60 p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <KeyRound size={16} className="text-primary-500" />
+              <div>
                 <h3 className="text-sm font-bold text-foreground-base">Google Login</h3>
                 <p className="mt-0.5 text-xs text-foreground-muted">
                   Cho phép đăng nhập bằng tài khoản Google Workspace.
@@ -363,10 +583,10 @@ export function TabGeneral() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {integrationBadges.googleAuthSecret ? (
-                <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-400">Đã cấu hình</span>
+              {formData.googleAuthEnabled && hasSavedGoogleOAuthClient ? (
+                <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-400">Đang bật</span>
               ) : formData.googleAuthEnabled ? (
-                <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-400">Thiếu secret</span>
+                <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-400">Thiếu OAuth Client</span>
               ) : null}
               <ToggleSwitch
                 checked={formData.googleAuthEnabled}
@@ -407,78 +627,15 @@ export function TabGeneral() {
                         Chỉ nhập domain email, không nhập URL app. Ví dụ: petshophanoi.com.
                       </p>
                     </Field>
-                    <Field label="Google OAuth Client ID">
-                      <input
-                        name="googleAuthClientId"
-                        value={formData.googleAuthClientId}
-                        onChange={handleTextChange}
-                        placeholder="Google OAuth client ID"
-                        disabled={isDisabled}
-                        className={inputClassName}
-                      />
-                    </Field>
-                    <Field label="Google OAuth Client Secret" className="md:col-span-2">
-                      <input
-                        type="password"
-                        name="googleAuthClientSecret"
-                        value={formData.googleAuthClientSecret}
-                        onChange={handleTextChange}
-                        placeholder={integrationBadges.googleAuthSecret ? 'Đã lưu secret. Nhập để thay mới.' : 'Nhập client secret'}
-                        disabled={isDisabled}
-                        className={inputClassName}
-                      />
-                    </Field>
-                    <Field label="Authorized JavaScript origin" className="md:col-span-2">
-                      <div className="flex gap-2">
-                        <input
-                          value={googleAuthStatusQuery.data?.webAppBaseUrl || ''}
-                          disabled
-                          className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(googleAuthStatusQuery.data?.webAppBaseUrl || '', 'JavaScript origin')}
-                          className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background-tertiary px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-elevated"
-                        >
-                          <Copy size={14} />
-                          Copy
-                        </button>
-                      </div>
-                    </Field>
-                    <Field label="Authorized redirect URI" className="md:col-span-2">
-                      <div className="flex gap-2">
-                        <input
-                          value={googleAuthStatusQuery.data?.callbackUrl || ''}
-                          disabled
-                          className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(googleAuthStatusQuery.data?.callbackUrl || '', 'redirect URI')}
-                          className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background-tertiary px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-elevated"
-                        >
-                          <Copy size={14} />
-                          Copy
-                        </button>
-                      </div>
-                    </Field>
-                  </div>
-
-                  <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-xs text-sky-100">
-                    <p className="font-semibold text-sky-50">Test ở local</p>
-                    <p className="mt-2">Local không cần deploy: thêm JavaScript origin http://localhost:3000 và redirect URI http://localhost:3001/api/auth/google/callback trong Google Cloud.</p>
-                    <p className="mt-1">Production phải dùng HTTPS và copy đúng chính xác origin/redirect URI bên trên.</p>
                   </div>
 
                   <div className="rounded-2xl border border-border/50 bg-background-base p-4 text-xs text-foreground-muted">
-                    <p className="font-semibold text-foreground-base">Hướng dẫn Google Cloud</p>
-                    <p className="mt-2">1. Tạo OAuth Client ID loại Web application.</p>
-                    <p className="mt-1">2. Thêm JavaScript origin và redirect URI đúng như 2 ô bên trên.</p>
-                    <p className="mt-1">3. Scope chỉ cần: openid, email, profile.</p>
+                    <p className="font-semibold text-foreground-base">Google Login dùng OAuth Client chung</p>
+                    <p className="mt-2">Client ID/Secret và redirect URI nằm ở section Google OAuth Client phía trên.</p>
                     {googleAuthStatusQuery.data?.allowedDomain ? (
-                      <p className="mt-1">4. App đang giới hạn domain: {googleAuthStatusQuery.data.allowedDomain}.</p>
+                      <p className="mt-1">App đang giới hạn domain: {googleAuthStatusQuery.data.allowedDomain}.</p>
                     ) : (
-                      <p className="mt-1">4. Nếu muốn giới hạn email công ty, điền domain ở trên.</p>
+                      <p className="mt-1">Nếu muốn giới hạn email công ty, điền domain ở trên.</p>
                     )}
                   </div>
                 </div>
@@ -499,10 +656,14 @@ export function TabGeneral() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {integrationBadges.googleDriveSecret ? (
+              {hasGoogleDriveCredential ? (
                 <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-400">Đã kết nối</span>
+              ) : hasGoogleDriveDraftSecret && formData.googleDriveAuthMode === 'SERVICE_ACCOUNT' ? (
+                <span className="rounded-full bg-sky-500/15 px-2.5 py-1 text-xs font-semibold text-sky-300">Chưa lưu</span>
               ) : formData.googleDriveEnabled ? (
-                <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-400">Thiếu secret</span>
+                <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-400">
+                  {formData.googleDriveAuthMode === 'OAUTH' ? 'Chưa kết nối' : 'Thiếu secret'}
+                </span>
               ) : null}
               <ToggleSwitch
                 checked={formData.googleDriveEnabled}
@@ -523,8 +684,8 @@ export function TabGeneral() {
                       onClick={() => setFormData((c) => ({ ...c, storageProvider: 'LOCAL' }))}
                       disabled={isDisabled}
                       className={`rounded-2xl border px-4 py-3.5 text-left transition-colors ${formData.storageProvider === 'LOCAL'
-                          ? 'border-primary-500 bg-primary-500/10'
-                          : 'border-border/40 bg-black/10 hover:bg-black/20'
+                        ? 'border-primary-500 bg-primary-500/10'
+                        : 'border-border/40 bg-black/10 hover:bg-black/20'
                         } disabled:cursor-not-allowed disabled:opacity-60`}
                     >
                       <div className="text-sm font-semibold text-foreground-base">💾 Lưu trên server (Local)</div>
@@ -535,8 +696,8 @@ export function TabGeneral() {
                       onClick={() => setFormData((c) => ({ ...c, storageProvider: 'GOOGLE_DRIVE' }))}
                       disabled={isDisabled}
                       className={`rounded-2xl border px-4 py-3.5 text-left transition-colors ${formData.storageProvider === 'GOOGLE_DRIVE'
-                          ? 'border-primary-500 bg-primary-500/10'
-                          : 'border-border/40 bg-black/10 hover:bg-black/20'
+                        ? 'border-primary-500 bg-primary-500/10'
+                        : 'border-border/40 bg-black/10 hover:bg-black/20'
                         } disabled:cursor-not-allowed disabled:opacity-60`}
                     >
                       <div className="text-sm font-semibold text-foreground-base">☁️ Lưu lên Google Drive</div>
@@ -545,6 +706,39 @@ export function TabGeneral() {
                   </div>
                 </Field>
               </div>
+
+              {formData.storageProvider === 'GOOGLE_DRIVE' && (
+                <div className="mt-4 rounded-2xl border border-border/40 bg-background-base p-4">
+                  <Field label="Kiểu kết nối Google Drive">
+                    <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormData((c) => ({ ...c, googleDriveAuthMode: 'OAUTH' }))}
+                        disabled={isDisabled}
+                        className={`rounded-2xl border px-4 py-3.5 text-left transition-colors ${formData.googleDriveAuthMode === 'OAUTH'
+                          ? 'border-primary-500 bg-primary-500/10'
+                          : 'border-border/40 bg-black/10 hover:bg-black/20'
+                          } disabled:cursor-not-allowed disabled:opacity-60`}
+                      >
+                        <div className="text-sm font-semibold text-foreground-base">Đăng nhập tài khoản Google</div>
+                        <div className="mt-1 text-xs text-foreground-muted">Upload bằng dung lượng Drive của tài khoản cá nhân đã kết nối.</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData((c) => ({ ...c, googleDriveAuthMode: 'SERVICE_ACCOUNT' }))}
+                        disabled={isDisabled}
+                        className={`rounded-2xl border px-4 py-3.5 text-left transition-colors ${formData.googleDriveAuthMode === 'SERVICE_ACCOUNT'
+                          ? 'border-primary-500 bg-primary-500/10'
+                          : 'border-border/40 bg-black/10 hover:bg-black/20'
+                          } disabled:cursor-not-allowed disabled:opacity-60`}
+                      >
+                        <div className="text-sm font-semibold text-foreground-base">Service Account</div>
+                        <div className="mt-1 text-xs text-foreground-muted">Dùng JSON service account, phù hợp khi có Shared Drive.</div>
+                      </button>
+                    </div>
+                  </Field>
+                </div>
+              )}
 
               <div className="mt-4 flex items-center justify-between">
                 <button
@@ -569,15 +763,212 @@ export function TabGeneral() {
 
               {showGoogleDriveConfig && (
                 <div className="mt-4 space-y-6 rounded-2xl border border-border/40 bg-background-base p-5">
+                  {formData.googleDriveAuthMode === 'OAUTH' && (
+                    <div className="rounded-2xl border border-primary-500/30 bg-primary-500/10 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground-base">Tài khoản Google Drive</p>
+                          <p className="mt-1 text-xs text-foreground-muted">
+                            {integrationBadges.googleDriveOAuth
+                              ? `Đã kết nối: ${formData.googleDriveOAuthEmail || formData.googleDriveClientEmail || 'Google account'}`
+                              : 'Chưa kết nối tài khoản Google Drive.'}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={handleDriveOAuthConnect}
+                            disabled={isDisabled || !hasSavedGoogleOAuthClient}
+                            className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Cloud size={14} />
+                            {integrationBadges.googleDriveOAuth ? 'Kết nối lại' : 'Kết nối Google Drive'}
+                          </button>
+                          {integrationBadges.googleDriveOAuth && (
+                            <button
+                              type="button"
+                              onClick={() => disconnectDriveOAuthMutation.mutate()}
+                              disabled={isDisabled || disconnectDriveOAuthMutation.isPending}
+                              className="inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {disconnectDriveOAuthMutation.isPending ? <RefreshCw size={14} className="animate-spin" /> : null}
+                              Ngắt kết nối
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {!hasSavedGoogleOAuthClient && (
+                        <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                          Cần lưu Google OAuth Client ID/Secret ở section phía trên trước khi kết nối Drive.
+                        </p>
+                      )}
+                      <div className="mt-4 rounded-xl border border-primary-400/20 bg-background-base/70 p-4 text-xs text-foreground-muted">
+                        <p className="font-semibold text-foreground-base">Hướng dẫn tích hợp tài khoản Google cá nhân</p>
+                        <ol className="mt-3 list-decimal space-y-2.5 pl-4">
+                          <li>Cấu hình <strong className="text-foreground-base">Client ID</strong> và <strong className="text-foreground-base">Client secret</strong> trong section <strong className="text-foreground-base">Google OAuth Client</strong> phía trên rồi bấm lưu.</li>
+                          <li>
+                            Trong{' '}
+                            <a
+                              href="https://console.cloud.google.com/apis/credentials/consent"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 font-semibold text-primary-400 underline decoration-primary-400/40 hover:text-primary-300"
+                            >
+                              OAuth consent screen
+                              <ExternalLink size={11} />
+                            </a>
+                            , thêm scope <code className="rounded bg-black/20 px-1 py-0.5">https://www.googleapis.com/auth/drive</code>. Nếu app đang ở Testing, thêm Gmail sẽ dùng upload vào Test users.
+                          </li>
+                          <li>
+                            Trong OAuth Client loại Web application, thêm Authorized JavaScript origin là URL web app, ví dụ <code className="rounded bg-black/20 px-1 py-0.5">http://localhost:3000</code>. Sau đó thêm redirect URI bên dưới rồi Save.
+                            <div className="mt-2 flex gap-2">
+                              <input
+                                value={driveOAuthCallbackUrl}
+                                disabled
+                                className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(driveOAuthCallbackUrl, 'Drive OAuth redirect URI')}
+                                className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background-tertiary px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-elevated"
+                              >
+                                <Copy size={14} />
+                                Copy
+                              </button>
+                            </div>
+                          </li>
+                          <li>Bấm <strong className="text-foreground-base">Kết nối Google Drive</strong>, chọn tài khoản Google cá nhân và đồng ý quyền Drive.</li>
+                          <li>Tạo hoặc chọn thư mục trong My Drive của tài khoản đó, copy Folder ID từ URL rồi dán vào ô bên dưới.</li>
+                          <li>Bấm <strong className="text-foreground-base">Lưu thay đổi</strong>, sau đó bấm <strong className="text-foreground-base">Kiểm tra kết nối</strong>.</li>
+                        </ol>
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.googleDriveAuthMode === 'SERVICE_ACCOUNT' && (
                   <div className="rounded-2xl border border-border/40 bg-background-elevated/50 p-4 text-xs text-foreground-muted">
-                    <p className="mb-2 font-semibold text-foreground-base">Hướng dẫn kết nối (4 bước)</p>
-                    <ol className="list-decimal space-y-1.5 pl-4">
-                      <li>Vào <strong className="text-foreground-base">Google Cloud Console</strong> → IAM → Service Accounts → Tạo service account mới.</li>
-                      <li>Vào tab <strong className="text-foreground-base">Keys</strong> của service account → Add Key → JSON → Download file.json.</li>
-                      <li>Trong <strong className="text-foreground-base">Google Drive</strong>: tạo thư mục → chuột phải → Share → dán email service account → Editor.</li>
-                      <li>Copy <strong className="text-foreground-base">Folder ID</strong> từ URL Drive (phần sau <code className="rounded bg-black/20 px-1 py-0.5">/folders/</code>) và dán vào ô bên dưới.</li>
+                    <p className="mb-3 font-semibold text-foreground-base">Hướng dẫn kết nối (5 bước)</p>
+                    <ol className="list-decimal space-y-2.5 pl-4">
+                      <li>
+                        Vào{' '}
+                        <a
+                          href="https://console.cloud.google.com/iam-admin/serviceaccounts"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-semibold text-primary-400 underline decoration-primary-400/40 hover:text-primary-300"
+                        >
+                          Google Cloud Console → Service Accounts
+                          <ExternalLink size={11} />
+                        </a>{' '}
+                        → Tạo service account mới (hoặc dùng account hiện có).
+                      </li>
+                      <li>
+                        <strong className="text-foreground-base">Bật Google Drive API:</strong>{' '}
+                        <a
+                          href="https://console.cloud.google.com/apis/library/drive.googleapis.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-semibold text-primary-400 underline decoration-primary-400/40 hover:text-primary-300"
+                        >
+                          APIs & Services → Google Drive API → Enable
+                          <ExternalLink size={11} />
+                        </a>
+                      </li>
+                      <li>
+                        Vào tab{' '}
+                        <a
+                          href="https://console.cloud.google.com/iam-admin/serviceaccounts"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-semibold text-primary-400 underline decoration-primary-400/40 hover:text-primary-300"
+                        >
+                          Keys của Service Account
+                          <ExternalLink size={11} />
+                        </a>{' '}
+                        → Add Key → JSON → Download file <code className="rounded bg-black/20 px-1 py-0.5">.json</code>.
+                      </li>
+                      <li>
+                        Trong{' '}
+                        <a
+                          href="https://drive.google.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-semibold text-primary-400 underline decoration-primary-400/40 hover:text-primary-300"
+                        >
+                          Google Drive
+                          <ExternalLink size={11} />
+                        </a>
+                        : tạo thư mục → chuột phải → Share → dán email service account{' '}
+                        {formData.googleDriveClientEmail ? (
+                          <code className="rounded bg-primary-500/15 px-1.5 py-0.5 text-primary-300">{formData.googleDriveClientEmail}</code>
+                        ) : (
+                          <span className="text-foreground-muted">(email sẽ hiện sau khi lưu JSON)</span>
+                        )}{' '}
+                        → chọn quyền <strong className="text-foreground-base">Editor</strong>.
+                      </li>
+                      <li>
+                        Copy <strong className="text-foreground-base">Folder ID</strong> từ URL Drive:{' '}
+                        <code className="rounded bg-black/20 px-1 py-0.5">drive.google.com/drive/folders/<span className="text-primary-400">FOLDER_ID_Ở_ĐÂY</span></code>{' '}
+                        và dán vào ô bên dưới.
+                      </li>
                     </ol>
                   </div>
+                  )}
+
+                  {driveTestError && (
+                    <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-xs">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-400" />
+                        <div className="space-y-2">
+                          <p className="font-semibold text-red-300">Kết nối thất bại</p>
+                          <p className="text-red-200/80">{driveTestError}</p>
+                          <div className="mt-2 space-y-1.5 text-foreground-muted">
+                            <p className="font-semibold text-foreground-base">Kiểm tra lại:</p>
+                            <ul className="list-disc space-y-1 pl-4">
+                              {formData.googleDriveAuthMode === 'OAUTH' ? (
+                                <>
+                                  <li>
+                                    <a
+                                      href="https://console.cloud.google.com/apis/library/drive.googleapis.com"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-primary-400 underline hover:text-primary-300"
+                                    >
+                                      Google Drive API đã Enable chưa?
+                                      <ExternalLink size={10} />
+                                    </a>
+                                  </li>
+                                  <li>OAuth consent screen đã thêm scope Drive và Gmail đã nằm trong Test users nếu app đang Testing chưa?</li>
+                                  <li>Redirect URI Drive OAuth đã copy đúng tuyệt đối chưa?</li>
+                                  <li>Đã bấm <strong className="text-foreground-base">Kết nối Google Drive</strong> và chọn đúng tài khoản cá nhân chưa?</li>
+                                  <li>Folder ID có nằm trong My Drive của tài khoản đã kết nối không?</li>
+                                  <li>Đã bấm <strong className="text-foreground-base">Lưu thay đổi</strong> trước khi test chưa?</li>
+                                </>
+                              ) : (
+                                <>
+                                  <li>
+                                    <a
+                                      href="https://console.cloud.google.com/apis/library/drive.googleapis.com"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-primary-400 underline hover:text-primary-300"
+                                    >
+                                      Google Drive API đã Enable chưa?
+                                      <ExternalLink size={10} />
+                                    </a>
+                                  </li>
+                                  <li>Folder đã Share cho email service account với quyền <strong className="text-foreground-base">Editor</strong> chưa?</li>
+                                  <li>Folder ID đúng chưa? (lấy từ URL sau <code className="rounded bg-black/20 px-1">/folders/</code>)</li>
+                                  <li>File JSON service account có đúng và đầy đủ không?</li>
+                                  <li>Đã bấm <strong className="text-foreground-base">Lưu thay đổi</strong> trước khi test chưa?</li>
+                                </>
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <Field label="ID thư mục Google Drive *" className="md:col-span-2">
@@ -590,16 +981,19 @@ export function TabGeneral() {
                         className={inputClassName}
                       />
                       <p className="mt-1 text-xs text-foreground-muted">
-                        Share thư mục này cho email service account với quyền Editor.
+                        {formData.googleDriveAuthMode === 'OAUTH'
+                          ? 'Thư mục này phải nằm trong Google Drive của tài khoản cá nhân đã kết nối.'
+                          : 'Share thư mục này cho email service account với quyền Editor.'}
                       </p>
                     </Field>
 
+                    {formData.googleDriveAuthMode === 'SERVICE_ACCOUNT' && (
                     <Field label="Service Account JSON *" className="md:col-span-2">
                       <div className="mb-2 flex gap-2">
                         <label
                           className={`inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-xs font-medium ${canUpdateSettings
-                              ? 'cursor-pointer bg-background-tertiary transition-colors hover:bg-background-elevated'
-                              : 'cursor-not-allowed bg-background-tertiary/60 text-foreground-muted'
+                            ? 'cursor-pointer bg-background-tertiary transition-colors hover:bg-background-elevated'
+                            : 'cursor-not-allowed bg-background-tertiary/60 text-foreground-muted'
                             }`}
                         >
                           <Upload size={14} />
@@ -644,6 +1038,7 @@ export function TabGeneral() {
                         JSON được mã hóa trong DB. Cần env <code className="rounded bg-black/20 px-1">APP_SECRET_ENCRYPTION_KEY</code>.
                       </p>
                     </Field>
+                    )}
                   </div>
 
                   <details className="rounded-xl border border-border/40 bg-background-elevated/50">
@@ -693,6 +1088,7 @@ export function TabGeneral() {
                       </Field>
                     </div>
                   </details>
+
                 </div>
               )}
             </>
@@ -703,7 +1099,7 @@ export function TabGeneral() {
         <div className="flex justify-end border-t border-border/40 pt-6">
           <button
             onClick={handleSave}
-            disabled={!canUpdateSettings || isSaving || !formData.shopName}
+            disabled={!canUpdateSettings || isSaving}
             className="flex items-center gap-2 rounded-xl bg-primary-500 px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? (

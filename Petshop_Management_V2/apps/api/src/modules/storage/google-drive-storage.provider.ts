@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
 import { google } from 'googleapis'
+import { Readable } from 'stream'
 import { DatabaseService } from '../../database/database.service.js'
 import { decryptSecret } from '../../common/utils/secret-box.util.js'
 import type {
@@ -10,8 +11,12 @@ import type {
 } from './storage.types.js'
 
 type GoogleDriveRuntimeConfig = {
-  clientEmail: string
-  privateKey: string
+  authMode: 'SERVICE_ACCOUNT' | 'OAUTH'
+  clientEmail: string | null
+  privateKey: string | null
+  clientId: string | null
+  clientSecret: string | null
+  oauthRefreshToken: string | null
   sharedDriveId: string | null
   rootFolderId: string | null
   imageFolderId: string | null
@@ -28,9 +33,14 @@ export class GoogleDriveStorageProvider {
   }
 
   private async loadRuntimeConfig(): Promise<GoogleDriveRuntimeConfig> {
-    const config = await this.db.systemConfig.findFirst({
+    const config = await (this.db as any).systemConfig.findFirst({
       select: {
         googleDriveServiceAccountEnc: true,
+        googleDriveAuthMode: true,
+        googleDriveOAuthRefreshTokenEnc: true,
+        googleDriveOAuthEmail: true,
+        googleAuthClientId: true,
+        googleAuthClientSecretEnc: true,
         googleDriveSharedDriveId: true,
         googleDriveRootFolderId: true,
         googleDriveImageFolderId: true,
@@ -40,10 +50,43 @@ export class GoogleDriveStorageProvider {
       },
     })
 
+    const authMode = (config?.googleDriveAuthMode ?? 'SERVICE_ACCOUNT') as GoogleDriveRuntimeConfig['authMode']
     const serviceAccountJson =
       decryptSecret(config?.googleDriveServiceAccountEnc) ??
       process.env['GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON'] ??
       ''
+    const oauthRefreshToken = decryptSecret(config?.googleDriveOAuthRefreshTokenEnc) ?? null
+    const oauthClientId =
+      config?.googleAuthClientId?.trim() ||
+      process.env['GOOGLE_AUTH_CLIENT_ID'] ||
+      ''
+    const oauthClientSecret =
+      decryptSecret(config?.googleAuthClientSecretEnc) ||
+      process.env['GOOGLE_AUTH_CLIENT_SECRET'] ||
+      ''
+
+    if (authMode === 'OAUTH') {
+      if (!oauthClientId || !oauthClientSecret) {
+        throw new BadRequestException('Google OAuth client chua duoc cau hinh')
+      }
+      if (!oauthRefreshToken) {
+        throw new BadRequestException('Google Drive OAuth chua ket noi. Vui long bam "Ket noi Google Drive" trong cai dat.')
+      }
+
+      return {
+        authMode,
+        clientEmail: config?.googleDriveOAuthEmail ?? config?.googleDriveClientEmail ?? null,
+        privateKey: null,
+        clientId: oauthClientId,
+        clientSecret: oauthClientSecret,
+        oauthRefreshToken,
+        sharedDriveId: config?.googleDriveSharedDriveId ?? null,
+        rootFolderId: config?.googleDriveRootFolderId ?? null,
+        imageFolderId: config?.googleDriveImageFolderId ?? null,
+        documentFolderId: config?.googleDriveDocumentFolderId ?? null,
+        backupFolderId: config?.googleDriveBackupFolderId ?? null,
+      }
+    }
 
     if (!serviceAccountJson) {
       throw new BadRequestException('Google Drive service account chua duoc cau hinh')
@@ -64,8 +107,12 @@ export class GoogleDriveStorageProvider {
     }
 
     return {
+      authMode: 'SERVICE_ACCOUNT',
       clientEmail,
       privateKey: this.normalizePrivateKey(privateKey),
+      clientId: null,
+      clientSecret: null,
+      oauthRefreshToken: null,
       sharedDriveId: config?.googleDriveSharedDriveId ?? null,
       rootFolderId: config?.googleDriveRootFolderId ?? null,
       imageFolderId: config?.googleDriveImageFolderId ?? null,
@@ -76,10 +123,20 @@ export class GoogleDriveStorageProvider {
 
   private async createDriveClient() {
     const config = await this.loadRuntimeConfig()
+    if (config.authMode === 'OAUTH') {
+      const auth = new google.auth.OAuth2(config.clientId ?? undefined, config.clientSecret ?? undefined)
+      auth.setCredentials({ refresh_token: config.oauthRefreshToken ?? undefined })
+
+      return {
+        drive: google.drive({ version: 'v3', auth }),
+        config,
+      }
+    }
+
     const auth = new google.auth.GoogleAuth({
       credentials: {
-        client_email: config.clientEmail,
-        private_key: config.privateKey,
+        client_email: config.clientEmail ?? '',
+        private_key: config.privateKey ?? '',
       },
       scopes: ['https://www.googleapis.com/auth/drive'],
     })
@@ -129,7 +186,7 @@ export class GoogleDriveStorageProvider {
       const result = await drive.files.create({
         supportsAllDrives: true,
         requestBody: { name: file.originalName, parents: [folderId] },
-        media: { mimeType: file.mimeType, body: Buffer.from(file.buffer) },
+        media: { mimeType: file.mimeType, body: Readable.from(file.buffer) },
         fields: 'id,name,mimeType,size',
       })
       if (!result.data.id) {
@@ -146,8 +203,14 @@ export class GoogleDriveStorageProvider {
         error?.message ??
         'Lỗi upload lên Google Drive'
       const httpCode: number = error?.response?.status ?? 0
+      const normalizedGoogleMsg = String(googleMsg).toLowerCase()
+      const isServiceAccountQuotaError =
+        normalizedGoogleMsg.includes('service accounts do not have storage quota') ||
+        normalizedGoogleMsg.includes('storage quota')
       const hint =
-        httpCode === 403
+        isServiceAccountQuotaError
+          ? ' — Service account không có dung lượng lưu trữ My Drive. Hãy tạo Shared Drive, thêm service account vào Shared Drive với quyền Content manager/Manager, đặt Root folder nằm trong Shared Drive và nhập Shared Drive ID; hoặc dùng OAuth delegation thay cho service account.'
+          : httpCode === 403
           ? ` — Service account thiếu quyền Editor trên folder "${folderId}".`
           : httpCode === 404
             ? ` — Folder ID "${folderId}" không tồn tại.`
@@ -268,11 +331,28 @@ export class GoogleDriveStorageProvider {
         'Lỗi không xác định từ Google API'
 
       const httpCode = error?.response?.status ?? error?.code ?? ''
-      const hint = httpCode === 403
-        ? ' — Kiểm tra Google Drive API đã được bật chưa tại Google Cloud Console (APIs & Services → Library → Google Drive API → Enable).'
-        : httpCode === 404
-          ? ' — Folder ID không tồn tại hoặc chưa được share cho service account.'
-          : ''
+      const networkErrorCodes = ['ENOTFOUND', 'ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET', 'ERR_NETWORK']
+      const isNetworkError =
+        networkErrorCodes.includes(error?.code) ||
+        googleMsg.toLowerCase().includes('network error') ||
+        googleMsg.toLowerCase().includes('getaddrinfo')
+
+      const isApiDisabled =
+        httpCode === 403 &&
+        (googleMsg.includes('has not been used') || googleMsg.includes('disabled'))
+
+      let hint = ''
+      if (isNetworkError) {
+        hint = ' — Lỗi mạng: server không thể kết nối tới Google API. Kiểm tra kết nối internet của server, DNS, hoặc firewall.'
+      } else if (isApiDisabled) {
+        hint = ' — Google Drive API chưa được bật. Vào Google Cloud Console → APIs & Services → Library → tìm "Google Drive API" → bấm Enable.'
+      } else if (httpCode === 403) {
+        hint = ' — Service account thiếu quyền. Kiểm tra: (1) Google Drive API đã Enable, (2) folder đã Share cho service account với quyền Editor.'
+      } else if (httpCode === 404) {
+        hint = ' — Folder ID không tồn tại hoặc chưa được share cho service account.'
+      } else if (httpCode === 401) {
+        hint = ' — Xác thực thất bại. Kiểm tra file JSON service account có đúng và chưa hết hạn không.'
+      }
 
       throw new BadRequestException(`Google Drive: ${googleMsg}${hint}`)
     }

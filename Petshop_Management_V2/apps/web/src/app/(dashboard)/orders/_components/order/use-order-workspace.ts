@@ -7,8 +7,12 @@ import { resolveProductVariantLabels } from '@petshop/shared'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { orderApi } from '@/lib/api/order.api'
 import { settingsApi } from '@/lib/api/settings.api'
-import { filterVisiblePaymentMethods } from '@/lib/payment-methods'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import {
+  calculateOrderRemainingAmount,
+  resolveOrderPaymentCollectionAmount,
+  resolveVisibleOrderPaymentMethods,
+} from '@/app/(dashboard)/_shared/order/order-payment.utils'
 import {
   buildDirectServiceCartItem,
   buildDraftFromOrder,
@@ -175,15 +179,17 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   )
   const total = Math.max(0, subtotal + draft.shippingFee - draft.discount + vatAmount)
   const amountPaid = Number(order?.paidAmount ?? order?.amountPaid ?? 0)
-  const remainingAmount = Math.max(0, total - amountPaid)
+  const remainingAmount = calculateOrderRemainingAmount(total, amountPaid)
+  const paymentCollectionAmount = resolveOrderPaymentCollectionAmount({ total, paidAmount: amountPaid })
   const hasServiceItems = draft.items.some((item) => item.type === 'grooming' || item.type === 'hotel')
   const visiblePaymentMethods = useMemo(
     () =>
-      filterVisiblePaymentMethods(paymentMethods, {
+      resolveVisibleOrderPaymentMethods(paymentMethods, {
         branchId: order?.branchId ?? draft.branchId,
-        amount: remainingAmount > 0 ? remainingAmount : total,
+        paidAmount: amountPaid,
+        total,
       }),
-    [draft.branchId, order?.branchId, paymentMethods, remainingAmount, total],
+    [amountPaid, draft.branchId, order?.branchId, paymentMethods, total],
   )
   const productMatches = useMemo(
     () => (deferredItemSearch.trim() ? (productResults as any[]).slice(0, 10) : []),
@@ -519,6 +525,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     total,
     amountPaid,
     remainingAmount,
+    paymentCollectionAmount,
     selectedRowIndex,
     setSelectedRowIndex,
     visiblePaymentMethods,

@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto'
 import { memoryStorage } from 'multer'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { Roles } from '../../common/decorators/roles.decorator.js'
@@ -62,6 +63,11 @@ import {
 } from './settings.service'
 
 const DOCUMENT_UPLOAD_PREFIX = '/uploads/files/'
+const GOOGLE_DRIVE_OAUTH_STATE_COOKIE = 'petshop_google_drive_oauth_state'
+type GoogleDriveOAuthStatePayload = {
+  nonce: string
+  exp: number
+}
 
 @ApiTags('Settings')
 @Controller()
@@ -75,6 +81,94 @@ export class SettingsController {
     private readonly storageService: StorageService,
     private readonly backupService: BackupService,
   ) { }
+
+  private getOAuthCookieOptions() {
+    return {
+      httpOnly: true,
+      sameSite: 'lax' as const,
+      secure: process.env['NODE_ENV'] === 'production',
+      path: '/',
+      maxAge: 10 * 60_000,
+    }
+  }
+
+  private getOAuthClearCookieOptions() {
+    return {
+      sameSite: 'lax' as const,
+      secure: process.env['NODE_ENV'] === 'production',
+      path: '/',
+    }
+  }
+
+  private getCookieValue(req: Request, name: string): string | null {
+    const rawCookie = req.headers.cookie
+    if (!rawCookie) return null
+
+    const cookie = rawCookie
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${name}=`))
+
+    return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : null
+  }
+
+  private getGoogleDriveOAuthStateSecret() {
+    return (
+      process.env['APP_SECRET_ENCRYPTION_KEY'] ||
+      process.env['JWT_SECRET'] ||
+      'petshop-google-drive-oauth-state-dev-secret'
+    )
+  }
+
+  private signGoogleDriveOAuthStatePayload(encodedPayload: string) {
+    return createHmac('sha256', this.getGoogleDriveOAuthStateSecret())
+      .update(encodedPayload)
+      .digest('base64url')
+  }
+
+  private createGoogleDriveOAuthState(nonce: string) {
+    const payload: GoogleDriveOAuthStatePayload = {
+      nonce,
+      exp: Date.now() + 10 * 60_000,
+    }
+    const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+    return `${encodedPayload}.${this.signGoogleDriveOAuthStatePayload(encodedPayload)}`
+  }
+
+  private verifyGoogleDriveOAuthState(state: string | undefined): string | null {
+    if (!state) return null
+
+    const [encodedPayload, signature] = state.split('.')
+    if (!encodedPayload || !signature) return null
+
+    const expectedSignature = this.signGoogleDriveOAuthStatePayload(encodedPayload)
+    const signatureBuffer = Buffer.from(signature)
+    const expectedBuffer = Buffer.from(expectedSignature)
+    if (signatureBuffer.length !== expectedBuffer.length || !timingSafeEqual(signatureBuffer, expectedBuffer)) {
+      return null
+    }
+
+    try {
+      const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as Partial<GoogleDriveOAuthStatePayload>
+      const nonce = String(payload.nonce ?? '').trim()
+      const exp = Number(payload.exp ?? 0)
+      if (!nonce || !Number.isFinite(exp) || exp < Date.now()) {
+        return null
+      }
+      return nonce
+    } catch {
+      return null
+    }
+  }
+
+  private buildGoogleDriveOAuthRedirect(status: 'success' | 'error', message?: string) {
+    const target = new URL('/settings', this.settingsService.getWebAppBaseUrl())
+    target.searchParams.set('google_drive', status)
+    if (message) {
+      target.searchParams.set('message', message)
+    }
+    return target.toString()
+  }
 
   private parseBackupModules(value: unknown): string[] {
     if (Array.isArray(value)) {
@@ -117,6 +211,59 @@ export class SettingsController {
   @ApiOperation({ summary: 'Kiem tra ket noi Google Drive dung chung' })
   testGoogleDriveConnection() {
     return this.storageService.testGoogleDriveConnection()
+  }
+
+  @Get('settings/google-drive/oauth/start')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Bat dau ket noi Google Drive bang tai khoan Google' })
+  async startGoogleDriveOAuth(@Res() res: Response) {
+    try {
+      const nonce = randomUUID()
+      const state = this.createGoogleDriveOAuthState(nonce)
+      res.cookie(GOOGLE_DRIVE_OAUTH_STATE_COOKIE, nonce, this.getOAuthCookieOptions())
+      const url = await this.settingsService.createGoogleDriveOAuthUrl(state)
+      return res.redirect(url)
+    } catch (error: any) {
+      res.clearCookie(GOOGLE_DRIVE_OAUTH_STATE_COOKIE, this.getOAuthClearCookieOptions())
+      return res.redirect(this.buildGoogleDriveOAuthRedirect('error', error?.message ? String(error.message) : 'Google Drive OAuth failed'))
+    }
+  }
+
+  @Get('settings/google-drive/oauth/callback')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Google Drive OAuth callback' })
+  async googleDriveOAuthCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const expectedState = this.getCookieValue(req, GOOGLE_DRIVE_OAUTH_STATE_COOKIE)
+    const stateNonce = this.verifyGoogleDriveOAuthState(state)
+    const isLegacyCookieStateValid = Boolean(expectedState && state && expectedState === state)
+    res.clearCookie(GOOGLE_DRIVE_OAUTH_STATE_COOKIE, this.getOAuthClearCookieOptions())
+
+    if (!isLegacyCookieStateValid && (!stateNonce || (expectedState && expectedState !== stateNonce))) {
+      return res.redirect(this.buildGoogleDriveOAuthRedirect('error', 'Google Drive OAuth state mismatch'))
+    }
+
+    if (!code) {
+      return res.redirect(this.buildGoogleDriveOAuthRedirect('error', 'Google Drive OAuth missing code'))
+    }
+
+    try {
+      await this.settingsService.connectGoogleDriveOAuthWithCode(code)
+      return res.redirect(this.buildGoogleDriveOAuthRedirect('success'))
+    } catch (error: any) {
+      return res.redirect(this.buildGoogleDriveOAuthRedirect('error', error?.message ? String(error.message) : 'Google Drive OAuth failed'))
+    }
+  }
+
+  @Post('settings/google-drive/oauth/disconnect')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Ngat ket noi Google Drive OAuth' })
+  disconnectGoogleDriveOAuth() {
+    return this.settingsService.disconnectGoogleDriveOAuth()
   }
 
   @Get('settings/backups/catalog')

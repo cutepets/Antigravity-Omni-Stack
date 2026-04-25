@@ -614,7 +614,7 @@ describe('OrdersService', () => {
       db.order.findFirst.mockResolvedValue(order)
       db.$transaction.mockImplementation(async (callback: any) => callback(db))
       db.order.update.mockResolvedValue({ ...order, status: 'COMPLETED', stockExportedAt: new Date() })
-      jest.spyOn(service, 'findOne').mockResolvedValue({ ...order, status: 'COMPLETED' } as any)
+      jest.spyOn((service as any).command, 'findOne').mockResolvedValue({ ...order, status: 'COMPLETED' } as any)
 
       const result = await service.exportStock('exchange-order-1', { note: 'repair stuck exchange order' }, 'staff-1', undefined as any)
 
@@ -676,7 +676,7 @@ describe('OrdersService', () => {
       db.order.findFirst.mockResolvedValue(order)
       db.$transaction.mockImplementation(async (callback: any) => callback(db))
       db.order.update.mockResolvedValue({ ...order, status: 'COMPLETED', stockExportedAt: new Date() })
-      jest.spyOn(service, 'findOne').mockResolvedValue({ ...order, status: 'COMPLETED' } as any)
+      jest.spyOn((service as any).command, 'findOne').mockResolvedValue({ ...order, status: 'COMPLETED' } as any)
 
       await service.exportStock('DH260425010', {}, 'staff-1', undefined as any)
 
@@ -692,7 +692,7 @@ describe('OrdersService', () => {
       expect(db.order.update).toHaveBeenCalledWith(expect.objectContaining({
         where: { id: 'exchange-order-1' },
       }))
-      expect(service.findOne).toHaveBeenCalledWith('exchange-order-1', undefined)
+      expect((service as any).command.findOne).toHaveBeenCalledWith('exchange-order-1', undefined)
     })
 
     it('rejects completeOrder when linked service work is unfinished', async () => {
@@ -1211,7 +1211,7 @@ describe('OrdersService', () => {
     })
 
     it('bulk deletes orders and returns blocked entries without failing the full batch', async () => {
-      jest.spyOn(service, 'deleteOrderCascade')
+      jest.spyOn((service as any).command, 'deleteOrderCascade')
         .mockResolvedValueOnce({ success: true, deletedIds: ['order-1'] } as any)
         .mockRejectedValueOnce(new BadRequestException('Ton kho khong du de dao giao dich'))
 

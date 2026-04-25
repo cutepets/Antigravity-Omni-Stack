@@ -1807,6 +1807,7 @@ model SystemConfig {
   googleAuthClientSecretEnc  String?
   googleAuthAllowedDomain    String?
   googleDriveEnabled         Boolean  @default(false)
+  googleDriveAuthMode        GoogleDriveAuthMode @default(SERVICE_ACCOUNT)
   googleDriveClientEmail     String?
   googleDriveSharedDriveId   String?
   googleDriveRootFolderId    String?
@@ -1814,6 +1815,8 @@ model SystemConfig {
   googleDriveDocumentFolderId String?
   googleDriveBackupFolderId  String?
   googleDriveServiceAccountEnc String?
+  googleDriveOAuthRefreshTokenEnc String?
+  googleDriveOAuthEmail      String?
   petBreedsV2                String?
   petTemperaments            String?
   petVaccineOpts             String?
@@ -2000,6 +2003,11 @@ enum CustomerTier {
 enum StorageProviderKind {
   LOCAL
   GOOGLE_DRIVE
+}
+
+enum GoogleDriveAuthMode {
+  SERVICE_ACCOUNT
+  OAUTH
 }
 
 enum EquipmentStatus {

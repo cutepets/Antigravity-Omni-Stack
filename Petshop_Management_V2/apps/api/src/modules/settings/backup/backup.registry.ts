@@ -136,14 +136,19 @@ function exportSystemConfig(record: any) {
   const googleDriveServiceAccountJson = cloned.googleDriveServiceAccountEnc
     ? decryptSecret(cloned.googleDriveServiceAccountEnc)
     : null
+  const googleDriveOAuthRefreshToken = cloned.googleDriveOAuthRefreshTokenEnc
+    ? decryptSecret(cloned.googleDriveOAuthRefreshTokenEnc)
+    : null
 
   delete cloned.googleAuthClientSecretEnc
   delete cloned.googleDriveServiceAccountEnc
+  delete cloned.googleDriveOAuthRefreshTokenEnc
 
   return {
     ...cloned,
     googleAuthClientSecret,
     googleDriveServiceAccountJson,
+    googleDriveOAuthRefreshToken,
   }
 }
 
@@ -151,9 +156,11 @@ function restoreSystemConfig(record: any) {
   const cloned = cloneRecord(record)
   const googleAuthClientSecret = cloned.googleAuthClientSecret ?? null
   const googleDriveServiceAccountJson = cloned.googleDriveServiceAccountJson ?? null
+  const googleDriveOAuthRefreshToken = cloned.googleDriveOAuthRefreshToken ?? null
 
   delete cloned.googleAuthClientSecret
   delete cloned.googleDriveServiceAccountJson
+  delete cloned.googleDriveOAuthRefreshToken
 
   return {
     ...cloned,
@@ -162,6 +169,9 @@ function restoreSystemConfig(record: any) {
       : null,
     googleDriveServiceAccountEnc: googleDriveServiceAccountJson
       ? encryptSecret(String(googleDriveServiceAccountJson))
+      : null,
+    googleDriveOAuthRefreshTokenEnc: googleDriveOAuthRefreshToken
+      ? encryptSecret(String(googleDriveOAuthRefreshToken))
       : null,
   }
 }

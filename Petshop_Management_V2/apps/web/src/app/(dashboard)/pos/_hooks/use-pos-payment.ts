@@ -7,12 +7,13 @@ import type { PaymentEntry } from '@petshop/shared';
 import type { CreateOrderPayload, OrderPaymentIntent } from '@/lib/api/order.api';
 import { orderApi } from '@/lib/api/order.api';
 import { settingsApi } from '@/lib/api/settings.api';
-import { filterVisiblePaymentMethods } from '@/lib/payment-methods';
 import {
   money,
   parseMoneyInputValue,
   buildQuickCashSuggestions,
 } from '@/app/(dashboard)/_shared/payment/payment.utils';
+import { buildOrderRequestPayload } from '@/app/(dashboard)/_shared/order/order-payload.builder';
+import { resolveVisibleOrderPaymentMethods } from '@/app/(dashboard)/_shared/order/order-payment.utils';
 import { createOrderQrPaymentIntent } from '@/app/(dashboard)/_shared/payment/payment-intent.utils';
 import { usePaymentIntentSession } from '@/app/(dashboard)/_shared/payment/use-payment-intent-session';
 import { resolveCartItemStockState } from '@/app/(dashboard)/_shared/cart/stock.utils';
@@ -84,9 +85,9 @@ export function usePosPayment() {
 
   const visiblePaymentMethods = useMemo(
     () =>
-      filterVisiblePaymentMethods(paymentMethods, {
+      resolveVisibleOrderPaymentMethods(paymentMethods, {
         branchId: activeTab?.branchId,
-        amount: cartTotal,
+        total: cartTotal,
       }),
     [activeTab?.branchId, cartTotal, paymentMethods],
   );
@@ -221,66 +222,16 @@ export function usePosPayment() {
     ): CreateOrderPayload | null => {
       if (!activeTab) return null;
 
-      return {
+      return buildOrderRequestPayload({
         customerName: activeTab.customerName,
         customerId: activeTab.customerId === 'GUEST' ? undefined : activeTab.customerId,
         branchId: activeTab.branchId,
-        items: activeTab.cart.map((ci) => ({
-          id: ci.orderItemId,
-          productId: ci.productId,
-          productVariantId: ci.productVariantId,
-          sku: ci.sku,
-          serviceId: ci.serviceId && ci.serviceId !== 'EXTERNAL' ? ci.serviceId : undefined,
-          serviceVariantId: ci.serviceVariantId,
-          petId: ci.petId,
-          description: ci.description,
-          quantity: ci.quantity,
-          unitPrice: ci.unitPrice,
-          discountItem: ci.discountItem,
-          vatRate: ci.vatRate,
-          type: ci.type,
-          groomingDetails: ci.groomingDetails
-            ? {
-              petId: ci.groomingDetails.petId,
-              performerId: ci.groomingDetails.performerId,
-              startTime: ci.groomingDetails.startTime,
-              notes: ci.groomingDetails.notes,
-              packageCode: ci.groomingDetails.packageCode,
-              weightAtBooking: ci.groomingDetails.weightAtBooking,
-              weightBandId: ci.groomingDetails.weightBandId,
-              weightBandLabel: ci.groomingDetails.weightBandLabel,
-              pricingPrice: ci.groomingDetails.pricingPrice,
-              pricingSnapshot: ci.groomingDetails.pricingSnapshot,
-            }
-            : undefined,
-          hotelDetails: ci.hotelDetails
-            ? {
-              petId: ci.hotelDetails.petId,
-              checkInDate: ci.hotelDetails.checkIn,
-              checkOutDate: ci.hotelDetails.checkOut,
-              branchId: activeTab.branchId,
-              lineType: ci.hotelDetails.lineType,
-              weightBandId: ci.hotelDetails.weightBandId ?? undefined,
-              weightBandLabel: ci.hotelDetails.weightBandLabel ?? undefined,
-              bookingGroupKey: ci.hotelDetails.bookingGroupKey,
-              chargeLineIndex: ci.hotelDetails.chargeLineIndex,
-              chargeLineLabel: ci.hotelDetails.chargeLineLabel,
-              chargeDayType: ci.hotelDetails.chargeDayType,
-              chargeQuantityDays: ci.hotelDetails.chargeQuantityDays,
-              chargeUnitPrice: ci.hotelDetails.chargeUnitPrice,
-              chargeSubtotal: ci.hotelDetails.chargeSubtotal,
-              chargeWeightBandId: ci.hotelDetails.chargeWeightBandId ?? undefined,
-              chargeWeightBandLabel: ci.hotelDetails.chargeWeightBandLabel ?? undefined,
-            }
-            : undefined,
-          isTemp: (ci as any).isTemp || undefined,
-          tempLabel: (ci as any).tempLabel || undefined,
-        })),
+        items: activeTab.cart,
         payments: !activeTab.linkedOrderId && checkoutPayments ? checkoutPayments : undefined,
         discount: activeTab.discountTotal,
         shippingFee: activeTab.shippingFee,
         notes: overrideNote || activeTab.notes,
-      };
+      });
     },
     [activeTab],
   );

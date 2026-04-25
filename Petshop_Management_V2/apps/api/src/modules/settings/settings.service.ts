@@ -2,8 +2,9 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { StorageProviderKind } from '@prisma/client'
 import { DatabaseService } from '../../database/database.service.js'
 import { createHash, randomBytes, randomUUID } from 'crypto'
+import { google } from 'googleapis'
 import { isValidBranchCode, normalizeBranchCode, suggestBranchCodeFromName } from '@petshop/shared'
-import { encryptSecret } from '../../common/utils/secret-box.util.js'
+import { decryptSecret, encryptSecret } from '../../common/utils/secret-box.util.js'
 
 export interface CreateBranchDto {
   code?: string
@@ -38,6 +39,7 @@ export interface UpdateConfigDto {
   googleAuthClientSecret?: string | null
   googleAuthAllowedDomain?: string | null
   googleDriveEnabled?: boolean
+  googleDriveAuthMode?: 'SERVICE_ACCOUNT' | 'OAUTH'
   googleDriveServiceAccountJson?: string | null
   googleDriveClientEmail?: string | null
   googleDriveSharedDriveId?: string | null
@@ -45,6 +47,7 @@ export interface UpdateConfigDto {
   googleDriveImageFolderId?: string | null
   googleDriveDocumentFolderId?: string | null
   googleDriveBackupFolderId?: string | null
+  googleDriveOAuthEmail?: string | null
   petBreedsV2?: string
   petTemperaments?: string
   petVaccineOpts?: string
@@ -924,16 +927,19 @@ export class SettingsService {
     const {
       googleAuthClientSecretEnc: _googleAuthClientSecretEnc,
       googleDriveServiceAccountEnc: _googleDriveServiceAccountEnc,
+      googleDriveOAuthRefreshTokenEnc: _googleDriveOAuthRefreshTokenEnc,
       ...rest
     } = config
 
     return {
       ...rest,
       storageProvider: rest.storageProvider ?? StorageProviderKind.LOCAL,
+      googleDriveAuthMode: rest.googleDriveAuthMode ?? 'SERVICE_ACCOUNT',
       googleAuthEnabled: rest.googleAuthEnabled ?? false,
       googleDriveEnabled: rest.googleDriveEnabled ?? false,
       googleAuthClientSecretConfigured: Boolean(config.googleAuthClientSecretEnc),
       googleDriveServiceAccountConfigured: Boolean(config.googleDriveServiceAccountEnc),
+      googleDriveOAuthConnected: Boolean(config.googleDriveOAuthRefreshTokenEnc),
     }
   }
 
@@ -954,6 +960,165 @@ export class SettingsService {
       throw new BadRequestException('Storage provider khong hop le')
     }
     return value
+  }
+
+  private normalizeGoogleDriveAuthMode(value: UpdateConfigDto['googleDriveAuthMode']) {
+    if (value === undefined) return undefined
+    if (value !== 'SERVICE_ACCOUNT' && value !== 'OAUTH') {
+      throw new BadRequestException('Google Drive auth mode khong hop le')
+    }
+    return value
+  }
+
+  private getApiBaseUrl() {
+    const configured =
+      process.env['PUBLIC_API_URL'] ??
+      process.env['API_PUBLIC_URL'] ??
+      process.env['NEXT_PUBLIC_API_URL']
+
+    if (configured) {
+      return configured.replace(/\/+$/, '')
+    }
+
+    return `http://localhost:${process.env['API_PORT'] ?? '3001'}`
+  }
+
+  getWebAppBaseUrl() {
+    const configured =
+      process.env['PUBLIC_WEB_URL'] ??
+      process.env['WEB_APP_URL'] ??
+      process.env['NEXT_PUBLIC_APP_URL']
+
+    if (configured) {
+      return configured.replace(/\/+$/, '')
+    }
+
+    const corsOrigin = (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000')
+      .split(',')[0]
+      ?.trim()
+
+    return corsOrigin || 'http://localhost:3000'
+  }
+
+  private getGoogleDriveOAuthRedirectUri() {
+    return `${this.getApiBaseUrl()}/api/settings/google-drive/oauth/callback`
+  }
+
+  private async createGoogleDriveOAuthClient() {
+    const config = await (this.db as any).systemConfig.findFirst({
+      select: {
+        googleAuthClientId: true,
+        googleAuthClientSecretEnc: true,
+      },
+    })
+    const clientId =
+      config?.googleAuthClientId?.trim() ||
+      process.env['GOOGLE_AUTH_CLIENT_ID'] ||
+      ''
+    const clientSecret =
+      decryptSecret(config?.googleAuthClientSecretEnc) ||
+      process.env['GOOGLE_AUTH_CLIENT_SECRET'] ||
+      ''
+
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException('Google OAuth client chua duoc cau hinh')
+    }
+
+    return {
+      client: new google.auth.OAuth2(
+        clientId,
+        clientSecret,
+        this.getGoogleDriveOAuthRedirectUri(),
+      ),
+      config: { clientId },
+    }
+  }
+
+  async createGoogleDriveOAuthUrl(state: string) {
+    const { client } = await this.createGoogleDriveOAuthClient()
+    return client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent select_account',
+      state,
+      scope: [
+        'openid',
+        'email',
+        'profile',
+        'https://www.googleapis.com/auth/drive',
+      ],
+    })
+  }
+
+  async connectGoogleDriveOAuthWithCode(code: string) {
+    const normalizedCode = String(code ?? '').trim()
+    if (!normalizedCode) {
+      throw new BadRequestException('Google Drive OAuth code khong hop le')
+    }
+
+    const { client, config } = await this.createGoogleDriveOAuthClient()
+    const { tokens } = await client.getToken(normalizedCode)
+    const refreshToken = String(tokens.refresh_token ?? '').trim()
+    if (!refreshToken) {
+      throw new BadRequestException('Google khong tra ve refresh_token. Hay revoke quyen app trong Google Account roi bam ket noi lai.')
+    }
+
+    const idToken = String(tokens.id_token ?? '').trim()
+    if (!idToken) {
+      throw new BadRequestException('Google Drive OAuth khong tra ve ID token hop le')
+    }
+
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: config.clientId,
+    })
+    const payload = ticket.getPayload()
+    const email = String(payload?.email ?? '').trim().toLowerCase()
+    if (!email || payload?.email_verified !== true) {
+      throw new BadRequestException('Tai khoan Google Drive khong hop le')
+    }
+
+    const existing = await (this.db as any).systemConfig.findFirst({
+      select: { id: true },
+    })
+    const data = {
+      googleDriveAuthMode: 'OAUTH',
+      googleDriveOAuthRefreshTokenEnc: encryptSecret(refreshToken),
+      googleDriveOAuthEmail: email,
+      googleDriveClientEmail: email,
+    }
+
+    if (existing) {
+      await (this.db as any).systemConfig.update({
+        where: { id: existing.id },
+        data,
+      })
+    } else {
+      await (this.db as any).systemConfig.create({ data })
+    }
+
+    return { success: true, data: { email } }
+  }
+
+  async disconnectGoogleDriveOAuth() {
+    const existing = await (this.db as any).systemConfig.findFirst({
+      select: { id: true },
+    })
+    const data = {
+      googleDriveOAuthRefreshTokenEnc: null,
+      googleDriveOAuthEmail: null,
+      googleDriveClientEmail: null,
+    }
+
+    if (existing) {
+      await (this.db as any).systemConfig.update({
+        where: { id: existing.id },
+        data,
+      })
+    } else {
+      await (this.db as any).systemConfig.create({ data })
+    }
+
+    return { success: true }
   }
 
   private normalizeOrderReturnWindowDays(value: number | undefined) {
@@ -1053,6 +1218,7 @@ export class SettingsService {
       data.googleAuthClientSecretEnc = dto.googleAuthClientSecret ? encryptSecret(dto.googleAuthClientSecret) : null
     }
     if (dto.googleDriveEnabled !== undefined) data.googleDriveEnabled = Boolean(dto.googleDriveEnabled)
+    if (dto.googleDriveAuthMode !== undefined) data.googleDriveAuthMode = this.normalizeGoogleDriveAuthMode(dto.googleDriveAuthMode)
     if (dto.googleDriveClientEmail !== undefined) data.googleDriveClientEmail = dto.googleDriveClientEmail?.trim() || null
     if (dto.googleDriveSharedDriveId !== undefined) data.googleDriveSharedDriveId = dto.googleDriveSharedDriveId?.trim() || null
     if (dto.googleDriveRootFolderId !== undefined) data.googleDriveRootFolderId = dto.googleDriveRootFolderId?.trim() || null

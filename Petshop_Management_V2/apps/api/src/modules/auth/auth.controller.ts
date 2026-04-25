@@ -247,7 +247,7 @@ export class AuthController {
     })
     res.cookie(GOOGLE_AUTH_STATE_COOKIE, nonce, this.getCookieOptions(10 * 60_000, true))
 
-    const url = await this.googleAuthService.createAuthorizationUrl(state)
+    const url = await this.googleAuthService.createAuthorizationUrl(state, 'link')
     return res.redirect(url)
   }
 

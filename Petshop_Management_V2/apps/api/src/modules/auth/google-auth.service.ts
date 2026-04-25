@@ -10,6 +10,7 @@ type GoogleAuthRuntimeConfig = {
   clientSecret: string
   allowedDomain: string | null
   redirectUri: string
+  linkRedirectUri: string
   popupRedirectUri: string
 }
 
@@ -21,6 +22,7 @@ export type GoogleAuthPublicConfig = {
   apiBaseUrl: string
   webAppBaseUrl: string
   callbackUrl: string
+  linkCallbackUrl: string
 }
 
 type ResolvedGoogleUser = {
@@ -29,7 +31,7 @@ type ResolvedGoogleUser = {
   avatar: string | null
 }
 
-type GoogleAuthCodeMode = 'redirect' | 'popup'
+type GoogleAuthCodeMode = 'redirect' | 'link' | 'popup'
 
 function normalizeAllowedDomain(value: string | null | undefined) {
   const raw = String(value ?? '').trim()
@@ -127,6 +129,7 @@ export class GoogleAuthService {
       clientSecret,
       allowedDomain,
       redirectUri: `${this.getApiBaseUrl()}/api/auth/google/callback`,
+      linkRedirectUri: `${this.getApiBaseUrl()}/api/auth/google/link/callback`,
       popupRedirectUri: new URL(this.getWebAppBaseUrl()).origin,
     }
   }
@@ -137,7 +140,11 @@ export class GoogleAuthService {
       client: new google.auth.OAuth2(
         config.clientId,
         config.clientSecret,
-        mode === 'popup' ? config.popupRedirectUri : config.redirectUri,
+        mode === 'popup'
+          ? config.popupRedirectUri
+          : mode === 'link'
+            ? config.linkRedirectUri
+            : config.redirectUri,
       ),
       config,
     }
@@ -180,11 +187,12 @@ export class GoogleAuthService {
       apiBaseUrl: this.getApiBaseUrl(),
       webAppBaseUrl: this.getWebAppBaseUrl(),
       callbackUrl: `${this.getApiBaseUrl()}/api/auth/google/callback`,
+      linkCallbackUrl: `${this.getApiBaseUrl()}/api/auth/google/link/callback`,
     }
   }
 
-  async createAuthorizationUrl(state: string) {
-    const { client } = await this.createOAuthClient()
+  async createAuthorizationUrl(state: string, mode: GoogleAuthCodeMode = 'redirect') {
+    const { client } = await this.createOAuthClient(mode)
     return client.generateAuthUrl({
       scope: ['openid', 'email', 'profile'],
       prompt: 'select_account',
@@ -268,7 +276,7 @@ export class GoogleAuthService {
   }
 
   async linkUserWithAuthorizationCode(userId: string, code: string) {
-    const profile = await this.resolveGoogleUserFromCode(code)
+    const profile = await this.resolveGoogleUserFromCode(code, 'link')
     return this.linkUserWithGoogleProfile(userId, profile)
   }
 

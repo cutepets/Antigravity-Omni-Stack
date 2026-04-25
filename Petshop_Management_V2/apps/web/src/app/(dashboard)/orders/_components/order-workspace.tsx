@@ -438,7 +438,7 @@ export function OrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; or
           <OrderPaymentModal
             isOpen={workspace.showPayModal}
             onClose={() => workspace.setShowPayModal(false)}
-            cartTotal={workspace.remainingAmount > 0 ? workspace.remainingAmount : workspace.total}
+            cartTotal={workspace.paymentCollectionAmount}
             paymentMethods={workspace.visiblePaymentMethods}
             initialPayments={[]}
             minimumMethods={1}
