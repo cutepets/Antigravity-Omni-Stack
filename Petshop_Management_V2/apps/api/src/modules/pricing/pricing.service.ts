@@ -1036,8 +1036,10 @@ export class PricingService implements OnModuleInit {
       groomingSheet.columns = [
         { header: 'Gói dịch vụ', key: 'packageCode', width: 20 },
         { header: 'Tên hiển thị', key: 'label', width: 20 },
-        { header: 'Thời lượng (phút)', key: 'duration', width: 18 },
-        ...groomingBands.map((b) => ({ header: b.label, key: `band_${b.id}`, width: 15 })),
+        ...groomingBands.flatMap((b) => [
+          { header: b.label, key: `band_${b.id}`, width: 15 },
+          { header: `${b.label} - Thời lượng (phút)`, key: `band_${b.id}_duration`, width: 24 },
+        ]),
       ]
       styleHeader(groomingSheet)
 
@@ -1046,11 +1048,11 @@ export class PricingService implements OnModuleInit {
         const row: any = {
           packageCode: pkg,
           label: pkgRules[0]?.label ?? '',
-          duration: pkgRules[0]?.durationMinutes ?? '',
         }
         for (const band of groomingBands) {
           const rule = pkgRules.find((r) => r.weightBandId === band.id)
           row[`band_${band.id}`] = rule?.price ?? ''
+          row[`band_${band.id}_duration`] = rule?.durationMinutes ?? ''
         }
         groomingSheet.addRow(row)
       }
@@ -1179,28 +1181,40 @@ export class PricingService implements OnModuleInit {
     const groomingSheet = workbook.getWorksheet('Grooming')
     if (groomingSheet) {
       const headerRow = groomingSheet.getRow(1)
-      const bandColumns: Array<{ col: number; bandId: string }> = []
+      const bandColumns: Array<{ priceCol: number; durationCol?: number; bandId: string }> = []
+      let sharedDurationCol: number | undefined
+      const normalizeHeaderValue = (value: unknown) => String(value ?? '').trim()
+      const isDurationHeader = (value: string) => value.toLocaleLowerCase('vi-VN').includes('thời lượng')
 
-      headerRow.eachCell((cell, colNumber) => {
-        if (colNumber <= 3) return // skip packageCode, label, duration
-        const label = String(cell.value ?? '').trim()
+      for (let colNumber = 3; colNumber <= headerRow.cellCount; colNumber += 1) {
+        const label = normalizeHeaderValue(headerRow.getCell(colNumber).value)
+        if (!label) continue
+        if (isDurationHeader(label) && !bandByLabel.has(label)) {
+          sharedDurationCol = colNumber
+          continue
+        }
         const band = bandByLabel.get(label)
         if (band && band.serviceType === 'GROOMING') {
-          bandColumns.push({ col: colNumber, bandId: band.id })
+          const nextHeader = normalizeHeaderValue(headerRow.getCell(colNumber + 1).value)
+          const durationCol = nextHeader.startsWith(`${label} -`) && isDurationHeader(nextHeader)
+            ? colNumber + 1
+            : sharedDurationCol
+          bandColumns.push({ priceCol: colNumber, durationCol, bandId: band.id })
+          if (durationCol === colNumber + 1) colNumber += 1
         }
-      })
+      }
 
       const spaRules: Array<any> = []
       groomingSheet.eachRow((row, rowNumber) => {
         if (rowNumber <= 1) return
         const packageCode = String(row.getCell(1).value ?? '').trim()
         const label = String(row.getCell(2).value ?? '').trim() || undefined
-        const duration = Number(row.getCell(3).value) || undefined
         if (!packageCode) return
 
-        for (const { col, bandId } of bandColumns) {
-          const price = Number(row.getCell(col).value)
+        for (const { priceCol, durationCol, bandId } of bandColumns) {
+          const price = Number(row.getCell(priceCol).value)
           if (!price || price <= 0) continue
+          const duration = durationCol ? Number(row.getCell(durationCol).value) || undefined : undefined
           spaRules.push({
             packageCode,
             label,
