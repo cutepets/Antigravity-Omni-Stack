@@ -29,7 +29,7 @@ COPY . .
 
 # ── Stage 4: Generate Prisma Client ─────────────────────────
 FROM source AS prisma
-RUN cd packages/database && ./node_modules/.bin/prisma generate --schema=prisma/schema.prisma
+RUN cd packages/database && DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" pnpm exec prisma generate --schema=prisma/schema.prisma
 # Locate where prisma client was generated for later COPY
 RUN find /app -path '*/node_modules/.prisma/client' -type d | head -1 > /tmp/prisma_client_path
 
