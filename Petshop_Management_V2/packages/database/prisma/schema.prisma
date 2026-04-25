@@ -55,7 +55,6 @@ model Branch {
   authorizedUsers       User[]                 @relation("UserAuthorizedBranches")
   stockCountSessions    StockCountSession[]
   hotelPriceRules       HotelPriceRule[]
-  hotelDaycarePriceRules HotelDaycarePriceRule[]
   staffSchedules        StaffSchedule[]
   attendanceRecords     AttendanceRecord[]
   leaveRequests         LeaveRequest[]
@@ -778,7 +777,6 @@ model ServiceWeightBand {
   spaPriceRules   SpaPriceRule[]
   groomingSessions GroomingSession[]
   hotelPriceRules HotelPriceRule[]
-  hotelDaycarePriceRules HotelDaycarePriceRule[]
   hotelStays      HotelStay[]
   hotelChargeLines HotelStayChargeLine[]
 
@@ -839,25 +837,6 @@ model HotelPriceRule {
   @@map("hotel_price_rules")
 }
 
-model HotelDaycarePriceRule {
-  id           String            @id @default(cuid())
-  sku          String?
-  species      String?
-  branchId     String?
-  weightBandId String
-  packageDays  Int               @default(10)
-  price        Float
-  isActive     Boolean           @default(true)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  branch       Branch?           @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  weightBand   ServiceWeightBand @relation(fields: [weightBandId], references: [id], onDelete: Cascade)
-
-  @@index([branchId, species, isActive])
-  @@index([weightBandId, packageDays])
-  @@map("hotel_daycare_price_rules")
-}
-
 model SpaPriceRule {
   id              String            @id @default(cuid())
   sku             String?           // Editable SKU
@@ -911,12 +890,6 @@ model HotelStay {
   estimatedCheckOut DateTime?
   status            HotelStatus     @default(BOOKED)
   lineType          HotelLineType   @default(REGULAR)
-  careMode          HotelCareMode   @default(BOARDING)
-  packageKind       HotelPackageKind @default(NONE)
-  packageTotalDays  Int?
-  packageStartDate  DateTime?
-  packageEndDate    DateTime?
-  autoCompleteAt    DateTime?
   price             Float?
   paymentStatus     PaymentStatus   @default(UNPAID)
   notes             String?
@@ -966,8 +939,6 @@ model HotelStay {
   @@index([checkIn])
   @@index([checkedInAt])
   @@index([estimatedCheckOut])
-  @@index([careMode, status])
-  @@index([autoCompleteAt])
   @@index([cancelledAt])
   @@map("hotel_stays")
 }
@@ -2014,16 +1985,6 @@ enum HotelStatus {
 enum HotelLineType {
   REGULAR
   HOLIDAY
-}
-
-enum HotelCareMode {
-  BOARDING
-  DAYCARE
-}
-
-enum HotelPackageKind {
-  NONE
-  COMBO_10_DAYS
 }
 
 enum CustomerTier {

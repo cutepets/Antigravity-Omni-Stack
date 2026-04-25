@@ -76,12 +76,19 @@ export interface ProductImportRequest {
   priceBookHeaders?: string[]
 }
 
+export interface BulkDeleteResult {
+  success: boolean
+  deletedIds: string[]
+  blocked: Array<{ id: string; reason: string }>
+}
+
 export const inventoryApi = {
   getProducts: (params?: any, config?: any) => api.get('/inventory/products', { params, ...config }).then(res => res.data),
   getProduct: (id: string) => api.get(`/inventory/products/${id}`).then(res => res.data),
   createProduct: (data: any) => api.post('/inventory/products', data).then(res => res.data),
   updateProduct: (id: string, data: any) => api.put(`/inventory/products/${id}`, data).then(res => res.data),
   deleteProduct: (id: string) => api.delete(`/inventory/products/${id}`).then(res => res.data),
+  bulkDeleteProducts: (ids: string[]) => api.post<BulkDeleteResult>('/inventory/products/bulk-delete', { ids }).then(res => res.data),
   restoreProduct: (id: string) => api.post(`/inventory/products/${id}/restore`).then(res => res.data),
   getProductTransactions: (id: string, params?: { variantId?: string; variantScope?: 'base'; branchId?: string }) =>
     api.get(`/stock/transactions/${id}`, { params }).then(res => res.data),

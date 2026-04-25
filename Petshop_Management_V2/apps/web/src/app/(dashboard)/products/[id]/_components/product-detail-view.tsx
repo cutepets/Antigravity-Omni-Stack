@@ -863,7 +863,7 @@ function ProductHistoryTab({
                 <th className="py-3 px-4 text-[11px] whitespace-nowrap">CHI NHÁNH</th>
                 <th className="py-3 px-4 text-[11px] text-right whitespace-nowrap">SL THAY ĐỔI</th>
                 <th className="py-3 px-4 text-[11px] whitespace-nowrap">LOẠI</th>
-                <th className="py-3 px-4 text-[11px] whitespace-nowrap">M? ??N</th>
+                <th className="py-3 px-4 text-[11px] whitespace-nowrap">MÃ ĐƠN</th>
               </tr>
             </thead>
             <tbody>
@@ -902,10 +902,10 @@ function ProductHistoryTab({
                     </td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center text-[10px] font-bold uppercase px-2 py-0.5 rounded-full whitespace-nowrap ${tx.type === 'IN'
-                          ? 'bg-success/10 text-success'
-                          : tx.type === 'OUT'
-                            ? 'bg-error/10 text-error'
-                            : 'bg-primary/10 text-primary'
+                        ? 'bg-success/10 text-success'
+                        : tx.type === 'OUT'
+                          ? 'bg-error/10 text-error'
+                          : 'bg-primary/10 text-primary'
                         }`}>
                         {typeLabel(tx.type)}
                       </span>

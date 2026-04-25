@@ -168,11 +168,11 @@ export function OrderCartItems({
     return (
         <div className="w-full">
             {/* Table header */}
-            <div className="sticky top-0 z-10 hidden lg:grid grid-cols-[40px_32px_minmax(0,1fr)_50px_100px_110px_110px_120px] gap-2 border-b border-border bg-background-secondary/80 px-4 py-2">
+            <div className="sticky top-0 z-10 hidden lg:grid grid-cols-[40px_32px_minmax(0,1fr)_90px_100px_110px_110px_120px] gap-2 border-b border-border bg-background-secondary/80 px-4 py-2">
                 {['#', '', 'Sản phẩm', 'ĐVT', 'Số lượng', 'Đơn giá', 'Chiết khấu', 'Thành tiền'].map((h, i) => (
                     <div
                         key={i}
-                        className={`text-[11px] font-semibold uppercase tracking-wide text-foreground-muted ${i >= 4 ? 'text-right' : ''} ${i === 3 ? 'text-right' : ''} ${i === 0 ? 'text-center' : ''}`}
+                        className={`text-[11px] font-semibold uppercase tracking-wide text-foreground-muted ${i >= 4 ? 'text-right' : ''} ${i === 0 ? 'text-center' : ''}`}
                     >
                         {h}
                     </div>
@@ -270,7 +270,7 @@ function OrderCartRow({
             ].join(' ')}
         >
             {/* Desktop row */}
-            <div className="hidden lg:grid grid-cols-[40px_32px_minmax(0,1fr)_50px_100px_110px_110px_120px] gap-2 items-start px-4 py-2.5">
+            <div className="hidden lg:grid grid-cols-[40px_32px_minmax(0,1fr)_90px_100px_110px_110px_120px] gap-2 items-start px-4 py-2.5">
                 {/* # */}
                 <div className="pt-1 text-center text-[13px] font-medium text-foreground-muted">{idx + 1}</div>
 
@@ -360,26 +360,6 @@ function OrderCartRow({
                                     <SpaSessionBadge status={(item as any).groomingSession.status} sessionCode={(item as any).groomingSession.sessionCode} />
                                 )}
                                 <OrderStockInfo item={item} currentTrueVariant={currentTrueVariant} activeBranches={activeBranches} />
-                                {/* Conversion ĐỔI pill — sau stock icon */}
-                                {conversionVariants.length > 0 && (
-                                    <div className="relative inline-flex shrink-0 cursor-pointer items-center">
-                                        <select
-                                            className="appearance-none inline-flex items-center gap-1 rounded border border-border bg-background-secondary px-2 py-0.5 text-[11px] font-medium text-foreground-muted outline-none cursor-pointer hover:border-primary-400 hover:text-primary-600 transition-colors pr-5 pl-5"
-                                            value={isCurrentConversion ? item.productVariantId : 'base'}
-                                            onChange={(e) => {
-                                                if (e.target.value === 'base') updateVariant(currentTrueVariant ? currentTrueVariant.id : 'base')
-                                                else updateVariant(e.target.value)
-                                            }}
-                                        >
-                                            <option value="base">{baseUnit}</option>
-                                            {conversionVariants.map((v: any) => (
-                                                <option key={v.id} value={v.id}>{getVariantOptionText(item.description, v)}</option>
-                                            ))}
-                                        </select>
-                                        <ArrowLeftRight className="absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-foreground-muted/50" size={10} />
-                                        <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-40" size={10} />
-                                    </div>
-                                )}
                                 {/* Hotel dates — cuối dòng 1 */}
                                 {item.hotelDetails && (
                                     <span className="text-[10px] text-primary-600 bg-primary-500/8 rounded px-1.5 py-0.5 font-medium">
@@ -441,9 +421,32 @@ function OrderCartRow({
                     </div>
                 </div>
 
-                {/* ĐVT column */}
-                <div className="flex items-start justify-end pt-2">
-                    <span className="text-[12px] font-medium text-foreground-muted">{item.unit || baseUnit}</span>
+                {/* ĐVT column — conversion dropdown nếu có, otherwise plain text */}
+                <div className="flex items-start justify-start pt-1.5">
+                    {conversionVariants.length > 0 ? (
+                        <div className="relative inline-flex shrink-0 cursor-pointer items-center">
+                            <select
+                                className={`appearance-none bg-transparent text-[12px] font-semibold outline-none cursor-pointer pr-4 pl-0.5 transition-colors ${isCurrentConversion
+                                    ? 'text-primary-600 hover:text-primary-700'
+                                    : 'text-foreground-muted hover:text-foreground'
+                                    }`}
+                                value={isCurrentConversion ? item.productVariantId : 'base'}
+                                onChange={(e) => {
+                                    if (e.target.value === 'base') updateVariant(currentTrueVariant ? currentTrueVariant.id : 'base')
+                                    else updateVariant(e.target.value)
+                                }}
+                            >
+                                <option value="base">{baseUnit}</option>
+                                {conversionVariants.map((v: any) => (
+                                    <option key={v.id} value={v.id}>{getVariantOptionText(item.description, v)}</option>
+                                ))}
+                            </select>
+                            <ChevronDown className={`absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none ${isCurrentConversion ? 'text-primary-500/60' : 'opacity-40'
+                                }`} size={11} />
+                        </div>
+                    ) : (
+                        <span className="text-[12px] font-medium text-foreground-muted">{item.unit || baseUnit}</span>
+                    )}
                 </div>
 
                 {/* Quantity */}

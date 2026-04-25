@@ -26,6 +26,7 @@ import { extname } from 'path'
 import type { JwtPayload } from '@petshop/shared'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import {
   DOCUMENT_UPLOAD_EXTENSIONS,
@@ -174,7 +175,7 @@ export class ReportsController {
       },
       storage: diskStorage({
         destination: (req, file, cb) => {
-          const uploadPath = './uploads/finance'
+          const uploadPath = './storage/private/finance'
           if (!fs.existsSync(uploadPath)) {
             fs.mkdirSync(uploadPath, { recursive: true })
           }
@@ -198,7 +199,7 @@ export class ReportsController {
     )
     file: Express.Multer.File,
   ) {
-    const attachmentUrl = `/uploads/finance/${file.filename}`
+    const attachmentUrl = `finance/${file.filename}`
     return { success: true, data: { attachmentUrl } }
   }
 
@@ -211,6 +212,14 @@ export class ReportsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.reportsService.updateTransaction(id, dto, this.getStaffId(req), req.user, getRequestedBranchId(req))
+  }
+
+  @Post('transactions/bulk-delete')
+  @UseGuards(SuperAdminGuard)
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Xoa hang loat phieu thu chi (chi SUPER_ADMIN)' })
+  bulkRemoveTransactions(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest) {
+    return this.reportsService.bulkRemoveTransactions(body.ids, req.user)
   }
 
   @Delete('transactions/:id')

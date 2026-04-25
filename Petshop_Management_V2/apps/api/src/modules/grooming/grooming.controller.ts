@@ -16,6 +16,8 @@ import type { JwtPayload } from '@petshop/shared'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { RequireModule } from '../../common/decorators/require-module.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
+import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CalculateSpaPriceDto, CreateGroomingDto, UpdateGroomingDto } from './dto/grooming.dto.js'
@@ -66,6 +68,14 @@ export class GroomingController {
   @Permissions('grooming.read')
   getPackages(@Query('species') species?: string): Promise<any> {
     return this.queryBus.execute(new GetGroomingPackagesQuery(species))
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(SuperAdminGuard)
+  @Permissions('grooming.cancel')
+  bulkRemove(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest) {
+    const ids = normalizeBulkDeleteIds(body.ids)
+    return runBulkDelete(ids, (id) => this.commandBus.execute(new DeleteGroomingCommand(id, req.user)))
   }
 
   @Get('code/:code')

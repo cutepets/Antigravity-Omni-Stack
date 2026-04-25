@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core'
 import { ConfigModule } from '@nestjs/config'
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
+import { getClientIp } from './common/security/request-ip.util.js'
 import { AuthModule } from './modules/auth/auth.module.js'
 import { UsersModule } from './modules/staff/staff.module.js'
 import { RolesModule } from './modules/roles/roles.module.js'
@@ -31,8 +32,11 @@ import { StorageModule } from './modules/storage/storage.module.js'
     // Environment configurations
     ConfigModule.forRoot({ isGlobal: true }),
 
-    // Rate limiting: 100 req / 60s per IP
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    // Rate limiting: 100 req / 60s per real client IP
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60000, limit: 100 }],
+      getTracker: (req) => getClientIp(req),
+    }),
 
     // Core modules
     QueueModule,

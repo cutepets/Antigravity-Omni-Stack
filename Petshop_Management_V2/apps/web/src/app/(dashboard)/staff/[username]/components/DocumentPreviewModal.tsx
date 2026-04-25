@@ -1,5 +1,4 @@
 'use client'
-import Image from 'next/image';
 
 import React from 'react'
 import { X, Download } from 'lucide-react'
@@ -48,9 +47,9 @@ export function DocumentPreviewModal({ document, onClose }: DocumentPreviewModal
         <div className="flex-1 overflow-auto p-6">
           {isImage ? (
             <div className="flex items-center justify-center">
-              <Image src={document.fileUrl}
+              <img src={document.fileUrl}
                 alt={document.fileName}
-                className="max-h-[70vh] max-w-full rounded-lg object-contain" width={400} height={400} unoptimized />
+                className="max-h-[70vh] max-w-full rounded-lg object-contain" />
             </div>
           ) : isPDF ? (
             <iframe

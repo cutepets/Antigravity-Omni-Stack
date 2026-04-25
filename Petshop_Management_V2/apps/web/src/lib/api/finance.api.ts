@@ -76,6 +76,12 @@ export interface FinanceListResponse {
   }
 }
 
+export interface BulkDeleteResult {
+  success: boolean
+  deletedIds: string[]
+  blocked: Array<{ id: string; reason: string }>
+}
+
 export interface CreateFinanceTransactionInput {
   type: FinanceTransactionType
   amount: number
@@ -118,6 +124,8 @@ export const financeApi = {
     api.patch(`/reports/transactions/${id}`, data).then((r) => r.data.data as FinanceTransaction),
 
   remove: (id: string) => api.delete(`/reports/transactions/${id}`).then((r) => r.data),
+
+  bulkRemove: (ids: string[]) => api.post<BulkDeleteResult>('/reports/transactions/bulk-delete', { ids }).then((r) => r.data),
 
   getByVoucher: (voucherNumber: string) =>
     api.get(`/reports/transactions/by-voucher/${voucherNumber}`).then((r) => r.data.data as FinanceTransaction),

@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { OrderWorkspace } from '../_components/order-workspace'
 
 export const metadata: Metadata = {
-  title: 'Chi Tiet Don Hang',
-  description: 'Xem va cap nhat don hang trong workspace Orders',
+  title: '🧾 Chi tiết đơn hàng',
+  description: 'Xem và cập nhật đơn hàng trong workspace Orders',
 }
 
 export default async function OrderDetailPage(props: { params: Promise<{ id: string }> }) {

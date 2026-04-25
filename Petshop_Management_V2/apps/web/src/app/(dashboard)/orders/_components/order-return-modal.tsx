@@ -31,7 +31,9 @@ export function OrderReturnModal({
     onConfirm,
     isLoading,
 }: OrderReturnModalProps) {
-    const items: any[] = order?.items ?? []
+    const allItems: any[] = order?.items ?? []
+    // Fix 1: Chỉ hiện sản phẩm vật lý — backend không xử lý đổi/trả cho dịch vụ
+    const items: any[] = allItems.filter((item: any) => item.type === 'product')
 
     const initStates = () =>
         Object.fromEntries(
@@ -62,11 +64,24 @@ export function OrderReturnModal({
     const hasExchange = selectedItems.some((item) => itemStates[item.id]?.action === 'EXCHANGE')
     const hasReturn = selectedItems.some((item) => itemStates[item.id]?.action === 'RETURN')
 
-    const calculatedCredit = selectedItems.reduce((sum, item) => {
-        const state = itemStates[item.id]!
-        const effectiveUnitPrice = item.unitPrice - (item.discountItem ?? 0) / item.quantity
-        return sum + Math.max(0, effectiveUnitPrice * (state.qty || 1))
-    }, 0)
+    // Fix 3: Tách credit theo action type
+    const exchangeCredit = selectedItems
+        .filter((item) => itemStates[item.id]?.action === 'EXCHANGE')
+        .reduce((sum, item) => {
+            const state = itemStates[item.id]!
+            const effectiveUnitPrice = item.unitPrice - (item.discountItem ?? 0) / item.quantity
+            return sum + Math.max(0, effectiveUnitPrice * (state.qty || 1))
+        }, 0)
+
+    const returnRefund = selectedItems
+        .filter((item) => itemStates[item.id]?.action === 'RETURN')
+        .reduce((sum, item) => {
+            const state = itemStates[item.id]!
+            const effectiveUnitPrice = item.unitPrice - (item.discountItem ?? 0) / item.quantity
+            return sum + Math.max(0, effectiveUnitPrice * (state.qty || 1))
+        }, 0)
+
+    const calculatedCredit = exchangeCredit + returnRefund
 
     const fmt = (n: number) => n.toLocaleString('vi-VN')
 
@@ -96,7 +111,10 @@ export function OrderReturnModal({
             }
         })
 
+        // Fix 2: FULL chỉ khi tất cả product items được chọn, cùng action, và đủ qty
+        const allSameAction = selectedItems.every((item) => itemStates[item.id]?.action === itemStates[selectedItems[0]!.id]?.action)
         const isFullReturn =
+            allSameAction &&
             selectedItems.length === items.length &&
             selectedItems.every((item) => itemStates[item.id]?.qty >= item.quantity)
 
@@ -140,7 +158,7 @@ export function OrderReturnModal({
                                 return (
                                     <div
                                         key={item.id}
-                                        className={`px-4 py-3 transition-colors ${idx > 0 ? 'border-t border-border/60' : ''} ${state.selected ? 'bg-amber-50/60' : 'hover:bg-background-secondary/40'}`}
+                                        className={`px-4 py-3 transition-colors ${idx > 0 ? 'border-t border-border/60' : ''} ${state.selected ? 'bg-amber-500/8' : 'hover:bg-background-secondary/40'}`}
                                     >
                                         <div className="flex items-start gap-3">
                                             <input
@@ -186,8 +204,8 @@ export function OrderReturnModal({
                                                                     type="button"
                                                                     onClick={() => updateItem(item.id, { action: 'RETURN' })}
                                                                     className={`flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border transition-colors ${state.action === 'RETURN'
-                                                                            ? 'bg-rose-50 border-rose-400 text-rose-700 font-semibold'
-                                                                            : 'border-border text-foreground-muted hover:bg-background-secondary'
+                                                                        ? 'bg-rose-500/12 border-rose-500/40 text-rose-500 font-semibold'
+                                                                        : 'border-border text-foreground-muted hover:bg-background-secondary'
                                                                         }`}
                                                                 >
                                                                     <CornerUpLeft size={12} />
@@ -197,8 +215,8 @@ export function OrderReturnModal({
                                                                     type="button"
                                                                     onClick={() => updateItem(item.id, { action: 'EXCHANGE' })}
                                                                     className={`flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border transition-colors ${state.action === 'EXCHANGE'
-                                                                            ? 'bg-sky-50 border-sky-400 text-sky-700 font-semibold'
-                                                                            : 'border-border text-foreground-muted hover:bg-background-secondary'
+                                                                        ? 'bg-sky-500/12 border-sky-500/40 text-sky-500 font-semibold'
+                                                                        : 'border-border text-foreground-muted hover:bg-background-secondary'
                                                                         }`}
                                                                 >
                                                                     <ArrowLeftRight size={12} />
@@ -217,22 +235,37 @@ export function OrderReturnModal({
                     </div>
 
                     {/* Credit preview */}
+                    {/* Fix 3: Tách hiển thị exchange credit vs return refund */}
                     {selectedItems.length > 0 && (
-                        <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 space-y-1">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-amber-800 font-semibold">Credit từ hàng đổi/trả</span>
-                                <span className="font-bold text-amber-900">{fmt(calculatedCredit)}đ</span>
-                            </div>
+                        <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 space-y-2">
                             {hasExchange && (
-                                <p className="text-xs text-amber-700 flex items-center gap-1">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-sky-500 font-semibold">Credit đổi hàng (đơn mới)</span>
+                                    <span className="font-bold text-sky-400">{fmt(exchangeCredit)}đ</span>
+                                </div>
+                            )}
+                            {hasReturn && (
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-rose-500 font-semibold">Hoàn tiền trả hàng</span>
+                                    <span className="font-bold text-rose-400">{fmt(returnRefund)}đ</span>
+                                </div>
+                            )}
+                            {hasExchange && hasReturn && (
+                                <div className="flex justify-between text-sm border-t border-amber-500/20 pt-1.5">
+                                    <span className="text-amber-500 font-semibold">Tổng credit</span>
+                                    <span className="font-bold text-amber-400">{fmt(calculatedCredit)}đ</span>
+                                </div>
+                            )}
+                            {hasExchange && (
+                                <p className="text-xs text-sky-500/80 flex items-center gap-1">
                                     <Info size={12} className="shrink-0" />
-                                    Đơn đổi mới sẽ được tạo với {fmt(calculatedCredit)}đ credit áp sẵn.
+                                    Đơn đổi mới sẽ được tạo với {fmt(exchangeCredit)}đ credit áp sẵn.
                                 </p>
                             )}
-                            {hasReturn && !hasExchange && (
-                                <p className="text-xs text-amber-700 flex items-center gap-1">
+                            {hasReturn && (
+                                <p className="text-xs text-rose-500/80 flex items-center gap-1">
                                     <Info size={12} className="shrink-0" />
-                                    Cần hoàn {fmt(calculatedCredit)}đ tiền mặt/chuyển khoản cho khách.
+                                    Cần hoàn {fmt(returnRefund)}đ cho khách.
                                 </p>
                             )}
                         </div>

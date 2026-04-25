@@ -277,10 +277,6 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
         toast.error('Cần chọn khách hàng trước khi thêm dịch vụ hotel')
         return
       }
-      if (entry?.careMode === 'DAYCARE') {
-        setHotelServiceDraft({ ...entry, initialPetId: _petId })
-        return
-      }
       if (_petId) {
         const cartItem = buildDirectServiceCartItem(entry, _petId, _petName)
         if (_petName) cartItem.itemNotes = `Thú cưng: ${_petName}`
@@ -358,29 +354,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     const selectedPet = selectedPets.find((pet) => pet.id === details?.petId)
     const chargeLines = Array.isArray(preview?.chargeLines) ? preview.chargeLines : []
 
-    if (service && details?.careMode === 'DAYCARE') {
-      mergeItemIntoDraft({
-        ...buildDirectServiceCartItem(service, details.petId, selectedPet?.name),
-        id: buildCartLineId('hotel', service.id, details.petId, 'daycare'),
-        quantity: 1,
-        unitPrice: Number(preview?.totalPrice ?? service?.sellingPrice ?? service?.price ?? 0),
-        hotelDetails: {
-          petId: details.petId,
-          checkIn: details.checkIn,
-          checkOut: details.checkOut,
-          lineType: details.lineType ?? 'REGULAR',
-          careMode: 'DAYCARE',
-          packageKind: details.packageKind ?? 'COMBO_10_DAYS',
-          packageTotalDays: details.packageTotalDays,
-          packageStartDate: details.packageStartDate,
-          packageEndDate: details.packageEndDate,
-          autoCompleteAt: details.autoCompleteAt,
-          weightBandId: details.weightBandId ?? null,
-          weightBandLabel: details.weightBandLabel ?? null,
-          pricingPreview: preview,
-        },
-      })
-    } else if (service && chargeLines.length > 0) {
+    if (service && chargeLines.length > 0) {
       chargeLines.forEach((line: any, index: number) => {
         mergeItemIntoDraft({
           ...buildDirectServiceCartItem(service, details.petId, selectedPet?.name),
@@ -414,12 +388,6 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
           checkIn: details.checkIn,
           checkOut: details.checkOut,
           lineType: details.lineType ?? 'REGULAR',
-          careMode: details.careMode ?? 'BOARDING',
-          packageKind: details.packageKind ?? 'NONE',
-          packageTotalDays: details.packageTotalDays,
-          packageStartDate: details.packageStartDate,
-          packageEndDate: details.packageEndDate,
-          autoCompleteAt: details.autoCompleteAt,
           weightBandId: details.weightBandId ?? null,
           weightBandLabel: details.weightBandLabel ?? null,
           pricingPreview: preview,

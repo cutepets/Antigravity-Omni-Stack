@@ -108,7 +108,7 @@ export function PetList() {
   const queryClient = useQueryClient()
   const [viewingPetCode, setViewingPetCode] = useState<string | null>(() => getPetIdFromLocation())
 
-  const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const { hasPermission, isLoading: isAuthLoading, isSuperAdmin } = useAuthorization()
   const canReadPets = hasPermission('pet.read')
   const canCreatePet = hasPermission('pet.create')
   const canDeletePet = hasPermission('pet.delete')
@@ -209,11 +209,10 @@ export function PetList() {
   }, [selectedRowIds])
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      await Promise.all(ids.map((id) => petApi.deletePet(id)))
-    },
-    onSuccess: () => {
-      toast.success('Đã xóa các thú cưng đã chọn')
+    mutationFn: (ids: string[]) => petApi.bulkDeletePets(ids),
+    onSuccess: (result) => {
+      if (result.deletedIds.length > 0) toast.success(`Da xoa ${result.deletedIds.length} thu cung`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} thu cung khong the xoa`)
       queryClient.invalidateQueries({ queryKey: ['pets'] })
       clearSelection()
     },
@@ -337,7 +336,7 @@ export function PetList() {
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
         bulkBar={
-          selectedPetIds.length > 0 && canDeletePet ? (
+          selectedPetIds.length > 0 && canDeletePet && isSuperAdmin() ? (
             <DataListBulkBar
               selectedCount={selectedPetIds.length}
               onClear={clearSelection}

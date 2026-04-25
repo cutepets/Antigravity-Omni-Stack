@@ -4,8 +4,17 @@ import { AuthService } from './auth.service'
 
 describe('AuthService', () => {
   const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
+  const originalEnv = process.env
+
+  beforeEach(() => {
+    process.env = {
+      ...originalEnv,
+      JWT_REFRESH_SECRET: 'test-refresh-secret',
+    }
+  })
 
   afterEach(() => {
+    process.env = originalEnv
     jest.restoreAllMocks()
   })
 

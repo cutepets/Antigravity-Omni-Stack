@@ -3,7 +3,7 @@ import { PageContainer } from '@/components/layout/PageLayout'
 import { StockTransactionHistory } from '../_components/stock-transaction-history'
 
 export const metadata: Metadata = {
-  title: 'Lịch sử kho hàng | Petshop',
+  title: '🗂️ Lịch sử kho hàng',
 }
 
 type StockTransactionPageProps = {

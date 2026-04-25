@@ -14,13 +14,17 @@ import {
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger'
+import { createReadStream, existsSync } from 'fs'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
 import {
   createDiskUploadOptions,
   DOCUMENT_UPLOAD_EXTENSIONS,
   DOCUMENT_UPLOAD_MIME_TYPES,
+  resolveUploadedFilePath,
 } from '../../common/utils/upload.util.js'
+import { resolvePrivateStorageKey, sanitizeStorageSegment } from '../../common/utils/private-storage.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CreateStaffDto, StaffService, UpdateStaffDto } from './staff.service.js'
 import { UploadDocumentDto } from './dto/document.dto.js'
@@ -52,6 +56,14 @@ export class StaffController {
     return this.staffService.create(dto)
   }
 
+  @Post('bulk-delete')
+  @UseGuards(SuperAdminGuard)
+  @Permissions('staff.deactivate')
+  @ApiOperation({ summary: 'Dinh chi hang loat nhan vien (chi SUPER_ADMIN)' })
+  bulkDeactivate(@Body() body: { ids?: string[] }) {
+    return this.staffService.bulkDeactivate(body.ids)
+  }
+
   // =========================================================================
   // Document Management Routes (specific - phải đứng trước :id)
   // =========================================================================
@@ -68,7 +80,7 @@ export class StaffController {
     FileInterceptor(
       'file',
       createDiskUploadOptions({
-        destination: (req) => `uploads/documents/${req.params['id'] ?? 'unknown'}`,
+        destination: (req) => `storage/private/documents/${sanitizeStorageSegment(String(req.params['id'] ?? 'unknown'))}`,
         allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
         allowedExtensions: DOCUMENT_UPLOAD_EXTENSIONS,
         maxFileSize: 10 * 1024 * 1024,
@@ -117,9 +129,21 @@ export class StaffController {
         res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.fileName)}"`)
         res.send(Buffer.from(arrayBuffer as ArrayBuffer))
       } else {
+        const { absolutePath } = doc.fileUrl.startsWith('/uploads/documents/')
+          ? resolveUploadedFilePath(doc.fileUrl, {
+            publicPrefix: '/uploads/documents/',
+            rootDir: 'uploads/documents',
+          })
+          : resolvePrivateStorageKey(doc.fileUrl)
+
+        if (!existsSync(absolutePath)) {
+          res.status(404).send('File not found')
+          return
+        }
+
         res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream')
         res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.fileName)}"`)
-        res.send(Buffer.from('Mock file for local dev (path: ' + doc.fileUrl + ')'))
+        createReadStream(absolutePath).pipe(res)
       }
     } catch (e: any) {
       res.setHeader('Content-Type', 'text/plain')

@@ -10,6 +10,7 @@ import type { JwtPayload } from '@petshop/shared'
 import { DatabaseService } from '../../database/database.service.js'
 import { getNextSequentialCode } from '../../common/utils/sequential-code.util.js'
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js'
+import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 
 // ─── Accent-insensitive search (ported from Petshop_Service_Management) ───────
 const removeAccents = (str: string): string => {
@@ -76,7 +77,7 @@ export interface CreateCustomerDto {
   bankName?: string
 }
 
-export interface UpdateCustomerDto extends Partial<CreateCustomerDto> {}
+export interface UpdateCustomerDto extends Partial<CreateCustomerDto> { }
 
 export interface ImportCustomerRow {
   fullName: string
@@ -95,7 +96,7 @@ type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId
 
 @Injectable()
 export class CustomerService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   private resolveUserPermissions(user?: AccessUser): Set<string> {
     return new Set(resolvePermissions(user?.permissions ?? []))
@@ -290,12 +291,12 @@ export class CustomerService {
                 priceBook: { select: { id: true, name: true } },
               },
             },
-            pets: { 
-              select: { 
-                id: true, 
+            pets: {
+              select: {
+                id: true,
                 name: true,
                 _count: { select: { groomingSessions: true, hotelStays: true } }
-              } 
+              }
             },
             _count: { select: { orders: true, hotelStays: true } },
           },
@@ -333,12 +334,12 @@ export class CustomerService {
             priceBook: { select: { id: true, name: true } },
           },
         },
-        pets: { 
-          select: { 
-            id: true, 
+        pets: {
+          select: {
+            id: true,
             name: true,
             _count: { select: { groomingSessions: true, hotelStays: true } }
-          } 
+          }
         },
         _count: { select: { orders: true, hotelStays: true } },
       },
@@ -375,13 +376,13 @@ export class CustomerService {
     const customerWhere = this.mergeCustomerScope(isCode ? { customerCode: id } : { id }, user)
     const customer = isCode
       ? await this.db.customer.findFirst({
-          where: customerWhere,
-          include: this._fullInclude(),
-        })
+        where: customerWhere,
+        include: this._fullInclude(),
+      })
       : await this.db.customer.findFirst({
-          where: customerWhere,
-          include: this._fullInclude(),
-        })
+        where: customerWhere,
+        include: this._fullInclude(),
+      })
 
     if (!customer) throw new NotFoundException('Không tìm thấy khách hàng')
 
@@ -410,6 +411,17 @@ export class CustomerService {
     const customerCode = await this._nextCustomerCode()
     const branchId = await this.resolveWriteBranchId(user, requestedBranchId)
 
+    let groupId = dto.groupId || null
+    if (!groupId) {
+      const defaultGroup = await this.db.customerGroup.findFirst({
+        where: { isDefault: true, isActive: true },
+        select: { id: true }
+      })
+      if (defaultGroup) {
+        groupId = defaultGroup.id
+      }
+    }
+
     const customer = await this.db.customer.create({
       data: {
         branchId,
@@ -422,7 +434,7 @@ export class CustomerService {
         points: dto.points ?? 0,
         pointsUsed: 0,
         debt: dto.debt ?? 0,
-        groupId: dto.groupId || null,
+        groupId: groupId,
         notes: dto.notes || null,
         taxCode: dto.taxCode || null,
         description: dto.description || null,
@@ -488,6 +500,11 @@ export class CustomerService {
   }
 
   // ── Export all (no pagination) ─────────────────────────────────────────────
+  async bulkRemove(ids: unknown, user?: AccessUser) {
+    const normalizedIds = normalizeBulkDeleteIds(ids)
+    return runBulkDelete(normalizedIds, (id) => this.remove(id, user))
+  }
+
   async exportAll(params?: { tier?: string; isActive?: boolean }, user?: AccessUser) {
     const baseWhere: any = {}
     if (params?.tier) baseWhere.tier = params.tier
@@ -512,6 +529,12 @@ export class CustomerService {
     let updated = 0
     const errors: string[] = []
     const branchId = await this.resolveWriteBranchId(user, requestedBranchId)
+
+    const defaultGroup = await this.db.customerGroup.findFirst({
+      where: { isDefault: true, isActive: true },
+      select: { id: true }
+    })
+    const defaultGroupId = defaultGroup?.id || null
 
     for (const row of rows) {
       try {
@@ -542,6 +565,7 @@ export class CustomerService {
                 address: row.address || existing.address,
                 notes: row.notes || existing.notes,
                 tier: (row.tier as any) || existing.tier,
+                groupId: row.groupId || existing.groupId || defaultGroupId,
               },
             })
             updated++
@@ -560,7 +584,7 @@ export class CustomerService {
             address: row.address || null,
             notes: row.notes || null,
             tier: (row.tier as any) || 'BRONZE',
-            groupId: row.groupId || null,
+            groupId: row.groupId || defaultGroupId,
             taxCode: row.taxCode || null,
           },
         })

@@ -20,6 +20,12 @@ export interface PetResponse {
   }
 }
 
+export interface BulkDeleteResult {
+  success: boolean
+  deletedIds: string[]
+  blocked: Array<{ id: string; reason: string }>
+}
+
 export type CreatePetPayload = Omit<Pet, 'id' | 'petCode' | 'createdAt' | 'updatedAt' | 'gender'> & { gender?: 'MALE' | 'FEMALE' | 'UNKNOWN' }
 
 export interface AddVaccinationPayload {
@@ -59,6 +65,11 @@ export const petApi = {
   deletePet: async (id: string) => {
     const res = await api.delete<ApiResponse<{ success: boolean }>>(`/pets/${id}`)
     return res.data.data
+  },
+
+  bulkDeletePets: async (ids: string[]) => {
+    const res = await api.post<BulkDeleteResult>('/pets/bulk-delete', { ids })
+    return res.data
   },
 
   addWeightLog: async (petId: string, payload: { weight: number; notes?: string; date?: string }) => {

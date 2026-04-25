@@ -19,6 +19,8 @@ import type { JwtPayload } from '@petshop/shared'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { RequireModule } from '../../common/decorators/require-module.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
+import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import {
   createDiskUploadOptions,
@@ -96,6 +98,14 @@ export class PetController {
         req.user,
       ),
     )
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(SuperAdminGuard)
+  @Permissions('pet.delete')
+  bulkRemove(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest) {
+    const ids = normalizeBulkDeleteIds(body.ids)
+    return runBulkDelete(ids, (id) => this.commandBus.execute(new DeletePetCommand(id, req.user!)))
   }
 
   @Get(':id')

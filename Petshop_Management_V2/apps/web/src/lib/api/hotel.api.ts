@@ -10,8 +10,6 @@ export type CageStatus = 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE'
 
 export type HotelPaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'COMPLETED'
 export type HotelLineType = 'REGULAR' | 'HOLIDAY'
-export type HotelCareMode = 'BOARDING' | 'DAYCARE'
-export type HotelPackageKind = 'NONE' | 'COMBO_10_DAYS'
 
 export interface HotelRateTable {
   id: string
@@ -58,14 +56,6 @@ export interface HotelStay {
   expectedPickup?: string | null
   status: HotelStatus
   lineType: HotelLineType
-  careMode?: HotelCareMode
-  packageKind?: HotelPackageKind
-  packageTotalDays?: number | null
-  packageStartDate?: string | null
-  packageEndDate?: string | null
-  autoCompleteAt?: string | null
-  consumedDays?: number | null
-  remainingDays?: number | null
   price: number | null
   dailyRate: number
   depositAmount: number
@@ -268,12 +258,6 @@ export interface CreateHotelStayDto {
   checkOut?: string
   estimatedCheckOut?: string
   lineType?: HotelLineType
-  careMode?: HotelCareMode
-  packageKind?: HotelPackageKind
-  packageTotalDays?: number
-  packageStartDate?: string
-  packageEndDate?: string
-  autoCompleteAt?: string
   weightBandId?: string
   notes?: string
   petNotes?: string
@@ -386,6 +370,12 @@ export interface GetHotelRateTablesParams {
   isActive?: boolean
 }
 
+export interface BulkDeleteResult {
+  success: boolean
+  deletedIds: string[]
+  blocked: Array<{ id: string; reason: string }>
+}
+
 export const hotelApi = {
   getCages: () => api.get<Cage[]>('/hotel/cages', { headers: { 'X-Use-Branch-Scope': 'true' } }).then((res) => res.data),
   createCage: (data: CreateCageDto) => api.post<Cage>('/hotel/cages', data).then((res) => res.data),
@@ -416,6 +406,7 @@ export const hotelApi = {
   checkoutStay: (id: string, data: CheckoutHotelStayDto) =>
     api.post<HotelStay>(`/hotel/stays/${id}/checkout`, data).then((res) => res.data),
   deleteStay: (id: string) => api.delete<{ success: boolean; message: string }>(`/hotel/stays/${id}`).then((res) => res.data),
+  bulkDeleteStays: (ids: string[]) => api.post<BulkDeleteResult>('/hotel/stays/bulk-delete', { ids }).then((res) => res.data),
 
   calculatePrice: (data: CalculateHotelPriceDto) =>
     api.post<HotelPricePreview>('/hotel/calculate', data).then((res) => res.data),

@@ -15,6 +15,7 @@ import type { Request } from 'express'
 import type { JwtPayload } from '@petshop/shared'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import {
@@ -78,6 +79,14 @@ export class CustomerController {
   @ApiOperation({ summary: 'Import batch khách hàng từ JSON rows' })
   importBatch(@Body() body: { rows: ImportCustomerRow[] }, @Req() req: AuthenticatedRequest) {
     return this.customerService.importBatch(body.rows || [], req.user, getRequestedBranchId(req))
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(SuperAdminGuard)
+  @Permissions('customer.delete')
+  @ApiOperation({ summary: 'Xoa hang loat khach hang (chi SUPER_ADMIN)' })
+  bulkRemove(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest) {
+    return this.customerService.bulkRemove(body.ids, req.user)
   }
 
   @Get(':id')

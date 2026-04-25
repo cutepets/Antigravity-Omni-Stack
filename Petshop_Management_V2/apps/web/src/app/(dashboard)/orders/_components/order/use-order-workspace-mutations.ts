@@ -156,7 +156,8 @@ export function useOrderWorkspaceMutations({
     exportStockMutation.isPending ||
     settleOrderMutation.isPending ||
     cancelOrderMutation.isPending ||
-    refundOrderMutation.isPending
+    refundOrderMutation.isPending ||
+    createReturnRequestMutation.isPending
 
   return {
     pendingAction,

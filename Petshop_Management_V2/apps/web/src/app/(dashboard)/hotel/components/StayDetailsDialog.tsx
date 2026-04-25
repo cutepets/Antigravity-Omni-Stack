@@ -241,19 +241,8 @@ function getPaymentStatusLabel(status?: string | null) {
   return PAYMENT_STATUS_META[status]?.label ?? status
 }
 
-function isDaycareStay(stay: HotelStay | null) {
-  return stay?.careMode === 'DAYCARE'
-}
-
 function getCareModeLabel(stay: HotelStay | null) {
-  return isDaycareStay(stay) ? 'Nhà trẻ' : 'Lưu trú'
-}
-
-function getPackageUsage(stay: HotelStay | null) {
-  const totalDays = stay?.packageTotalDays || 10
-  const consumedDays = Math.min(totalDays, Math.max(0, stay?.consumedDays ?? 0))
-  const remainingDays = Math.max(0, stay?.remainingDays ?? (totalDays - consumedDays))
-  return { totalDays, consumedDays, remainingDays }
+  return stay ? 'Lưu trú' : '---'
 }
 
 function getActionLabel(action?: string | null) {
@@ -425,14 +414,9 @@ function PaymentStatusBadge({ status }: { status?: string | null }) {
 }
 
 function CareModeBadge({ stay }: { stay: HotelStay | null }) {
-  const isDaycare = isDaycareStay(stay)
-
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${isDaycare
-        ? 'border-primary-500/20 bg-primary-500/10 text-primary-600'
-        : 'border-border bg-background-secondary text-foreground-muted'
-        }`}
+      className="inline-flex items-center rounded-full border border-border bg-background-secondary px-2.5 py-1 text-xs font-semibold text-foreground-muted"
     >
       {getCareModeLabel(stay)}
     </span>
@@ -666,14 +650,11 @@ export default function StayDetailsDialog({
   })
 
   const stay = detailQuery.data ?? currentStay ?? null
-  const isDaycare = isDaycareStay(stay)
-  const packageUsage = getPackageUsage(stay)
   const currentPricingSpecies = stay?.pet?.species
   const currentPricingWeight = stay?.pet?.weight ?? stay?.weightAtBooking
   const canFetchCurrentPreview =
     isOpen &&
     stay?.status === 'CHECKED_IN' &&
-    !isDaycare &&
     Boolean(stay.checkIn && currentPricingSpecies && Number(currentPricingWeight) > 0)
   const currentPriceQuery = useQuery({
     queryKey: [
@@ -736,9 +717,7 @@ export default function StayDetailsDialog({
   const canEditStayDates = Boolean(stay) && canUpdateHotel && hasRole(['SUPER_ADMIN', 'ADMIN']) && stay?.status !== 'CANCELLED'
   const canShowCheckIn = stay?.status === 'BOOKED' && actionSlotIndex != null
   const canShowCancel = stay ? !['CHECKED_OUT', 'CANCELLED'].includes(stay.status) : false
-  const displayTotalDays = isDaycare
-    ? packageUsage.totalDays
-    : stay?.status === 'CHECKED_IN' && currentPriceQuery.data
+  const displayTotalDays = stay?.status === 'CHECKED_IN' && currentPriceQuery.data
       ? currentPriceQuery.data.totalDays
       : totalDays
   const accessoryText = stay?.accessories ?? ''
@@ -1053,19 +1032,6 @@ export default function StayDetailsDialog({
                         <InlineInfoLine label="Tổng đơn" value={toMoney(stay.order?.total ?? 0)} />
                       </InfoPanel>
                     </section>
-
-                    {isDaycare ? (
-                      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                        <InfoItem label="Chế độ" value={getCareModeLabel(stay)} />
-                        <InfoItem label="Gói" value="Combo 10 ngày" />
-                        <InfoItem label="Bắt đầu gói" value={formatStayDate(stay?.packageStartDate)} />
-                        <InfoItem label="Kết thúc gói" value={formatStayDate(stay?.packageEndDate)} />
-                        <InfoItem
-                          label="Sử dụng"
-                          value={`${packageUsage.consumedDays}/${packageUsage.totalDays} ngày • còn ${packageUsage.remainingDays}`}
-                        />
-                      </section>
-                    ) : null}
 
                     <section className="grid gap-3 sm:grid-cols-4">
                       {isEditingStayDates && canEditStayDates ? (

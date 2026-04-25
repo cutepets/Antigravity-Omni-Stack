@@ -251,7 +251,7 @@ export function GroomingBoard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
-  const { hasPermission, hasAnyPermission, isLoading: isAuthLoading } = useAuthorization()
+  const { hasPermission, hasAnyPermission, isLoading: isAuthLoading, isSuperAdmin } = useAuthorization()
   const activeBranchId = useAuthStore((s) => s.activeBranchId)
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
   const [search, setSearch] = useState('')
@@ -389,6 +389,17 @@ export function GroomingBoard() {
       clearSelection()
     },
     onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể cập nhật hàng loạt'),
+  })
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => groomingApi.bulkDeleteSessions(ids),
+    onSuccess: (result) => {
+      if (result.deletedIds.length > 0) toast.success(`Da xoa ${result.deletedIds.length} phien grooming`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} phien grooming khong the xoa`)
+      queryClient.invalidateQueries({ queryKey: ['grooming-sessions'] })
+      clearSelection()
+    },
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Khong the xoa hang loat grooming'),
   })
 
   const clearFilters = () => {
@@ -569,7 +580,28 @@ export function GroomingBoard() {
                     if (!canManageSessions) return
                     toggleSelectAllVisible()
                   }}
-                  bulkBar={selectedSessionIds.length > 0 ? <DataListBulkBar selectedCount={selectedSessionIds.length} onClear={clearSelection}><button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'IN_PROGRESS' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 text-sm font-semibold text-sky-500 transition-opacity hover:opacity-90 disabled:opacity-50">Đang làm</button><button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'CANCELLED' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-error/20 bg-error/10 px-4 text-sm font-semibold text-error transition-opacity hover:opacity-90 disabled:opacity-50"><Trash2 size={14} />Hủy phiên</button></DataListBulkBar> : undefined}
+                  bulkBar={
+                    selectedSessionIds.length > 0 ? (
+                      <DataListBulkBar selectedCount={selectedSessionIds.length} onClear={clearSelection}>
+                        <button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'IN_PROGRESS' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 text-sm font-semibold text-sky-500 transition-opacity hover:opacity-90 disabled:opacity-50">Dang lam</button>
+                        <button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'CANCELLED' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-error/20 bg-error/10 px-4 text-sm font-semibold text-error transition-opacity hover:opacity-90 disabled:opacity-50"><Trash2 size={14} />Huy phien</button>
+                        {isSuperAdmin() ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Xoa ${selectedSessionIds.length} phien grooming da chon?`)) {
+                                bulkDeleteMutation.mutate(selectedSessionIds)
+                              }
+                            }}
+                            disabled={bulkDeleteMutation.isPending}
+                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-error/20 bg-error/10 px-4 text-sm font-semibold text-error transition-opacity hover:opacity-90 disabled:opacity-50"
+                          >
+                            <Trash2 size={14} />Xoa
+                          </button>
+                        ) : null}
+                      </DataListBulkBar>
+                    ) : undefined
+                  }
                 >
                   {paginatedSessions.map((session) => {
                     const rowId = `g:${session.id}`

@@ -955,6 +955,27 @@ export class SettingsService {
     return value
   }
 
+  private normalizeGoogleAuthAllowedDomain(value: string | null | undefined) {
+    if (value === undefined) return undefined
+    const raw = String(value ?? '').trim()
+    if (!raw) return null
+
+    if (/^https?:\/\//i.test(raw)) {
+      const parsed = new URL(raw)
+      const hasPath = parsed.pathname && parsed.pathname !== '/'
+      if (hasPath || parsed.search || parsed.hash) {
+        throw new BadRequestException('Allowed Google domain chi duoc la domain, khong kem path/query')
+      }
+      return parsed.hostname.toLowerCase()
+    }
+
+    if (raw.includes('/') || raw.includes('@') || /\s/.test(raw)) {
+      throw new BadRequestException('Allowed Google domain khong hop le')
+    }
+
+    return raw.toLowerCase()
+  }
+
   private normalizeServiceAccountJson(value: string | null | undefined) {
     if (value === undefined) {
       return undefined
@@ -1016,7 +1037,7 @@ export class SettingsService {
     if (dto.storageProvider !== undefined) data.storageProvider = this.normalizeStorageProvider(dto.storageProvider)
     if (dto.googleAuthEnabled !== undefined) data.googleAuthEnabled = Boolean(dto.googleAuthEnabled)
     if (dto.googleAuthClientId !== undefined) data.googleAuthClientId = dto.googleAuthClientId?.trim() || null
-    if (dto.googleAuthAllowedDomain !== undefined) data.googleAuthAllowedDomain = dto.googleAuthAllowedDomain?.trim() || null
+    if (dto.googleAuthAllowedDomain !== undefined) data.googleAuthAllowedDomain = this.normalizeGoogleAuthAllowedDomain(dto.googleAuthAllowedDomain)
     if (dto.googleAuthClientSecret !== undefined) {
       data.googleAuthClientSecretEnc = dto.googleAuthClientSecret ? encryptSecret(dto.googleAuthClientSecret) : null
     }

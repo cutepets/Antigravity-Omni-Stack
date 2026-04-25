@@ -113,7 +113,7 @@ export function CustomerList() {
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { hasAnyPermission, hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const { hasAnyPermission, hasPermission, isLoading: isAuthLoading, isSuperAdmin } = useAuthorization()
 
   const canReadCustomers = hasAnyPermission(['customer.read.all', 'customer.read.assigned'])
   const canCreateCustomer = hasPermission('customer.create')
@@ -274,6 +274,10 @@ export function CustomerList() {
     clearSelection,
     allVisibleSelected,
   } = useDataListSelection(visibleRowIds)
+  const selectedCustomerIds = useMemo(
+    () => Array.from(selectedRowIds).map((id) => id.replace(/^c:/, '')),
+    [selectedRowIds],
+  )
 
   // ── Export ───────────────────────────────────────────────────────────────────
   const handleExport = async () => {
@@ -324,6 +328,19 @@ export function CustomerList() {
       deleteMutation.mutate(c.id)
     }
   }
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => customerApi.bulkDeleteCustomers(ids),
+    onSuccess: (result) => {
+      if (result.deletedIds.length > 0) toast.success(`Da xoa ${result.deletedIds.length} khach hang`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} khach hang khong the xoa`)
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      clearSelection()
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Khong the xoa hang loat khach hang')
+    },
+  })
 
   const toggleColumnSort = (columnId: DisplayColumnId) => {
     if (!SORTABLE_COLUMNS.has(columnId)) return
@@ -537,15 +554,16 @@ export function CustomerList() {
                   <Users size={13} /> Nhóm khách
                 </button>
               )}
-              {canDeleteCustomer && (
+              {canDeleteCustomer && isSuperAdmin() && (
                 <button
                   type="button"
                   className="flex h-8 items-center gap-1.5 rounded-lg border border-error/20 bg-error/10 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/20"
                   onClick={() => {
-                    if (window.confirm(`Xoá ${selectedRowIds.size} khách hàng đã chọn?`)) {
-                      toast.success('Giao diện cho phép chọn để thực hiện xoá hàng loạt.')
+                    if (window.confirm(`Xoa ${selectedCustomerIds.length} khach hang da chon?`)) {
+                      bulkDeleteMutation.mutate(selectedCustomerIds)
                     }
                   }}
+                  disabled={bulkDeleteMutation.isPending}
                 >
                   <Trash2 size={13} /> Khách hàng
                 </button>

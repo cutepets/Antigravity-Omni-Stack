@@ -4,7 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pin, PinOff, Paperclip, Settings } from 'lucide-react'
+import { Pin, PinOff, Paperclip, Settings, Trash2 } from 'lucide-react'
 import {
   DataListShell,
   DataListToolbar,
@@ -98,7 +98,7 @@ function getLocationSearchParam(key: string, fallback = '') {
 export function FinanceWorkspace() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const { hasPermission, isLoading: isAuthLoading, isSuperAdmin } = useAuthorization()
   const canReadCashbook = hasPermission('report.cashbook')
   const canManagePayment = hasPermission('settings.payment.manage')
   const canReadBankTransactions = canReadCashbook || canManagePayment
@@ -250,6 +250,19 @@ export function FinanceWorkspace() {
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message ?? 'Không thể xóa phiếu thu chi')
+    },
+  })
+
+  const bulkDeleteTransactions = useMutation({
+    mutationFn: (ids: string[]) => financeApi.bulkRemove(ids),
+    onSuccess: (result) => {
+      if (result.deletedIds.length > 0) toast.success(`Da xoa ${result.deletedIds.length} phieu thu chi`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} phieu thu chi khong the xoa`)
+      queryClient.invalidateQueries({ queryKey: ['finance', 'transactions'] })
+      selection.clearSelection()
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message ?? 'Khong the xoa hang loat phieu thu chi')
     },
   })
 
@@ -549,7 +562,23 @@ export function FinanceWorkspace() {
                 bulkBar={
                   selection.selectedRowIds.size > 0 ? (
                     <DataListBulkBar selectedCount={selection.selectedRowIds.size} onClear={selection.clearSelection}>
-                      <div className="px-4 text-sm text-foreground-muted">Tinh nang thao tac hang loat se duoc bo sung sau.</div>
+                      {isSuperAdmin() ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ids = Array.from(selection.selectedRowIds)
+                            if (window.confirm(`Xoa ${ids.length} phieu thu chi da chon?`)) {
+                              bulkDeleteTransactions.mutate(ids)
+                            }
+                          }}
+                          disabled={bulkDeleteTransactions.isPending}
+                          className="inline-flex h-8 items-center gap-2 rounded-lg border border-error/20 bg-error/10 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/20 disabled:opacity-50"
+                        >
+                          <Trash2 size={13} /> Xoa
+                        </button>
+                      ) : (
+                        <div className="px-4 text-sm text-foreground-muted">Chon thao tac hang loat</div>
+                      )}
                     </DataListBulkBar>
                   ) : null
                 }

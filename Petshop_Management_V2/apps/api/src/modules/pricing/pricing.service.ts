@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common'
 import { DatabaseService } from '../../database/database.service.js'
 import {
-  BulkUpsertHotelDaycareRulesDto,
   BulkUpsertHotelExtraServicesDto,
   BulkUpsertHotelRulesDto,
   BulkUpsertSpaRulesDto,
@@ -644,132 +643,6 @@ export class PricingService implements OnModuleInit {
     })
   }
 
-  async listHotelDaycareRules(query: { species?: string; packageDays?: string | number; isActive?: string }) {
-    const species = this.normalizeSpecies(query.species)
-    const packageDays = Math.max(1, Math.floor(this.normalizeNumber(query.packageDays ?? 10, 'So ngay goi', 1)))
-    const isActive = query.isActive === undefined ? undefined : String(query.isActive) !== 'false'
-
-    const rules = await this.db.hotelDaycarePriceRule.findMany({
-      where: {
-        packageDays,
-        ...(species !== null ? { species } : {}),
-        ...(isActive !== undefined ? { isActive } : {}),
-      } as any,
-      include: { weightBand: true },
-      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-    })
-
-    const canonicalRules = new Map<string, (typeof rules)[number]>()
-    const prioritizedRules = [...rules].sort((left, right) => {
-      const leftScore = (left.branchId === null ? 2 : 0) + (left.species ? 1 : 0)
-      const rightScore = (right.branchId === null ? 2 : 0) + (right.species ? 1 : 0)
-      if (leftScore !== rightScore) return rightScore - leftScore
-      return right.updatedAt.getTime() - left.updatedAt.getTime()
-    })
-
-    for (const rule of prioritizedRules) {
-      const comboKey = `${rule.packageDays}:${rule.species ?? 'NULL'}:${rule.weightBandId}`
-      if (canonicalRules.has(comboKey)) continue
-      canonicalRules.set(comboKey, rule)
-    }
-
-    return Array.from(canonicalRules.values())
-      .sort((left, right) => {
-        const leftBandOrder = left.weightBand?.sortOrder ?? Number.MAX_SAFE_INTEGER
-        const rightBandOrder = right.weightBand?.sortOrder ?? Number.MAX_SAFE_INTEGER
-        if (leftBandOrder !== rightBandOrder) return leftBandOrder - rightBandOrder
-        return String(left.species ?? '').localeCompare(String(right.species ?? ''))
-      })
-      .map((rule) => ({
-        ...rule,
-        weightBandLabel: rule.weightBand?.label ?? null,
-      }))
-  }
-
-  async bulkUpsertHotelDaycareRules(dto: BulkUpsertHotelDaycareRulesDto) {
-    for (const rule of dto.rules ?? []) {
-      await this.assertWeightBandScope(rule.weightBandId, 'HOTEL')
-    }
-
-    return this.db.$transaction(async (tx) => {
-      const incomingPackageDays = Array.from(
-        new Set((dto.rules ?? []).map((rule) => Math.max(1, Math.floor(this.normalizeNumber(rule.packageDays, 'So ngay goi', 1))))),
-      )
-      const existingRules = await tx.hotelDaycarePriceRule.findMany({
-        where: {
-          packageDays: { in: incomingPackageDays.length > 0 ? incomingPackageDays : [10] },
-          isActive: true,
-        },
-        include: { weightBand: true },
-        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-      })
-      const existingByCombo = new Map<string, typeof existingRules>()
-      for (const existingRule of existingRules) {
-        const comboKey = `${existingRule.packageDays}:${existingRule.species ?? 'NULL'}:${existingRule.weightBandId}`
-        existingByCombo.set(comboKey, [...(existingByCombo.get(comboKey) ?? []), existingRule])
-      }
-
-      const results = []
-      for (const rule of dto.rules ?? []) {
-        const packageDays = Math.max(1, Math.floor(this.normalizeNumber(rule.packageDays, 'So ngay goi', 1)))
-        const price = this.normalizeNumber(rule.price, 'Gia combo')
-        const normalizedSpecies = this.normalizeSpecies(rule.species)
-        if (!normalizedSpecies) {
-          throw new BadRequestException('Bang gia nha tre phai luu rieng cho tung loai thu cung')
-        }
-        const data = {
-          species: normalizedSpecies,
-          branchId: null,
-          weightBandId: rule.weightBandId,
-          packageDays,
-          sku: rule.sku ?? null,
-          price,
-          isActive: rule.isActive ?? true,
-        }
-        const comboKey = `${packageDays}:${normalizedSpecies}:${rule.weightBandId}`
-        const legacyComboKey = `${packageDays}:NULL:${rule.weightBandId}`
-        const matchedRule = rule.id
-          ? await tx.hotelDaycarePriceRule.findUnique({ where: { id: rule.id } })
-          : rule.isActive === false
-            ? (existingByCombo.get(comboKey) ?? existingByCombo.get(legacyComboKey) ?? [])[0] ?? null
-            : (existingByCombo.get(comboKey) ?? [])[0] ?? null
-
-        if (!matchedRule && rule.isActive === false) {
-          continue
-        }
-
-        const savedRule = matchedRule
-          ? await tx.hotelDaycarePriceRule.update({
-            where: { id: matchedRule.id },
-            data,
-            include: { weightBand: true },
-          })
-          : await tx.hotelDaycarePriceRule.create({
-            data,
-            include: { weightBand: true },
-          })
-
-        await tx.hotelDaycarePriceRule.updateMany({
-          where: {
-            id: { not: savedRule.id },
-            packageDays,
-            weightBandId: rule.weightBandId,
-            isActive: true,
-            OR: [{ species: normalizedSpecies }, { species: null }],
-          },
-          data: { isActive: false },
-        })
-
-        results.push(savedRule)
-      }
-
-      return results.map((rule) => ({
-        ...rule,
-        weightBandLabel: rule.weightBand?.label ?? null,
-      }))
-    })
-  }
-
   async bulkUpsertHotelExtraServices(dto: BulkUpsertHotelExtraServicesDto) {
     const services = (dto.services ?? []).map((service) => {
       const { minWeight, maxWeight } = this.normalizeHotelExtraServiceWeightRange(service)
@@ -1100,39 +973,6 @@ export class PricingService implements OnModuleInit {
         hotelSheet.addRow(row)
       }
 
-      // Hotel Daycare
-      const daycareRules = await this.db.hotelDaycarePriceRule.findMany({
-        where: { isActive: true },
-        include: { weightBand: true },
-        orderBy: [{ packageDays: 'asc' }, { weightBand: { sortOrder: 'asc' } }],
-      })
-
-      if (daycareRules.length > 0) {
-        const daycareSheet = workbook.addWorksheet('Hotel Nhà trẻ')
-        daycareSheet.columns = [
-          { header: 'Số ngày gói', key: 'packageDays', width: 18 },
-          { header: 'Loại thú cưng', key: 'species', width: 18 },
-          ...hotelBands.map((b) => ({ header: b.label, key: `band_${b.id}`, width: 15 })),
-        ]
-        styleHeader(daycareSheet)
-
-        const daycareGroups = new Map<string, typeof daycareRules>()
-        for (const rule of daycareRules) {
-          const key = `${rule.packageDays}:${rule.species ?? 'Chó'}`
-          if (!daycareGroups.has(key)) daycareGroups.set(key, [])
-          daycareGroups.get(key)!.push(rule)
-        }
-
-        for (const [key, rules] of daycareGroups) {
-          const [days, species] = key.split(':')
-          const row: any = { packageDays: Number(days), species }
-          for (const band of hotelBands) {
-            const rule = rules.find((r) => r.weightBandId === band.id)
-            row[`band_${band.id}`] = rule?.price ?? ''
-          }
-          daycareSheet.addRow(row)
-        }
-      }
     }
 
     // Weight Bands reference sheet
@@ -1280,50 +1120,6 @@ export class PricingService implements OnModuleInit {
           imported += hotelRules.length
         } catch (e: any) {
           errors.push(`Hotel: ${e.message}`)
-        }
-      }
-    }
-
-    // ─── Hotel Daycare sheet
-    const daycareSheet = workbook.getWorksheet('Hotel Nhà trẻ')
-    if (daycareSheet) {
-      const headerRow = daycareSheet.getRow(1)
-      const bandColumns: Array<{ col: number; bandId: string }> = []
-
-      headerRow.eachCell((cell, colNumber) => {
-        if (colNumber <= 2) return
-        const label = String(cell.value ?? '').trim()
-        const band = bandByLabel.get(label)
-        if (band && band.serviceType === 'HOTEL') {
-          bandColumns.push({ col: colNumber, bandId: band.id })
-        }
-      })
-
-      const daycareRules: Array<any> = []
-      daycareSheet.eachRow((row, rowNumber) => {
-        if (rowNumber <= 1) return
-        const packageDays = Number(row.getCell(1).value) || 10
-        const species = String(row.getCell(2).value ?? '').trim() || 'Chó'
-
-        for (const { col, bandId } of bandColumns) {
-          const price = Number(row.getCell(col).value)
-          if (!price || price <= 0) continue
-          daycareRules.push({
-            species,
-            weightBandId: bandId,
-            packageDays,
-            price,
-            isActive: true,
-          })
-        }
-      })
-
-      if (daycareRules.length > 0) {
-        try {
-          await this.bulkUpsertHotelDaycareRules({ rules: daycareRules } as any)
-          imported += daycareRules.length
-        } catch (e: any) {
-          errors.push(`Hotel Nhà trẻ: ${e.message}`)
         }
       }
     }

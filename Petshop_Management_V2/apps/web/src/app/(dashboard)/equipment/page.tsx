@@ -3,7 +3,7 @@ import { PageContainer } from '@/components/layout/PageLayout'
 import { EquipmentWorkspace } from './_components/equipment-workspace'
 
 export const metadata: Metadata = {
-  title: 'Thiết bị | Petshop',
+  title: '🔧 Thiết bị',
   description: 'Quản lý trang thiết bị công ty',
 }
 

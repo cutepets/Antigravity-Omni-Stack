@@ -5,7 +5,7 @@ import { Building2 } from 'lucide-react'
 import { SupplierList } from './_components/supplier-list'
 
 export const metadata: Metadata = {
-  title: 'Nhà cung cấp | Petshop',
+  title: '🏭 Nhà cung cấp',
   description: 'Quản lý đối tác và nhà cung cấp hàng hóa',
 }
 

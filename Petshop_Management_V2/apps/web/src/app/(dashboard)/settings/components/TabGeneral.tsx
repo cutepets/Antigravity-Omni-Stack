@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle2, Cloud, KeyRound, RefreshCw, Save, Store, Upload } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Cloud, Copy, KeyRound, RefreshCw, Save, Store, Upload } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { useAuthorization } from '@/hooks/useAuthorization'
@@ -170,6 +170,17 @@ export function TabGeneral() {
     setFormData((current) => ({ ...current, [name]: checked }))
   }
 
+  const handleCopy = async (value: string, label: string) => {
+    if (!value) return
+
+    try {
+      await navigator.clipboard.writeText(value)
+      toast.success(`Da copy ${label}`)
+    } catch {
+      toast.error(`Khong copy duoc ${label}`)
+    }
+  }
+
   const handleSave = () => {
     if (!canUpdateSettings) return
 
@@ -281,8 +292,8 @@ export function TabGeneral() {
               <div>
                 <label
                   className={`inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-sm font-medium ${canUpdateSettings
-                      ? 'cursor-pointer bg-background-tertiary transition-colors hover:bg-background-elevated'
-                      : 'cursor-not-allowed bg-background-tertiary/60 text-foreground-muted'
+                    ? 'cursor-pointer bg-background-tertiary transition-colors hover:bg-background-elevated'
+                    : 'cursor-not-allowed bg-background-tertiary/60 text-foreground-muted'
                     }`}
                 >
                   <Upload size={16} className="text-foreground-muted" />
@@ -341,15 +352,18 @@ export function TabGeneral() {
               onChange={handleToggleChange}
               disabled={isDisabled}
             />
-            <Field label="Allowed domain">
+            <Field label="Allowed Google Workspace/email domain">
               <input
                 name="googleAuthAllowedDomain"
                 value={formData.googleAuthAllowedDomain}
                 onChange={handleTextChange}
-                placeholder="example.com"
+                placeholder="petshophanoi.com"
                 disabled={isDisabled}
                 className={inputClassName}
               />
+              <p className="mt-1 text-xs text-foreground-muted">
+                Chi nhap domain email, khong nhap URL app. Vi du: petshophanoi.com.
+              </p>
             </Field>
             <Field label="Google OAuth client ID" className="md:col-span-2">
               <input
@@ -373,19 +387,45 @@ export function TabGeneral() {
               />
             </Field>
             <Field label="Authorized JavaScript origin" className="md:col-span-2">
-              <input
-                value={googleAuthStatusQuery.data?.webAppBaseUrl || ''}
-                disabled
-                className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
-              />
+              <div className="flex gap-2">
+                <input
+                  value={googleAuthStatusQuery.data?.webAppBaseUrl || ''}
+                  disabled
+                  className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCopy(googleAuthStatusQuery.data?.webAppBaseUrl || '', 'JavaScript origin')}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background-tertiary px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-elevated"
+                >
+                  <Copy size={14} />
+                  Copy
+                </button>
+              </div>
             </Field>
             <Field label="Authorized redirect URI" className="md:col-span-2">
-              <input
-                value={googleAuthStatusQuery.data?.callbackUrl || ''}
-                disabled
-                className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
-              />
+              <div className="flex gap-2">
+                <input
+                  value={googleAuthStatusQuery.data?.callbackUrl || ''}
+                  disabled
+                  className={`${inputClassName} bg-background-tertiary/70 text-foreground-muted`}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCopy(googleAuthStatusQuery.data?.callbackUrl || '', 'redirect URI')}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-background-tertiary px-4 py-2 text-xs font-semibold text-foreground-base transition-colors hover:bg-background-elevated"
+                >
+                  <Copy size={14} />
+                  Copy
+                </button>
+              </div>
             </Field>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-xs text-sky-100">
+            <p className="font-semibold text-sky-50">Local Google Login test</p>
+            <p className="mt-2">Local khong can deploy: them JavaScript origin http://localhost:3000 va redirect URI http://localhost:3001/api/auth/google/callback trong Google Cloud.</p>
+            <p className="mt-1">Production phai dung HTTPS va copy dung chinh xac origin/redirect URI ben tren.</p>
           </div>
 
           <div className="mt-4 rounded-2xl border border-border/50 bg-background-base p-4 text-xs text-foreground-muted">
@@ -402,20 +442,38 @@ export function TabGeneral() {
         </section>
 
         <section className="rounded-2xl border border-border/50 bg-background-elevated/60 p-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h3 className="flex items-center gap-2 text-sm font-bold text-foreground-base">
                 <Cloud size={16} className="text-primary-500" />
                 Google Drive shared storage
               </h3>
               <p className="mt-1 text-xs text-foreground-muted">
-                App lưu file lên shared drive. DB chỉ giữ metadata và link hiển thị.
+                Lưu ảnh & file lên Google Drive. DB chỉ giữ link.
               </p>
             </div>
             <StatusBadge active={Boolean(formData.googleDriveEnabled)} configured={integrationBadges.googleDriveSecret} />
           </div>
 
+          {/* Step guide */}
+          <div className="mb-6 rounded-2xl border border-border/40 bg-background-base p-4 text-xs text-foreground-muted">
+            <p className="mb-2 font-semibold text-foreground-base">Hướng dẫn kết nối (4 bước)</p>
+            <ol className="list-decimal space-y-1.5 pl-4">
+              <li>Vào <strong className="text-foreground-base">Google Cloud Console</strong> → IAM → Service Accounts → Tạo service account mới.</li>
+              <li>Vào tab <strong className="text-foreground-base">Keys</strong> của service account → Add Key → JSON → Download file.json.</li>
+              <li>Trong <strong className="text-foreground-base">Google Drive</strong>: tạo thư mục → chuột phải → Share → dán email service account (có trong file JSON) → Editor.</li>
+              <li>Copy <strong className="text-foreground-base">Folder ID</strong> từ URL Drive (phần sau <code className="bg-black/20 px-1 py-0.5 rounded">/folders/</code>) và dán vào ô bên dưới.</li>
+            </ol>
+          </div>
+
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <ToggleField
+              label="Bật Google Drive"
+              checked={formData.googleDriveEnabled}
+              name="googleDriveEnabled"
+              onChange={handleToggleChange}
+              disabled={isDisabled}
+            />
             <Field label="Storage provider">
               <select
                 name="storageProvider"
@@ -424,92 +482,127 @@ export function TabGeneral() {
                 disabled={isDisabled}
                 className={inputClassName}
               >
-                <option value="LOCAL">LOCAL</option>
-                <option value="GOOGLE_DRIVE">GOOGLE_DRIVE</option>
+                <option value="LOCAL">LOCAL — Lưu trên server</option>
+                <option value="GOOGLE_DRIVE">GOOGLE_DRIVE — Lưu lên Drive</option>
               </select>
             </Field>
-            <ToggleField
-              label="Bật Google Drive"
-              checked={formData.googleDriveEnabled}
-              name="googleDriveEnabled"
-              onChange={handleToggleChange}
-              disabled={isDisabled}
-            />
-            <Field label="Service account email">
-              <input
-                name="googleDriveClientEmail"
-                value={formData.googleDriveClientEmail}
-                onChange={handleTextChange}
-                placeholder="storage@project.iam.gserviceaccount.com"
-                disabled={isDisabled}
-                className={inputClassName}
-              />
-            </Field>
-            <Field label="Shared drive ID">
-              <input
-                name="googleDriveSharedDriveId"
-                value={formData.googleDriveSharedDriveId}
-                onChange={handleTextChange}
-                placeholder="Shared Drive ID"
-                disabled={isDisabled}
-                className={inputClassName}
-              />
-            </Field>
-            <Field label="Root folder ID">
+
+            {/* Primary Folder ID — the one thing users must fill */}
+            <Field label="ID thư mục Google Drive *" className="md:col-span-2">
               <input
                 name="googleDriveRootFolderId"
                 value={formData.googleDriveRootFolderId}
                 onChange={handleTextChange}
-                placeholder="Root folder ID"
+                placeholder="Dán Folder ID từ URL Drive: /folders/FOLDER_ID_ĐÂY"
                 disabled={isDisabled}
                 className={inputClassName}
               />
+              <p className="mt-1 text-xs text-foreground-muted">
+                Share thư mục này cho email service account với quyền Editor.
+              </p>
             </Field>
-            <Field label="Image folder ID">
-              <input
-                name="googleDriveImageFolderId"
-                value={formData.googleDriveImageFolderId}
-                onChange={handleTextChange}
-                placeholder="Images folder ID"
-                disabled={isDisabled}
-                className={inputClassName}
-              />
-            </Field>
-            <Field label="Document folder ID">
-              <input
-                name="googleDriveDocumentFolderId"
-                value={formData.googleDriveDocumentFolderId}
-                onChange={handleTextChange}
-                placeholder="Documents folder ID"
-                disabled={isDisabled}
-                className={inputClassName}
-              />
-            </Field>
-            <Field label="Backup folder ID">
-              <input
-                name="googleDriveBackupFolderId"
-                value={formData.googleDriveBackupFolderId}
-                onChange={handleTextChange}
-                placeholder="Backups folder ID"
-                disabled={isDisabled}
-                className={inputClassName}
-              />
-            </Field>
-            <Field label="Service account JSON" className="md:col-span-2">
+
+            {/* Service account JSON — file picker + textarea */}
+            <Field label="Service Account JSON *" className="md:col-span-2">
+              <div className="flex gap-2 mb-2">
+                <label
+                  className={`inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-xs font-medium ${canUpdateSettings
+                    ? 'cursor-pointer bg-background-tertiary transition-colors hover:bg-background-elevated'
+                    : 'cursor-not-allowed bg-background-tertiary/60 text-foreground-muted'
+                    }`}
+                >
+                  <Upload size={14} />
+                  Chọn file .json
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".json,application/json"
+                    disabled={!canUpdateSettings}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      const reader = new FileReader()
+                      reader.onload = (ev) => {
+                        const content = ev.target?.result as string
+                        setFormData((cur) => ({ ...cur, googleDriveServiceAccountJson: content }))
+                      }
+                      reader.readAsText(file)
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+                {integrationBadges.googleDriveSecret && (
+                  <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
+                    <CheckCircle2 size={12} />
+                    Đã kết nối
+                  </span>
+                )}
+              </div>
               <textarea
                 name="googleDriveServiceAccountJson"
                 value={formData.googleDriveServiceAccountJson}
                 onChange={handleTextChange}
-                placeholder={integrationBadges.googleDriveSecret ? 'Đã lưu service account. Dán JSON mới nếu cần thay.' : '{"client_email":"...","private_key":"..."}'}
+                placeholder={integrationBadges.googleDriveSecret
+                  ? 'Đã lưu service account. Chọn file mới để thay, hoặc bỏ trống để giữ nguyên.'
+                  : 'Dán nội dung file JSON hoặc bấm "Chọn file .json" bên trên...'}
                 disabled={isDisabled}
-                rows={8}
-                className={`${inputClassName} min-h-40 resize-y`}
+                rows={5}
+                className={`${inputClassName} min-h-32 resize-y font-mono text-xs`}
               />
-              <p className="mt-2 text-xs text-foreground-muted">
-                Secret được mã hóa trong DB. Cần có env `APP_SECRET_ENCRYPTION_KEY` để lưu và đọc.
+              <p className="mt-1 text-xs text-foreground-muted">
+                JSON được mã hóa trong DB. Cần env <code className="bg-black/20 px-1 rounded">APP_SECRET_ENCRYPTION_KEY</code>.
               </p>
             </Field>
           </div>
+
+          {/* Advanced fields (collapsible) */}
+          <details className="mt-4 rounded-xl border border-border/40 bg-background-base">
+            <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-foreground-muted hover:text-foreground-base select-none">
+              ⚙️ Cấu hình nâng cao (tùy chọn)
+            </summary>
+            <div className="grid grid-cols-1 gap-6 p-4 md:grid-cols-2">
+              <Field label="Image folder ID">
+                <input
+                  name="googleDriveImageFolderId"
+                  value={formData.googleDriveImageFolderId}
+                  onChange={handleTextChange}
+                  placeholder="Mặc định: dùng Root folder ID"
+                  disabled={isDisabled}
+                  className={inputClassName}
+                />
+              </Field>
+              <Field label="Document folder ID">
+                <input
+                  name="googleDriveDocumentFolderId"
+                  value={formData.googleDriveDocumentFolderId}
+                  onChange={handleTextChange}
+                  placeholder="Mặc định: dùng Root folder ID"
+                  disabled={isDisabled}
+                  className={inputClassName}
+                />
+              </Field>
+              <Field label="Backup folder ID">
+                <input
+                  name="googleDriveBackupFolderId"
+                  value={formData.googleDriveBackupFolderId}
+                  onChange={handleTextChange}
+                  placeholder="Mặc định: dùng Root folder ID"
+                  disabled={isDisabled}
+                  className={inputClassName}
+                />
+              </Field>
+              <Field label="Shared Drive ID">
+                <input
+                  name="googleDriveSharedDriveId"
+                  value={formData.googleDriveSharedDriveId}
+                  onChange={handleTextChange}
+                  placeholder="Chỉ cần nếu dùng Shared Drive"
+                  disabled={isDisabled}
+                  className={inputClassName}
+                />
+              </Field>
+            </div>
+          </details>
 
           <div className="mt-4 flex justify-end">
             <button
@@ -517,17 +610,16 @@ export function TabGeneral() {
               onClick={() => testConnectionMutation.mutate()}
               disabled={
                 isDisabled ||
-                !formData.googleDriveEnabled ||
-                formData.storageProvider !== 'GOOGLE_DRIVE' ||
                 testConnectionMutation.isPending
               }
-              className="inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-sm font-semibold text-foreground-base transition-colors hover:bg-background-secondary disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {testConnectionMutation.isPending ? <RefreshCw size={16} className="animate-spin" /> : <Cloud size={16} />}
-              Test Google Drive
+              Kiểm tra kết nối Drive
             </button>
           </div>
         </section>
+
 
         <div className="flex justify-end border-t border-border/40 pt-6">
           <button

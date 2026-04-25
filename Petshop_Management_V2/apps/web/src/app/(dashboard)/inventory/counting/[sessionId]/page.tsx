@@ -5,7 +5,7 @@ import { SessionDetailClient } from './session-detail-client'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Chi tiết phiếu kiểm kho | Petshop',
+  title: '🔍 Chi tiết kiểm kho',
   description: 'Theo dõi tiến độ kiểm kho theo ca trong tuần',
 }
 

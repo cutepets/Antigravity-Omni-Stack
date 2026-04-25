@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import { CountingDashboard } from './_components/counting-dashboard'
 
 export const metadata: Metadata = {
-  title: 'Kiểm kho | Petshop',
+  title: '🔍 Kiểm kho',
   description: 'Quản lý kiểm kho theo ca hàng tuần',
 }
 

@@ -1,4 +1,4 @@
-import { api } from '../api'
+import { API_URL, api } from '../api'
 
 export interface Staff {
   id: string
@@ -64,6 +64,12 @@ export interface StaffPerformance {
 export interface BranchRole {
   role: string
   branch: string
+}
+
+export interface BulkDeleteResult {
+  success: boolean
+  deletedIds: string[]
+  blocked: Array<{ id: string; reason: string }>
 }
 
 // Attendance / Timekeeping interfaces
@@ -199,6 +205,13 @@ export const DOCUMENT_TYPE_ICONS: Record<DocumentType, string> = {
   OTHER: '📁',
 }
 
+function withDocumentDownloadUrl(document: EmployeeDocument): EmployeeDocument {
+  return {
+    ...document,
+    fileUrl: `${API_URL}/api/staff/${encodeURIComponent(document.userId)}/documents/${encodeURIComponent(document.id)}`,
+  }
+}
+
 export const staffApi = {
   getAll: () => api.get<Staff[]>('/staff').then((r) => r.data),
 
@@ -212,8 +225,12 @@ export const staffApi = {
   deactivate: (id: string) =>
     api.delete<{ id: string; staffCode: string; status: string }>(`/staff/${id}`).then((r) => r.data),
 
+  bulkDeactivate: (ids: string[]) =>
+    api.post<BulkDeleteResult>('/staff/bulk-delete', { ids }).then((r) => r.data),
+
   // Documents
-  getDocuments: (userId: string) => api.get<EmployeeDocument[]>(`/staff/${userId}/documents`).then((r) => r.data),
+  getDocuments: (userId: string) =>
+    api.get<EmployeeDocument[]>(`/staff/${userId}/documents`).then((r) => r.data.map(withDocumentDownloadUrl)),
 
   uploadDocument: (userId: string, file: File, data: UploadDocumentDto) => {
     const formData = new FormData()
@@ -226,7 +243,7 @@ export const staffApi = {
       .post<EmployeeDocument>(`/staff/${userId}/documents/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
-      .then((r) => r.data)
+      .then((r) => withDocumentDownloadUrl(r.data))
   },
 
   deleteDocument: (userId: string, docId: string) =>

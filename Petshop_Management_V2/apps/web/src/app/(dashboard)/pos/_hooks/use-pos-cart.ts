@@ -34,55 +34,11 @@ export function usePosCart() {
     setTimeout(() => setLastAddedItemId(null), 700);
   }, []);
 
-  const buildImmediateDaycareCartItem = useCallback((service: any, petId: string, petName?: string) => {
-    const today = new Date();
-    const checkIn = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 9, 0, 0);
-    const checkOut = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 9, 21, 0, 0);
-    const baseItem = buildDirectServiceCartItem(service, petId, petName);
-    return {
-      ...baseItem,
-      id: buildCartLineId('hotel', service.id, petId, 'daycare'),
-      quantity: 1,
-      unitPrice: Number(service?.sellingPrice ?? service?.price ?? 0),
-      hotelDetails: {
-        petId,
-        checkIn: checkIn.toISOString(),
-        checkOut: checkOut.toISOString(),
-        lineType: 'REGULAR' as const,
-        careMode: 'DAYCARE' as const,
-        packageKind: 'COMBO_10_DAYS' as const,
-        packageTotalDays: Number(service?.packageTotalDays ?? 10),
-        packageStartDate: checkIn.toISOString(),
-        packageEndDate: checkOut.toISOString(),
-        autoCompleteAt: checkOut.toISOString(),
-        weightBandId: service?.weightBandId ?? null,
-        weightBandLabel: service?.weightBandLabel ?? null,
-        pricingPreview: {
-          source: 'DAYCARE_COMBO_10',
-          totalDays: Number(service?.packageTotalDays ?? 10),
-          totalPrice: Number(service?.sellingPrice ?? service?.price ?? 0),
-        },
-      },
-    };
-  }, []);
-
   const handleAddItem = useCallback((item: any) => {
     const activePetId = activeTab?.activePetIds?.[0];
 
     if (isHotelService(item)) {
       const resolvedPetId = item.petId ?? item.petSnapshot?.id ?? activePetId;
-      if (item?.careMode === 'DAYCARE') {
-        if (!resolvedPetId) {
-          toast.error('Can chon thu cung truoc khi them goi nha tre');
-          return;
-        }
-        const cartItem = buildImmediateDaycareCartItem(item, resolvedPetId, item.petSnapshot?.name);
-        store.addItem(cartItem as any);
-        flashItem(cartItem.id);
-        toast.success('Da them goi nha tre vao gio');
-        return;
-      }
-
       const cartItem = buildDirectServiceCartItem(item, resolvedPetId);
       store.addItem(cartItem);
       flashItem(cartItem.id);
@@ -151,7 +107,7 @@ export function usePosCart() {
       branchStocks: item.branchStocks,
     } as any);
     flashItem(newId);
-  }, [activeTab?.activePetIds, buildImmediateDaycareCartItem, flashItem, store]);
+  }, [activeTab?.activePetIds, flashItem, store]);
 
   const handleSelectSuggestedService = useCallback((service: any, petId: string, petName?: string) => {
     const cart = store.tabs.find((t) => t.id === store.activeTabId)?.cart ?? [];
@@ -175,12 +131,10 @@ export function usePosCart() {
     }
 
     if (isHotelService(service)) {
-      const cartItem = service?.careMode === 'DAYCARE'
-        ? buildImmediateDaycareCartItem(service, petId, petName)
-        : buildDirectServiceCartItem(service, petId);
+      const cartItem = buildDirectServiceCartItem(service, petId);
       if (petName) cartItem.itemNotes = `Thu cung: ${petName}`;
       store.addItem(cartItem as any);
-      toast.success(service?.careMode === 'DAYCARE' ? 'Da them goi nha tre vao gio' : 'Da them dich vu luu chuong vao gio');
+      toast.success('Da them dich vu luu chuong vao gio');
       return;
     }
 
@@ -188,7 +142,7 @@ export function usePosCart() {
     if (petName) cartItem.itemNotes = `Thu cung: ${petName}`;
     store.addItem(cartItem);
     toast.success('Da them dich vu vao gio');
-  }, [buildImmediateDaycareCartItem, store]);
+  }, [store]);
 
   const navigateRowUp = useCallback(() => {
     if (!activeTab || activeTab.cart.length === 0) return;

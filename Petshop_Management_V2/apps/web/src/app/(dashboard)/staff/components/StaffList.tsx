@@ -3,7 +3,7 @@ import Image from 'next/image';
 
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Clock, MapPin, Phone, Filter, ShieldAlert, Pin, PinOff, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, MapPin, Phone, Filter, ShieldAlert, Pin, PinOff, XCircle, Trash2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { Staff } from '@/lib/api/staff.api'
 import {
@@ -27,8 +27,10 @@ interface StaffListProps {
   roles: any[]
   canEdit: boolean
   canDeactivate: boolean
+  canBulkDeactivate: boolean
   onEdit: (staff: Staff) => void
   onDeactivate: (id: string, name: string) => void
+  onBulkDeactivate: (ids: string[]) => void
 }
 
 type DisplayColumnId = 'avatar' | 'code' | 'staff' | 'role' | 'contact' | 'branch' | 'status'
@@ -57,7 +59,7 @@ const STATUS_CONFIG: Record<string, { label: string; badgeClass: string; icon: a
   QUIT: { label: 'Thôi việc', badgeClass: 'badge-error', icon: XCircle },
 }
 
-export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, onDeactivate }: StaffListProps) {
+export function StaffList({ staffList, roles, canEdit, canDeactivate, canBulkDeactivate, onEdit, onDeactivate, onBulkDeactivate }: StaffListProps) {
   const router = useRouter()
 
   const [search, setSearch] = useState('')
@@ -134,6 +136,10 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
     clearSelection,
     allVisibleSelected,
   } = useDataListSelection(visibleRowIds)
+  const selectedStaffIds = useMemo(
+    () => Array.from(selectedRowIds).map((id) => id.replace(/^staff:/, '')),
+    [selectedRowIds],
+  )
 
   const clearFilters = () => {
     setSearch('')
@@ -281,7 +287,20 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, onEdit, on
               selectedCount={selectedRowIds.size}
               onClear={clearSelection}
             >
-              <span className="text-sm text-foreground-muted">Chọn thao tác hàng loạt (đang phát triển)</span>
+              {canBulkDeactivate ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onBulkDeactivate(selectedStaffIds)
+                    clearSelection()
+                  }}
+                  className="inline-flex h-8 items-center gap-2 rounded-lg border border-error/20 bg-error/10 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/20"
+                >
+                  <Trash2 size={13} /> Dinh chi
+                </button>
+              ) : (
+                <span className="text-sm text-foreground-muted">Chon thao tac hang loat</span>
+              )}
             </DataListBulkBar>
           ) : undefined
         }

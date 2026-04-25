@@ -24,7 +24,6 @@ import {
 } from '../../common/utils/upload.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import {
-  BulkUpsertHotelDaycareRulesDto,
   BulkUpsertHotelExtraServicesDto,
   BulkUpsertHotelRulesDto,
   BulkUpsertSpaRulesDto,
@@ -144,18 +143,6 @@ export class PricingController {
   @Permissions('hotel.update', 'settings.pricing_policy.manage')
   bulkUpsertHotelRules(@Body() dto: BulkUpsertHotelRulesDto) {
     return this.pricingService.bulkUpsertHotelRules(dto)
-  }
-
-  @Get('hotel-daycare-rules')
-  @Permissions('hotel.read', 'settings.pricing_policy.manage')
-  listHotelDaycareRules(@Query() query: any) {
-    return this.pricingService.listHotelDaycareRules(query)
-  }
-
-  @Put('hotel-daycare-rules/bulk')
-  @Permissions('hotel.update', 'settings.pricing_policy.manage')
-  bulkUpsertHotelDaycareRules(@Body() dto: BulkUpsertHotelDaycareRulesDto) {
-    return this.pricingService.bulkUpsertHotelDaycareRules(dto)
   }
 
   @Get('hotel-extra-services')

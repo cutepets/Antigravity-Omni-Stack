@@ -1,4 +1,4 @@
-<!-- Generated: 2026-04-14 | Files scanned: ~400 | Token estimate: ~300 -->
+<!-- Generated: 2026-04-25 | Files scanned: ~500 | Token estimate: ~350 -->
 # Dependencies Architecture
 
 ## Core Platforms
@@ -15,6 +15,8 @@
 - Turborepo (Monorepo orchestration)
 
 ## Key Libraries
-- `zod`: Schema validaton throughout the monolithic architecture.
+- `zod`: Schema validation throughout the monorepo.
 - `zustand`, `react-query`: Frontend state management.
-- `passport`, `passport-jwt`, `bcryptjs`: Backend auth.
+- `passport`, `passport-jwt`, `passport-google-oauth20`, `bcryptjs`: Backend auth.
+- `@googleapis/drive`: Google Drive integration for storage.
+- `xlsx`: Excel import/export for pricing data.

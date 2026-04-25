@@ -5,7 +5,7 @@ import { PageContainer, PageHeader } from '@/components/layout/PageLayout'
 import { Users } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Khách hàng | Petshop',
+  title: '👥 Khách hàng',
   description: 'Quản lý khách hàng hội viên',
 }
 

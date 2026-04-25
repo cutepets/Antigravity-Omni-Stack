@@ -33,6 +33,12 @@ export interface ApiSingleResult<T> {
   data: T
 }
 
+export interface BulkDeleteResult {
+  success: boolean
+  deletedIds: string[]
+  blocked: Array<{ id: string; reason: string }>
+}
+
 // ── DTOs ──────────────────────────────────────────────────────────────────────
 export interface CreateCustomerDto {
   fullName: string
@@ -100,6 +106,11 @@ export const customerApi = {
   /** Xoá (safe — backend kiểm tra quan hệ) */
   deleteCustomer: async (id: string) => {
     const { data } = await api.delete<{ success: boolean; message?: string }>(`/customers/${id}`)
+    return data
+  },
+
+  bulkDeleteCustomers: async (ids: string[]) => {
+    const { data } = await api.post<BulkDeleteResult>('/customers/bulk-delete', { ids })
     return data
   },
 

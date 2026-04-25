@@ -21,7 +21,7 @@ type GoogleDriveRuntimeConfig = {
 
 @Injectable()
 export class GoogleDriveStorageProvider {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   private normalizePrivateKey(value: string) {
     return value.replace(/\\n/g, '\n')
@@ -112,30 +112,50 @@ export class GoogleDriveStorageProvider {
         ? await this.findOrCreateChildFolder(drive, baseFolderId, input.scope, config.sharedDriveId)
         : baseFolderId
 
-    const created = await drive.files.create({
-      supportsAllDrives: true,
-      requestBody: {
-        name: input.file.originalName,
-        parents: [folderId],
-      },
-      media: {
-        mimeType: input.file.mimeType,
-        body: Buffer.from(input.file.buffer),
-      },
-      fields: 'id,name,mimeType,size',
-    })
+    return this.createDriveFile(drive, folderId, input.file)
+  }
 
-    const fileId = created.data.id
-    if (!fileId) {
-      throw new BadRequestException('Google Drive khong tra ve fileId sau khi upload')
+  private async createDriveFile(
+    drive: ReturnType<typeof google.drive>,
+    folderId: string,
+    file: UploadStorageFileInput,
+  ) {
+    let fileId: string
+    let name: string
+    let mimeType: string
+    let size: number
+
+    try {
+      const result = await drive.files.create({
+        supportsAllDrives: true,
+        requestBody: { name: file.originalName, parents: [folderId] },
+        media: { mimeType: file.mimeType, body: Buffer.from(file.buffer) },
+        fields: 'id,name,mimeType,size',
+      })
+      if (!result.data.id) {
+        throw new BadRequestException('Google Drive khong tra ve fileId sau khi upload')
+      }
+      fileId = result.data.id
+      name = result.data.name ?? file.originalName
+      mimeType = result.data.mimeType ?? file.mimeType
+      size = Number(result.data.size ?? file.size)
+    } catch (error: any) {
+      if (error instanceof BadRequestException) throw error
+      const googleMsg =
+        error?.response?.data?.error?.message ??
+        error?.message ??
+        'Lỗi upload lên Google Drive'
+      const httpCode: number = error?.response?.status ?? 0
+      const hint =
+        httpCode === 403
+          ? ` — Service account thiếu quyền Editor trên folder "${folderId}".`
+          : httpCode === 404
+            ? ` — Folder ID "${folderId}" không tồn tại.`
+            : ''
+      throw new BadRequestException(`Google Drive upload: ${googleMsg}${hint}`)
     }
 
-    return {
-      fileId,
-      name: created.data.name ?? input.file.originalName,
-      mimeType: created.data.mimeType ?? input.file.mimeType,
-      size: Number(created.data.size ?? input.file.size),
-    }
+    return { fileId, name, mimeType, size }
   }
 
   private async findOrCreateChildFolder(
@@ -150,9 +170,9 @@ export class GoogleDriveStorageProvider {
       includeItemsFromAllDrives: true,
       ...(sharedDriveId
         ? {
-            corpora: 'drive',
-            driveId: sharedDriveId,
-          }
+          corpora: 'drive',
+          driveId: sharedDriveId,
+        }
         : {}),
       q: [
         `'${parentId}' in parents`,
@@ -223,17 +243,38 @@ export class GoogleDriveStorageProvider {
   async testConnection(): Promise<GoogleDriveConnectionCheck> {
     const { drive, config } = await this.createDriveClient()
 
-    if (config.sharedDriveId) {
-      await drive.drives.get({
-        driveId: config.sharedDriveId,
-        fields: 'id,name',
-      })
-    } else if (config.rootFolderId) {
-      await drive.files.get({
-        fileId: config.rootFolderId,
-        fields: 'id,name,mimeType',
-        supportsAllDrives: true,
-      })
+    try {
+      if (config.sharedDriveId) {
+        await drive.drives.get({
+          driveId: config.sharedDriveId,
+          fields: 'id,name',
+        })
+      } else if (config.rootFolderId) {
+        await drive.files.get({
+          fileId: config.rootFolderId,
+          fields: 'id,name,mimeType',
+          supportsAllDrives: true,
+        })
+      } else {
+        // No folder configured — just validate auth by calling about
+        await drive.about.get({ fields: 'user' })
+      }
+    } catch (error: any) {
+      // Extract the real Google API error message for display
+      const googleMsg =
+        error?.response?.data?.error?.message ??
+        error?.response?.data?.error_description ??
+        error?.message ??
+        'Lỗi không xác định từ Google API'
+
+      const httpCode = error?.response?.status ?? error?.code ?? ''
+      const hint = httpCode === 403
+        ? ' — Kiểm tra Google Drive API đã được bật chưa tại Google Cloud Console (APIs & Services → Library → Google Drive API → Enable).'
+        : httpCode === 404
+          ? ' — Folder ID không tồn tại hoặc chưa được share cho service account.'
+          : ''
+
+      throw new BadRequestException(`Google Drive: ${googleMsg}${hint}`)
     }
 
     return {

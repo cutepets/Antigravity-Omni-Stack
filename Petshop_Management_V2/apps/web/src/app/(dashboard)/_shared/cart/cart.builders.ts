@@ -45,6 +45,7 @@ export function buildProductCartItem(product: any): CartItem {
     unitLabel: product.unitLabel ?? undefined,
     variants: product.variants ?? [],
     baseSku: product.sku,
+    baseUnit: product.unit ?? 'cai',
     baseUnitPrice: Number(product.sellingPrice ?? product.price ?? 0),
     stock: product.stock,
     availableStock: product.availableStock,
@@ -57,22 +58,19 @@ export function buildProductCartItem(product: any): CartItem {
 export function buildDirectServiceCartItem(service: any, petId?: string, petName?: string): CartItem {
   const itemType = isHotelService(service) ? 'hotel' : 'service'
   const unitPrice = Number(service?.sellingPrice ?? service?.price ?? 0)
-  const isDaycare = service?.careMode === 'DAYCARE'
 
   return {
     id: buildCartLineId(itemType, service.id, petId),
     serviceId: getOrderServiceId(service),
     description: isHotelService(service)
-      ? (isDaycare
-          ? `${service.name || 'Nha tre combo 10 ngay'}${service.weightBandLabel ? ` - ${service.weightBandLabel}` : ''}`
-          : `Luu tru${service.weightBandLabel ? ` - ${service.weightBandLabel}` : ''}`)
+      ? `Luu tru${service.weightBandLabel ? ` - ${service.weightBandLabel}` : ''}`
       : service.name,
     sku: service.sku,
     weightBandLabel: service.weightBandLabel,
     unitPrice,
     type: itemType,
     image: service.image,
-    unit: itemType === 'hotel' ? (isDaycare ? 'combo' : 'ngay') : 'lan',
+    unit: itemType === 'hotel' ? 'ngay' : 'lan',
     discountItem: 0,
     vatRate: 0,
     quantity: 1,
@@ -99,26 +97,26 @@ export function buildGroomingCartItem(service: any, petId?: string, petName?: st
     service?.pricingSnapshot ??
     (service?.pricingRuleId || service?.weightBandId
       ? {
-          pricingRuleId: service?.pricingRuleId,
-          packageCode: resolvedPackageCode ?? null,
-          weightBandId: service?.weightBandId ?? null,
-          weightBandLabel: service?.weightBandLabel ?? null,
-          price: unitPrice,
-          serviceName: service?.name ?? null,
-          sku: service?.sku ?? null,
-        }
+        pricingRuleId: service?.pricingRuleId,
+        packageCode: resolvedPackageCode ?? null,
+        weightBandId: service?.weightBandId ?? null,
+        weightBandLabel: service?.weightBandLabel ?? null,
+        price: unitPrice,
+        serviceName: service?.name ?? null,
+        sku: service?.sku ?? null,
+      }
       : undefined)
   const pricingSnapshot = pricingSnapshotBase
     ? {
-        ...pricingSnapshotBase,
-        serviceRole,
-        pricingRuleId: service?.pricingRuleId ?? pricingSnapshotBase?.pricingRuleId ?? null,
-        packageCode: resolvedPackageCode ?? pricingSnapshotBase?.packageCode ?? null,
-        durationMinutes: service?.duration ?? service?.durationMinutes ?? pricingSnapshotBase?.durationMinutes ?? null,
-        price: unitPrice,
-        serviceName: service?.name ?? pricingSnapshotBase?.serviceName ?? null,
-        sku: service?.sku ?? pricingSnapshotBase?.sku ?? null,
-      }
+      ...pricingSnapshotBase,
+      serviceRole,
+      pricingRuleId: service?.pricingRuleId ?? pricingSnapshotBase?.pricingRuleId ?? null,
+      packageCode: resolvedPackageCode ?? pricingSnapshotBase?.packageCode ?? null,
+      durationMinutes: service?.duration ?? service?.durationMinutes ?? pricingSnapshotBase?.durationMinutes ?? null,
+      price: unitPrice,
+      serviceName: service?.name ?? pricingSnapshotBase?.serviceName ?? null,
+      sku: service?.sku ?? pricingSnapshotBase?.sku ?? null,
+    }
     : undefined
 
   return {
@@ -138,18 +136,18 @@ export function buildGroomingCartItem(service: any, petId?: string, petName?: st
     petName,
     groomingDetails: petId
       ? {
-          petId,
-          packageCode,
-          serviceRole,
-          pricingRuleId: service?.pricingRuleId,
-          durationMinutes: service?.duration ?? service?.durationMinutes ?? null,
-          serviceItems: service?.name,
-          weightAtBooking: Number.isFinite(petWeight) ? petWeight : undefined,
-          weightBandId: service?.weightBandId,
-          weightBandLabel: service?.weightBandLabel,
-          pricingPrice: unitPrice,
-          pricingSnapshot,
-        }
+        petId,
+        packageCode,
+        serviceRole,
+        pricingRuleId: service?.pricingRuleId,
+        durationMinutes: service?.duration ?? service?.durationMinutes ?? null,
+        serviceItems: service?.name,
+        weightAtBooking: Number.isFinite(petWeight) ? petWeight : undefined,
+        weightBandId: service?.weightBandId,
+        weightBandLabel: service?.weightBandLabel,
+        pricingPrice: unitPrice,
+        pricingSnapshot,
+      }
       : undefined,
   }
 }

@@ -64,6 +64,11 @@ type GoogleStatePayload = {
   redirect: string
 }
 
+type GoogleCodeBody = {
+  code?: string
+  redirect?: string
+}
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -164,6 +169,27 @@ export class AuthController {
     return target.toString()
   }
 
+  private validateGooglePopupRequest(req: Request) {
+    const requestedWith = String(req.headers['x-requested-with'] ?? '').trim().toLowerCase()
+    if (requestedWith !== 'xmlhttprequest') {
+      throw new UnauthorizedException('Google popup request khong hop le')
+    }
+
+    const origin = String(req.headers.origin ?? '').trim()
+    const allowedOrigin = new URL(this.googleAuthService.getWebAppBaseUrl()).origin
+    if (!origin || origin !== allowedOrigin) {
+      throw new UnauthorizedException('Google popup origin khong hop le')
+    }
+  }
+
+  private getGoogleCode(body: GoogleCodeBody) {
+    const code = String(body?.code ?? '').trim()
+    if (!code) {
+      throw new UnauthorizedException('Google login missing code')
+    }
+    return code
+  }
+
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -173,7 +199,10 @@ export class AuthController {
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const auth = await this.authService.login(dto)
     this.setAuthCookies(res, auth)
-    return auth
+    return {
+      success: true,
+      user: auth.user,
+    }
   }
 
   @Get('google/status')
@@ -298,6 +327,47 @@ export class AuthController {
     }
   }
 
+  @Post('google/code')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Dang nhap Google popup code flow' })
+  async googleCodeLogin(
+    @Body() body: GoogleCodeBody,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    this.validateGooglePopupRequest(req)
+    const code = this.getGoogleCode(body)
+    const auth = await this.googleAuthService.loginWithPopupAuthorizationCode(code)
+    this.setAuthCookies(res, auth)
+    return {
+      success: true,
+      user: auth.user,
+      redirect: this.sanitizeRedirectPath(body.redirect),
+    }
+  }
+
+  @Post('google/link/code')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Lien ket Google popup code flow' })
+  async googleCodeLink(
+    @Body() body: GoogleCodeBody,
+    @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    this.validateGooglePopupRequest(req)
+    const code = this.getGoogleCode(body)
+    await this.googleAuthService.linkUserWithPopupAuthorizationCode(req.user.userId, code)
+    const auth = await this.authService.createSessionForUserId(req.user.userId)
+    this.setAuthCookies(res, auth)
+    return {
+      success: true,
+      user: auth.user,
+      redirect: this.sanitizeRedirectPath(body.redirect),
+    }
+  }
+
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
@@ -314,7 +384,10 @@ export class AuthController {
 
     const auth = await this.authService.refreshTokens(refreshToken)
     this.setAuthCookies(res, auth)
-    return auth
+    return {
+      success: true,
+      user: auth.user,
+    }
   }
 
   @Post('logout')

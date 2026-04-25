@@ -1,4 +1,4 @@
-<!-- Generated: 2026-04-14 | Files scanned: ~400 | Token estimate: ~600 -->
+<!-- Generated: 2026-04-25 | Files scanned: ~500 | Token estimate: ~600 -->
 # System Architecture
 
 ## Overview
@@ -20,7 +20,8 @@ Petshop_Management_V2/
 ```
 
 ## Internal Data Flow
-- `apps/web` interacts with `apps/api` via REST.
-- `apps/api` uses shared DTOs from `@petshop/shared`.
-- `apps/api` interfaces with `@petshop/database` for persistence.
-- `@petshop/queue` enables asynchronous background processing.
+- `apps/web` interacts with `apps/api` via REST (centralized API client in `lib/api/`).
+- `apps/api` uses shared DTOs from `@petshop/shared` and module-level DTOs.
+- `apps/api` interfaces with `@petshop/database` for persistence (Prisma).
+- `@petshop/queue` enables asynchronous background processing (hotel/daycare automation).
+- Storage module supports local disk + Google Drive integration.

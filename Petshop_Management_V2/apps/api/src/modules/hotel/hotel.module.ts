@@ -5,7 +5,6 @@ import { ModuleGuard } from '../../common/guards/module.guard.js'
 import { OrdersModule } from '../orders/orders.module.js'
 import { HotelController } from './hotel.controller.js'
 import { HotelService } from './hotel.service.js'
-import { HotelDaycareAutomationService } from './hotel-daycare-automation.service.js'
 import { CommandHandlers, QueryHandlers } from './application/index.js'
 
 @Module({
@@ -13,7 +12,6 @@ import { CommandHandlers, QueryHandlers } from './application/index.js'
   controllers: [HotelController],
   providers: [
     HotelService,
-    HotelDaycareAutomationService,
     ModuleGuard,
     ...CommandHandlers,
     ...QueryHandlers,

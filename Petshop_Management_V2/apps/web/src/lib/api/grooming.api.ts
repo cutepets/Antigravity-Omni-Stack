@@ -183,6 +183,12 @@ export type UpdateGroomingPayload = Partial<CreateGroomingPayload> & {
   surcharge?: number;
 };
 
+export interface BulkDeleteResult {
+  success: boolean;
+  deletedIds: string[];
+  blocked: Array<{ id: string; reason: string }>;
+}
+
 export const groomingApi = {
   getSessions: async (params?: GetGroomingSessionsParams) => {
     const { omitBranchId, ...restParams } = params || {};
@@ -232,5 +238,10 @@ export const groomingApi = {
       `/grooming/${id}`,
     );
     return res.data.data;
+  },
+
+  bulkDeleteSessions: async (ids: string[]) => {
+    const res = await api.post<BulkDeleteResult>("/grooming/bulk-delete", { ids });
+    return res.data;
   },
 };

@@ -1,9 +1,4 @@
-import type {
-  HotelDaycarePriceRule,
-  HotelExtraService,
-  HotelPriceRule,
-  ServiceWeightBand,
-} from '@/lib/api/pricing.api'
+import type { HotelExtraService, HotelPriceRule, ServiceWeightBand } from '@/lib/api/pricing.api'
 import { HOTEL_SPECIES_COLUMNS, SPECIES_OPTIONS } from '../shared/pricing-constants'
 import {
   buildServicePricingSku,
@@ -12,7 +7,7 @@ import {
   mapHotelExtraServiceToDraft,
   parseWeightInput,
 } from '../shared/pricing-helpers'
-import type { BandDraft, HotelDaycareDraft, HotelDraft, HotelExtraServiceDraft } from '../shared/pricing-types'
+import type { BandDraft, HotelDraft, HotelExtraServiceDraft } from '../shared/pricing-types'
 import { formatCurrencyInput } from '../service-pricing-format'
 
 export function getCanonicalHotelBands(rawBands: ServiceWeightBand[]) {
@@ -92,49 +87,13 @@ export function hydrateHotelExtraServiceDrafts(services: HotelExtraService[]) {
   return services.map((service) => mapHotelExtraServiceToDraft(service))
 }
 
-export function getHotelDaycareRuleKey(bandKey: string, species: string) {
-  return `${bandKey}:DAYCARE:${species}`
-}
-
-export function hydrateHotelDaycareDrafts(
-  bands: ServiceWeightBand[],
-  daycareRules: HotelDaycarePriceRule[],
-  hotelBandIdMap: Map<string, string>,
-) {
-  const nextDrafts: Record<string, HotelDaycareDraft> = {}
-
-  for (const rule of daycareRules) {
-    const representativeBandId = hotelBandIdMap.get(rule.weightBandId) ?? rule.weightBandId
-    const ruleSpecies = rule.species?.trim()
-    if (!ruleSpecies) continue
-
-    nextDrafts[getHotelDaycareRuleKey(representativeBandId, ruleSpecies)] = {
-      id: rule.id,
-      sku: rule.sku ?? '',
-      price: formatCurrencyInput(rule.price),
-    }
-  }
-
-  for (const band of bands) {
-    for (const speciesOption of HOTEL_SPECIES_COLUMNS) {
-      const key = getHotelDaycareRuleKey(band.id, speciesOption.value)
-      if (nextDrafts[key]) continue
-      nextDrafts[key] = { sku: '', price: '' }
-    }
-  }
-
-  return nextDrafts
-}
-
 export function fillEmptyHotelSkus(
   bandDrafts: BandDraft[],
   hotelDrafts: Record<string, HotelDraft>,
-  hotelDaycareDrafts: Record<string, HotelDaycareDraft>,
   hotelExtraServiceDrafts: HotelExtraServiceDraft[],
 ) {
   let filledCount = 0
   const nextHotelDrafts = { ...hotelDrafts }
-  const nextHotelDaycareDrafts = { ...hotelDaycareDrafts }
 
   for (const band of bandDrafts) {
     const minWeight = parseWeightInput(band.minWeight)
@@ -162,15 +121,6 @@ export function fillEmptyHotelSkus(
       nextHotelDrafts[holidayKey] = { ...holidayDraft, fullDayPrice: holidayDraft.fullDayPrice || fallbackPrice, sku: generatedSku }
       filledCount += 1
 
-      const daycareKey = getHotelDaycareRuleKey(band.key, speciesOption.value)
-      const daycareDraft = nextHotelDaycareDrafts[daycareKey] ?? { sku: '', price: '' }
-      if (!daycareDraft.sku.trim()) {
-        nextHotelDaycareDrafts[daycareKey] = {
-          ...daycareDraft,
-          sku: `${generatedSku}-NT`,
-        }
-        filledCount += 1
-      }
     }
   }
 
@@ -192,7 +142,6 @@ export function fillEmptyHotelSkus(
 
   return {
     hotelDrafts: nextHotelDrafts,
-    hotelDaycareDrafts: nextHotelDaycareDrafts,
     hotelExtraServiceDrafts: nextHotelExtraDrafts,
     filledCount,
   }

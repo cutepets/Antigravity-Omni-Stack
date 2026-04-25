@@ -48,18 +48,20 @@ export function PosBranchSelect() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Chỉ sync branch vào activeTab khi cần (không re-fire sau click của user)
   useEffect(() => {
     if (!selectedBranch) return;
-
+    // Sync auth.activeBranchId ← selectedBranch (khi mount hoặc branch bị mất)
     if (activeBranchId !== selectedBranch.id) {
       switchBranch(selectedBranch.id);
       return;
     }
-
-    if (!activeTab?.linkedOrderId && activeTab?.branchId !== selectedBranch.id) {
+    // Sync pos tab.branchId ← auth.activeBranchId (chỉ khi tab chưa có branch)
+    if (!activeTab?.linkedOrderId && !activeTab?.branchId) {
       setBranch(selectedBranch.id);
     }
-  }, [activeBranchId, activeTab?.branchId, activeTab?.linkedOrderId, selectedBranch, setBranch, switchBranch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBranch?.id]);
 
   return (
     <div className="relative" ref={containerRef}>

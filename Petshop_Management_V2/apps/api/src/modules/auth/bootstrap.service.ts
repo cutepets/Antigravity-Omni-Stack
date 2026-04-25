@@ -30,7 +30,6 @@ const DEFAULT_MODULES = [
  * - Danh sách Module Config mặc định
  * - Phương thức thanh toán hệ thống (Cash, Points)
  *
- *   Default login: superadmin / Admin@123
  */
 @Injectable()
 export class BootstrapService implements OnModuleInit {
@@ -50,6 +49,12 @@ export class BootstrapService implements OnModuleInit {
         if (userCount > 0) return
 
         this.logger.warn('⚠️  Không tìm thấy user nào trong DB — kích hoạt bootstrap SuperAdmin...')
+
+        const configuredPassword = process.env['BOOTSTRAP_ADMIN_PASSWORD']?.trim()
+        if (process.env['NODE_ENV'] === 'production' && !configuredPassword) {
+            throw new Error('Missing required environment variable: BOOTSTRAP_ADMIN_PASSWORD')
+        }
+        const defaultPassword = configuredPassword || 'Admin@123'
 
         await this.db.$transaction(async (tx) => {
             // 1. Đảm bảo có ít nhất 1 branch
@@ -84,7 +89,6 @@ export class BootstrapService implements OnModuleInit {
             }
 
             // 3. Tạo user superadmin
-            const defaultPassword = process.env['BOOTSTRAP_ADMIN_PASSWORD'] ?? 'Admin@123'
             const passwordHash = await bcrypt.hash(defaultPassword, 12)
             await tx.user.create({
                 data: {
@@ -101,7 +105,7 @@ export class BootstrapService implements OnModuleInit {
                 } as any,
             })
 
-            this.logger.log('✅ Đã tạo tài khoản mặc định: superadmin / Admin@123')
+            this.logger.log('✅ Đã tạo tài khoản SuperAdmin bootstrap')
             this.logger.warn('🔴 VUI LÒNG ĐỔI MẬT KHẨU SAU KHI ĐĂNG NHẬP!')
         })
     }

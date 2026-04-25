@@ -80,30 +80,6 @@ export class CreateHotelStayDto {
 
   @IsString()
   @IsOptional()
-  careMode?: 'BOARDING' | 'DAYCARE';
-
-  @IsString()
-  @IsOptional()
-  packageKind?: 'NONE' | 'COMBO_10_DAYS';
-
-  @IsNumber()
-  @IsOptional()
-  packageTotalDays?: number;
-
-  @IsDateString()
-  @IsOptional()
-  packageStartDate?: string;
-
-  @IsDateString()
-  @IsOptional()
-  packageEndDate?: string;
-
-  @IsDateString()
-  @IsOptional()
-  autoCompleteAt?: string;
-
-  @IsString()
-  @IsOptional()
   weightBandId?: string;
 
   @IsString()

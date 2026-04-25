@@ -2,6 +2,7 @@
 import { Prisma } from '@petshop/database'
 import { buildProductVariantName, resolveProductVariantLabels } from '@petshop/shared'
 import { DatabaseService } from '../../database/database.service.js'
+import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 import {
   analyzeProductExcelRows,
   buildAttributesFromRows,
@@ -996,6 +997,11 @@ export class InventoryService {
     return { success: true, message: 'Khôi phục sản phẩm thành công' }
   }
 
+  async bulkRemoveProducts(ids: unknown) {
+    const normalizedIds = normalizeBulkDeleteIds(ids)
+    return runBulkDelete(normalizedIds, (id) => this.removeProduct(id))
+  }
+
   async batchCreateVariants(productId: string, variants: CreateVariantDto[]) {
     const product = await this.findProductById(productId)
     const created = await this.db.$transaction(
@@ -1080,6 +1086,11 @@ export class InventoryService {
     await this.findServiceById(id)
     await this.db.service.delete({ where: { id } })
     return { success: true, message: 'Xóa dịch vụ thành công' }
+  }
+
+  async bulkRemoveServices(ids: unknown) {
+    const normalizedIds = normalizeBulkDeleteIds(ids)
+    return runBulkDelete(normalizedIds, (id) => this.removeService(id))
   }
 
   async batchCreateServiceVariants(serviceId: string, variants: CreateVariantDto[]) {

@@ -12,6 +12,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
 import { JwtGuard } from '../auth/guards/jwt.guard'
 import {
   CreateProductDto,
@@ -72,6 +73,14 @@ export class InventoryController {
   @ApiOperation({ summary: 'Thực thi import Excel sản phẩm' })
   commitProductImport(@Body() body: ProductImportRequest) {
     return this.inventoryService.commitProductImport(body)
+  }
+
+  @Post('products/bulk-delete')
+  @UseGuards(SuperAdminGuard)
+  @Permissions('product.delete')
+  @ApiOperation({ summary: 'Xoa hang loat san pham (chi SUPER_ADMIN)' })
+  bulkRemoveProducts(@Body() body: { ids?: string[] }) {
+    return this.inventoryService.bulkRemoveProducts(body.ids)
   }
 
   @Get('products/:id')
@@ -149,6 +158,14 @@ export class InventoryController {
   @ApiOperation({ summary: 'Tạo dịch vụ mới' })
   createService(@Body() dto: CreateServiceDto) {
     return this.inventoryService.createService(dto)
+  }
+
+  @Post('services/bulk-delete')
+  @UseGuards(SuperAdminGuard)
+  @Permissions('service.delete')
+  @ApiOperation({ summary: 'Xoa hang loat dich vu (chi SUPER_ADMIN)' })
+  bulkRemoveServices(@Body() body: { ids?: string[] }) {
+    return this.inventoryService.bulkRemoveServices(body.ids)
   }
 
   @Put('services/:id')

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-04-14 | Files scanned: ~400 | Token estimate: ~300 -->
+<!-- Generated: 2026-04-25 | Files scanned: ~500 | Token estimate: ~350 -->
 # Data Architecture
 
 ## Primary Database
@@ -7,9 +7,11 @@
 ## Key Entities
 - **Users/Staff**: RBAC-based access, roles mapping (admin, manager, staff).
 - **Core Operations**: Bookings (Grooming / Spa / Hotel), Inventory Stock, Products, Services.
-- **Transactions**: Orders (POS), Invoices, Shifts.
-- **Support**: Customers, Pets Profiles, Check-In configurations.
+- **Transactions**: Orders (POS), Invoices, Shifts, Return/Exchange Requests.
+- **Support**: Customers, Pets Profiles, Check-In configurations, Equipment tracking.
+- **Pricing**: Service pricing tables for grooming and hotel/daycare combos.
+- **Storage**: File metadata for local and Google Drive assets.
 
 ## Tooling
-- `prisma.schema.prisma`: The central truth for database schemas.
-- `demo-data.ts`, `seed.ts`: Comprehensive seeding logic extending dummy 30-50 dataset records.
+- `prisma/schema.prisma`: The central truth for database schemas.
+- `seed.ts`: Comprehensive seeding logic for development data.

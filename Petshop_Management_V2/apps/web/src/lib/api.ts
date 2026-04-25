@@ -1,14 +1,19 @@
-import type { LoginResponse, AuthUser } from '@petshop/shared'
+import type { AuthUser } from '@petshop/shared'
 import { API_URL, api } from '@/lib/api/transport'
 
 export { API_URL, api }
 
+type AuthCookieResponse = {
+  success: true
+  user: AuthUser
+}
+
 export const authApi = {
   login: (username: string, password: string) =>
-    api.post<LoginResponse>('/auth/login', { username, password }).then((r) => r.data),
+    api.post<AuthCookieResponse>('/auth/login', { username, password }).then((r) => r.data),
 
   refresh: () =>
-    api.post<LoginResponse>('/auth/refresh', {}).then((r) => r.data),
+    api.post<AuthCookieResponse>('/auth/refresh', {}).then((r) => r.data),
 
   logout: () =>
     api.post('/auth/logout', {}).then((r) => r.data),

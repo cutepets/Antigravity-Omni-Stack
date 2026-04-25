@@ -11,8 +11,6 @@ const ACTIVE_STAY_STATUSES = ['BOOKED', 'CHECKED_IN'] as const;
 const HALF_DAY_HOURS = 12;
 const SHORT_STAY_FULL_DAY_THRESHOLD_HOURS = 3;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
-const VIETNAM_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
-const DAYCARE_PACKAGE_DAYS = 10;
 
 type ChargeDayType = 'REGULAR' | 'HOLIDAY';
 
@@ -156,67 +154,6 @@ export class HotelService {
     return new Date(date.getTime() + days * DAY_IN_MS);
   }
 
-  private startOfVietnamDay(date: Date) {
-    const localMs = date.getTime() + VIETNAM_UTC_OFFSET_MS;
-    return new Date(Math.floor(localMs / DAY_IN_MS) * DAY_IN_MS - VIETNAM_UTC_OFFSET_MS);
-  }
-
-  private diffVietnamCalendarDays(left: Date, right: Date) {
-    const leftStart = this.startOfVietnamDay(left).getTime();
-    const rightStart = this.startOfVietnamDay(right).getTime();
-    return Math.floor((leftStart - rightStart) / DAY_IN_MS);
-  }
-
-  private isDaycareStay(stay?: { careMode?: string | null } | null) {
-    return stay?.careMode === 'DAYCARE';
-  }
-
-  private normalizeDaycarePackageDays(value?: number | null) {
-    const normalized = Number(value ?? DAYCARE_PACKAGE_DAYS);
-    return Number.isFinite(normalized) && normalized > 0 ? Math.floor(normalized) : DAYCARE_PACKAGE_DAYS;
-  }
-
-  private resolveDaycarePackageDates(input: {
-    checkIn: Date;
-    estimatedCheckOut?: Date | null;
-    checkOut?: Date | null;
-    packageStartDate?: Date | null;
-    packageEndDate?: Date | null;
-    autoCompleteAt?: Date | null;
-    packageTotalDays?: number | null;
-  }) {
-    const packageTotalDays = this.normalizeDaycarePackageDays(input.packageTotalDays);
-    const packageStartDate = input.packageStartDate ?? input.checkIn;
-    const derivedPackageEndDate = this.addDays(packageStartDate, packageTotalDays - 1);
-    const packageEndDate = input.packageEndDate ?? input.checkOut ?? input.estimatedCheckOut ?? derivedPackageEndDate;
-    const estimatedCheckOut = input.estimatedCheckOut ?? input.checkOut ?? packageEndDate;
-    const autoCompleteAt = input.autoCompleteAt ?? estimatedCheckOut ?? packageEndDate;
-    return {
-      packageTotalDays,
-      packageStartDate,
-      packageEndDate,
-      estimatedCheckOut,
-      autoCompleteAt,
-    };
-  }
-
-  private getDaycareUsage(stay: {
-    careMode?: string | null;
-    packageStartDate?: Date | null;
-    packageTotalDays?: number | null;
-  }) {
-    if (!this.isDaycareStay(stay) || !stay.packageStartDate) {
-      return { consumedDays: null, remainingDays: null };
-    }
-    const totalDays = this.normalizeDaycarePackageDays(stay.packageTotalDays);
-    const diffDays = this.diffVietnamCalendarDays(new Date(), stay.packageStartDate);
-    const consumedDays = Math.min(totalDays, Math.max(0, diffDays + 1));
-    return {
-      consumedDays,
-      remainingDays: Math.max(0, totalDays - consumedDays),
-    };
-  }
-
   private shiftRecurringHolidayToYear(startDate: Date, endDate: Date | null, year: number) {
     const normalizedEndDate = endDate ?? startDate;
     const durationDays = Math.max(
@@ -338,19 +275,10 @@ export class HotelService {
   }
 
   private mapStay<T extends Record<string, any>>(stay: T) {
-    const daycareUsage = this.getDaycareUsage(stay);
     return {
       ...stay,
       expectedPickup: stay.estimatedCheckOut ?? null,
       receiver: stay.customer ?? stay.pet?.customer ?? null,
-      careMode: stay.careMode ?? 'BOARDING',
-      packageKind: stay.packageKind ?? 'NONE',
-      packageTotalDays: stay.packageTotalDays ?? null,
-      packageStartDate: stay.packageStartDate ?? null,
-      packageEndDate: stay.packageEndDate ?? null,
-      autoCompleteAt: stay.autoCompleteAt ?? null,
-      consumedDays: daycareUsage.consumedDays,
-      remainingDays: daycareUsage.remainingDays,
       adjustments: Array.isArray(stay.adjustments) ? stay.adjustments : [],
       chargeLines: Array.isArray(stay.chargeLines)
         ? stay.chargeLines.map((line: any) => this.mapStayChargeLine(line))
@@ -1067,47 +995,19 @@ export class HotelService {
       checkIn,
       estimatedCheckOut,
     });
-    const isDaycare = data.careMode === 'DAYCARE';
     const promotion = data.promotion ?? 0;
     const surcharge = data.adjustments ? this.sumAdjustmentAmount(data.adjustments) : (data.surcharge ?? 0);
-    const daycarePackage = this.resolveDaycarePackageDates({
+    const pricingPreview = await this.buildHotelPricingPreview({
+      species: pet.species,
+      weight: pet.weight,
       checkIn,
-      estimatedCheckOut,
-      checkOut: data.checkOut ? new Date(data.checkOut) : null,
-      packageStartDate: data.packageStartDate ? new Date(data.packageStartDate) : null,
-      packageEndDate: data.packageEndDate ? new Date(data.packageEndDate) : null,
-      autoCompleteAt: data.autoCompleteAt ? new Date(data.autoCompleteAt) : null,
-      packageTotalDays: data.packageTotalDays ?? null,
+      branchId: branch.id,
+      checkOut: estimatedCheckOut,
+      ...(data.rateTableId ? { rateTableId: data.rateTableId } : {}),
     });
-    const pricingPreview = isDaycare
-      ? null
-      : await this.buildHotelPricingPreview({
-          species: pet.species,
-          weight: pet.weight,
-          checkIn,
-          branchId: branch.id,
-          checkOut: estimatedCheckOut,
-          ...(data.rateTableId ? { rateTableId: data.rateTableId } : {}),
-        });
-    const totalPrice = isDaycare
-      ? (data.totalPrice ?? data.price ?? 0)
-      : data.totalPrice ?? this.roundCurrency((pricingPreview?.totalPrice ?? 0) + surcharge - promotion);
-    const dailyRate = isDaycare
-      ? data.dailyRate ?? data.price ?? totalPrice
-      : data.dailyRate ?? data.price ?? pricingPreview?.averageDailyRate ?? 0;
-    const breakdownSnapshot = isDaycare
-      ? {
-          source: 'DAYCARE_COMBO_10',
-          packageKind: data.packageKind ?? 'COMBO_10_DAYS',
-          packageTotalDays: daycarePackage.packageTotalDays,
-          packageStartDate: daycarePackage.packageStartDate,
-          packageEndDate: daycarePackage.packageEndDate,
-          autoCompleteAt: daycarePackage.autoCompleteAt,
-          promotion,
-          surcharge,
-          finalTotalPrice: totalPrice,
-        }
-      : this.buildStayBreakdownSnapshot(pricingPreview!, promotion, surcharge, totalPrice);
+    const totalPrice = data.totalPrice ?? this.roundCurrency(pricingPreview.totalPrice + surcharge - promotion);
+    const dailyRate = data.dailyRate ?? data.price ?? pricingPreview.averageDailyRate;
+    const breakdownSnapshot = this.buildStayBreakdownSnapshot(pricingPreview, promotion, surcharge, totalPrice);
 
     const stayCode = await this.generateStayCode(codeDate, branch.code);
 
@@ -1121,47 +1021,22 @@ export class HotelService {
       createdById: user?.userId ?? null,
       checkIn,
       ...(data.checkOut ? { checkOut: new Date(data.checkOut) } : {}),
-      ...(isDaycare
-        ? {
-            checkOut: daycarePackage.packageEndDate,
-            estimatedCheckOut: daycarePackage.estimatedCheckOut,
-            checkedInAt: checkIn,
-          }
-        : estimatedCheckOut
-          ? { estimatedCheckOut }
-          : {}),
+      ...(estimatedCheckOut ? { estimatedCheckOut } : {}),
       ...(data.rateTableId ? { rateTableId: data.rateTableId } : {}),
       ...(data.orderId ? { orderId: data.orderId } : {}),
       ...(data.notes ? { notes: data.notes } : {}),
       ...(data.petNotes ? { petNotes: data.petNotes } : {}),
       ...(data.paymentStatus ? { paymentStatus: data.paymentStatus } : {}),
-      lineType: isDaycare ? (data.lineType ?? 'REGULAR') : pricingPreview!.lineType,
-      careMode: isDaycare ? 'DAYCARE' : 'BOARDING',
-      packageKind: isDaycare ? (data.packageKind ?? 'COMBO_10_DAYS') : 'NONE',
-      packageTotalDays: isDaycare ? daycarePackage.packageTotalDays : null,
-      packageStartDate: isDaycare ? daycarePackage.packageStartDate : null,
-      packageEndDate: isDaycare ? daycarePackage.packageEndDate : null,
-      autoCompleteAt: isDaycare ? daycarePackage.autoCompleteAt : null,
+      lineType: pricingPreview.lineType,
       price: data.price ?? dailyRate,
       dailyRate,
       depositAmount: data.depositAmount ?? 0,
       promotion,
       surcharge,
       totalPrice,
-      weightAtBooking: isDaycare ? pet.weight ?? null : pricingPreview!.weightAtPricing,
-      weightBandId: isDaycare ? data.weightBandId ?? null : pricingPreview!.weightBand?.id ?? null,
-      pricingSnapshot: (
-        isDaycare
-          ? {
-              source: 'DAYCARE_COMBO_10',
-              packageKind: data.packageKind ?? 'COMBO_10_DAYS',
-              packageTotalDays: daycarePackage.packageTotalDays,
-              packageStartDate: daycarePackage.packageStartDate,
-              packageEndDate: daycarePackage.packageEndDate,
-              autoCompleteAt: daycarePackage.autoCompleteAt,
-            }
-          : pricingPreview!.pricingSnapshot
-      ) as Prisma.InputJsonValue,
+      weightAtBooking: pricingPreview.weightAtPricing,
+      weightBandId: pricingPreview.weightBand?.id ?? null,
+      pricingSnapshot: pricingPreview.pricingSnapshot as Prisma.InputJsonValue,
       breakdownSnapshot: breakdownSnapshot as Prisma.InputJsonValue,
     };
 
@@ -1173,9 +1048,9 @@ export class HotelService {
 
       await this.replaceStayAdjustments(tx, stay.id, data.adjustments);
 
-      if (!isDaycare && pricingPreview!.chargeLines.length > 0) {
+      if (pricingPreview.chargeLines.length > 0) {
         await tx.hotelStayChargeLine.createMany({
-          data: pricingPreview!.chargeLines.map((line) => ({
+          data: pricingPreview.chargeLines.map((line) => ({
             hotelStayId: stay.id,
             weightBandId: line.weightBandId,
             label: line.label,
@@ -1360,18 +1235,6 @@ export class HotelService {
     if (data.depositAmount !== undefined) updateData.depositAmount = data.depositAmount;
     if (data.promotion !== undefined) updateData.promotion = data.promotion;
     if (data.surcharge !== undefined) updateData.surcharge = data.surcharge;
-    if (data.careMode !== undefined) updateData.careMode = data.careMode as any;
-    if (data.packageKind !== undefined) updateData.packageKind = data.packageKind as any;
-    if (data.packageTotalDays !== undefined) updateData.packageTotalDays = data.packageTotalDays;
-    if (data.packageStartDate !== undefined) {
-      updateData.packageStartDate = data.packageStartDate ? new Date(data.packageStartDate) : null;
-    }
-    if (data.packageEndDate !== undefined) {
-      updateData.packageEndDate = data.packageEndDate ? new Date(data.packageEndDate) : null;
-    }
-    if (data.autoCompleteAt !== undefined) {
-      updateData.autoCompleteAt = data.autoCompleteAt ? new Date(data.autoCompleteAt) : null;
-    }
     if (data.weightBandId !== undefined) {
       updateData.weightBand = data.weightBandId ? { connect: { id: data.weightBandId } } : { disconnect: true };
     }
@@ -1444,133 +1307,6 @@ export class HotelService {
         : data.checkOut
           ? new Date(data.checkOut)
           : nextEstimatedCheckOut ?? stay.checkOutActual ?? stay.checkOut ?? null;
-    const nextCareMode = data.careMode ?? stay.careMode ?? 'BOARDING';
-    if (nextCareMode === 'DAYCARE') {
-      const daycarePackage = this.resolveDaycarePackageDates({
-        checkIn: nextCheckIn,
-        estimatedCheckOut: nextEstimatedCheckOut,
-        checkOut: finalCheckOut,
-        packageStartDate: data.packageStartDate ? new Date(data.packageStartDate) : stay.packageStartDate,
-        packageEndDate: data.packageEndDate ? new Date(data.packageEndDate) : stay.packageEndDate,
-        autoCompleteAt: data.autoCompleteAt ? new Date(data.autoCompleteAt) : stay.autoCompleteAt,
-        packageTotalDays: data.packageTotalDays ?? stay.packageTotalDays ?? DAYCARE_PACKAGE_DAYS,
-      });
-      const totalPrice = data.totalPrice ?? data.price ?? stay.totalPrice;
-      const dailyRate = data.dailyRate ?? data.price ?? stay.dailyRate ?? totalPrice;
-
-      updateData.totalPrice = totalPrice;
-      updateData.dailyRate = dailyRate;
-      updateData.lineType = (data.lineType ?? stay.lineType ?? 'REGULAR') as any;
-      updateData.careMode = 'DAYCARE' as any;
-      updateData.packageKind = (data.packageKind ?? stay.packageKind ?? 'COMBO_10_DAYS') as any;
-      updateData.packageTotalDays = daycarePackage.packageTotalDays;
-      updateData.packageStartDate = daycarePackage.packageStartDate;
-      updateData.packageEndDate = daycarePackage.packageEndDate;
-      updateData.autoCompleteAt = daycarePackage.autoCompleteAt;
-      updateData.checkOut = daycarePackage.packageEndDate;
-      updateData.estimatedCheckOut = daycarePackage.estimatedCheckOut;
-      updateData.weightAtBooking = nextPet.weight ?? stay.weightAtBooking ?? null;
-      if (data.weightBandId === undefined && stay.weightBandId) {
-        updateData.weightBand = { connect: { id: stay.weightBandId } };
-      }
-      updateData.pricingSnapshot = {
-        source: 'DAYCARE_COMBO_10',
-        packageKind: data.packageKind ?? stay.packageKind ?? 'COMBO_10_DAYS',
-        packageTotalDays: daycarePackage.packageTotalDays,
-        packageStartDate: daycarePackage.packageStartDate,
-        packageEndDate: daycarePackage.packageEndDate,
-        autoCompleteAt: daycarePackage.autoCompleteAt,
-      } as Prisma.InputJsonValue;
-      updateData.breakdownSnapshot = {
-        source: 'DAYCARE_COMBO_10',
-        promotion,
-        surcharge,
-        finalTotalPrice: totalPrice,
-        packageTotalDays: daycarePackage.packageTotalDays,
-        packageStartDate: daycarePackage.packageStartDate,
-        packageEndDate: daycarePackage.packageEndDate,
-        autoCompleteAt: daycarePackage.autoCompleteAt,
-      } as Prisma.InputJsonValue;
-
-      if (statusTransition === 'CHECKED_OUT') {
-        if (!['BOOKED', 'CHECKED_IN'].includes(stay.status)) {
-          throw new BadRequestException('Khong the checkout stay da ket thuc');
-        }
-        updateData.checkOut = finalCheckOut ?? new Date();
-        updateData.checkOutActual = finalCheckOut ?? new Date();
-      }
-
-      const updated = await this.prisma.$transaction(async (tx) => {
-        await tx.hotelStay.update({
-          where: { id },
-          data: updateData,
-        });
-
-        await this.replaceStayAdjustments(tx, id, data.adjustments);
-        await tx.hotelStayChargeLine.deleteMany({
-          where: { hotelStayId: id },
-        });
-
-        if (user?.userId) {
-          await tx.hotelStayTimeline.create({
-            data: {
-              stayId: id,
-              action: statusTransition ? 'Cap nhat trang thai' : 'Cap nhat thong tin',
-              fromStatus: stay.status,
-              toStatus: (data.status ?? stay.status),
-              note: data.notes?.trim() || null,
-              performedBy: user.userId,
-            }
-          });
-        }
-
-        return tx.hotelStay.findUniqueOrThrow({
-          where: { id },
-          include: this.stayInclude,
-        });
-      });
-
-      if (
-        data.totalPrice !== undefined ||
-        data.dailyRate !== undefined ||
-        data.checkIn !== undefined ||
-        data.checkedInAt !== undefined ||
-        data.checkOut !== undefined ||
-        data.checkOutActual !== undefined ||
-        data.estimatedCheckOut !== undefined ||
-        data.petId !== undefined ||
-        data.surcharge !== undefined ||
-        data.promotion !== undefined ||
-        data.adjustments !== undefined ||
-        data.packageStartDate !== undefined ||
-        data.packageEndDate !== undefined ||
-        data.autoCompleteAt !== undefined ||
-        data.packageTotalDays !== undefined ||
-        statusTransition === 'CHECKED_OUT'
-      ) {
-        await this.syncLinkedOrder(updated.id, updated.orderId);
-      }
-
-      await this.logStayActivity(
-        statusTransition
-          ? `HOTEL_STAY_${statusTransition}`
-          : 'HOTEL_STAY_UPDATED',
-        updated,
-        user,
-        {
-          previousStatus: stay.status,
-          nextStatus: updated.status,
-          checkedInAt: updated.checkedInAt,
-          checkOutActual: updated.checkOutActual,
-          estimatedCheckOut: updated.estimatedCheckOut,
-          surcharge: updated.surcharge,
-          totalPrice: updated.totalPrice,
-        },
-      );
-
-      return this.mapStay(updated);
-    }
-
     const nextRateTableId = data.rateTableId !== undefined ? data.rateTableId : stay.rateTableId;
     const pricingPreview = await this.buildHotelPricingPreview({
       species: nextPet.species,
@@ -1715,14 +1451,6 @@ export class HotelService {
             paymentStatuses.length > 1 ? { in: paymentStatuses as any[] } : (paymentStatuses[0] as any),
         },
       };
-    }
-
-    if (query?.careMode) {
-      const careModes = String(query.careMode)
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean);
-      where.careMode = careModes.length > 1 ? { in: careModes as any[] } : (careModes[0] as any);
     }
 
     if (query?.cageId) where.cageId = query.cageId;

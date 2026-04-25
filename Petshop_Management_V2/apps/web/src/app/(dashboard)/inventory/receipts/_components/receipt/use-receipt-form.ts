@@ -238,12 +238,14 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   })
 
   const { data: productSearchRes, isFetching: isSearchingSuggestions } = useQuery({
-    queryKey: ['inventory', 'products', 'receipt-search', deferredSearch, branchId],
+    queryKey: ['inventory', 'products', 'receipt-search', deferredSearch],
     queryFn: () =>
       inventoryApi.getProducts({
         search: deferredSearch,
         limit: 8,
-        branchId: branchId || undefined,
+        // NOTE: Do NOT pass branchId here — the backend filters products that *already*
+        // have a branchStock record for that branch, which excludes new products entirely.
+        // For receipt creation we need to search ALL products regardless of stock.
       }),
     enabled: deferredSearch.length >= 1,
     staleTime: 30_000,
@@ -887,21 +889,21 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     if (rawSupplierDraft) {
       window.localStorage.removeItem(SUPPLIER_RECEIPT_DRAFT_KEY)
 
-    try {
-      const parsed = JSON.parse(rawSupplierDraft) as SupplierQuickDraftPayload
-      const draftItems = Array.isArray(parsed.items)
-        ? parsed.items
-          .filter((item) => item?.productId && item?.name)
-          .map((item) => normalizeSupplierQuickDraftItem(item))
-        : []
-      if (parsed.supplierId) setSupplierId(String(parsed.supplierId))
-      if (parsed.notes) setNotes(String(parsed.notes))
-      if (draftItems.length > 0) setItems(draftItems)
-      setIsLocalDraftHydrated(true)
-      return
-    } catch {
-      toast.error('Không đọc được dữ liệu nháp phiếu nhập từ màn nhà cung cấp.')
-    }
+      try {
+        const parsed = JSON.parse(rawSupplierDraft) as SupplierQuickDraftPayload
+        const draftItems = Array.isArray(parsed.items)
+          ? parsed.items
+            .filter((item) => item?.productId && item?.name)
+            .map((item) => normalizeSupplierQuickDraftItem(item))
+          : []
+        if (parsed.supplierId) setSupplierId(String(parsed.supplierId))
+        if (parsed.notes) setNotes(String(parsed.notes))
+        if (draftItems.length > 0) setItems(draftItems)
+        setIsLocalDraftHydrated(true)
+        return
+      } catch {
+        toast.error('Không đọc được dữ liệu nháp phiếu nhập từ màn nhà cung cấp.')
+      }
     }
 
     const rawLocalDraft = window.localStorage.getItem(LOCAL_RECEIPT_DRAFT_KEY)

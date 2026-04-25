@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js'
 import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js'
+import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 import { DatabaseService } from '../../database/database.service.js'
 import {
   buildFinanceTransactionWhere,
@@ -1091,6 +1092,11 @@ export class ReportsService {
       id,
       user,
     )
+  }
+
+  async bulkRemoveTransactions(ids: unknown, user?: BranchScopedUser) {
+    const normalizedIds = normalizeBulkDeleteIds(ids)
+    return runBulkDelete(normalizedIds, (id) => this.removeTransaction(id, user))
   }
 
   async findTransactionByVoucher(voucherNumber: string, user?: BranchScopedUser) {

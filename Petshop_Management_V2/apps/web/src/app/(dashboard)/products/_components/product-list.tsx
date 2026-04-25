@@ -173,7 +173,7 @@ const fileToDataUrl = (file: File) =>
 export function ProductList() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const { hasPermission, isLoading: isAuthLoading, isSuperAdmin } = useAuthorization()
   const canReadProducts = hasPermission('product.read')
   const canCreateProduct = hasPermission('product.create')
   const canUpdateProduct = hasPermission('product.update')
@@ -334,11 +334,10 @@ export function ProductList() {
   }, [selectedRowIds])
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: async (productIds: string[]) => {
-      await Promise.all(productIds.map((productId) => inventoryApi.deleteProduct(productId)))
-    },
-    onSuccess: () => {
-      toast.success('Đã xóa các sản phẩm đã chọn')
+    mutationFn: (productIds: string[]) => inventoryApi.bulkDeleteProducts(productIds),
+    onSuccess: (result) => {
+      if (result.deletedIds.length > 0) toast.success(`Đã xóa ${result.deletedIds.length} sản phẩm`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} sản phẩm không thể xóa`)
       queryClient.invalidateQueries({ queryKey: ['products'] })
       clearSelection()
     },
@@ -437,11 +436,11 @@ export function ProductList() {
   })
 
   if (isAuthLoading) {
-    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang kiểm tra quyền truy cập...</div>
   }
 
   if (!canReadProducts) {
-    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang chuyển hướng...</div>
   }
 
   return (
@@ -460,11 +459,17 @@ export function ProductList() {
                 className={`${toolbarSelectClass} min-w-[140px]`}
               >
                 <option value="">Danh mục</option>
-                {categoryOptions.map((item: any) => {
-                  const value = typeof item === 'string' ? item : item?.name ?? item?.value ?? ''
-                  if (!value) return null
-                  return <option key={value} value={value}>{value}</option>
-                })}
+                {Array.from(
+                  new Set(
+                    categoryOptions
+                      .map((item: any) => (typeof item === 'string' ? item : item?.name ?? item?.value ?? ''))
+                      .filter(Boolean)
+                  )
+                ).map((value: any) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
               </select>
             )}
 
@@ -535,7 +540,7 @@ export function ProductList() {
                 {showExcelMenu ? (
                   <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-64 overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
                     <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-foreground-muted">
-                      Thao tac Excel
+                      Thao tác Excel
                     </div>
                     <button
                       type="button"
@@ -543,8 +548,8 @@ export function ProductList() {
                       disabled={exportMutation.isPending}
                       className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-background-secondary disabled:opacity-50"
                     >
-                      <span>Xuat tat ca</span>
-                      <span className="text-xs text-foreground-muted">Moi san pham</span>
+                      <span>Xuất tất cả</span>
+                      <span className="text-xs text-foreground-muted">Mọi sản phẩm</span>
                     </button>
                     <button
                       type="button"
@@ -552,8 +557,8 @@ export function ProductList() {
                       disabled={exportMutation.isPending}
                       className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-background-secondary disabled:opacity-50"
                     >
-                      <span>Xuat theo bo loc</span>
-                      <span className="text-xs text-foreground-muted">Theo man hinh hien tai</span>
+                      <span>Xuất theo bộ lọc</span>
+                      <span className="text-xs text-foreground-muted">Theo màn hình hiện tại</span>
                     </button>
                     <button
                       type="button"
@@ -561,8 +566,8 @@ export function ProductList() {
                       disabled={exportMutation.isPending || selectedProductIds.length === 0}
                       className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-background-secondary disabled:opacity-50"
                     >
-                      <span>Xuat da chon</span>
-                      <span className="text-xs text-foreground-muted">{selectedProductIds.length} san pham</span>
+                      <span>Xuất đã chọn</span>
+                      <span className="text-xs text-foreground-muted">{selectedProductIds.length} sản phẩm</span>
                     </button>
                     {canImportProducts ? (
                       <button
@@ -573,8 +578,8 @@ export function ProductList() {
                         }}
                         className="flex w-full items-center justify-between border-t border-border px-4 py-3 text-left text-sm font-semibold text-primary-500 transition-colors hover:bg-primary-500/5"
                       >
-                        <span>Nhap tu Excel</span>
-                        <span className="text-xs text-foreground-muted">Preview truoc khi ghi</span>
+                        <span>Nhập từ Excel</span>
+                        <span className="text-xs text-foreground-muted">Xem trước trước khi ghi</span>
                       </button>
                     ) : null}
                   </div>
@@ -583,14 +588,14 @@ export function ProductList() {
             ) : null}
 
             {canCreateProduct ? (
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(true)}
-              className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              <Plus size={16} />
-              Thêm sản phẩm
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              >
+                <Plus size={16} />
+                Thêm sản phẩm
+              </button>
             ) : null}
           </div>
         }
@@ -714,7 +719,7 @@ export function ProductList() {
                   Chỉnh sửa
                 </button>
               ) : null}
-              {canDeleteProduct ? (
+              {canDeleteProduct && isSuperAdmin() ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -1263,8 +1268,8 @@ function ProductRowBlock({
               return (
                 <td key={columnId} className="px-3 py-3">
                   <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${product.isActive ?? true
-                      ? 'bg-emerald-500/15 text-emerald-300'
-                      : 'bg-white/8 text-foreground-muted'
+                    ? 'bg-emerald-500/15 text-emerald-300'
+                    : 'bg-white/8 text-foreground-muted'
                     }`}>
                     {product.isActive ?? true ? 'Đang bán' : 'Ngưng bán'}
                   </span>

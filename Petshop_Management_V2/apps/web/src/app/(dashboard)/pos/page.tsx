@@ -303,8 +303,8 @@ function PosPageContent() {
               </span>
             ) : null}
             <span className="text-sm font-medium truncate min-w-0 max-w-[120px]">{authUser?.fullName ?? 'Nhân viên'}</span>
-            <div className="shrink-0"><PosBranchSelect /></div>
           </div>
+          <div className="shrink-0 border-r border-white/20 pr-2"><PosBranchSelect /></div>
 
           {/* Action buttons: never shrink */}
           <div className="flex items-center gap-1.5 shrink-0">

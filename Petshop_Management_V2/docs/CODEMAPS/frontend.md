@@ -1,4 +1,4 @@
-<!-- Generated: 2026-04-14 | Files scanned: ~400 | Token estimate: ~500 -->
+<!-- Generated: 2026-04-25 | Files scanned: ~500 | Token estimate: ~600 -->
 # Frontend Architecture
 
 ## Stack
@@ -9,18 +9,29 @@
 - Components: Shadcn/ui
 
 ## Key Directories
-- `apps/web/src/app/(dashboard)`: Main application views separated by domain (grooming, inventory, orders, pos, hotels, staff).
-- `apps/web/src/components`: Reusable UI components.
+- `apps/web/src/app/(dashboard)`: Main application views separated by domain.
+- `apps/web/src/components`: Reusable UI components (service-pricing, products, shared).
 - `apps/web/src/hooks`: Custom React hooks logic.
-- `apps/web/src/lib`: API clients, parsers, formatters.
+- `apps/web/src/lib/api/`: Domain-specific API clients (order, inventory, hotel, pet, pricing, staff, customer, finance, grooming).
 - `apps/web/src/stores`: Zustand state stores.
 
-## Routing Flow
-The application utilizes Next.js App Router. Pages are segregated under domain-specific folders, employing standard Next.js conventions (`page.tsx`, `layout.tsx`).
+## Dashboard Pages (18 domains)
+- **POS**: Branch selection, cart management, payment flow, stock validation
+- **Orders**: Order list, detail, creation, return/exchange modal
+- **Products**: Product list, detail, form modal, inventory settings drawer
+- **Inventory**: Stock overview, purchase receipts (create/detail), counting sessions, suppliers
+- **Grooming**: Service board with scheduling
+- **Hotel**: Cage grid, stay list, stay details dialog
+- **Customers**: Customer list with search
+- **Pets**: Pet list with profile management
+- **Staff**: Staff list, detail (documents, preview modal)
+- **Finance**: Voucher detail, finance workspace
+- **Equipment**: Detail, scan pages
+- **Reports/Rewards/Schedule/Leave/Payroll**: Supporting pages
+- **Settings**: General settings tab (Google Drive config)
+- **Service Pricing**: Shared pricing workspace (grooming + hotel panels, Excel import/export)
 
-## Global Behaviors
-Includes client-side routing, shared layouts for dashboard, server-side data mutations via hooks/api integration, and unified auth guard context.
-
-## Navigation Patterns
-- **Standard Routing:** Handled exclusively via Next.js App Router (`next/navigation`).
-- **Modal View State (Local Routing):** Certain list/detail screens (like Pets, Finance Vouchers) bypass Next.js Router for opening modals. They use `window.history.pushState` with query params (e.g. `?voucher=123`) and local `useState` synchronization to preserve list state and avoid remounting the layout or resetting table filters. On such screens, standard `next/link` is avoided strictly to prevent route conflicts and Next.js re-syncing behavior during soft navigation.
+## Routing & Navigation
+- Standard Next.js App Router (`next/navigation`) with `page.tsx`/`layout.tsx`.
+- Modal View State: Finance vouchers, pet details use `window.history.pushState` + local `useState` to avoid layout remount.
+- Tab titles follow `{emoji} {Page Name} | Cutepets` format.

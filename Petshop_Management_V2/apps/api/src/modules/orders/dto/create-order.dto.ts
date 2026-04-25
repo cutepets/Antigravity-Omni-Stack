@@ -99,30 +99,6 @@ export class HotelDetailsDto {
 
   @IsString()
   @IsOptional()
-  careMode?: string;
-
-  @IsString()
-  @IsOptional()
-  packageKind?: string;
-
-  @IsNumber()
-  @IsOptional()
-  packageTotalDays?: number;
-
-  @IsDateString()
-  @IsOptional()
-  packageStartDate?: string;
-
-  @IsDateString()
-  @IsOptional()
-  packageEndDate?: string;
-
-  @IsDateString()
-  @IsOptional()
-  autoCompleteAt?: string;
-
-  @IsString()
-  @IsOptional()
   rateTableId?: string;
 
   @IsNumber()

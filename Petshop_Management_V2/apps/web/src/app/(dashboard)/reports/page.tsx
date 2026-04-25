@@ -8,7 +8,7 @@ const ReportsWorkspace = dynamic(() =>
 )
 
 export const metadata: Metadata = {
-  title: 'Báo cáo | Petshop',
+  title: '📊 Báo cáo',
   description: 'Theo dõi tổng quan kinh doanh, bán hàng, khách hàng và sổ quỹ.',
 }
 

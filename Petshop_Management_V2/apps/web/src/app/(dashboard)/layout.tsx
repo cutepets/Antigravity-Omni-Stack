@@ -3,6 +3,9 @@ import { Header } from '@/components/layout/header'
 import { PageTransition } from '@/components/layout/page-transition'
 import { GlobalKeyboardShortcuts } from '@/components/layout/global-keyboard-shortcuts'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="bg-grid-pattern" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>

@@ -5,7 +5,7 @@ import { FileDown } from 'lucide-react'
 import { ReceiptList } from './_components/receipt-list'
 
 export const metadata: Metadata = {
-  title: 'Phiếu Nhập | Petshop',
+  title: '📥 Phiếu nhập',
   description: 'Quản lý phiếu nhập kho',
 }
 

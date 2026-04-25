@@ -585,8 +585,6 @@ async function main() {
     { key: 'SVCHOTEL004', code: 'SVCHOTEL004', name: 'Phòng VIP điều hòa', type: 'HOTEL', price: 320000, duration: null },
     { key: 'SVCHOTEL005', code: 'SVCHOTEL005', name: 'Phòng VIP ban công', type: 'HOTEL', price: 380000, duration: null },
     { key: 'SVCHOTEL006', code: 'SVCHOTEL006', name: 'Chuồng phòng ngủ qua đêm', type: 'HOTEL', price: 210000, duration: null },
-    { key: 'SVCHOTEL007', code: 'SVCHOTEL007', name: 'Gói daycare (7h–19h)', type: 'HOTEL', price: 130000, duration: null },
-    { key: 'SVCHOTEL008', code: 'SVCHOTEL008', name: 'Gói daycare + tắm sấy', type: 'HOTEL', price: 260000, duration: null },
   ] as const
   for (const seed of serviceSeeds) {
     const service = await prisma.service.create({

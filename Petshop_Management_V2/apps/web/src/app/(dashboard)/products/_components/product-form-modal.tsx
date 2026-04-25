@@ -271,8 +271,9 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
     baseCombo.forEach((bc, idx) => {
       const baseKey = createVariantKey({ attrs: bc.attrs, isConversion: false })
-      const baseSku = formData.sku ? `${sanitizeSku(formData.sku)}${idx > 0 ? idx : ''}` : `SKU${idx}`
       const variantLabel = bc.attrs.length > 0 ? bc.attrs.join(' - ') : null
+      const attrSuffix = bc.attrs.map(attr => generateSKU(attr)).join('')
+      const baseSku = formData.sku ? `${sanitizeSku(formData.sku)}${attrSuffix}` : `SKU${idx}`
       const baseDisplayName = buildDisplayVariantName(formData.name || 'SP', variantLabel, null)
 
       // Add Base
@@ -303,7 +304,8 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
             const unitLabel = `${conv.convUnit || ''}`.trim() || null
             const conversionName = buildDisplayVariantName(formData.name || 'SP', variantLabel, unitLabel)
             const conversionKey = createVariantKey({ attrs: bc.attrs, isConversion: true, conversionUnit: conv.convUnit })
-            const conversionSku = `${baseSku}${sanitizeSku(conv.convUnit).slice(0, 4) || 'QD'}`
+            const convUnitSuffix = generateSKU(conv.convUnit)
+            const conversionSku = `${baseSku}${convUnitSuffix || 'QD'}`
             result.push({
               key: conversionKey,
               isConversion: true,
@@ -467,10 +469,10 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
     image: variant.image || undefined,
     conversions: variant.isConversion
       ? JSON.stringify({
-          rate: variant.conversionRate,
-          unit: variant.conversionUnit,
-          sourceSku: variant.parentKey ? variantSkuByKey[variant.parentKey] : undefined,
-        })
+        rate: variant.conversionRate,
+        unit: variant.conversionUnit,
+        sourceSku: variant.parentKey ? variantSkuByKey[variant.parentKey] : undefined,
+      })
       : undefined,
     priceBookPrices: Object.keys(variant.priceBookPrices || {}).length > 0 ? JSON.stringify(variant.priceBookPrices) : undefined,
     costPrice: Number(variant.costPrice) || undefined,
@@ -609,8 +611,13 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
           finalValue = sanitizeSku(finalValue)
         }
         const newData = { ...f, [name]: type === 'number' ? Number(finalValue) : finalValue }
-        if (name === 'name' && !isEditing && !newData.sku) {
-          newData.sku = generateSKU(value)
+        // Khi tạo mới: tự động gợi ý SKU theo chữ cái đầu của mỗi từ trong tên,
+        // chỉ khi SKU hiện tại chưa bị user sửa tay (bằng với gợi ý trước từ tên cũ)
+        if (name === 'name' && !isEditing) {
+          const prevSuggested = generateSKU(f.name)
+          if (!f.sku || f.sku === prevSuggested) {
+            newData.sku = generateSKU(value)
+          }
         }
         return newData;
       })
@@ -763,9 +770,9 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                             if (!formData.targetSpecies) return true;
                             const cTarget = c.targetSpecies || 'OTHER';
                             if (formData.targetSpecies === cTarget) return true;
-                            if (formData.targetSpecies === 'DOG' || formData.targetSpecies === 'CAT') return cTarget === 'BOTH';
-                            if (formData.targetSpecies === 'BOTH') return cTarget === 'DOG' || cTarget === 'CAT';
-                            return false;
+                            if (formData.targetSpecies === 'DOG' || formData.targetSpecies === 'CAT') return cTarget === 'BOTH' || cTarget === 'OTHER';
+                            if (formData.targetSpecies === 'BOTH') return cTarget === 'DOG' || cTarget === 'CAT' || cTarget === 'OTHER';
+                            return true;
                           })
                           .filter((c: any, index: number, self: any[]) =>
                             index === self.findIndex((t) => t.name.trim().toLowerCase() === c.name.trim().toLowerCase())
@@ -774,6 +781,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                         value={formData.category}
                         onChange={v => setFormData(f => ({ ...f, category: v }))}
                         placeholder="Tìm hoặc thêm..."
+                        addLabel={formData.targetSpecies === 'DOG' ? 'cho Chó' : formData.targetSpecies === 'CAT' ? 'cho Mèo' : formData.targetSpecies === 'BOTH' ? 'cho Chó & Mèo' : undefined}
                         onAdd={async (search) => {
                           await inventoryApi.createCategory({ name: search, targetSpecies: formData.targetSpecies || 'OTHER' })
                           queryClient.invalidateQueries({ queryKey: ['categories'] })
@@ -1182,9 +1190,9 @@ export function PriceInput({ value, onChange, placeholder, className, required =
 }
 
 function SearchableCreatableSelect({
-  options, value, onChange, placeholder, onAdd
+  options, value, onChange, placeholder, onAdd, addLabel
 }: {
-  options: { id: string, name: string }[], value: string, onChange: (v: string) => void, placeholder?: string, onAdd: (v: string) => Promise<void>
+  options: { id: string, name: string }[], value: string, onChange: (v: string) => void, placeholder?: string, onAdd: (v: string) => Promise<void>, addLabel?: string
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -1254,7 +1262,8 @@ function SearchableCreatableSelect({
                 className="px-3 py-2 cursor-pointer text-primary-500 font-medium hover:bg-primary-500/10 flex items-center gap-2 text-sm"
                 onClick={handleAdd}
               >
-                {isAdding ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />} Thêm &quot;{search}&quot;
+                {isAdding ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}
+                <span>Thêm <strong>&quot;{search}&quot;</strong>{addLabel ? <span className="text-foreground-muted font-normal"> {addLabel}</span> : null}</span>
               </div>
             )}
             {filtered.length === 0 && !search && (

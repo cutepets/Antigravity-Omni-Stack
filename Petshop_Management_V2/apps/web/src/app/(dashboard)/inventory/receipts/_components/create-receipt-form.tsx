@@ -10,9 +10,11 @@ import {
   ArrowLeft,
   Building2,
   ChevronDown,
+  Check,
   Copy,
   FileDown,
   FileSpreadsheet,
+  Layers,
   MessageSquare,
   Minus,
   Phone,
@@ -138,6 +140,7 @@ export function CreateReceiptForm({
   } = useReceiptForm({ mode, receiptId })
 
   const [discountEditingReceiptId, setDiscountEditingReceiptId] = useState<string | null>(null)
+  const [multiSelectMode, setMultiSelectMode] = useState(false)
 
   if (isAuthLoading || (isExistingReceipt && isReceiptLoading)) {
     return (
@@ -774,6 +777,14 @@ export function CreateReceiptForm({
             {/* Suggestions dropdown */}
             {isSuggestionOpen && search.trim() && productResults.length > 0 && (
               <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
+                {multiSelectMode && (
+                  <div className="flex items-center justify-between border-b border-border bg-primary-500/6 px-3 py-1.5">
+                    <span className="text-[11px] font-semibold text-primary-500">
+                      Chế độ chọn nhiều — click để thêm/gộp vào đơn
+                    </span>
+                    <span className="text-[11px] text-foreground-muted">{items.length} dòng</span>
+                  </div>
+                )}
                 <div className="max-h-72 overflow-y-auto custom-scrollbar">
                   {productResults.map((product: any, index: number) => {
                     const selectableVariants = (() => {
@@ -781,21 +792,43 @@ export function CreateReceiptForm({
                       if (trueVariants.length > 0) return trueVariants
                       return Array.isArray(product.variants) ? product.variants : []
                     })()
+                    const isProductInItems = items.some((item) => item.productId === product.id)
 
                     return (
                       <div
                         key={product.id}
                         className={`border-b border-border px-3 py-2.5 text-sm last:border-0 transition-colors ${index === highlightedIndex
-                          ? 'bg-primary-500/10 text-primary-600'
-                          : 'hover:bg-background-secondary'
+                          ? 'bg-primary-500/10'
+                          : multiSelectMode && isProductInItems
+                            ? 'bg-primary-500/5'
+                            : 'hover:bg-background-secondary'
                           }`}
                       >
                         <button
                           type="button"
                           className="flex w-full items-center gap-3 text-left"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => addProductToReceipt(product)}
+                          onClick={() => {
+                            if (multiSelectMode) {
+                              const savedSearch = search
+                              addProductToReceipt(product)
+                              window.setTimeout(() => {
+                                setSearch(savedSearch)
+                                setIsSuggestionOpen(true)
+                              }, 0)
+                            } else {
+                              addProductToReceipt(product)
+                            }
+                          }}
                         >
+                          {multiSelectMode && (
+                            <div className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded border transition-colors ${isProductInItems
+                              ? 'border-primary-500 bg-primary-500'
+                              : 'border-border bg-background'
+                              }`}>
+                              {isProductInItems && <Check size={10} className="text-white" />}
+                            </div>
+                          )}
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-background-tertiary">
                             {product.image ? (
                               // eslint-disable-next-line @next/next/no-img-element
@@ -807,7 +840,8 @@ export function CreateReceiptForm({
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium text-foreground">{product.name}</div>
+                            <div className={`truncate font-medium ${multiSelectMode && isProductInItems ? 'text-primary-600' : 'text-foreground'
+                              }`}>{product.name}</div>
                             <div className="mt-0.5 text-[11px] text-foreground-muted">
                               {product.sku || product.barcode || '?'}
                               {product.stock !== undefined && (
@@ -826,18 +860,37 @@ export function CreateReceiptForm({
 
                         {selectableVariants.length > 1 && (
                           <div className="mt-2 flex flex-wrap gap-2 pl-12">
-                            {selectableVariants.map((variant: any) => (
-                              <button
-                                key={variant.id}
-                                type="button"
-                                className="inline-flex items-center rounded-lg border border-border bg-background-secondary px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:border-primary-500/40 hover:text-primary-500"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => addProductToReceipt(product, { productVariantId: variant.id })}
-                              >
-                                <span>{variant.unitLabel || variant.variantLabel || getVariantShortLabel(variant.name, product.name) || variant.name}</span>{/*
-                                {variant.sku || variant.barcode || '?'}
-                            */}</button>
-                            ))}
+                            {selectableVariants.map((variant: any) => {
+                              const isVariantInItems = items.some(
+                                (item) => item.productId === product.id && item.productVariantId === variant.id
+                              )
+                              return (
+                                <button
+                                  key={variant.id}
+                                  type="button"
+                                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${multiSelectMode && isVariantInItems
+                                    ? 'border-primary-500/60 bg-primary-500/10 text-primary-500'
+                                    : 'border-border bg-background-secondary text-foreground hover:border-primary-500/40 hover:text-primary-500'
+                                    }`}
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    if (multiSelectMode) {
+                                      const savedSearch = search
+                                      addProductToReceipt(product, { productVariantId: variant.id })
+                                      window.setTimeout(() => {
+                                        setSearch(savedSearch)
+                                        setIsSuggestionOpen(true)
+                                      }, 0)
+                                    } else {
+                                      addProductToReceipt(product, { productVariantId: variant.id })
+                                    }
+                                  }}
+                                >
+                                  {multiSelectMode && isVariantInItems && <Check size={9} className="text-primary-500" />}
+                                  <span>{variant.unitLabel || variant.variantLabel || getVariantShortLabel(variant.name, product.name) || variant.name}</span>
+                                </button>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
@@ -847,6 +900,26 @@ export function CreateReceiptForm({
               </div>
             )}
           </div>
+          {/* Multi-select toggle */}
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={() => {
+                setMultiSelectMode((v) => !v)
+                window.setTimeout(() => searchInputRef.current?.focus(), 10)
+              }}
+              aria-pressed={multiSelectMode}
+              aria-label="Chọn nhiều sản phẩm cùng lúc"
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-all ${multiSelectMode
+                ? 'border-primary-500 bg-primary-500/10 text-primary-500 shadow-[0_0_0_2px_rgba(16,185,129,0.15)]'
+                : 'border-border bg-background-secondary text-foreground-muted hover:text-foreground'
+                }`}
+              title={multiSelectMode ? 'Đang bật chọn nhiều (click để tắt)' : 'Bật chọn nhiều sản phẩm cùng lúc'}
+            >
+              <Layers size={14} />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -1560,19 +1633,18 @@ export function CreateReceiptForm({
                   {enhancedActivityTimelineEntries.map((entry, index) => (
                     <div key={`${entry.title}-${entry.time}-${entry.detail}-${index}`} className="grid grid-cols-[18px_1fr] gap-3">
                       <div className="flex flex-col items-center">
-                        <span className={`mt-1 h-2.5 w-2.5 rounded-full ${
-                          entry.tone === 'text-primary-500'
-                            ? 'bg-primary-500'
-                            : entry.tone === 'text-amber-500'
-                              ? 'bg-amber-500'
-                              : entry.tone === 'text-sky-500'
-                                ? 'bg-sky-500'
-                                : entry.tone === 'text-orange-400'
-                                  ? 'bg-orange-400'
-                                  : entry.tone === 'text-emerald-400'
-                                    ? 'bg-emerald-400'
-                                    : 'bg-border'
-                        }`} />
+                        <span className={`mt-1 h-2.5 w-2.5 rounded-full ${entry.tone === 'text-primary-500'
+                          ? 'bg-primary-500'
+                          : entry.tone === 'text-amber-500'
+                            ? 'bg-amber-500'
+                            : entry.tone === 'text-sky-500'
+                              ? 'bg-sky-500'
+                              : entry.tone === 'text-orange-400'
+                                ? 'bg-orange-400'
+                                : entry.tone === 'text-emerald-400'
+                                  ? 'bg-emerald-400'
+                                  : 'bg-border'
+                          }`} />
                         {index < enhancedActivityTimelineEntries.length - 1 ? (
                           <span className="mt-1 h-full w-px bg-border" />
                         ) : null}

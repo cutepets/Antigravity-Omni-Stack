@@ -8,10 +8,10 @@ const inter = Inter({ subsets: ['latin', 'vietnamese'] })
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | 🐾 Petshop Manager',
-    default: '🐾 Petshop Service Manager',
+    template: '%s | Cutepets',
+    default: '🐾 Cutepets',
   },
-  description: 'Hệ thống quản lý cửa hàng thú cưng — Petshop Service Management v2',
+  description: 'Hệ thống quản lý cửa hàng thú cưng — Cutepets Management v2',
   robots: 'noindex',
 }
 

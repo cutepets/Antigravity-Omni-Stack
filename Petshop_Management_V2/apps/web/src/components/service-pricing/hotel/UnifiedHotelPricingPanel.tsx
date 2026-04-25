@@ -8,9 +8,8 @@ import { cn } from '@/lib/utils'
 import { PriceInput } from '../shared/PriceInput'
 import { DAY_TYPE_OPTIONS, HOTEL_SPECIES_COLUMNS } from '../shared/pricing-constants'
 import { buildServicePricingSku, getHotelRuleKey, parseWeightInput } from '../shared/pricing-helpers'
-import type { BandDraft, HolidayDraft, HotelDaycareDraft, HotelDraft, HotelExtraServiceDraft } from '../shared/pricing-types'
+import type { BandDraft, HolidayDraft, HotelDraft, HotelExtraServiceDraft } from '../shared/pricing-types'
 import { HolidayCalendarPanel } from './HolidayCalendarPanel'
-import { HotelDaycarePricingPanel } from './HotelDaycarePricingPanel'
 import { HotelExtraServicesPanel } from './HotelExtraServicesPanel'
 
 export function UnifiedHotelPricingPanel({
@@ -27,9 +26,7 @@ export function UnifiedHotelPricingPanel({
   isSaving,
   holidays,
   hotelExtraServiceDrafts,
-  hotelDaycareDrafts,
   onHotelExtraServiceDraftsChange,
-  onHotelDaycareDraftChange,
   newHoliday,
   editingHolidayId,
   onHolidayDraftChange,
@@ -54,9 +51,7 @@ export function UnifiedHotelPricingPanel({
   isSaving: boolean
   holidays: HolidayCalendarDate[]
   hotelExtraServiceDrafts: HotelExtraServiceDraft[]
-  hotelDaycareDrafts: Record<string, HotelDaycareDraft>
   onHotelExtraServiceDraftsChange: (drafts: HotelExtraServiceDraft[]) => void
-  onHotelDaycareDraftChange: (bandKey: string, species: string, patch: Partial<HotelDaycareDraft>) => void
   newHoliday: HolidayDraft
   editingHolidayId: string | null
   onHolidayDraftChange: (patch: Partial<HolidayDraft>) => void
@@ -317,13 +312,6 @@ export function UnifiedHotelPricingPanel({
           onDeleteHoliday={onDeleteHoliday}
           isSavingHoliday={isSavingHoliday}
           canManagePricing={canManagePricing}
-          canEditPricing={canEditHotelPricing}
-        />
-
-        <HotelDaycarePricingPanel
-          bands={bands}
-          drafts={hotelDaycareDrafts}
-          onDraftChange={onHotelDaycareDraftChange}
           canEditPricing={canEditHotelPricing}
         />
 

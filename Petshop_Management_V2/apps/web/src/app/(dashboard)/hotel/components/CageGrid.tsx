@@ -13,8 +13,6 @@ import StayDetailsDialog from './StayDetailsDialog'
 
 // ---- Utility helpers ----
 
-const isDaycareStay = (stay: HotelStay | null | undefined): boolean => stay?.careMode === 'DAYCARE'
-
 const formatCurrencyShort = (value: number | null | undefined): string => {
   if (value == null || value === 0) return '—'
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}tr`
@@ -23,13 +21,6 @@ const formatCurrencyShort = (value: number | null | undefined): string => {
 }
 
 const getDaysInfo = (stay: HotelStay): { label: string; remaining: number } => {
-  if (isDaycareStay(stay)) {
-    const totalDays = stay.packageTotalDays || 10
-    const consumedDays = Math.min(totalDays, Math.max(0, stay.consumedDays ?? 0))
-    const remaining = Math.max(0, stay.remainingDays ?? (totalDays - consumedDays))
-    return { label: `${consumedDays}/${totalDays} ngay`, remaining }
-  }
-
   const checkIn = new Date(stay.checkIn)
   const estimatedOut = stay.estimatedCheckOut ? new Date(stay.estimatedCheckOut) : null
   const totalDays = estimatedOut ? Math.max(1, differenceInDays(estimatedOut, checkIn)) : 1
@@ -101,12 +92,6 @@ function SmallPetCard({
         {formatCurrencyShort(stay.totalPrice)}
       </span>
 
-      {isDaycareStay(stay) && (
-        <span className="absolute left-1 top-1 rounded bg-primary-500/10 px-1.5 py-0.5 text-[9px] font-bold text-primary-600">
-          Nha tre
-        </span>
-      )}
-
       {/* Pet avatar */}
       <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/10 text-sm font-black uppercase text-primary-500">
         {stay.petName?.charAt(0) || 'P'}
@@ -123,10 +108,6 @@ function SmallPetCard({
       {/* Days */}
       {isBooked && (
         <p className="mt-0.5 text-[9px] text-foreground-muted">{daysInfo.label}</p>
-      )}
-
-      {isDaycareStay(stay) && (
-        <p className="mt-0.5 text-[9px] text-primary-500/80">Con lai {daysInfo.remaining} ngay</p>
       )}
 
       {/* Checked-out badge */}
@@ -217,11 +198,6 @@ function CageCell({
             </p>
           )}
 
-          {isDaycareStay(stay) && (
-            <span className="mt-1 inline-flex rounded-full bg-primary-500/10 px-2 py-0.5 text-[9px] font-bold text-primary-600">
-              Nha tre
-            </span>
-          )}
         </button>
       ) : (
         /* Empty slot — drop target for booked stays */

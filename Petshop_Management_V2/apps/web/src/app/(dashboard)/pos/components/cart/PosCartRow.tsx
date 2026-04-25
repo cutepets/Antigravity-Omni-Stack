@@ -174,9 +174,7 @@ export function PosCartRow({
                                 </select>
                                 <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 group-hover:opacity-100" size={11} />
                             </div>
-                        ) : (
-                            <span className="text-[12px] text-gray-400 font-normal">{item.unit || baseUnit}</span>
-                        )}
+                        ) : null}
                         <PosCartStockPopover item={item} currentTrueVariant={currentTrueVariant} activeBranches={activeBranches} />
                     </div>
 

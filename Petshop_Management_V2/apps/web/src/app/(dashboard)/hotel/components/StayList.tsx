@@ -1,27 +1,31 @@
 ﻿'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { hotelApi, HotelStay } from '@/lib/api/hotel.api'
 import { format, differenceInDays } from 'date-fns'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import StayDetailsDialog from './StayDetailsDialog'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import {
+  DataListBulkBar,
   DataListShell,
   DataListToolbar,
   DataListFilterPanel,
   DataListColumnPanel,
   DataListTable,
   DataListPagination,
+  TableCheckbox,
   useDataListCore,
+  useDataListSelection,
   filterSelectClass,
   toolbarSelectClass,
 } from '@/components/data-list'
-import { Pin, PinOff } from 'lucide-react'
+import { Pin, PinOff, Trash2 } from 'lucide-react'
 
 type DisplayColumnId = 'code' | 'pet' | 'customer' | 'checkIn' | 'checkOut' | 'days' | 'status'
-type PinFilterId = 'status' | 'careMode'
+type PinFilterId = 'status'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
   { id: 'code', label: 'Mã lưu trú', sortable: false, width: 'w-24' },
@@ -43,13 +47,13 @@ export default function StayList({
   focusStayId?: string
 }) {
   const router = useRouter()
-  const { hasPermission } = useAuthorization()
+  const queryClient = useQueryClient()
+  const { hasPermission, isSuperAdmin } = useAuthorization()
   const canCheckout = hasPermission('hotel.checkout')
   const autoOpenedStayIdRef = useRef<string | null>(null)
 
   const [search, setSearch] = useState(initialSearch)
   const [stayStatus, setStayStatus] = useState<string>('')
-  const [careMode, setCareMode] = useState<string>('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [selectedStay, setSelectedStay] = useState<HotelStay | null>(null)
@@ -57,7 +61,7 @@ export default function StayList({
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
     initialVisibleColumns: ['code', 'pet', 'customer', 'checkIn', 'checkOut', 'days', 'status'],
-    initialTopFilterVisibility: { status: true, careMode: true }
+    initialTopFilterVisibility: { status: true }
   })
 
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
@@ -90,16 +94,40 @@ export default function StayList({
     if (stayStatus) {
       filtered = filtered.filter((stay) => stay.status === stayStatus)
     }
-    if (careMode) {
-      filtered = filtered.filter((stay) => (stay.careMode ?? 'BOARDING') === careMode)
-    }
     return filtered
-  }, [allStays, search, stayStatus, careMode])
+  }, [allStays, search, stayStatus])
 
   const paginatedStays = useMemo(() => {
     const start = (page - 1) * pageSize
     return visibleStays.slice(start, start + pageSize)
   }, [page, pageSize, visibleStays])
+
+  const visibleRowIds = useMemo(() => paginatedStays.map((stay) => `stay:${stay.id}`), [paginatedStays])
+  const {
+    selectedRowIds,
+    allVisibleSelected,
+    toggleRowSelection,
+    toggleSelectAllVisible,
+    clearSelection,
+  } = useDataListSelection(visibleRowIds)
+
+  const selectedStayIds = useMemo(
+    () => Array.from(selectedRowIds).map((rowId) => rowId.replace('stay:', '')),
+    [selectedRowIds]
+  )
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => hotelApi.bulkDeleteStays(ids),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['stays'] })
+      clearSelection()
+      if (result.deletedIds.length > 0) toast.success(`Da xoa ${result.deletedIds.length} luot luu tru`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} luot luu tru khong the xoa`)
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Khong the xoa hang loat luu tru')
+    },
+  })
 
   const handleNavigateDetail = (stay: HotelStay) => {
     setSelectedStay(stay)
@@ -134,28 +162,14 @@ export default function StayList({
   }
 
   const getDaysCount = (stay: HotelStay) => {
-    if (stay.careMode === 'DAYCARE') {
-      return stay.packageTotalDays || 10
-    }
     const checkIn = new Date(stay.checkIn)
     const checkOut = stay.checkOutActual ? new Date(stay.checkOutActual) : stay.estimatedCheckOut ? new Date(stay.estimatedCheckOut) : null
     if (!checkOut) return 1
     return Math.max(1, differenceInDays(checkOut, checkIn))
   }
 
-  const getDaycareSummary = (stay: HotelStay) => {
-    const totalDays = stay.packageTotalDays || 10
-    const consumedDays = Math.min(totalDays, Math.max(0, stay.consumedDays ?? 0))
-    const remainingDays = Math.max(0, stay.remainingDays ?? (totalDays - consumedDays))
-    return {
-      primary: `${consumedDays}/${totalDays} ngay`,
-      secondary: `Con lai ${remainingDays} ngay`,
-    }
-  }
-
   const clearFilters = () => {
     setStayStatus('')
-    setCareMode('')
     setSearch('')
     setPage(1)
   }
@@ -192,20 +206,6 @@ export default function StayList({
                   <option value="CHECKED_IN">Đang ở</option>
                   <option value="CHECKED_OUT">Đã trả</option>
                   <option value="CANCELLED">Đã hủy</option>
-                </select>
-              )}
-              {topFilterVisibility.careMode && (
-                <select
-                  className={toolbarSelectClass}
-                  value={careMode}
-                  onChange={(e) => {
-                    setCareMode(e.target.value)
-                    setPage(1)
-                  }}
-                >
-                  <option value="">Che do (Tat ca)</option>
-                  <option value="BOARDING">Luu tru</option>
-                  <option value="DAYCARE">Nha tre</option>
                 </select>
               )}
             </>
@@ -254,30 +254,6 @@ export default function StayList({
               <option value="CANCELLED">Đã hủy</option>
             </select>
           </label>
-          <label className="space-y-2">
-            <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
-              <span className="inline-flex items-center gap-2">
-                Che do cham soc
-              </span>
-              <button
-                type="button"
-                onClick={() => dataListState.toggleTopFilterVisibility('careMode')}
-                className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${topFilterVisibility.careMode ? 'bg-primary-500/12 text-primary-500' : 'text-foreground-muted hover:text-foreground'
-                  }`}
-              >
-                {topFilterVisibility.careMode ? <Pin size={12} /> : <PinOff size={12} />}
-              </button>
-            </span>
-            <select
-              value={careMode}
-              onChange={(e) => { setCareMode(e.target.value); setPage(1) }}
-              className={filterSelectClass}
-            >
-              <option value="">Tat ca</option>
-              <option value="BOARDING">Luu tru</option>
-              <option value="DAYCARE">Nha tre</option>
-            </select>
-          </label>
         </DataListFilterPanel>
 
         <DataListTable
@@ -285,14 +261,46 @@ export default function StayList({
           isEmpty={paginatedStays.length === 0}
           emptyText="Không có lượt lưu trú nào phù hợp"
           columns={renderActiveColumns()}
+          allSelected={allVisibleSelected}
+          onSelectAll={toggleSelectAllVisible}
+          bulkBar={
+            selectedStayIds.length > 0 ? (
+              <DataListBulkBar selectedCount={selectedStayIds.length} onClear={clearSelection}>
+                {isSuperAdmin() ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Xoa ${selectedStayIds.length} luot luu tru da chon?`)) {
+                        bulkDeleteMutation.mutate(selectedStayIds)
+                      }
+                    }}
+                    disabled={bulkDeleteMutation.isPending}
+                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-error/20 bg-error/10 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/20 disabled:opacity-50"
+                  >
+                    <Trash2 size={13} /> Xoa
+                  </button>
+                ) : (
+                  <span className="text-sm text-foreground-muted">Chon thao tac hang loat</span>
+                )}
+              </DataListBulkBar>
+            ) : undefined
+          }
         >
           {paginatedStays.map((stay) => {
+            const rowId = `stay:${stay.id}`
+            const isSelected = selectedRowIds.has(rowId)
             return (
               <tr
                 key={stay.id}
-                className="border-b border-border/50 transition-colors hover:bg-background-secondary/40 cursor-pointer"
+                className={`border-b border-border/50 transition-colors hover:bg-background-secondary/40 cursor-pointer ${isSelected ? 'bg-primary-500/5' : ''}`}
                 onClick={() => handleNavigateDetail(stay)}
               >
+                <td className="w-10 px-3 py-3" onClick={(event) => event.stopPropagation()}>
+                  <TableCheckbox
+                    checked={isSelected}
+                    onCheckedChange={(_, shiftKey) => toggleRowSelection(rowId, shiftKey)}
+                  />
+                </td>
                 {orderedVisibleColumns.map((colId) => {
                   const alignClass = COLUMN_OPTIONS.find((c) => c.id === colId)?.align === 'right' ? 'text-right' : COLUMN_OPTIONS.find((c) => c.id === colId)?.align === 'center' ? 'text-center' : 'text-left'
 
@@ -306,11 +314,6 @@ export default function StayList({
                       {colId === 'pet' && (
                         <div className="text-sm font-semibold text-foreground">
                           <div>{stay.pet?.name || stay.petName || '—'}</div>
-                          {stay.careMode === 'DAYCARE' ? (
-                            <span className="mt-1 inline-flex rounded-full bg-primary-500/10 px-2 py-0.5 text-[11px] font-semibold text-primary-500">
-                              Nha tre
-                            </span>
-                          ) : null}
                         </div>
                       )}
                       {colId === 'customer' && (
@@ -344,14 +347,7 @@ export default function StayList({
                       )}
                       {colId === 'days' && (
                         <div className="text-sm font-medium text-foreground">
-                          {stay.careMode === 'DAYCARE' ? (
-                            <>
-                              <div>{getDaycareSummary(stay).primary}</div>
-                              <div className="text-xs text-foreground-muted">{getDaycareSummary(stay).secondary}</div>
-                            </>
-                          ) : (
-                            `${getDaysCount(stay)} ngày`
-                          )}
+                          {getDaysCount(stay)} ngày
                         </div>
                       )}
                       {colId === 'status' && (

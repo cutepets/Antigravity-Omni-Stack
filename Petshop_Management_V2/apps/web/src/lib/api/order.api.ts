@@ -43,12 +43,6 @@ export interface CreateOrderPayload {
       notes?: string;
       branchId?: string;
       lineType?: string;
-      careMode?: 'BOARDING' | 'DAYCARE';
-      packageKind?: 'NONE' | 'COMBO_10_DAYS';
-      packageTotalDays?: number;
-      packageStartDate?: string;
-      packageEndDate?: string;
-      autoCompleteAt?: string;
       rateTableId?: string;
       dailyRate?: number;
       depositAmount?: number;

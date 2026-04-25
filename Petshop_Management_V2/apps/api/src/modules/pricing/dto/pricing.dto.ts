@@ -154,40 +154,6 @@ export class BulkUpsertHotelRulesDto {
   rules!: HotelRuleInputDto[]
 }
 
-export class HotelDaycareRuleInputDto {
-  @IsString()
-  @IsOptional()
-  id?: string
-
-  @IsString()
-  @IsOptional()
-  sku?: string | null
-
-  @IsString()
-  @IsOptional()
-  species?: string | null
-
-  @IsString()
-  weightBandId!: string
-
-  @IsNumber()
-  packageDays!: number
-
-  @IsNumber()
-  price!: number
-
-  @IsBoolean()
-  @IsOptional()
-  isActive?: boolean
-}
-
-export class BulkUpsertHotelDaycareRulesDto {
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => HotelDaycareRuleInputDto)
-  rules!: HotelDaycareRuleInputDto[]
-}
-
 export class HotelExtraServiceInputDto {
   @IsString()
   @IsOptional()

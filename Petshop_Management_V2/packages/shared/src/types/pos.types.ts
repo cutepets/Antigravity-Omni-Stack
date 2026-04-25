@@ -66,12 +66,6 @@ export interface CartItem {
     checkOut: string
     stayId?: string
     lineType: 'REGULAR' | 'HOLIDAY'
-    careMode?: 'BOARDING' | 'DAYCARE'
-    packageKind?: 'NONE' | 'COMBO_10_DAYS'
-    packageTotalDays?: number
-    packageStartDate?: string
-    packageEndDate?: string
-    autoCompleteAt?: string
     weightBandId?: string | null
     weightBandLabel?: string | null
     tableName?: string

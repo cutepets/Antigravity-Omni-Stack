@@ -10,11 +10,13 @@ type GoogleAuthRuntimeConfig = {
   clientSecret: string
   allowedDomain: string | null
   redirectUri: string
+  popupRedirectUri: string
 }
 
 export type GoogleAuthPublicConfig = {
   enabled: boolean
   configured: boolean
+  clientId: string | null
   allowedDomain: string | null
   apiBaseUrl: string
   webAppBaseUrl: string
@@ -25,6 +27,28 @@ type ResolvedGoogleUser = {
   googleId: string
   email: string
   avatar: string | null
+}
+
+type GoogleAuthCodeMode = 'redirect' | 'popup'
+
+function normalizeAllowedDomain(value: string | null | undefined) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+
+  if (/^https?:\/\//i.test(raw)) {
+    const parsed = new URL(raw)
+    const hasPath = parsed.pathname && parsed.pathname !== '/'
+    if (hasPath || parsed.search || parsed.hash) {
+      throw new BadRequestException('Allowed Google domain chi duoc la domain, khong kem path/query')
+    }
+    return parsed.hostname.toLowerCase()
+  }
+
+  if (raw.includes('/') || raw.includes('@') || /\s/.test(raw)) {
+    throw new BadRequestException('Allowed Google domain khong hop le')
+  }
+
+  return raw.toLowerCase()
 }
 
 @Injectable()
@@ -87,9 +111,11 @@ export class GoogleAuthService {
       (process.env['GOOGLE_AUTH_ENABLED'] ?? '').trim().toLowerCase() === 'true'
 
     const allowedDomain =
-      config?.googleAuthAllowedDomain?.trim() ||
-      process.env['GOOGLE_AUTH_ALLOWED_DOMAIN'] ||
-      null
+      normalizeAllowedDomain(
+        config?.googleAuthAllowedDomain ||
+        process.env['GOOGLE_AUTH_ALLOWED_DOMAIN'] ||
+        null,
+      )
 
     if (!enabled || !clientId || !clientSecret) {
       throw new BadRequestException('Dang nhap Google chua duoc cau hinh')
@@ -101,16 +127,17 @@ export class GoogleAuthService {
       clientSecret,
       allowedDomain,
       redirectUri: `${this.getApiBaseUrl()}/api/auth/google/callback`,
+      popupRedirectUri: new URL(this.getWebAppBaseUrl()).origin,
     }
   }
 
-  private async createOAuthClient() {
+  private async createOAuthClient(mode: GoogleAuthCodeMode = 'redirect') {
     const config = await this.getRuntimeConfig()
     return {
       client: new google.auth.OAuth2(
         config.clientId,
         config.clientSecret,
-        config.redirectUri,
+        mode === 'popup' ? config.popupRedirectUri : config.redirectUri,
       ),
       config,
     }
@@ -138,13 +165,18 @@ export class GoogleAuthService {
       process.env['GOOGLE_AUTH_CLIENT_SECRET'],
     )
 
+    const configured = enabled && Boolean(clientId) && clientSecretConfigured
+
     return {
       enabled,
-      configured: enabled && Boolean(clientId) && clientSecretConfigured,
+      configured,
+      clientId: configured ? clientId : null,
       allowedDomain:
-        systemConfig?.googleAuthAllowedDomain?.trim() ||
-        process.env['GOOGLE_AUTH_ALLOWED_DOMAIN'] ||
-        null,
+        normalizeAllowedDomain(
+          systemConfig?.googleAuthAllowedDomain ||
+          process.env['GOOGLE_AUTH_ALLOWED_DOMAIN'] ||
+          null,
+        ),
       apiBaseUrl: this.getApiBaseUrl(),
       webAppBaseUrl: this.getWebAppBaseUrl(),
       callbackUrl: `${this.getApiBaseUrl()}/api/auth/google/callback`,
@@ -160,21 +192,28 @@ export class GoogleAuthService {
     })
   }
 
-  private async resolveGoogleUserFromCode(code: string): Promise<ResolvedGoogleUser> {
-    const { client, config } = await this.createOAuthClient()
+  private async resolveGoogleUserFromCode(
+    code: string,
+    mode: GoogleAuthCodeMode = 'redirect',
+  ): Promise<ResolvedGoogleUser> {
+    const { client, config } = await this.createOAuthClient(mode)
     const { tokens } = await client.getToken(code)
-    client.setCredentials(tokens)
+    const idToken = String(tokens.id_token ?? '').trim()
 
-    const oauth2 = google.oauth2({
-      version: 'v2',
-      auth: client,
+    if (!idToken) {
+      throw new UnauthorizedException('Google login khong tra ve ID token hop le')
+    }
+
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: config.clientId,
     })
-    const profileResponse = await oauth2.userinfo.get()
-    const profile = profileResponse.data
+    const payload = ticket.getPayload()
 
-    const googleId = String(profile.id ?? '').trim()
-    const email = String(profile.email ?? '').trim().toLowerCase()
-    const emailVerified = Boolean(profile.verified_email)
+    const googleId = String(payload?.sub ?? '').trim()
+    const email = String(payload?.email ?? '').trim().toLowerCase()
+    const emailVerified = payload?.email_verified === true
+    const hostedDomain = String(payload?.hd ?? '').trim().toLowerCase()
 
     if (!googleId || !email || !emailVerified) {
       throw new UnauthorizedException('Tai khoan Google khong hop le de dang nhap')
@@ -182,7 +221,10 @@ export class GoogleAuthService {
 
     if (config.allowedDomain) {
       const domain = email.split('@')[1] ?? ''
-      if (domain.toLowerCase() !== config.allowedDomain.toLowerCase()) {
+      if (
+        domain.toLowerCase() !== config.allowedDomain.toLowerCase() &&
+        hostedDomain !== config.allowedDomain.toLowerCase()
+      ) {
         throw new UnauthorizedException('Tai khoan Google khong thuoc domain duoc phep')
       }
     }
@@ -190,13 +232,21 @@ export class GoogleAuthService {
     return {
       googleId,
       email,
-      avatar: String(profile.picture ?? '').trim() || null,
+      avatar: String(payload?.picture ?? '').trim() || null,
     }
   }
 
   async loginWithAuthorizationCode(code: string) {
     const profile = await this.resolveGoogleUserFromCode(code)
+    return this.createSessionForGoogleProfile(profile)
+  }
 
+  async loginWithPopupAuthorizationCode(code: string) {
+    const profile = await this.resolveGoogleUserFromCode(code, 'popup')
+    return this.createSessionForGoogleProfile(profile)
+  }
+
+  private async createSessionForGoogleProfile(profile: ResolvedGoogleUser) {
     const user = await this.db.user.findFirst({
       where: { googleId: profile.googleId },
       select: { id: true },
@@ -219,6 +269,15 @@ export class GoogleAuthService {
 
   async linkUserWithAuthorizationCode(userId: string, code: string) {
     const profile = await this.resolveGoogleUserFromCode(code)
+    return this.linkUserWithGoogleProfile(userId, profile)
+  }
+
+  async linkUserWithPopupAuthorizationCode(userId: string, code: string) {
+    const profile = await this.resolveGoogleUserFromCode(code, 'popup')
+    return this.linkUserWithGoogleProfile(userId, profile)
+  }
+
+  private async linkUserWithGoogleProfile(userId: string, profile: ResolvedGoogleUser) {
     const existingUser = await this.db.user.findFirst({
       where: {
         googleId: profile.googleId,

@@ -19,10 +19,25 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log'],
   })
 
+  app.set('trust proxy', process.env['TRUST_PROXY'] ?? 'loopback, linklocal, uniquelocal')
+
   app.use(helmet())
 
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    next()
+  })
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const normalizedPath = req.path.toLowerCase()
+    if (normalizedPath.startsWith('/uploads/documents/') || normalizedPath.startsWith('/uploads/finance/')) {
+      res.status(404).json({
+        success: false,
+        statusCode: 404,
+        message: 'File not found',
+      })
+      return
+    }
     next()
   })
 

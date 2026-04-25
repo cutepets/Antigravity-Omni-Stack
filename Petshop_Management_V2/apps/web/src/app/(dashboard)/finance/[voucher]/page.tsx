@@ -4,8 +4,8 @@ import { PageContainer } from '@/components/layout/PageLayout'
 import { FinanceWorkspace } from '../_components/finance-workspace'
 
 export const metadata: Metadata = {
-  title: 'Chi tiet phieu thu chi | Petshop',
-  description: 'Mo truc tiep phieu thu chi theo ma chung tu',
+  title: '💵 Chi tiết phiếu',
+  description: 'Mở trực tiếp phiếu thu chi theo mã chứng từ',
 }
 
 export default function FinanceVoucherPage() {

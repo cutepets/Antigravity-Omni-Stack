@@ -3,21 +3,21 @@ import type { Metadata } from 'next'
 import { LoginForm } from './_components/login-form'
 
 export const metadata: Metadata = {
-  title: 'Đăng nhập',
+  title: '🔐 Đăng nhập',
 }
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex bg-grid-pattern relative overflow-hidden" style={{ background: 'var(--color-background-base)' }}>
       {/* Decorative gradient blobs */}
-      <div 
+      <div
         className="absolute top-[-20%] left-[-10%] w-[50%] h-[60%] rounded-full opacity-30 animate-spin-slow"
         style={{
           background: 'radial-gradient(circle, var(--color-primary-500) 0%, transparent 70%)',
           filter: 'blur(100px)'
         }}
       />
-      <div 
+      <div
         className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full opacity-20"
         style={{
           background: 'radial-gradient(circle, var(--color-accent-500) 0%, transparent 60%)',
@@ -51,8 +51,8 @@ export default function LoginPage() {
 
           <div className="relative z-10">
             <h2 className="text-4xl font-extrabold leading-tight mb-4">
-               Quản lý thú cưng<br />
-               <span className="text-white/70">đẳng cấp & mượt mà</span>
+              Quản lý thú cưng<br />
+              <span className="text-white/70">đẳng cấp & mượt mà</span>
             </h2>
             <p className="text-white/80 text-lg max-w-[360px]">
               Trải nghiệm hệ thống mượt mà, quản lý mọi dịch vụ dễ dàng với giao diện hiện đại nhất.

@@ -8,6 +8,7 @@ import {
   DOCUMENT_UPLOAD_MIME_TYPES,
   validateUploadedFile,
 } from '../../common/utils/upload.util.js'
+import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 
 export interface CreateStaffDto {
   username: string
@@ -203,6 +204,11 @@ export class StaffService {
     })
   }
 
+  async bulkDeactivate(ids: unknown) {
+    const normalizedIds = normalizeBulkDeleteIds(ids)
+    return runBulkDelete(normalizedIds, (id) => this.deactivate(id))
+  }
+
   // =========================================================================
   // Document Management
   // =========================================================================
@@ -232,7 +238,7 @@ export class StaffService {
       requireStoredFilename: true,
     })
 
-    const fileUrl = `/uploads/documents/${userId}/${file.filename}`
+    const fileUrl = `documents/${userId}/${file.filename}`
 
     return this.db.employeeDocument.create({
       data: {

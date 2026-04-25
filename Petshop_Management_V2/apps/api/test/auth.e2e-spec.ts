@@ -67,6 +67,7 @@ describe('AuthController (e2e)', () => {
     getPublicConfig: jest.fn().mockResolvedValue({
       enabled: true,
       configured: true,
+      clientId: 'google-client-id',
       allowedDomain: 'example.com',
       apiBaseUrl: 'http://localhost:3001',
       webAppBaseUrl: 'http://localhost:3000',
@@ -74,7 +75,14 @@ describe('AuthController (e2e)', () => {
     }),
     createAuthorizationUrl: jest.fn().mockResolvedValue('https://accounts.google.com/o/oauth2/v2/auth'),
     loginWithAuthorizationCode: jest.fn().mockResolvedValue(authResponse),
+    loginWithPopupAuthorizationCode: jest.fn().mockResolvedValue(authResponse),
     linkUserWithAuthorizationCode: jest.fn().mockResolvedValue({
+      id: 'user-1',
+      googleId: 'google-1',
+      googleEmail: 'admin@example.com',
+      googleAvatar: 'https://avatar.test/a.png',
+    }),
+    linkUserWithPopupAuthorizationCode: jest.fn().mockResolvedValue({
       id: 'user-1',
       googleId: 'google-1',
       googleEmail: 'admin@example.com',
@@ -119,6 +127,7 @@ describe('AuthController (e2e)', () => {
     googleAuthService.getPublicConfig.mockResolvedValue({
       enabled: true,
       configured: true,
+      clientId: 'google-client-id',
       allowedDomain: 'example.com',
       apiBaseUrl: 'http://localhost:3001',
       webAppBaseUrl: 'http://localhost:3000',
@@ -126,7 +135,14 @@ describe('AuthController (e2e)', () => {
     })
     googleAuthService.createAuthorizationUrl.mockResolvedValue('https://accounts.google.com/o/oauth2/v2/auth')
     googleAuthService.loginWithAuthorizationCode.mockResolvedValue(authResponse)
+    googleAuthService.loginWithPopupAuthorizationCode.mockResolvedValue(authResponse)
     googleAuthService.linkUserWithAuthorizationCode.mockResolvedValue({
+      id: 'user-1',
+      googleId: 'google-1',
+      googleEmail: 'admin@example.com',
+      googleAvatar: 'https://avatar.test/a.png',
+    })
+    googleAuthService.linkUserWithPopupAuthorizationCode.mockResolvedValue({
       id: 'user-1',
       googleId: 'google-1',
       googleEmail: 'admin@example.com',
@@ -154,6 +170,12 @@ describe('AuthController (e2e)', () => {
         expect.stringContaining('petshop_auth=1'),
       ]),
     )
+    expect(response.body).toEqual({
+      success: true,
+      user: authUser,
+    })
+    expect(response.body.accessToken).toBeUndefined()
+    expect(response.body.refreshToken).toBeUndefined()
   })
 
   it('refreshes from cookie when body token is missing', async () => {
@@ -172,6 +194,12 @@ describe('AuthController (e2e)', () => {
         expect.stringContaining('petshop_auth=1'),
       ]),
     )
+    expect(response.body).toEqual({
+      success: true,
+      user: authUser,
+    })
+    expect(response.body.accessToken).toBeUndefined()
+    expect(response.body.refreshToken).toBeUndefined()
   })
 
   it('clears cookies on logout and prefers cookie refresh token fallback', async () => {
@@ -208,6 +236,7 @@ describe('AuthController (e2e)', () => {
       data: {
         enabled: true,
         configured: true,
+        clientId: 'google-client-id',
         allowedDomain: 'example.com',
         apiBaseUrl: 'http://localhost:3001',
         webAppBaseUrl: 'http://localhost:3000',
@@ -266,5 +295,50 @@ describe('AuthController (e2e)', () => {
 
     expect(googleAuthService.linkUserWithAuthorizationCode).toHaveBeenCalledWith('user-1', 'google-code')
     expect(callbackResponse.headers.location).toBe('http://localhost:3000/dashboard?google_link=success')
+  })
+
+  it('logs in from popup authorization code and sets auth cookies', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/auth/google/code')
+      .set('Origin', 'http://localhost:3000')
+      .set('X-Requested-With', 'XmlHttpRequest')
+      .send({ code: 'popup-code', redirect: '/equipment' })
+      .expect(200)
+
+    expect(googleAuthService.loginWithPopupAuthorizationCode).toHaveBeenCalledWith('popup-code')
+    expect(response.body).toEqual({
+      success: true,
+      user: authUser,
+      redirect: '/equipment',
+    })
+    const cookies = getSetCookies(response)
+    expect(cookies).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('access_token=access-token'),
+        expect.stringContaining('refresh_token=refresh-token'),
+        expect.stringContaining('petshop_auth=1'),
+      ]),
+    )
+  })
+
+  it('rejects popup authorization code without ajax header', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/google/code')
+      .set('Origin', 'http://localhost:3000')
+      .send({ code: 'popup-code' })
+      .expect(401)
+
+    expect(googleAuthService.loginWithPopupAuthorizationCode).not.toHaveBeenCalled()
+  })
+
+  it('rejects popup authorization code from an unexpected origin', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/google/code')
+      .set('Origin', 'http://evil.test')
+      .set('X-Requested-With', 'XmlHttpRequest')
+      .send({ code: 'popup-code' })
+      .expect(401)
+
+    expect(googleAuthService.loginWithPopupAuthorizationCode).not.toHaveBeenCalled()
   })
 })

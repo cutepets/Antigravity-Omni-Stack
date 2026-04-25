@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { api } from '@/lib/api'
-import { PRICE_BOOK_QUERY_KEY, invalidatePriceBookQueries } from '@/lib/price-books'
+import { PRICE_BOOK_QUERY_KEY, invalidatePriceBookQueries, extractPriceBooks } from '@/lib/price-books'
 import { useAuthorization } from '@/hooks/useAuthorization'
 
 type DictionaryItem = {
@@ -414,13 +414,13 @@ function CategoryCard({
   return (
     <div data-hotkey-scope className="flex flex-col overflow-hidden rounded-3xl border border-border/70 bg-background-secondary shadow-sm mb-6">
       <CardHeader title="Danh mục sản phẩm" subtitle="Phân loại theo loài" count={items.length} icon={Tags} />
-      
+
       <div className="flex-1 space-y-3 p-5 overflow-y-auto">
         {canCreate && (
           <div className="rounded-2xl border border-primary-500/30 bg-primary-500/5 p-2">
             <div className="flex items-center gap-2">
-              <select 
-                value={draftSpecies} 
+              <select
+                value={draftSpecies}
                 onChange={e => setDraftSpecies(e.target.value as any)}
                 className="h-11 w-28 shrink-0 rounded-xl border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-primary-500"
               >
@@ -474,22 +474,22 @@ function CategoryCard({
                       <div key={b.id} className="group inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-1.5 text-sm transition-colors hover:border-primary-500/30">
                         {editingItemId === b.id ? (
                           <div className="flex items-center gap-1">
-                            <input 
-                              value={editingName} 
+                            <input
+                              value={editingName}
                               onChange={e => setEditingName(e.target.value)}
-                              onKeyDown={e => { 
+                              onKeyDown={e => {
                                 if (e.key === 'Enter') {
                                   if (editingName.trim()) updateMutation.mutate({ id: b.id, name: editingName.trim() })
                                 }
-                                if (e.key === 'Escape') setEditingItemId(null) 
+                                if (e.key === 'Escape') setEditingItemId(null)
                               }}
-                              className="h-7 w-32 rounded bg-background-secondary px-2 text-sm outline-none focus:ring-1 focus:ring-primary-500" 
-                              autoFocus 
+                              className="h-7 w-32 rounded bg-background-secondary px-2 text-sm outline-none focus:ring-1 focus:ring-primary-500"
+                              autoFocus
                             />
-                            <button 
+                            <button
                               onClick={() => {
                                 if (editingName.trim()) updateMutation.mutate({ id: b.id, name: editingName.trim() })
-                              }} 
+                              }}
                               className="text-primary-500 hover:text-primary-400"
                             >
                               <Check size={14} />
@@ -503,7 +503,7 @@ function CategoryCard({
                             <span className="truncate font-medium text-foreground">{b.name}</span>
                             <div className="-mr-1.5 ml-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                               {canUpdate && (
-                                <button 
+                                <button
                                   onClick={() => { setEditingItemId(b.id); setEditingName(b.name) }}
                                   className="flex h-5 w-5 items-center justify-center rounded-full text-foreground-muted hover:bg-background-secondary hover:text-primary-500"
                                 >
@@ -511,7 +511,7 @@ function CategoryCard({
                                 </button>
                               )}
                               {canDelete && (
-                                <button 
+                                <button
                                   onClick={() => {
                                     if (confirm(`Xóa danh mục "${b.name}"?`)) deleteMutation.mutate(b.id)
                                   }}
@@ -556,7 +556,7 @@ function PriceBookCard({
     queryKey,
     queryFn: async () => {
       const res = await api.get(endpoint)
-      return (res.data.data ?? []) as DictionaryItem[]
+      return extractPriceBooks(res)
     },
   })
 
@@ -681,26 +681,26 @@ function PriceBookCard({
       <div className="space-y-3 p-5">
         {canManage ? (
           <div className="rounded-2xl border border-primary-500/30 bg-primary-500/5 p-2">
-          <div className="flex items-center gap-2">
-            <input
-              value={draftName}
-              onChange={(event) => setDraftName(event.target.value)}
-              placeholder="Thêm bảng giá..."
-              className="h-11 flex-1 rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                const value = draftName.trim()
-                if (!value) return toast.error('Vui lòng nhập tên bảng giá')
-                createMutation.mutate(value)
-              }}
-              data-hotkey-enter
-              className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-500 text-white"
-            >
-              {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-            </button>
-          </div>
+            <div className="flex items-center gap-2">
+              <input
+                value={draftName}
+                onChange={(event) => setDraftName(event.target.value)}
+                placeholder="Thêm bảng giá..."
+                className="h-11 flex-1 rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary-500"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const value = draftName.trim()
+                  if (!value) return toast.error('Vui lòng nhập tên bảng giá')
+                  createMutation.mutate(value)
+                }}
+                data-hotkey-enter
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-500 text-white"
+              >
+                {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -889,7 +889,7 @@ export function InventorySettingsDrawer({ isOpen, onClose }: InventorySettingsDr
                   <p className="text-sm text-foreground-muted">Quản lý danh mục, quy đổi và bảng giá</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={onClose}
                 className="p-2 rounded-full hover:bg-white/10 text-foreground-muted transition-colors"
                 title="Đóng"

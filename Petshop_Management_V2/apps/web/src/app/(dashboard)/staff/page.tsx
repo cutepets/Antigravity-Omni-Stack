@@ -22,7 +22,7 @@ const STAFF_TABS: { id: StaffTab; label: string; icon: React.ComponentType<{ siz
 
 export default function StaffManagementPage() {
   const router = useRouter()
-  const { hasPermission, hasAnyPermission, isLoading: isAuthLoading } = useAuthorization()
+  const { hasPermission, hasAnyPermission, isLoading: isAuthLoading, isSuperAdmin } = useAuthorization()
 
   const canViewStaff = hasPermission('staff.read')
   const canReadRoles = hasPermission('role.read')
@@ -87,6 +87,21 @@ export default function StaffManagementPage() {
       await fetchStaff()
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Có lỗi xảy ra')
+    }
+  }
+
+  const handleBulkDeactivate = async (ids: string[]) => {
+    const confirmed = confirm(`Chuyen ${ids.length} nhan vien da chon sang trang thai nghi viec?`)
+    if (!confirmed) return
+
+    try {
+      const result = await staffApi.bulkDeactivate(ids)
+      await fetchStaff()
+      if (result.blocked.length > 0) {
+        alert(`${result.blocked.length} nhan vien khong the cap nhat`)
+      }
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Co loi xay ra')
     }
   }
 
@@ -198,11 +213,13 @@ export default function StaffManagementPage() {
                   roles={roles}
                   canEdit={canEditStaff}
                   canDeactivate={canDeactivateStaff}
+                  canBulkDeactivate={canDeactivateStaff && isSuperAdmin()}
                   onEdit={(member) => {
                     setSelectedStaff(member)
                     setIsModalOpen(true)
                   }}
                   onDeactivate={handleDeactivate}
+                  onBulkDeactivate={handleBulkDeactivate}
                 />
               )}
             </>
