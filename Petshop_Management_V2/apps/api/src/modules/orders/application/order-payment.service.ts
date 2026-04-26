@@ -11,7 +11,6 @@ import {
 } from './order-finance.application.js';
 import { buildOrderPaymentUpdate } from './order-payment.application.js';
 import { createStockExportTimelineEntry } from './order-timeline.application.js';
-import { OrderCatalogService } from './order-catalog.service.js';
 import { OrderInventoryService } from './order-inventory.service.js';
 import {
   assertHasPositivePayments,
@@ -24,10 +23,10 @@ type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId
 export class OrderPaymentService {
   constructor(
     private readonly prisma: DatabaseService,
-    private readonly accessService: OrderAccessService = new OrderAccessService(),
-    private readonly numberingService: OrderNumberingService = new OrderNumberingService(),
-    private readonly paymentHelperService: OrderPaymentHelperService = new OrderPaymentHelperService(),
-    private readonly inventoryService: OrderInventoryService = new OrderInventoryService(new OrderCatalogService(prisma)),
+    private readonly accessService: OrderAccessService,
+    private readonly numberingService: OrderNumberingService,
+    private readonly paymentHelperService: OrderPaymentHelperService,
+    private readonly inventoryService: OrderInventoryService,
   ) { }
 
   private assertOrderScope(order: { branchId?: string | null }, user?: AccessUser) {
@@ -170,6 +169,40 @@ export class OrderPaymentService {
         generateVoucherNumber: (type) => this.generateVoucherNumberFor(tx, type),
         buildServiceTraceTags: (parts) => this.buildServiceTraceTags(parts),
         mergeTransactionNotes: (note, parts) => this.mergeTransactionNotes(note, parts),
+      },
+      params,
+    );
+  }
+
+  async recordOrderPayments(
+    tx: DatabaseService,
+    params: {
+      order: {
+        id: string;
+        orderNumber: string;
+        branchId?: string | null;
+        customerId?: string | null;
+        customerName?: string | null;
+      };
+      payments: Array<{
+        method: string;
+        amount: number;
+        note?: string | null | undefined;
+        paymentAccountId?: string | null;
+        paymentAccountLabel?: string | null;
+      }>;
+      staffId?: string | null;
+      traceParts?: string[];
+      defaultNote?: string | null;
+    },
+  ) {
+    return recordOrderPayments(
+      tx as any,
+      {
+        generateVoucherNumber: (type) => this.generateVoucherNumberFor(tx, type),
+        buildServiceTraceTags: (parts) => this.buildServiceTraceTags(parts),
+        mergeTransactionNotes: (note, parts) => this.mergeTransactionNotes(note, parts),
+        getPaymentLabel: (method) => this.getPaymentLabel(method),
       },
       params,
     );

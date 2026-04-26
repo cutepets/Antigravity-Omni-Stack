@@ -68,6 +68,18 @@ const DEFAULT_FORM: SettingsFormData = {
   googleDriveBackupFolderId: '',
 }
 
+function normalizeGoogleAllowedDomain(value: string) {
+  const raw = value.trim()
+  if (!raw) return ''
+
+  try {
+    const host = /^https?:\/\//i.test(raw) ? new URL(raw).hostname : raw
+    return host.toLowerCase().replace(/\.$/, '').replace(/^(app|www)\./, '')
+  } catch {
+    return raw.toLowerCase().replace(/^(app|www)\./, '')
+  }
+}
+
 export function TabGeneral() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuthorization()
@@ -143,7 +155,7 @@ export function TabGeneral() {
       googleAuthEnabled: Boolean(data.googleAuthEnabled),
       googleAuthClientId: data.googleAuthClientId || '',
       googleAuthClientSecret: '',
-      googleAuthAllowedDomain: data.googleAuthAllowedDomain || '',
+      googleAuthAllowedDomain: normalizeGoogleAllowedDomain(data.googleAuthAllowedDomain || ''),
       googleDriveEnabled: Boolean(data.googleDriveEnabled),
       googleDriveAuthMode: resolvedGoogleDriveAuthMode,
       googleDriveServiceAccountJson: '',
@@ -262,7 +274,7 @@ export function TabGeneral() {
       storageProvider: formData.storageProvider,
       googleAuthEnabled: formData.googleAuthEnabled,
       googleAuthClientId: formData.googleAuthClientId,
-      googleAuthAllowedDomain: formData.googleAuthAllowedDomain,
+      googleAuthAllowedDomain: normalizeGoogleAllowedDomain(formData.googleAuthAllowedDomain),
       googleDriveEnabled: formData.googleDriveEnabled,
     }
     if (formData.googleDriveEnabled) {

@@ -27,7 +27,7 @@ export class OrderAccessService {
 
     const branchIds = this.getAuthorizedBranchIds(user);
     if (!order.branchId || !branchIds.includes(order.branchId)) {
-      throw new ForbiddenException('Báº¡n chá»‰ Ä‘Æ°á»£c truy cáº­p dá»¯ liá»‡u thuá»™c chi nhÃ¡nh Ä‘Æ°á»£c phÃ¢n quyá»n');
+      throw new ForbiddenException('Ban khong duoc truy cap du lieu thuoc chi nhanh duoc phan quyen');
     }
   }
 }

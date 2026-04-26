@@ -12,6 +12,8 @@ PROJECT_DIR="/root/petshop"
 APP_DIR="$PROJECT_DIR/Petshop_Management_V2"
 COMPOSE_FILE="$PROJECT_DIR/docker-compose.prod.yml"
 BRANCH="${1:-codex/baseline-upgrade}"
+export BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+export BUILD_CONTEXT="$APP_DIR"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -34,6 +36,7 @@ cd "$APP_DIR" && git pull origin "$BRANCH" || fail 'Git pull failed'
 VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo 'unknown')
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
 log "Code updated: v$VERSION ($COMMIT) from branch: $BRANCH"
+log "Build date: $BUILD_DATE"
 
 # Step 2: Build Docker images
 echo ''

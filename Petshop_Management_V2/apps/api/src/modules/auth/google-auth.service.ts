@@ -37,20 +37,25 @@ function normalizeAllowedDomain(value: string | null | undefined) {
   const raw = String(value ?? '').trim()
   if (!raw) return null
 
+  const normalizeHost = (host: string) => {
+    const normalized = host.trim().toLowerCase().replace(/\.$/, '')
+    return normalized.replace(/^(app|www)\./, '')
+  }
+
   if (/^https?:\/\//i.test(raw)) {
     const parsed = new URL(raw)
     const hasPath = parsed.pathname && parsed.pathname !== '/'
     if (hasPath || parsed.search || parsed.hash) {
       throw new BadRequestException('Allowed Google domain chi duoc la domain, khong kem path/query')
     }
-    return parsed.hostname.toLowerCase()
+    return normalizeHost(parsed.hostname)
   }
 
   if (raw.includes('/') || raw.includes('@') || /\s/.test(raw)) {
     throw new BadRequestException('Allowed Google domain khong hop le')
   }
 
-  return raw.toLowerCase()
+  return normalizeHost(raw)
 }
 
 @Injectable()

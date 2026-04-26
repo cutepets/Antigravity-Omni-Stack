@@ -176,6 +176,28 @@ describe('GoogleAuthService', () => {
     })
   })
 
+  it('normalizes app host values to the email domain', async () => {
+    const db = {
+      systemConfig: {
+        findFirst: jest.fn().mockResolvedValue({
+          googleAuthEnabled: true,
+          googleAuthClientId: 'google-client-id',
+          googleAuthClientSecretEnc: null,
+          googleAuthAllowedDomain: 'app.petshophanoi.com',
+        }),
+      },
+    } as any
+
+    const service = new GoogleAuthService(db, {} as any)
+    jest.spyOn(service as any, 'getApiBaseUrl').mockReturnValue('http://localhost:3001')
+    jest.spyOn(service, 'getWebAppBaseUrl').mockReturnValue('http://localhost:3000')
+    jest.spyOn(require('../../common/utils/secret-box.util.js'), 'decryptSecret').mockReturnValue('client-secret')
+
+    await expect(service.getPublicConfig()).resolves.toMatchObject({
+      allowedDomain: 'petshophanoi.com',
+    })
+  })
+
   it('does not expose client id when google auth is not configured', async () => {
     const db = {
       systemConfig: {

@@ -26,9 +26,9 @@ const PAYMENT_INTENT_TTL_MS = 15 * 60 * 1000;
 export class OrderPaymentIntentService {
   constructor(
     private readonly prisma: DatabaseService,
-    private readonly accessService: OrderAccessService = new OrderAccessService(),
-    private readonly paymentHelperService: OrderPaymentHelperService = new OrderPaymentHelperService(),
-    private readonly paymentService: OrderPaymentService = new OrderPaymentService(prisma),
+    private readonly accessService: OrderAccessService,
+    private readonly paymentHelperService: OrderPaymentHelperService,
+    private readonly paymentService: OrderPaymentService,
   ) { }
 
   private assertOrderScope(order: { branchId?: string | null }, user?: AccessUser) {

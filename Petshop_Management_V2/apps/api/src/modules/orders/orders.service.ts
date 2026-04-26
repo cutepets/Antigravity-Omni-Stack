@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { JwtPayload } from '@petshop/shared';
-import { DatabaseService } from '../../database/database.service.js';
+import { OrderCreateService } from './application/order-create.service.js';
 import { OrderCatalogService } from './application/order-catalog.service.js';
-import { OrderCommandService } from './application/order-command.service.js';
 import { OrderDeletionService } from './application/order-deletion.service.js';
 import { OrderLifecycleService } from './application/order-lifecycle.service.js';
 import { OrderPaymentIntentService } from './application/order-payment-intent.service.js';
@@ -11,6 +10,7 @@ import { OrderQueryService } from './application/order-query.service.js';
 import { OrderReturnService } from './application/order-return.service.js';
 import { OrderSwapService } from './application/order-swap.service.js';
 import { OrderTimelineService } from './application/order-timeline.service.js';
+import { OrderUpdateService } from './application/order-update.service.js';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto.js';
 import { CreateReturnRequestDto } from './dto/create-return-request.dto.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
@@ -20,50 +20,24 @@ import { CompleteOrderDto } from './dto/complete-order.dto.js';
 import { CancelOrderDto } from './dto/cancel-order.dto.js';
 import { RefundOrderDto } from './dto/refund-order.dto.js';
 import { SwapGroomingServiceDto } from './dto/swap-grooming-service.dto.js';
-import { OrderNumberingService } from './domain/order-numbering.service.js';
-import { OrderPaymentHelperService } from './domain/order-payment-helper.service.js';
 
 type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>;
 
 @Injectable()
 export class OrdersService {
-  private readonly numbering: OrderNumberingService;
-  private readonly paymentHelper: OrderPaymentHelperService;
-
   constructor(
-    private readonly prisma: DatabaseService,
-    private readonly command: OrderCommandService = new OrderCommandService(prisma),
-    private readonly catalog: OrderCatalogService = new OrderCatalogService(prisma),
-    private readonly query: OrderQueryService = new OrderQueryService(prisma),
-    private readonly payments: OrderPaymentService = new OrderPaymentService(prisma),
-    private readonly paymentIntents: OrderPaymentIntentService = new OrderPaymentIntentService(prisma),
-    private readonly lifecycle: OrderLifecycleService = new OrderLifecycleService(command),
-    private readonly returns: OrderReturnService = new OrderReturnService(command),
-    private readonly deletions: OrderDeletionService = new OrderDeletionService(command),
-    private readonly swaps: OrderSwapService = new OrderSwapService(command),
-    private readonly timeline: OrderTimelineService = new OrderTimelineService(command),
-    numbering: OrderNumberingService = new OrderNumberingService(),
-    paymentHelper: OrderPaymentHelperService = new OrderPaymentHelperService(),
-  ) {
-    this.numbering = numbering;
-    this.paymentHelper = paymentHelper;
-  }
-
-  private calculateRemainingAmount(total: number, paidAmount: number): number {
-    return this.paymentHelper.calculateRemainingAmount(total, paidAmount);
-  }
-
-  private calculatePaymentStatus(total: number, paidAmount: number): 'UNPAID' | 'PARTIAL' | 'PAID' {
-    return this.paymentHelper.calculatePaymentStatus(total, paidAmount);
-  }
-
-  private getPaymentLabel(method: string): string {
-    return this.paymentHelper.getPaymentLabel(method);
-  }
-
-  private generateOrderNumber(): Promise<string> {
-    return this.numbering.generateOrderNumber(this.prisma);
-  }
+    private readonly catalog: OrderCatalogService,
+    private readonly query: OrderQueryService,
+    private readonly createService: OrderCreateService,
+    private readonly updateService: OrderUpdateService,
+    private readonly payments: OrderPaymentService,
+    private readonly paymentIntents: OrderPaymentIntentService,
+    private readonly lifecycle: OrderLifecycleService,
+    private readonly returns: OrderReturnService,
+    private readonly deletions: OrderDeletionService,
+    private readonly swaps: OrderSwapService,
+    private readonly timeline: OrderTimelineService,
+  ) {}
 
   getProducts() {
     return this.catalog.getProducts();
@@ -74,11 +48,11 @@ export class OrdersService {
   }
 
   createOrder(data: CreateOrderDto, staffId: string): Promise<any> {
-    return this.command.createOrder(data, staffId);
+    return this.createService.createOrder(data, staffId);
   }
 
   updateOrder(id: string, data: UpdateOrderDto, staffId: string, user?: AccessUser): Promise<any> {
-    return this.command.updateOrder(id, data, staffId, user);
+    return this.updateService.updateOrder(id, data, staffId, user);
   }
 
   listPaymentIntents(id: string, user?: AccessUser) {

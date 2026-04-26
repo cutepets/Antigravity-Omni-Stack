@@ -11,7 +11,7 @@ import { OrderItemService } from './domain/order-item.service.js';
 import { OrderNumberingService } from './domain/order-numbering.service.js';
 import { OrderPaymentHelperService } from './domain/order-payment-helper.service.js';
 import { OrderCatalogService } from './application/order-catalog.service.js';
-import { OrderCommandService } from './application/order-command.service.js';
+import { OrderCreateService } from './application/order-create.service.js';
 import { OrderDeletionService } from './application/order-deletion.service.js';
 import { OrderInventoryService } from './application/order-inventory.service.js';
 import { OrderLifecycleService } from './application/order-lifecycle.service.js';
@@ -22,6 +22,7 @@ import { OrderReturnService } from './application/order-return.service.js';
 import { OrderServiceSyncService } from './application/order-service-sync.service.js';
 import { OrderSwapService } from './application/order-swap.service.js';
 import { OrderTimelineService } from './application/order-timeline.service.js';
+import { OrderUpdateService } from './application/order-update.service.js';
 
 @Module({
   imports: [DatabaseModule],
@@ -34,9 +35,10 @@ import { OrderTimelineService } from './application/order-timeline.service.js';
     OrderNumberingService,
     OrderItemService,
     OrderPaymentHelperService,
-    OrderCommandService,
     OrderCatalogService,
     OrderQueryService,
+    OrderCreateService,
+    OrderUpdateService,
     OrderPaymentService,
     OrderPaymentIntentService,
     OrderLifecycleService,

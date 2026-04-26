@@ -117,6 +117,19 @@
     /* Clean subtle border */
   }
 
+  /* Dark-theme overrides for native browser inputs */
+  .dark input[type="date"],
+  .dark input[type="time"],
+  .dark input[type="datetime-local"],
+  .dark select {
+    color-scheme: dark;
+  }
+
+  .dark select option {
+    background-color: hsl(222 47% 16%);
+    color: hsl(210 40% 98%);
+  }
+
   /* ── POS Isolated Theme ─────────────────────────────────────────────────────
      Applied via data-pos-theme="dark|light" on <body> when user is on /pos.
      IMPORTANT: Tailwind v4 @theme resolves hsl(var(--bg)) into static values on :root.
@@ -375,7 +388,7 @@
   }
 
   .text-gradient {
-    @apply bg-gradient-to-r from-primary-400 to-accent-400 bg-clip-text text-transparent;
+    @apply bg-linear-to-r from-primary-400 to-accent-400 bg-clip-text text-transparent;
   }
 
   .glow-primary {

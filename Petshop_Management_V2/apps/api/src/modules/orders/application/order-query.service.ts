@@ -25,7 +25,7 @@ type OrderListParams = {
 export class OrderQueryService {
   constructor(
     private readonly prisma: DatabaseService,
-    private readonly accessService: OrderAccessService = new OrderAccessService(),
+    private readonly accessService: OrderAccessService,
   ) { }
 
   private getAuthorizedBranchIds(user?: AccessUser): string[] {
