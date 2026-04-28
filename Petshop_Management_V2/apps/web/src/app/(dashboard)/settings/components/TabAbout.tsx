@@ -44,6 +44,15 @@ type ChangeLogEntry = {
 
 const CHANGELOG: ChangeLogEntry[] = [
   {
+    version: '2.5.1',
+    date: '2026-04-28',
+    changes: [
+      'Hoàn thiện Docker production build cho Prisma/pnpm 10',
+      'Giảm Docker build context bằng cách loại artifacts build/cache',
+      'Mount riêng uploads và private storage để giữ ảnh/tài liệu sau recreate container',
+    ],
+  },
+  {
     version: '2.5.0',
     date: '2026-04-26',
     changes: [

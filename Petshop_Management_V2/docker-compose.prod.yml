@@ -60,10 +60,14 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-petshop}:${POSTGRES_PASSWORD:-petshop_secret}@postgres:5432/${POSTGRES_DB:-petshop_db}
       REDIS_URL: redis://redis:6379
       API_PORT: 3001
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://app.petshophanoi.com},http://localhost:3002,http://127.0.0.1:3002
+      UPLOAD_DIR: ${UPLOAD_DIR:-./uploads}
+      PRIVATE_UPLOAD_DIR: ${PRIVATE_UPLOAD_DIR:-./storage/private}
     ports:
       - "127.0.0.1:3003:3001"
     volumes:
       - uploads_data:/app/uploads
+      - private_storage_data:/app/storage/private
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,7 +83,8 @@ services:
       dockerfile: Dockerfile
       target: web-runner
       args:
-        NEXT_PUBLIC_API_URL: https://app.petshophanoi.com
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+        INTERNAL_API_URL: ${INTERNAL_API_URL:-http://api:3001}
     container_name: petshop_web
     restart: unless-stopped
     environment:
@@ -97,6 +102,7 @@ volumes:
   postgres_data:
   redis_data:
   uploads_data:
+  private_storage_data:
 
 
 networks:

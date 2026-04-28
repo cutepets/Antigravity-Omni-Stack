@@ -21,7 +21,7 @@ COPY packages/shared/package.json ./packages/shared/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY packages/api-client/package.json ./packages/api-client/package.json
 COPY packages/dataloader/package.json ./packages/dataloader/package.json
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 # ── Stage 3: Source ──────────────────────────────────────────
 FROM deps AS source
@@ -48,9 +48,12 @@ RUN pnpm --filter @petshop/api build
 FROM prisma AS build-web
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS="--max-old-space-size=4096"
-# Build-time env vars (will be overridden at runtime via .env)
-ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+# Build-time env vars. By default browser calls use same-origin /api,
+# and Next rewrites proxy those calls to the API container.
+ARG NEXT_PUBLIC_API_URL=
+ARG INTERNAL_API_URL=http://api:3001
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV INTERNAL_API_URL=${INTERNAL_API_URL}
 RUN pnpm --filter @petshop/shared build 2>/dev/null || true
 RUN pnpm --filter @petshop/auth build 2>/dev/null || true
 RUN pnpm --filter @petshop/ui build 2>/dev/null || true
@@ -79,8 +82,8 @@ COPY --from=build-api /app/packages ./packages
 # Copy Prisma schema for migrations
 COPY --from=prisma /app/packages/database/prisma ./packages/database/prisma
 
-# Create uploads directory
-RUN mkdir -p /app/uploads
+# Create runtime storage directories
+RUN mkdir -p /app/uploads /app/storage/private
 
 EXPOSE 3001
 CMD ["node", "apps/api/dist/apps/api/src/main.js"]

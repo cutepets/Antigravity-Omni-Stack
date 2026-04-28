@@ -125,11 +125,11 @@ export function UnifiedHotelPricingPanel({
                   className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-background-base px-3 text-xs font-semibold text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground"
                 >
                   <Download size={14} />
-                  Xuất Excel
+                  <span>Backup Excel</span>
                 </button>
                 <label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/10">
                   <Upload size={14} />
-                  Nhập Excel
+                  <span>Cap nhat tu Excel</span>
                   <input
                     type="file"
                     accept=".xlsx,.xls"

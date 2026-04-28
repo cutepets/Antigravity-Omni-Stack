@@ -8,6 +8,7 @@ import {
   pricingApi,
   type HolidayCalendarDate,
   type HotelRulePayload,
+  type PricingImportDetail,
   type PricingServiceType,
 } from '@/lib/api/pricing.api'
 import { useAuthorization } from '@/hooks/useAuthorization'
@@ -65,6 +66,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const [editingHolidayId, setEditingHolidayId] = useState<string | null>(null)
   const [isSavingGrooming, setIsSavingGrooming] = useState(false)
   const [isSavingHotel, setIsSavingHotel] = useState(false)
+  const [importDetails, setImportDetails] = useState<PricingImportDetail[]>([])
 
   const canManagePricing = mode === 'HOTEL'
     ? hasAnyPermission(['hotel.update', 'settings.pricing_policy.manage'])
@@ -703,28 +705,76 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     try {
       const exportType = mode === 'GROOMING' ? 'grooming' : mode === 'HOTEL' ? 'hotel' : 'all'
       await pricingApi.exportExcel(exportType as any)
-      toast.success('Đã tải xuống file Excel bảng giá')
+      toast.success('Da tai file backup Excel bang gia')
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Không tải được file Excel')
     }
   }
 
   const handleImportExcel = async (file: File) => {
+    const confirmed = window.confirm('Import se cap nhat bang gia tu file Excel. He thong se tu backup du lieu hien tai truoc khi import. Tiep tuc?')
+    if (!confirmed) return
     try {
       const result = await pricingApi.importExcel(file)
-      if (result.errors.length > 0) {
-        toast.error(`Có lỗi: ${result.errors.join(', ')}`)
+      setImportDetails(result.details ?? [])
+      const errorCount = result.summary?.errors ?? result.errors.length
+      const importedCount = result.summary?.imported ?? result.imported
+      if (errorCount > 0) {
+        toast.error(`Import co ${errorCount} loi, da xu ly ${importedCount} dong. Xem chi tiet trong bang loi.`)
       } else {
-        toast.success(`Đã nhập ${result.imported} dòng giá từ Excel`)
+        toast.success(`Da cap nhat ${importedCount} dong bang gia tu Excel`)
       }
       invalidatePricing()
+      return
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Không nhập được file Excel')
     }
   }
 
+  const importDetailText = importDetails
+    .map((detail) => [
+      detail.sheet,
+      detail.row ? `dong ${detail.row}` : '',
+      detail.imported !== undefined ? `imported ${detail.imported}` : '',
+      detail.message ?? '',
+    ].filter(Boolean).join(' - '))
+    .join('\n')
+
   return (
     <div className="flex flex-col gap-4 p-4">
+      {importDetails.length > 0 ? (
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-100">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="font-bold">Chi tiet import Excel</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(importDetailText)}
+                className="rounded-lg border border-amber-400/30 px-2 py-1 text-xs font-semibold text-amber-100 transition-colors hover:bg-amber-400/10"
+              >
+                Copy loi
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportDetails([])}
+                className="rounded-lg border border-amber-400/30 px-2 py-1 text-xs font-semibold text-amber-100 transition-colors hover:bg-amber-400/10"
+              >
+                Dong
+              </button>
+            </div>
+          </div>
+          <div className="max-h-48 overflow-auto rounded-xl border border-amber-400/20 bg-background-base/80">
+            {importDetails.map((detail, index) => (
+              <div key={`${detail.sheet}:${detail.row ?? index}:${index}`} className="border-b border-amber-400/10 px-3 py-2 last:border-b-0">
+                <span className="font-semibold">{detail.sheet}</span>
+                {detail.row ? <span> dong {detail.row}</span> : null}
+                {detail.imported !== undefined ? <span> - da xu ly {detail.imported}</span> : null}
+                {detail.message ? <span> - {detail.message}</span> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <section className="grid gap-4">
         {mode === 'GROOMING' ? (
           <div className="flex flex-col gap-4">

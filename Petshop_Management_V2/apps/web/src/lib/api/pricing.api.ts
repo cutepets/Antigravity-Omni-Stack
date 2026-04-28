@@ -109,6 +109,24 @@ export interface HotelExtraServicePayload {
   price: number
 }
 
+export interface PricingImportDetail {
+  sheet: string
+  row?: number
+  imported?: number
+  errors?: number
+  message?: string
+}
+
+export interface PricingImportResult {
+  imported: number
+  errors: string[]
+  summary?: {
+    imported: number
+    errors: number
+  }
+  details?: PricingImportDetail[]
+}
+
 export const pricingApi = {
   getWeightBands: (params: { serviceType: PricingServiceType; species?: string; isActive?: boolean }) =>
     api.get<ServiceWeightBand[]>('/pricing/weight-bands', { params }).then((res) => res.data),
@@ -225,7 +243,7 @@ export const pricingApi = {
     const formData = new FormData()
     formData.append('file', file)
     return api
-      .post<{ imported: number; errors: string[] }>('/pricing/import/xlsx', formData, {
+      .post<PricingImportResult>('/pricing/import/xlsx', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       .then((res) => res.data)

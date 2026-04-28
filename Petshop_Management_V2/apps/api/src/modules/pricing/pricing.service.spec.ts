@@ -36,78 +36,6 @@ describe('PricingService Excel grooming pricing', () => {
     service = new PricingService(db)
   })
 
-  it('exports grooming durations for each weight band', async () => {
-    const ExcelJS = await import('exceljs')
-    const bands = [
-      { id: 'band-small', serviceType: 'GROOMING', label: 'Dưới 1,5kg', minWeight: 0, maxWeight: 1.5, sortOrder: 0, isActive: true },
-      { id: 'band-medium', serviceType: 'GROOMING', label: '1,5 - 3kg', minWeight: 1.5, maxWeight: 3, sortOrder: 1, isActive: true },
-    ]
-    db.serviceWeightBand.findMany
-      .mockResolvedValueOnce(bands)
-      .mockResolvedValueOnce(bands)
-    db.spaPriceRule.findMany.mockResolvedValue([
-      { packageCode: 'Chỉ tắm', label: 'Chỉ tắm', weightBandId: 'band-small', price: 50000, durationMinutes: 20 },
-      { packageCode: 'Chỉ tắm', label: 'Chỉ tắm', weightBandId: 'band-medium', price: 70000, durationMinutes: 35 },
-    ])
-
-    const buffer = await service.exportToExcel('grooming')
-    const workbook = new ExcelJS.default.Workbook()
-    await workbook.xlsx.load(buffer as any)
-    const sheet = workbook.getWorksheet('Grooming')!
-
-    expect(sheet.getRow(1).values).toEqual([
-      undefined,
-      'Gói dịch vụ',
-      'Tên hiển thị',
-      'Dưới 1,5kg',
-      'Dưới 1,5kg - Thời lượng (phút)',
-      '1,5 - 3kg',
-      '1,5 - 3kg - Thời lượng (phút)',
-    ])
-    expect(sheet.getRow(2).values).toEqual([
-      undefined,
-      'Chỉ tắm',
-      'Chỉ tắm',
-      50000,
-      20,
-      70000,
-      35,
-    ])
-  })
-
-  it('imports grooming durations from each weight band column pair', async () => {
-    const ExcelJS = await import('exceljs')
-    const bands = [
-      { id: 'band-small', serviceType: 'GROOMING', label: 'Dưới 1,5kg', isActive: true },
-      { id: 'band-medium', serviceType: 'GROOMING', label: '1,5 - 3kg', isActive: true },
-    ]
-    db.serviceWeightBand.findMany.mockResolvedValue(bands)
-    const bulkUpsertSpaRules = jest.spyOn(service, 'bulkUpsertSpaRules').mockResolvedValue([] as any)
-
-    const workbook = new ExcelJS.default.Workbook()
-    const sheet = workbook.addWorksheet('Grooming')
-    sheet.addRow([
-      'Gói dịch vụ',
-      'Tên hiển thị',
-      'Dưới 1,5kg',
-      'Dưới 1,5kg - Thời lượng (phút)',
-      '1,5 - 3kg',
-      '1,5 - 3kg - Thời lượng (phút)',
-    ])
-    sheet.addRow(['Chỉ tắm', 'Chỉ tắm', 50000, 20, 70000, 35])
-    const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
-
-    const result = await service.importFromExcel(buffer)
-
-    expect(result).toEqual({ imported: 2, errors: [] })
-    expect(bulkUpsertSpaRules).toHaveBeenCalledWith({
-      rules: [
-        expect.objectContaining({ packageCode: 'Chỉ tắm', weightBandId: 'band-small', price: 50000, durationMinutes: 20 }),
-        expect.objectContaining({ packageCode: 'Chỉ tắm', weightBandId: 'band-medium', price: 70000, durationMinutes: 35 }),
-      ],
-    })
-  })
-
   it('hides legacy technical spa rules when custom named rules exist in the same band', async () => {
     const legacyRule = {
       id: 'legacy-bath',
@@ -345,5 +273,97 @@ describe('PricingService Excel grooming pricing', () => {
       'imageUrl',
       'isActive',
     ])
+  })
+
+  it('exports only the backup workbook sheets and includes README guidance', async () => {
+    const ExcelJS = await import('exceljs')
+    db.serviceWeightBand.findMany.mockResolvedValue([])
+    db.spaPriceRule.findMany.mockResolvedValue([])
+    db.hotelPriceRule.findMany.mockResolvedValue([])
+    db.holidayCalendarDate.findMany.mockResolvedValue([])
+    db.systemConfig.findFirst.mockResolvedValue(null)
+    db.$queryRawUnsafe.mockResolvedValue([])
+
+    const buffer = await service.exportToExcel('all')
+    const workbook = new ExcelJS.default.Workbook()
+    await workbook.xlsx.load(buffer as any)
+
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([
+      'README',
+      'Grooming Matrix',
+      'Grooming Other',
+      'Hotel Matrix',
+      'Hotel Extra',
+      'Weight Bands',
+      'Holidays',
+      'Service Images',
+    ])
+    expect(workbook.getWorksheet('Grooming')).toBeUndefined()
+    expect(workbook.getWorksheet('Hotel')).toBeUndefined()
+    expect(String(workbook.getWorksheet('README')!.getRow(2).getCell(1).value)).toContain('backup')
+  })
+
+  it('imports backup workbook rows by stable signatures when ids are blank', async () => {
+    const ExcelJS = await import('exceljs')
+    const existingBand = {
+      id: 'band-existing',
+      serviceType: 'GROOMING',
+      species: 'Cho',
+      label: 'Duoi 3kg',
+      minWeight: 0,
+      maxWeight: 3,
+      sortOrder: 0,
+      isActive: true,
+    }
+    db.serviceWeightBand.findMany.mockResolvedValue([existingBand])
+    jest.spyOn(service, 'upsertWeightBand').mockResolvedValue(existingBand as any)
+    const bulkUpsertSpaRules = jest.spyOn(service, 'bulkUpsertSpaRules').mockResolvedValue([] as any)
+    jest.spyOn(service, 'bulkUpdateSpaServiceImages').mockResolvedValue([] as any)
+    jest.spyOn(service, 'bulkUpdateHotelServiceImages').mockResolvedValue([] as any)
+    jest.spyOn(service, 'createHoliday').mockResolvedValue({} as any)
+    jest.spyOn(service, 'createPricingBackupSnapshot').mockResolvedValue({ createdAt: 'backup' } as any)
+
+    const workbook = new ExcelJS.default.Workbook()
+    const bands = workbook.addWorksheet('Weight Bands')
+    bands.addRow(['id', 'serviceType', 'species', 'label', 'minWeight', 'maxWeight', 'sortOrder', 'isActive'])
+    bands.addRow(['', 'GROOMING', 'Cho', 'Duoi 3kg', 0, 3, 0, true])
+    const grooming = workbook.addWorksheet('Grooming Matrix')
+    grooming.addRow(['id', 'species', 'packageCode', 'label', 'weightBandId', 'weightBandLabel', 'minWeight', 'maxWeight', 'sku', 'price', 'durationMinutes', 'imageUrl', 'isActive'])
+    grooming.addRow(['', 'Cho', 'Tam', 'Tam', '', 'Duoi 3kg', 0, 3, 'SPA001', 120000, 45, '/uploads/tam.jpg', true])
+
+    const result = await service.importFromExcel(Buffer.from(await workbook.xlsx.writeBuffer()))
+
+    expect(result.errors).toEqual([])
+    expect((result as any).details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sheet: 'Weight Bands', imported: 1 }),
+      expect.objectContaining({ sheet: 'Grooming Matrix', imported: 1 }),
+    ]))
+    expect((result as any).summary).toEqual(expect.objectContaining({ imported: expect.any(Number), errors: 0 }))
+    expect(bulkUpsertSpaRules).toHaveBeenCalledWith({
+      rules: [expect.objectContaining({ weightBandId: 'band-existing', sku: 'SPA001', price: 120000, durationMinutes: 45 })],
+    })
+  })
+
+  it('reports structured row errors when a price row cannot resolve its weight band', async () => {
+    const ExcelJS = await import('exceljs')
+    db.serviceWeightBand.findMany.mockResolvedValue([])
+    jest.spyOn(service, 'createPricingBackupSnapshot').mockResolvedValue({ createdAt: 'backup' } as any)
+
+    const workbook = new ExcelJS.default.Workbook()
+    const grooming = workbook.addWorksheet('Grooming Matrix')
+    grooming.addRow(['id', 'species', 'packageCode', 'label', 'weightBandId', 'weightBandLabel', 'minWeight', 'maxWeight', 'sku', 'price', 'durationMinutes', 'imageUrl', 'isActive'])
+    grooming.addRow(['', 'Cho', 'Tam', 'Tam', '', 'Khong co', 0, 3, 'SPA001', 120000, 45, '', true])
+
+    const result = await service.importFromExcel(Buffer.from(await workbook.xlsx.writeBuffer()))
+
+    expect(result.imported).toBe(0)
+    expect(result.errors).toHaveLength(1)
+    expect((result as any).details).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sheet: 'Grooming Matrix',
+        row: 2,
+        message: expect.stringContaining('Khong tim thay hang can'),
+      }),
+    ]))
   })
 })

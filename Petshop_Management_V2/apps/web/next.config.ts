@@ -19,8 +19,16 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
+    const apiUrl = (
+      process.env['INTERNAL_API_URL'] ||
+      process.env['NEXT_PUBLIC_API_URL'] ||
+      'http://localhost:3001'
+    ).replace(/\/+$/, '')
     return [
+      {
+        source: '/api/:path*',
+        destination: `${apiUrl}/api/:path*`,
+      },
       {
         source: '/uploads/:path*',
         destination: `${apiUrl}/uploads/:path*` // proxy to API server

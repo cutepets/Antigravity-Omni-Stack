@@ -3,7 +3,7 @@ import type { LoginResponse } from '@petshop/shared'
 import { clearAuthSessionCookie, setAuthSessionCookie } from '@/lib/auth-session-cookie'
 import { useAuthStore } from '@/stores/auth.store'
 
-export const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
+export const API_URL = process.env['NEXT_PUBLIC_API_URL']?.replace(/\/+$/, '') ?? ''
 
 export const api = axios.create({
   baseURL: `${API_URL}/api`,
