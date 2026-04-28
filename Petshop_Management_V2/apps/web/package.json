@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
-    "type-check": "next build",
-    "ui:editor": "react-rewrite 3000"
+    "type-check": "tsc --noEmit",
+    "ui:editor": "node ../../scripts/react-rewrite-workspace.mjs 3000"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.3",

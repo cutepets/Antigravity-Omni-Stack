@@ -23,7 +23,7 @@ export function PayrollSlipDetail({ slipId, open, onOpenChange }: PayrollSlipDet
     if (!open) return null
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/50" onPointerDown={() => onOpenChange(false)}>
+        <div className="fixed inset-0 z-50 flex items-start justify-end app-modal-overlay" onPointerDown={() => onOpenChange(false)}>
             <div
                 className="h-full w-full max-w-xl overflow-y-auto bg-background shadow-2xl animate-in slide-in-from-right"
                 onPointerDown={(e) => e.stopPropagation()}

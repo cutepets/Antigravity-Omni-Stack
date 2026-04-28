@@ -7,18 +7,26 @@ interface PageContainerProps {
   children: ReactNode
   className?: string
   maxWidth?: 'lg' | 'xl' | '2xl' | 'full'
+  variant?: 'default' | 'data-list'
 }
 
 const maxWidthMap = {
-  lg: 'max-w-[1024px]',
-  xl: 'max-w-[1280px]',
-  '2xl': 'max-w-[1400px]',
+  lg: 'w-full max-w-[1024px]',
+  xl: 'w-full max-w-[1280px]',
+  '2xl': 'w-full max-w-[1400px]',
   full: 'w-full'
 }
 
-export function PageContainer({ children, className, maxWidth = '2xl' }: PageContainerProps) {
+export function PageContainer({ children, className, maxWidth = 'full', variant = 'default' }: PageContainerProps) {
   return (
-    <div className={cn("flex flex-col gap-6 w-full mx-auto py-8 px-6 lg:px-8 bg-background-base min-h-full", maxWidthMap[maxWidth], className)}>
+    <div
+      className={cn(
+        "flex min-h-full w-full flex-col gap-4",
+        maxWidthMap[maxWidth],
+        variant === 'data-list' && 'h-full min-h-0 gap-0 overflow-hidden py-0',
+        className,
+      )}
+    >
       {children}
     </div>
   )

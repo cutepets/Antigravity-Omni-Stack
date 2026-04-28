@@ -28,6 +28,7 @@ export type FlatRateDraft = {
   key: string
   id?: string
   sku: string
+  imageUrl?: string | null
   name: string
   minWeight: string
   maxWeight: string
@@ -38,6 +39,7 @@ export type FlatRateDraft = {
 export type HotelExtraServiceDraft = {
   key: string
   sku: string
+  imageUrl?: string | null
   name: string
   minWeight: string
   maxWeight: string

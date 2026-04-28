@@ -41,6 +41,8 @@ Thumbs.db
 # AI/Agent
 .gitnexus/
 .reports/
+.backups/
+packages/.backups/
 .codex-logs/
 check-*.js
 debug-*.js

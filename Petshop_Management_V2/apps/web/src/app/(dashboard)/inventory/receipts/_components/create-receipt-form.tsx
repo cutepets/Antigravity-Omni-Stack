@@ -589,7 +589,7 @@ export function CreateReceiptForm({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border bg-background/80 px-4 py-2.5 flex flex-col justify-center">
+          <div className="rounded-2xl border border-border bg-black/20 px-4 py-2.5 flex flex-col justify-center">
             <div className="grid gap-2.5 md:grid-cols-[minmax(0,1fr)_220px]">
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -634,7 +634,7 @@ export function CreateReceiptForm({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border bg-background/80 px-5 py-3">
+          <div className="rounded-2xl border border-border bg-black/20 px-5 py-3">
             <div className="hidden mb-2 items-center justify-between text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">
               <span>Tiến trình đơn nhập</span>
               <span>Giai đoạn 1/4</span>
@@ -678,9 +678,9 @@ export function CreateReceiptForm({
 
           </div>
 
-          <div className="flex min-w-[176px] flex-col gap-1.5 xl:items-end xl:justify-center">
+          <div className="flex min-w-[176px] flex-col items-center justify-center gap-1.5">
 
-            <div className="flex flex-col gap-1.5 xl:items-end">
+            <div className="flex flex-col items-center gap-1.5">
               {isCreateMode ? (
                 <button
                   type="button"
@@ -742,10 +742,10 @@ export function CreateReceiptForm({
       </div>
 
       {/* ── SEARCH BAR + MAIN BODY IN ONE BLOCK ───────────────────────────── */}
-      <div className="m-4 mt-2 mb-4 flex flex-1 flex-col overflow-hidden rounded-[26px] border border-border bg-background-secondary/35 shadow-sm">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 
         {/* ─── TOP BAR ─────────────────────────────────────────────────────────── */}
-        <div className="flex shrink-0 items-center gap-3 border-b border-border/60 bg-background/50 px-4 py-2.5">
+        <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-7 py-3">
           {/* Search bar */}
           <div ref={searchPanelRef} className="relative max-w-lg flex-1">
             <Search

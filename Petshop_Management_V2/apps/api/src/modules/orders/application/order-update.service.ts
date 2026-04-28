@@ -202,7 +202,6 @@ export class OrderUpdateService {
           checkInDate,
           checkOutDate,
           totalPrice,
-          totalDays,
           displayLineType,
           pricingSnapshot,
           breakdownSnapshot,
@@ -210,6 +209,7 @@ export class OrderUpdateService {
         const existingStayId = sortedGroupItems.find((entry) => entry.existingStayId)?.existingStayId ?? null;
         const branch = await resolveBranchIdentity(tx as any, firstDetails.branchId ?? data.branchId ?? null);
         const pet = await tx.pet.findUnique({ where: { id: firstDetails.petId } });
+        const checkInNow = sortedGroupItems.some((entry) => entry.item.hotelDetails?.checkInNow === true);
         const stayPayload = {
           petId: firstDetails.petId,
           petName: pet?.name ?? '',
@@ -225,12 +225,12 @@ export class OrderUpdateService {
           promotion: firstDetails.promotion ?? 0,
           surcharge: firstDetails.surcharge ?? 0,
           totalPrice,
-          totalDays,
           rateTableId: firstDetails.rateTableId ?? null,
           notes: firstDetails.notes ?? null,
           orderId: id,
           pricingSnapshot: pricingSnapshot as any,
           breakdownSnapshot: breakdownSnapshot as any,
+          ...(checkInNow ? { status: 'CHECKED_IN' as const, checkedInAt: new Date() } : {}),
         };
 
         let stayId = existingStayId;
@@ -267,7 +267,7 @@ export class OrderUpdateService {
             data: {
               stayCode,
               ...stayPayload,
-              status: 'BOOKED',
+              status: checkInNow ? 'CHECKED_IN' : 'BOOKED',
               paymentStatus: 'UNPAID',
             } as any,
           });

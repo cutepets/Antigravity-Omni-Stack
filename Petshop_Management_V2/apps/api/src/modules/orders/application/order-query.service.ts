@@ -55,11 +55,21 @@ export class OrderQueryService {
           include: {
             product: {
               include: {
-                variants: { where: { isActive: true, deletedAt: null } },
+                branchStocks: { include: { branch: { select: { id: true, name: true, code: true } } } },
+                variants: {
+                  where: { isActive: true, deletedAt: null },
+                  include: {
+                    branchStocks: { include: { branch: { select: { id: true, name: true, code: true } } } },
+                  },
+                },
               },
             },
             service: true,
-            productVariant: true,
+            productVariant: {
+              include: {
+                branchStocks: { include: { branch: { select: { id: true, name: true, code: true } } } },
+              },
+            },
             serviceVariant: true,
             hotelStay: true,
           },
@@ -117,6 +127,7 @@ export class OrderQueryService {
         where,
         include: {
           customer: true,
+          branch: { select: { id: true, name: true, code: true } },
           staff: { select: { id: true, fullName: true } },
           items: { include: { product: true, service: true } },
           payments: true,
@@ -150,8 +161,22 @@ export class OrderQueryService {
         staff: { select: { id: true, fullName: true } },
         items: {
           include: {
-            product: true,
-            productVariant: true,
+            product: {
+              include: {
+                branchStocks: { include: { branch: { select: { id: true, name: true, code: true } } } },
+                variants: {
+                  where: { isActive: true, deletedAt: null },
+                  include: {
+                    branchStocks: { include: { branch: { select: { id: true, name: true, code: true } } } },
+                  },
+                },
+              },
+            },
+            productVariant: {
+              include: {
+                branchStocks: { include: { branch: { select: { id: true, name: true, code: true } } } },
+              },
+            },
             service: true,
             serviceVariant: true,
             hotelStay: true,

@@ -21,13 +21,13 @@ interface ProductExcelModalProps {
 const MODE_OPTIONS: Array<{ value: ProductImportMode; label: string; description: string }> = [
   {
     value: 'update',
-    label: 'Cap nhat theo SKU',
-    description: 'So khop theo SKU de cap nhat du lieu hien co. O trong se duoc bo qua.',
+    label: 'Cập nhật theo SKU',
+    description: 'So khớp theo SKU để cập nhật dữ liệu hiện có. Ô trống sẽ được bỏ qua.',
   },
   {
     value: 'create',
-    label: 'Them moi',
-    description: 'Tao moi theo Ma nhom SP va SKU dong. SKU da ton tai se bi bao loi va bo qua.',
+    label: 'Thêm mới',
+    description: 'Tạo mới theo Mã nhóm SP và SKU dòng. SKU đã tồn tại sẽ bị báo lỗi và bỏ qua.',
   },
 ]
 
@@ -115,7 +115,7 @@ export function ProductExcelModal({ isOpen, onClose, onSuccess }: ProductExcelMo
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center app-modal-overlay px-4 py-6">
       <div className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-border bg-background shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
           <div>
@@ -142,7 +142,7 @@ export function ProductExcelModal({ isOpen, onClose, onSuccess }: ProductExcelMo
         <div className="grid min-h-0 flex-1 gap-6 overflow-hidden px-6 py-5 lg:grid-cols-[340px_minmax(0,1fr)]">
           <div className="space-y-4">
             <div className="rounded-2xl border border-border bg-background-secondary/20 p-4">
-              <div className="text-xs font-bold uppercase tracking-[0.18em] text-foreground-muted">Buoc 1</div>
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-foreground-muted">Bước 1</div>
               <div className="mt-3 space-y-3">
                 {MODE_OPTIONS.map((option) => (
                   <button
@@ -168,7 +168,7 @@ export function ProductExcelModal({ isOpen, onClose, onSuccess }: ProductExcelMo
             </div>
 
             <div className="rounded-2xl border border-border bg-background-secondary/20 p-4">
-              <div className="text-xs font-bold uppercase tracking-[0.18em] text-foreground-muted">Buoc 2</div>
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-foreground-muted">Bước 2</div>
               <div
                 onDragOver={(event) => {
                   event.preventDefault()
@@ -233,19 +233,19 @@ export function ProductExcelModal({ isOpen, onClose, onSuccess }: ProductExcelMo
 
           <div className="min-h-0 overflow-hidden rounded-2xl border border-border bg-background-secondary/10">
             <div className="border-b border-border px-5 py-4">
-              <div className="text-xs font-bold uppercase tracking-[0.18em] text-foreground-muted">Buoc 3</div>
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-foreground-muted">Bước 3</div>
               <div className="mt-2 flex flex-wrap items-center gap-4 text-sm">
                 <div className="rounded-xl bg-background px-3 py-2 text-foreground">
-                  Tong dong: <span className="font-semibold">{preview?.summary.totalRows ?? parsedFile?.rows.length ?? 0}</span>
+                  Tổng dòng: <span className="font-semibold">{preview?.summary.totalRows ?? parsedFile?.rows.length ?? 0}</span>
                 </div>
                 <div className="rounded-xl bg-background px-3 py-2 text-foreground">
-                  Hop le: <span className="font-semibold text-emerald-500">{preview?.summary.validRows ?? 0}</span>
+                  Hợp lệ: <span className="font-semibold text-emerald-500">{preview?.summary.validRows ?? 0}</span>
                 </div>
                 <div className="rounded-xl bg-background px-3 py-2 text-foreground">
-                  Bo qua: <span className="font-semibold text-amber-500">{preview?.summary.skippedRows ?? 0}</span>
+                  Bỏ qua: <span className="font-semibold text-amber-500">{preview?.summary.skippedRows ?? 0}</span>
                 </div>
                 <div className="rounded-xl bg-background px-3 py-2 text-foreground">
-                  Loi: <span className="font-semibold text-red-500">{preview?.summary.errorCount ?? 0}</span>
+                  Lỗi: <span className="font-semibold text-red-500">{preview?.summary.errorCount ?? 0}</span>
                 </div>
               </div>
             </div>
@@ -291,11 +291,11 @@ export function ProductExcelModal({ isOpen, onClose, onSuccess }: ProductExcelMo
                                     : 'bg-amber-500/10 text-amber-500'
                                 }`}
                               >
-                                {item.action === 'create' ? 'Tao moi' : item.action === 'update' ? 'Cap nhat' : 'Bo qua'}
+                                {item.action === 'create' ? 'Tạo mới' : item.action === 'update' ? 'Cập nhật' : 'Bỏ qua'}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-xs leading-5 text-foreground-muted">
-                              {item.messages.length > 0 ? item.messages.join(' ') : 'Hop le.'}
+                              {item.messages.length > 0 ? item.messages.join(' ') : 'Hợp lệ.'}
                             </td>
                           </tr>
                         ))}

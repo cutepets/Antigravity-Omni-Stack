@@ -160,7 +160,7 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" />
+      <div className="fixed inset-0 app-modal-overlay" />
 
       <div className="card p-0 relative w-full flex flex-col max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
 
@@ -392,4 +392,3 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
     </div>
   )
 }
-

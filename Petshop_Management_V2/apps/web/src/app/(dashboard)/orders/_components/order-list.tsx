@@ -44,7 +44,7 @@ import {
   filterSelectClass,
   useDataListCore,
   useDataListSelection,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 
 // ── Types & Constants ────────────────────────────────────────────────────────
 type DisplayColumnId = 'code' | 'customer' | 'customerPhone' | 'items' | 'discount' | 'shippingFee' | 'total' | 'customerPaid' | 'payment' | 'status' | 'orderStatus' | 'stockStatus' | 'linkedCodes' | 'note' | 'branch' | 'creator' | 'created' | 'updated'
@@ -258,19 +258,6 @@ export function OrderList() {
     onError: () => toast.error('Lỗi khi export'),
   })
 
-  const deleteOrderMutation = useMutation({
-    mutationFn: (orderId: string) => orderApi.delete(orderId),
-    onSuccess: (result: any) => {
-      const deletedCount = Array.isArray(result?.deletedIds) ? result.deletedIds.length : 1
-      toast.success(`Đã xóa ${deletedCount} đơn hàng`)
-      queryClient.invalidateQueries({ queryKey: ['orders'] })
-      clearSelection()
-    },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Không thể xóa đơn hàng')
-    },
-  })
-
   const bulkDeleteOrdersMutation = useMutation({
     mutationFn: (ids: string[]) => orderApi.bulkDelete(ids),
     onSuccess: (result) => {
@@ -450,6 +437,26 @@ export function OrderList() {
         emptyText="Không tìm thấy đơn hàng nào phù hợp."
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
+        footer={
+          <DataListPagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            total={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[20, 50, 100]}
+            attachedToTable
+            totalItemText={
+              <p className="shrink-0 text-xs text-foreground-muted">
+                Tổng <strong className="text-foreground">{total}</strong> đơn hàng
+                {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
+              </p>
+            }
+          />
+        }
         bulkBar={
           selectedRowIds.size > 0 ? (
             <DataListBulkBar
@@ -491,7 +498,10 @@ export function OrderList() {
               onClick={() => router.push(`/orders/${o.orderNumber}`)}
               className={`border-b border-border/50 cursor-pointer transition-colors hover:bg-background-secondary/40 ${isSelected ? 'bg-primary-500/5' : ''}`}
             >
-              <td className="w-12 px-3 py-3">
+              <td
+                className="w-12 px-3 py-3"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <TableCheckbox
                   checked={isSelected}
                   onCheckedChange={(checked, shiftKey) => toggleRowSelection(rowId, shiftKey)}
@@ -507,23 +517,6 @@ export function OrderList() {
                         >
                           {o.orderNumber || '--'}
                         </span>
-                        {canDeleteOrders ? (
-                          <button
-                            type="button"
-                            title="Xóa vĩnh viễn đơn hàng"
-                            aria-label={`Xóa vĩnh viễn đơn ${o.orderNumber || o.id}`}
-                            disabled={deleteOrderMutation.isPending}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              if (window.confirm(`Xóa vĩnh viễn đơn ${o.orderNumber || o.id} và toàn bộ chứng từ liên quan?`)) {
-                                deleteOrderMutation.mutate(o.id)
-                              }
-                            }}
-                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        ) : null}
                       </div>
                     </td>
                   );
@@ -701,24 +694,6 @@ export function OrderList() {
           )
         })}
       </DataListTable>
-
-      <DataListPagination
-        page={page}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        total={total}
-        rangeStart={rangeStart}
-        rangeEnd={rangeEnd}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        pageSizeOptions={[20, 50, 100]}
-        totalItemText={
-          <p className="shrink-0 text-xs text-foreground-muted">
-            Tổng <strong className="text-foreground">{total}</strong> đơn hàng
-            {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
-          </p>
-        }
-      />
     </DataListShell>
   )
 }

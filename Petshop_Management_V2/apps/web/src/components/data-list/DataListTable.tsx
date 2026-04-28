@@ -43,25 +43,25 @@ export function DataListTable({
   const colSpan = columns.length + 1 // +1 for checkbox col
 
   return (
-    <div className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card/95 shadow-sm ${className ?? ''}`}>
+    <div className={`flex min-h-0 grow-0 flex-col overflow-hidden rounded-2xl border border-border bg-background-secondary shadow-sm ${className ?? ''}`}>
       {/* Scrollable table area */}
-      <div className="custom-scrollbar min-h-0 flex-1 overflow-auto">
-        <table className="w-full min-w-[1040px]">
-          <thead className="sticky top-0 z-20 bg-background-secondary/95 backdrop-blur">
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-auto bg-background-secondary">
+        <table className="w-full min-w-[1040px] border-separate border-spacing-0">
+          <thead className="sticky top-0 z-20 bg-background-tertiary shadow-[0_1px_0_var(--color-border),0_8px_18px_rgba(15,23,42,0.06)]">
             {/* Overlay Bulk Bar over the header */}
             {bulkBar && (
               <tr className="absolute inset-0 z-30">
                 <th colSpan={colSpan} className="p-0">
-                  <div className="flex h-full w-full items-center bg-background-secondary/95 backdrop-blur">
+                  <div className="flex h-full w-full items-center bg-background-tertiary">
                     {bulkBar}
                   </div>
                 </th>
               </tr>
             )}
 
-            <tr className="border-b border-border relative z-10">
+            <tr className="relative z-10 border-b border-border">
               {/* Select-all checkbox */}
-              <th className="w-12 px-4 py-3 text-left">
+              <th className="w-10 border-b border-border px-4 py-3.5 text-left">
                 {onSelectAll && (
                   <TableCheckbox
                     checked={allSelected}
@@ -73,15 +73,13 @@ export function DataListTable({
               {columns.map((col) => (
                 <th
                   key={col.id}
-                  className={`px-3 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.width ?? ''} ${col.minWidth ?? ''}`}
-                >
-                  {col.label}
-                </th>
+                  className={`border-b border-border px-3 py-3.5 text-xs font-bold uppercase tracking-[0.12em] text-foreground-secondary ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.width ?? ''} ${col.minWidth ?? ''} w-[64px]`}
+                >{col.label}</th>
               ))}
             </tr>
           </thead>
 
-          <tbody>
+          <tbody className="divide-y divide-border bg-background-secondary">
             {isLoading ? (
               <tr>
                 <td colSpan={colSpan} className="px-4 py-16 text-center text-foreground-muted">
@@ -101,5 +99,5 @@ export function DataListTable({
         </table>
       </div>
     </div>
-  )
+  );
 }

@@ -183,7 +183,7 @@ function PosPageContent() {
   if (!activeTab) return null;
 
   return (
-    <div className="flex flex-col h-screen bg-background font-sans text-foreground overflow-hidden">
+    <div data-pos-viewport className="flex flex-col h-screen w-screen max-w-[100vw] bg-background font-sans text-foreground overflow-hidden">
       {/* â• â• â•  HEADER (V1 KiotViet Style) â• â• â•  */}
       <header className="relative z-50 flex items-center justify-between px-2 lg:px-3 h-[50px] bg-[#0089A1] text-white shrink-0 gap-2">
 

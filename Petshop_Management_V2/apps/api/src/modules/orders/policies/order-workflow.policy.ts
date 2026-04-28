@@ -77,7 +77,7 @@ export function assertServiceItemsReadyForCompletion(params: ServiceCompletionSt
   if (params.forceComplete) return
 
   for (const session of params.groomingSessions ?? []) {
-    if (!['COMPLETED', 'CANCELLED'].includes(session.status)) {
+    if (!['COMPLETED', 'RETURNED', 'CANCELLED'].includes(session.status)) {
       throw new BadRequestException(
         `Phiên spa ${session.sessionCode ?? session.id} chưa hoàn thành. Vui lòng hoàn thành trước khi kết đơn.`,
       )

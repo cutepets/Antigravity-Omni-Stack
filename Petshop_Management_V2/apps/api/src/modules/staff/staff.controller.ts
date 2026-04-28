@@ -19,13 +19,15 @@ import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
 import {
-  createDiskUploadOptions,
+  createMemoryUploadOptions,
   DOCUMENT_UPLOAD_EXTENSIONS,
   DOCUMENT_UPLOAD_MIME_TYPES,
   resolveUploadedFilePath,
+  validateUploadedFile,
 } from '../../common/utils/upload.util.js'
-import { resolvePrivateStorageKey, sanitizeStorageSegment } from '../../common/utils/private-storage.util.js'
+import { resolvePrivateStorageKey } from '../../common/utils/private-storage.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
+import { StorageService } from '../storage/storage.service.js'
 import { CreateStaffDto, StaffService, UpdateStaffDto } from './staff.service.js'
 import { UploadDocumentDto } from './dto/document.dto.js'
 import type { DocumentType } from '@petshop/database'
@@ -36,7 +38,10 @@ import type { AuthUser } from '@petshop/shared'
 @UseGuards(JwtGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class StaffController {
-  constructor(private readonly staffService: StaffService) { }
+  constructor(
+    private readonly staffService: StaffService,
+    private readonly storageService: StorageService,
+  ) { }
 
   // =========================================================================
   // Collection Routes (phải đứng TRƯỚC resource routes)
@@ -79,8 +84,8 @@ export class StaffController {
   @UseInterceptors(
     FileInterceptor(
       'file',
-      createDiskUploadOptions({
-        destination: (req) => `storage/private/documents/${sanitizeStorageSegment(String(req.params['id'] ?? 'unknown'))}`,
+      createMemoryUploadOptions({
+        destination: 'storage/private/documents',
         allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
         allowedExtensions: DOCUMENT_UPLOAD_EXTENSIONS,
         maxFileSize: 10 * 1024 * 1024,
@@ -109,6 +114,28 @@ export class StaffController {
     @Body() dto: UploadDocumentDto,
     @Query('currentUser') currentUser?: string,
   ) {
+    validateUploadedFile(file, {
+      allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
+      allowedExtensions: DOCUMENT_UPLOAD_EXTENSIONS,
+      maxFileSize: 10 * 1024 * 1024,
+      errorMessage: 'Chi chap nhan pdf, doc, docx, xls, xlsx hoac anh',
+    })
+    const asset = await this.storageService.uploadAsset({
+      category: 'document',
+      scope: 'documents',
+      ownerType: 'EMPLOYEE_DOCUMENT',
+      ownerId: id,
+      fieldName: 'fileUrl',
+      displayName: dto.description || dto.type || id,
+      uploadedById: currentUser || null,
+      file: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        buffer: file.buffer,
+      },
+    })
+    ;(file as any).storageAssetUrl = asset.url
     return this.staffService.uploadDocument(id, currentUser || 'system', file, {
       type: dto.type as DocumentType,
       ...(dto.description && { description: dto.description }),

@@ -1,11 +1,14 @@
+'use client'
+
 import type { ReactNode } from 'react'
+import { useDataList } from './DataListShell'
 import { TableCheckbox } from './TableCheckbox'
 
 interface ColDef {
   id: string
   label: string
-  width?: string       // e.g. 'w-20'
-  minWidth?: string    // e.g. 'min-w-[300px]'
+  width?: string
+  minWidth?: string
   align?: 'left' | 'center' | 'right'
 }
 
@@ -15,16 +18,12 @@ interface DataListTableProps {
   isEmpty?: boolean
   emptyText?: string
   loadingText?: string
-
-  // Bulk bar (rendered above thead inside the table card)
   bulkBar?: ReactNode
-
-  // Select-all checkbox in header
   allSelected?: boolean
   someSelected?: boolean
   onSelectAll?: () => void
-
   children: ReactNode
+  footer?: ReactNode
   className?: string
 }
 
@@ -32,34 +31,50 @@ export function DataListTable({
   columns,
   isLoading = false,
   isEmpty = false,
-  emptyText = 'Không có dữ liệu phù hợp.',
-  loadingText = 'Đang tải dữ liệu...',
+  emptyText = 'Khong co du lieu phu hop.',
+  loadingText = 'Dang tai du lieu...',
   bulkBar,
   allSelected = false,
   onSelectAll,
   children,
+  footer,
   className,
 }: DataListTableProps) {
-  const colSpan = columns.length + 1 // +1 for checkbox col
+  const { variant } = useDataList()
+  const colSpan = columns.length + 1
+  const isPageVariant = variant === 'page'
 
   return (
-    <div className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card/95 shadow-sm ${className ?? ''}`}>
-      {/* Scrollable table area */}
-      <div className="custom-scrollbar min-h-0 flex-1 overflow-auto">
-        <table className="w-full min-w-[1040px]">
-          <thead className="sticky top-0 z-20 bg-background-secondary/95 backdrop-blur">
-            {/* Overlay Bulk Bar over the header */}
+    <div
+      className={`flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border shadow-sm ${
+        isPageVariant ? 'grow-0 bg-background-secondary' : 'flex-1 bg-card'
+      } ${className ?? ''}`}
+    >
+      <div className={`custom-scrollbar min-h-0 flex-1 overflow-auto ${isPageVariant ? 'bg-background-secondary' : ''}`}>
+        <table className={`w-full min-w-[1040px] ${isPageVariant ? 'border-separate border-spacing-0' : ''}`}>
+          <thead
+            className={
+              isPageVariant
+                ? 'sticky top-0 z-20 bg-background-tertiary shadow-[0_1px_0_var(--color-border),0_8px_18px_rgba(15,23,42,0.06)]'
+                : 'sticky top-0 z-20 bg-background-secondary'
+            }
+          >
             {bulkBar && (
-              <div className="absolute inset-0 z-30 flex items-center bg-background-secondary/95 backdrop-blur">
-                <div className="w-full h-full flex items-center">
-                  {bulkBar}
-                </div>
-              </div>
+              <tr className="absolute inset-0 z-30">
+                <th colSpan={colSpan} className="p-0">
+                  <div
+                    className={`flex h-full w-full items-center ${
+                      isPageVariant ? 'bg-background-tertiary' : 'bg-background-secondary'
+                    }`}
+                  >
+                    {bulkBar}
+                  </div>
+                </th>
+              </tr>
             )}
-            
-            <tr className="border-b border-border relative z-10">
-              {/* Select-all checkbox */}
-              <th className="w-12 px-4 py-3 text-left">
+
+            <tr className={`relative z-10 border-b border-border ${isPageVariant ? 'h-[50px]' : ''}`}>
+              <th className={`${isPageVariant ? 'w-10 border-b border-border py-0' : 'w-12 py-3'} px-4 text-left`}>
                 {onSelectAll && (
                   <TableCheckbox
                     checked={allSelected}
@@ -71,7 +86,11 @@ export function DataListTable({
               {columns.map((col) => (
                 <th
                   key={col.id}
-                  className={`px-3 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.width ?? ''} ${col.minWidth ?? ''}`}
+                  className={`px-3 ${
+                    isPageVariant
+                      ? 'border-b border-border py-0 text-xs font-bold uppercase tracking-[0.12em] text-foreground-secondary'
+                      : 'py-3 text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted'
+                  } ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.width ?? ''} ${col.minWidth ?? ''}`}
                 >
                   {col.label}
                 </th>
@@ -79,7 +98,7 @@ export function DataListTable({
             </tr>
           </thead>
 
-          <tbody>
+          <tbody className={isPageVariant ? 'divide-y divide-border bg-background-secondary' : undefined}>
             {isLoading ? (
               <tr>
                 <td colSpan={colSpan} className="px-4 py-16 text-center text-foreground-muted">
@@ -98,6 +117,7 @@ export function DataListTable({
           </tbody>
         </table>
       </div>
+      {footer}
     </div>
   )
 }

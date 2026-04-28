@@ -1,6 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ArrowUpDown,
   ChevronDown,
@@ -47,7 +49,35 @@ export function DataListToolbar({
   showFilterToggle = true,
   showColumnToggle = true,
 }: DataListToolbarProps) {
-  const { activePanel, togglePanel, closePanel } = useDataList()
+  const { activePanel, togglePanel } = useDataList()
+  const columnButtonRef = useRef<HTMLButtonElement | null>(null)
+  const [columnPanelPosition, setColumnPanelPosition] = useState<{ top: number; right: number } | null>(null)
+
+  useEffect(() => {
+    if (activePanel !== 'column') {
+      setColumnPanelPosition(null)
+      return
+    }
+
+    const updatePosition = () => {
+      const rect = columnButtonRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      setColumnPanelPosition({
+        top: rect.bottom + 10,
+        right: Math.max(12, window.innerWidth - rect.right),
+      })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [activePanel])
 
   return (
     <div className="shrink-0">
@@ -90,6 +120,7 @@ export function DataListToolbar({
           {showColumnToggle && (
             <div className="relative">
               <button
+                ref={columnButtonRef}
                 type="button"
                 onClick={() => togglePanel('column')}
                 className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition-colors ${
@@ -102,14 +133,18 @@ export function DataListToolbar({
                 Cột
               </button>
 
-              {activePanel === 'column' && columnPanelContent && (
-                <div
-                  className="absolute right-0 top-[calc(100%+10px)] z-20"
-                  onMouseDown={(e) => e.stopPropagation()}
-                >
-                  {columnPanelContent}
-                </div>
-              )}
+              {activePanel === 'column' && columnPanelContent && columnPanelPosition
+                ? createPortal(
+                    <div
+                      className="fixed z-50"
+                      style={{ top: columnPanelPosition.top, right: columnPanelPosition.right }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      {columnPanelContent}
+                    </div>,
+                    document.body,
+                  )
+                : null}
             </div>
           )}
 

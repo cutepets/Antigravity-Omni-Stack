@@ -24,7 +24,7 @@ function formatDateTime(value?: string | null) {
 
 function ReconcileMetric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-background-secondary/60 p-4">
+    <div className="rounded-2xl border border-border bg-background-secondary p-4">
       <div className="text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted">{label}</div>
       <div className="mt-2 text-lg font-bold text-foreground">{value}</div>
       {hint ? <div className="mt-1 text-xs text-foreground-muted">{hint}</div> : null}
@@ -69,7 +69,7 @@ export function FinanceReceiptReconciliationModal({ transaction, onClose }: Fina
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] app-modal-overlay"
           />
 
           <motion.div
@@ -101,7 +101,7 @@ export function FinanceReceiptReconciliationModal({ transaction, onClose }: Fina
 
               <div className="flex-1 overflow-y-auto px-6 py-5">
                 <div className="grid gap-5 xl:grid-cols-2">
-                  <section className="space-y-4 rounded-[24px] border border-border bg-card/95 p-5">
+                  <section className="space-y-4 rounded-[24px] border border-border bg-card p-5">
                     <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <ReceiptText size={16} className="text-primary-500" />
                       Phiếu thu chi trên sổ quỹ
@@ -114,7 +114,7 @@ export function FinanceReceiptReconciliationModal({ transaction, onClose }: Fina
                       <ReconcileMetric label="Hình thức" value={transaction.paymentMethod || '-'} />
                     </div>
 
-                    <div className="rounded-2xl border border-border bg-background-secondary/60 p-4 text-sm">
+                    <div className="rounded-2xl border border-border bg-background-secondary p-4 text-sm">
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
                           <div className="text-foreground-muted">Loại tham chiếu</div>
@@ -135,7 +135,7 @@ export function FinanceReceiptReconciliationModal({ transaction, onClose }: Fina
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-border bg-background-secondary/60 p-4 text-sm">
+                    <div className="rounded-2xl border border-border bg-background-secondary p-4 text-sm">
                       <div className="text-foreground-muted">Mô tả</div>
                       <div className="mt-1 text-foreground">{transaction.description}</div>
                       <div className="mt-4 text-foreground-muted">Ghi chú</div>
@@ -143,7 +143,7 @@ export function FinanceReceiptReconciliationModal({ transaction, onClose }: Fina
                     </div>
                   </section>
 
-                  <section className="space-y-4 rounded-[24px] border border-border bg-card/95 p-5">
+                  <section className="space-y-4 rounded-[24px] border border-border bg-card p-5">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                         <FileText size={16} className="text-emerald-400" />
@@ -161,7 +161,7 @@ export function FinanceReceiptReconciliationModal({ transaction, onClose }: Fina
                     </div>
 
                     {linkedReceiptQuery.isLoading ? (
-                      <div className="rounded-2xl border border-border bg-background-secondary/60 p-4 text-sm text-foreground-muted">
+                      <div className="rounded-2xl border border-border bg-background-secondary p-4 text-sm text-foreground-muted">
                         Đang tải phiếu nhập liên kết...
                       </div>
                     ) : receipt ? (
@@ -173,7 +173,7 @@ export function FinanceReceiptReconciliationModal({ transaction, onClose }: Fina
                           <ReconcileMetric label="Còn nợ" value={formatCurrency(receipt.debtAmount)} />
                         </div>
 
-                        <div className="rounded-2xl border border-border bg-background-secondary/60 p-4 text-sm">
+                        <div className="rounded-2xl border border-border bg-background-secondary p-4 text-sm">
                           <div className="grid gap-3 sm:grid-cols-2">
                             <div>
                               <div className="text-foreground-muted">Trạng thái nhập</div>
@@ -202,7 +202,7 @@ export function FinanceReceiptReconciliationModal({ transaction, onClose }: Fina
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-border bg-background-secondary/60 p-4">
+                        <div className="rounded-2xl border border-border bg-background-secondary p-4">
                           <div className="text-sm font-semibold text-foreground">Lịch sử thanh toán liên kết</div>
                           <div className="mt-3 space-y-2">
                             {receiptPayments.length > 0 ? (
@@ -227,7 +227,7 @@ export function FinanceReceiptReconciliationModal({ transaction, onClose }: Fina
                         </div>
                       </>
                     ) : (
-                      <div className="rounded-2xl border border-border bg-background-secondary/60 p-4 text-sm text-foreground-muted">
+                      <div className="rounded-2xl border border-border bg-background-secondary p-4 text-sm text-foreground-muted">
                         Giao dịch này chưa gắn với phiếu nhập NCC hoặc không có dữ liệu liên kết để đối chiếu.
                       </div>
                     )}

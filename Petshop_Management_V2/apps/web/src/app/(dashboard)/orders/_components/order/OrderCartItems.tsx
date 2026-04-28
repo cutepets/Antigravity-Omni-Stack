@@ -25,12 +25,16 @@ import {
     formatCartQuantityInput,
     getCartQuantityStep,
     parseCartQuantityInput,
+    resolveCartUnitLabel,
     roundCartQuantity,
 } from '@/app/(dashboard)/_shared/cart/cart.utils'
 import { resolveCartItemStockState } from '@/app/(dashboard)/_shared/cart/stock.utils'
 import type { CartItemCallbacks } from '@/app/(dashboard)/_shared/cart/cart.types'
+import { CartStockPopover } from '@/app/(dashboard)/_shared/cart/CartStockPopover'
 import { getCartItemWeightBandLabel } from '@/app/(dashboard)/pos/utils/pos.utils'
 import { buildServiceImageMap, resolveCartServiceImage } from './service-image.utils'
+import { buildOrderServiceDetailHref } from './order-service-links'
+import { formatHotelStayRange } from './order-hotel-line'
 
 // Re-export so consumers only need to import from here
 export type { CartItemCallbacks }
@@ -44,13 +48,38 @@ const SPA_STATUS: Record<string, { label: string; className: string }> = {
     CANCELLED: { label: 'Đã hủy', className: 'bg-rose-500/12 text-rose-500 line-through' },
 }
 
-function SpaSessionBadge({ status, sessionCode }: { status?: string; sessionCode?: string | null }) {
-    if (!status) return null
-    const meta = SPA_STATUS[status] ?? { label: status, className: 'bg-gray-500/12 text-gray-500' }
+const HOTEL_STATUS: Record<string, { label: string; className: string }> = {
+    BOOKED: { label: 'Đã đặt', className: 'bg-sky-500/12 text-sky-600' },
+    CHECKED_IN: { label: 'Đang trông', className: 'bg-amber-500/12 text-amber-600' },
+    CHECKED_OUT: { label: 'Đã trả', className: 'bg-emerald-500/12 text-emerald-600' },
+    CANCELLED: { label: 'Đã hủy', className: 'bg-rose-500/12 text-rose-500 line-through' },
+}
+
+function ServiceDetailBadge({
+    status,
+    code,
+    href,
+    fallbackLabel,
+}: {
+    status?: string | null
+    code?: string | null
+    href?: string | null
+    fallbackLabel: string
+}) {
+    const statusMap = fallbackLabel === 'Hotel' ? HOTEL_STATUS : SPA_STATUS
+    const meta = status ? statusMap[status] ?? { label: status, className: 'bg-gray-500/12 text-gray-500' } : null
+    const codeSeparator = fallbackLabel === 'Hotel' ? ' - ' : ' · '
+    const label = `${meta?.label ?? fallbackLabel}${code ? `${codeSeparator}${code}` : ''}`
+    const className = `inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${meta?.className ?? 'bg-gray-500/12 text-gray-500'} ${href ? 'hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500' : ''}`
+
+    if (!href) {
+        return <span className={className}>{label}</span>
+    }
+
     return (
-        <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${meta.className}`}>
-            ✂ {meta.label}{sessionCode ? ` · ${sessionCode}` : ''}
-        </span>
+        <Link href={href} target="_blank" rel="noopener noreferrer" className={className} title={`Mở chi tiết ${label}`}>
+            {label}
+        </Link>
     )
 }
 
@@ -249,7 +278,11 @@ function OrderCartRow({
     const itemDiscountPercent =
         item.unitPrice && item.unitPrice > 0 ? Math.round((itemDiscountAmount / item.unitPrice) * 100) : 0
     const baseUnit = (item as any).baseUnit ?? item.unit ?? 'Cái'
+    const cartUnitLabel = resolveCartUnitLabel(item) || baseUnit
     const normalizedDescription = normalizeLabel(item.description)
+    const variantSuffix = item.variantName && normalizeLabel(item.variantName) !== normalizedDescription
+        ? item.variantName
+        : null
     const displayTrueVariants = trueVariants.filter((v: any) => {
         const lbl = normalizeLabel(getVariantOptionText(item.description, v))
         return lbl.length > 0 && lbl !== normalizedDescription
@@ -260,6 +293,23 @@ function OrderCartRow({
     const canSwapTemp = canSwapTempProduct(item, orderStatus)
     const canSwapGrooming = canSwapGroomingMain(item, orderStatus)
     const serviceImage = resolveCartServiceImage(item, spaImageMap)
+    const groomingSession = (item as any).groomingSession
+    const groomingSessionId = (item as any).groomingSessionId ?? groomingSession?.id ?? null
+    const groomingSessionCode = groomingSession?.sessionCode ?? (groomingSessionId ? String(groomingSessionId).slice(-6).toUpperCase() : null)
+    const groomingDetailHref = buildOrderServiceDetailHref({
+        kind: 'grooming',
+        id: groomingSessionId,
+        code: groomingSessionCode,
+    })
+    const hotelStay = (item as any).hotelStay
+    const hotelStayId = (item as any).hotelStayId ?? (item.hotelDetails as any)?.stayId ?? hotelStay?.id ?? null
+    const hotelStayCode = hotelStay?.stayCode ?? (item.hotelDetails as any)?.stayCode ?? (hotelStayId ? String(hotelStayId).slice(-6).toUpperCase() : null)
+    const hotelStatus = hotelStay?.status ?? (item.hotelDetails as any)?.status ?? null
+    const hotelDetailHref = buildOrderServiceDetailHref({
+        kind: 'hotel',
+        id: hotelStayId,
+        code: hotelStayCode,
+    })
 
     return (
         <div
@@ -312,6 +362,11 @@ function OrderCartRow({
                                 <span className="truncate text-[14px] font-semibold text-foreground" title={item.description}>
                                     {item.description}
                                 </span>
+                                {variantSuffix && (
+                                    <span className="inline-flex shrink-0 items-center rounded bg-primary-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary-500">
+                                        {variantSuffix}
+                                    </span>
+                                )}
                                 {canSwapTemp && onSwapItem && (
                                     <SwapActionButton onClick={() => onSwapItem(item, 'TEMP_PRODUCT')} />
                                 )}
@@ -356,14 +411,27 @@ function OrderCartRow({
                                 )}
 
                                 {/* Grooming session badge — inline dòng 1 */}
-                                {(item as any).groomingSession && (
-                                    <SpaSessionBadge status={(item as any).groomingSession.status} sessionCode={(item as any).groomingSession.sessionCode} />
+                                {groomingSession && (
+                                    <ServiceDetailBadge
+                                        status={groomingSession.status}
+                                        code={groomingSessionCode}
+                                        href={groomingDetailHref}
+                                        fallbackLabel="Spa"
+                                    />
                                 )}
-                                <OrderStockInfo item={item} currentTrueVariant={currentTrueVariant} activeBranches={activeBranches} />
+                                <CartStockPopover item={item} currentTrueVariant={currentTrueVariant} activeBranches={activeBranches} />
+                                {hotelStayId && (
+                                    <ServiceDetailBadge
+                                        status={hotelStatus}
+                                        code={hotelStayCode}
+                                        href={hotelDetailHref}
+                                        fallbackLabel="Hotel"
+                                    />
+                                )}
                                 {/* Hotel dates — cuối dòng 1 */}
                                 {item.hotelDetails && (
                                     <span className="text-[10px] text-primary-600 bg-primary-500/8 rounded px-1.5 py-0.5 font-medium">
-                                        In: {new Date((item.hotelDetails as any).checkIn).toLocaleDateString('vi-VN')} — Out: {new Date((item.hotelDetails as any).checkOut).toLocaleDateString('vi-VN')}
+                                        {formatHotelStayRange(item.hotelDetails as any)}
                                     </span>
                                 )}
                                 {/* Grooming scheduled date — cuối dòng 1 */}
@@ -436,7 +504,7 @@ function OrderCartRow({
                                     else updateVariant(e.target.value)
                                 }}
                             >
-                                <option value="base">{baseUnit}</option>
+                                <option value="base">{cartUnitLabel}</option>
                                 {conversionVariants.map((v: any) => (
                                     <option key={v.id} value={v.id}>{getVariantOptionText(item.description, v)}</option>
                                 ))}
@@ -445,7 +513,7 @@ function OrderCartRow({
                                 }`} size={11} />
                         </div>
                     ) : (
-                        <span className="text-[12px] font-medium text-foreground-muted">{item.unit || baseUnit}</span>
+                        <span className="text-[12px] font-medium text-foreground-muted">{cartUnitLabel}</span>
                     )}
                 </div>
 
@@ -760,7 +828,7 @@ function OrderStockInfo({ item, currentTrueVariant, activeBranches }: { item: Ca
     return (
         <div className="group/info relative shrink-0">
             <Info size={14} className="cursor-help text-border opacity-0 transition-all group-hover:opacity-100 group-hover/info:text-primary-500" />
-            <div className="absolute left-1/2 top-full z-50 mt-2 w-[320px] -translate-x-[40%] pointer-events-none opacity-0 invisible transition-all group-hover/info:pointer-events-auto group-hover/info:opacity-100 group-hover/info:visible before:absolute before:-top-4 before:left-0 before:h-4 before:w-full">
+            <div className="absolute left-1/2 top-full z-50 mt-2 w-[320px] translate-x-[-40%] pointer-events-none opacity-0 invisible transition-all group-hover/info:pointer-events-auto group-hover/info:opacity-100 group-hover/info:visible before:absolute before:-top-4 before:left-0 before:h-4 before:w-full">
                 <div className="rounded-xl border border-border bg-background shadow-xl overflow-hidden">
                     <div className="border-b border-border bg-background-secondary/60 px-4 py-3">
                         <Link href={item.productId ? `/products/${item.productId}` : '#'} target="_blank" className="block text-[13px] font-bold text-foreground hover:text-primary-600 hover:underline transition-colors">

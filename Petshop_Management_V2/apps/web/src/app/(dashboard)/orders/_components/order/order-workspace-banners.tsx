@@ -11,7 +11,7 @@ export function OrderQrResumeBanner({ show, intent, onOpenQr, onSwitchPayment }:
   if (!show || !intent) return null
 
   return (
-    <div className="mx-4 mt-2 flex items-center gap-3 rounded-xl border border-sky-500/25 bg-sky-500/8 px-4 py-2.5">
+    <div className="flex items-center gap-3 rounded-xl border border-sky-500/25 bg-sky-500/8 px-4 py-2.5">
       <QrCode size={16} className="shrink-0 text-sky-500" />
       <span className="flex-1 text-sm font-medium text-foreground">
         Đơn hàng đang chờ xác nhận thanh toán QR
@@ -40,7 +40,7 @@ export function OrderTempItemBanner({ count }: { count: number }) {
   if (count <= 0) return null
 
   return (
-    <div className="mx-4 mt-2 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-2.5">
+    <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-2.5">
       <AlertCircle size={16} className="shrink-0 text-amber-500" />
       <span className="flex-1 text-sm font-medium text-foreground">
         Đơn có <strong>{count} sản phẩm tạm</strong> chưa được đổi sang thật - tồn kho chưa cập nhật

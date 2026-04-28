@@ -19,7 +19,7 @@ export function DataListFilterPanel({
 
   return (
     <div className="shrink-0">
-      <div className="rounded-2xl border border-border bg-background-secondary/80 p-5">
+      <div className="rounded-2xl border border-border bg-background-secondary p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="inline-flex items-center gap-2 text-base font-semibold text-foreground">
             <SlidersHorizontal size={16} className="text-primary-500" />

@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import Image from 'next/image'
 import { X, Download } from 'lucide-react'
 import { EmployeeDocument, DOCUMENT_TYPE_LABELS } from '@/lib/api/staff.api'
 
@@ -15,7 +16,7 @@ export function DocumentPreviewModal({ document, onClose }: DocumentPreviewModal
   const isPDF = document.mimeType === 'application/pdf'
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center app-modal-overlay p-4">
       <div className="relative flex h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-border bg-background-secondary">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
@@ -46,10 +47,14 @@ export function DocumentPreviewModal({ document, onClose }: DocumentPreviewModal
         {/* Content */}
         <div className="flex-1 overflow-auto p-6">
           {isImage ? (
-            <div className="flex items-center justify-center">
-              <img src={document.fileUrl}
+            <div className="relative h-[70vh] w-full">
+              <Image
+                src={document.fileUrl}
                 alt={document.fileName}
-                className="max-h-[70vh] max-w-full rounded-lg object-contain" />
+                fill
+                sizes="(max-width: 1024px) 100vw, 1024px"
+                className="rounded-lg object-contain"
+              />
             </div>
           ) : isPDF ? (
             <iframe

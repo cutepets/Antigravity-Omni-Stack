@@ -15,6 +15,7 @@ import {
 } from '@/app/(dashboard)/_shared/order/order-payment.utils'
 import {
   buildDirectServiceCartItem,
+  buildDraftCopyFromOrder,
   buildDraftFromOrder,
   buildGroomingCartItem,
   buildProductCartItem,
@@ -32,6 +33,7 @@ import {
   parseDecimalInput,
 } from './order.utils'
 import { buildTempCartItem } from '@/app/(dashboard)/_shared/cart/cart.builders'
+import { appendSpeciesToServiceName } from '@/app/(dashboard)/_shared/cart/cart.utils'
 import type { OrderDraft, OrderPrintPayload, OrderWorkspaceMode } from './order.types'
 import { useOrderWorkspaceMutations } from './use-order-workspace-mutations'
 import { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches'
@@ -44,7 +46,7 @@ import {
 import { buildDisplayTimeline } from './order-timeline.utils'
 import { buildVisibleProgressSteps } from './order-progress.utils'
 
-export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode; orderId?: string }) {
+export function useOrderWorkspace({ mode, orderId, copyFromOrderId }: { mode: OrderWorkspaceMode; orderId?: string; copyFromOrderId?: string }) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { user, activeBranchId, isLoading: isAuthLoading, hasAnyPermission, hasPermission } = useAuthorization()
@@ -73,6 +75,8 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
   const [pendingProductEntry, setPendingProductEntry] = useState<any | null>(null)
   const [vatPercent, setVatPercent] = useState(0)
   const initializedOrderVersionRef = useRef<string | null>(null)
+  const initializedCopySourceRef = useRef<string | null>(null)
+  const copySourceOrderId = mode === 'create' ? copyFromOrderId?.trim() ?? '' : ''
 
   const deferredItemSearch = useDeferredValue(itemSearch)
   const deferredCustomerSearch = useDeferredValue(customerSearch)
@@ -82,6 +86,16 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     queryKey: ['order', orderId],
     queryFn: () => orderApi.get(orderId!),
     enabled: mode === 'detail' && Boolean(orderId),
+  })
+  const {
+    data: copySourceOrder,
+    isLoading: isCopySourceLoading,
+    isError: isCopySourceError,
+  } = useQuery({
+    queryKey: ['order-copy-source', copySourceOrderId],
+    queryFn: () => orderApi.get(copySourceOrderId),
+    enabled: mode === 'create' && Boolean(copySourceOrderId),
+    retry: false,
   })
   const { data: paymentMethods = [] } = useQuery({
     queryKey: ['settings', 'payment-methods'],
@@ -117,6 +131,21 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     setIsEditing(false)
     initializedOrderVersionRef.current = orderVersion
   }, [draft.items.length, isEditing, mode, order, orderDataUpdatedAt])
+
+  useEffect(() => {
+    if (mode !== 'create' || !copySourceOrderId || !copySourceOrder) return
+    if (initializedCopySourceRef.current === copySourceOrderId) return
+
+    setDraft(buildDraftCopyFromOrder(copySourceOrder))
+    setIsEditing(true)
+    initializedCopySourceRef.current = copySourceOrderId
+    toast.success('Đã sao chép đơn hàng sang đơn mới')
+  }, [copySourceOrderId, copySourceOrder, mode])
+
+  useEffect(() => {
+    if (mode !== 'create' || !copySourceOrderId || !isCopySourceError) return
+    toast.error('Không thể sao chép đơn hàng nguồn')
+  }, [copySourceOrderId, isCopySourceError, mode])
 
   const orderNeedsBranch = (items: any[]) =>
     items.some((item) => item.productVariantId || (item.variants && item.variants.length > 0))
@@ -365,7 +394,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
         mergeItemIntoDraft({
           ...buildDirectServiceCartItem(service, details.petId, selectedPet?.name),
           id: buildCartLineId('hotel', service.id, details.petId, bookingGroupKey, index),
-          description: line.label || service.name,
+          description: appendSpeciesToServiceName(line.label || service.name, service),
           quantity: Number(line.quantityDays ?? 1),
           unitPrice: Number(line.unitPrice ?? service?.sellingPrice ?? service?.price ?? 0),
           hotelDetails: {
@@ -437,7 +466,7 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     setIsEditing(false)
   }
 
-  const showLoading = isAuthLoading || (mode === 'detail' && isOrderLoading)
+  const showLoading = isAuthLoading || (mode === 'detail' && isOrderLoading) || (mode === 'create' && Boolean(copySourceOrderId) && isCopySourceLoading)
   const showForbidden = !showLoading && !canAccessOrders
   const showNotFound = mode === 'detail' && !showLoading && (isOrderError || !order)
   const canKeepCredit = Boolean(order?.customer?.id ?? draft.customerId)
@@ -550,6 +579,11 @@ export function useOrderWorkspace({ mode, orderId }: { mode: OrderWorkspaceMode;
     handleCancelEdit,
     handleBack: () => router.push('/orders'),
     handleGoPos: () => router.push('/pos'),
+    handleDuplicateOrder: () => {
+      const sourceId = order?.id ?? orderId
+      if (!sourceId) return
+      router.push(`/orders/new?copyFrom=${encodeURIComponent(sourceId)}`)
+    },
     handleStartEdit: () => setIsEditing(true),
     handleSelectCustomer: (customer: any) => {
       setDraft((current) => ({

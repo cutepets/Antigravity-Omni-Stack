@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { CqrsModule } from '@nestjs/cqrs'
 import { ModuleGuard } from '../../common/guards/module.guard.js'
 import { DatabaseModule } from '../../database/database.module.js'
+import { StorageModule } from '../storage/storage.module.js'
 import { AddVaccinationHandler } from './application/commands/add-vaccination/add-vaccination.handler.js'
 import { AddWeightLogHandler } from './application/commands/add-weight-log/add-weight-log.handler.js'
 import { CreatePetHandler } from './application/commands/create-pet/create-pet.handler.js'
@@ -42,7 +43,7 @@ const QueryHandlers = [
 ]
 
 @Module({
-  imports: [CqrsModule, DatabaseModule],
+  imports: [CqrsModule, DatabaseModule, StorageModule],
   controllers: [PetController],
   providers: [
     PetAccessPolicy,

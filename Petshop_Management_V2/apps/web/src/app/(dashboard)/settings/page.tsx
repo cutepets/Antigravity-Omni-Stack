@@ -9,6 +9,7 @@ import {
   Check,
   CheckCircle2,
   Database,
+  FileText,
   History,
   Info,
   MapPin,
@@ -36,6 +37,7 @@ import { TabNotifications } from './components/TabNotifications'
 import { TabPrintTemplates } from './components/TabPrintTemplates'
 import { TabModules } from './components/TabModules'
 import { TabAbout } from './components/TabAbout'
+import { TabStorageAssets } from './components/TabStorageAssets'
 
 type SettingsTabConfig = {
   id: string
@@ -100,6 +102,12 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
     superAdminOnly: true,
   },
   { id: 'theme', label: 'Giao diện', icon: Palette },
+  {
+    id: 'storage-assets',
+    label: 'Quan ly file',
+    icon: FileText,
+    anyPermissions: ['settings.app.read', 'settings.app.update'],
+  },
   {
     id: 'notifications',
     label: 'Thông báo',
@@ -177,6 +185,8 @@ export default function SettingsPage() {
         return <TabPrintTemplates />
       case 'backup':
         return <TabBackup />
+      case 'storage-assets':
+        return <TabStorageAssets />
       case 'notifications':
         return <TabNotifications />
       case 'history':

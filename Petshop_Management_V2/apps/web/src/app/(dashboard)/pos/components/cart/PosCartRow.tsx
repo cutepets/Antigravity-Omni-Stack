@@ -5,6 +5,7 @@ import { FileText, Package, Scissors, Trash2, ChevronDown } from 'lucide-react';
 import { getProductVariantOptionLabel } from '@petshop/shared';
 import { moneyRaw } from '@/app/(dashboard)/_shared/payment/payment.utils';
 import { resolveCartItemStockState } from '@/app/(dashboard)/_shared/cart/stock.utils';
+import { resolveCartUnitLabel } from '@/app/(dashboard)/_shared/cart/cart.utils';
 import { getCartItemWeightBandLabel } from '../../utils/pos.utils';
 import type { PosCartRowProps } from './PosCartTypes';
 import { PosCartQuantityControl } from './PosCartQuantityControl';
@@ -49,6 +50,7 @@ export function PosCartRow({
     const itemDiscountPercent =
         item.unitPrice && item.unitPrice > 0 ? Math.round((itemDiscountAmount / item.unitPrice) * 100) : 0;
     const baseUnit = (item as any).baseUnit ?? item.unit ?? 'cái';
+    const cartUnitLabel = resolveCartUnitLabel(item) || baseUnit;
     const normalizedDescription = normalizeLabel(item.description);
     const displayTrueVariants = trueVariants.filter((variant: any) => {
         const optionLabel = normalizeLabel(getVariantOptionText(item.description, variant));
@@ -167,7 +169,7 @@ export function PosCartRow({
                                         else updateVariant(event.target.value);
                                     }}
                                 >
-                                    <option value="base">{baseUnit}</option>
+                                    <option value="base">{cartUnitLabel}</option>
                                     {conversionVariants.map((variant: any) => (
                                         <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
                                     ))}
@@ -330,7 +332,7 @@ export function PosCartRow({
                                     else updateVariant(event.target.value);
                                 }}
                             >
-                                <option value="base">{baseUnit}</option>
+                                <option value="base">{cartUnitLabel}</option>
                                 {conversionVariants.map((variant: any) => (
                                     <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
                                 ))}

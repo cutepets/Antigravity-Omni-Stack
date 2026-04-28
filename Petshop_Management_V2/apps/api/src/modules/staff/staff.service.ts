@@ -235,10 +235,9 @@ export class StaffService {
       allowedExtensions: DOCUMENT_UPLOAD_EXTENSIONS,
       maxFileSize: 10 * 1024 * 1024,
       errorMessage: 'Invalid file type. Only images (JPEG, PNG, WebP) and PDFs are allowed',
-      requireStoredFilename: true,
     })
 
-    const fileUrl = `documents/${userId}/${file.filename}`
+    const fileUrl = (file as any).storageAssetUrl || `documents/${userId}/${file.filename}`
 
     return this.db.employeeDocument.create({
       data: {

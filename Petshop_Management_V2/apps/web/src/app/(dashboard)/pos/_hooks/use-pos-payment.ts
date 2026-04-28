@@ -219,6 +219,7 @@ export function usePosPayment() {
         paymentAccountLabel?: string;
       }>,
       overrideNote?: string,
+      options?: { hotelCheckInNow?: boolean },
     ): CreateOrderPayload | null => {
       if (!activeTab) return null;
 
@@ -231,6 +232,7 @@ export function usePosPayment() {
         discount: activeTab.discountTotal,
         shippingFee: activeTab.shippingFee,
         notes: overrideNote || activeTab.notes,
+        hotelCheckInNow: options?.hotelCheckInNow,
       });
     },
     [activeTab],
@@ -308,7 +310,7 @@ export function usePosPayment() {
       return;
     }
 
-    const payload = buildCheckoutPayload(undefined, undefined);
+    const payload = buildCheckoutPayload(undefined, undefined, { hotelCheckInNow: true });
     if (!payload) {
       newTab.close();
       return;

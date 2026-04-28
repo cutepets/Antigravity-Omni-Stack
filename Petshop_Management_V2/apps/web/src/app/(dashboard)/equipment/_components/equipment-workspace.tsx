@@ -264,7 +264,7 @@ export function EquipmentWorkspace({ initialDraftCode }: { initialDraftCode?: st
     const file = event.target.files?.[0]
     if (!file) return
     try {
-      const url = await equipmentApi.uploadImage(file)
+      const url = await equipmentApi.uploadImage(file, form.name || form.code || 'equipment')
       setForm((current) => ({ ...current, imageUrl: url }))
       toast.success('Đã upload ảnh thiết bị')
     } catch (error: any) {

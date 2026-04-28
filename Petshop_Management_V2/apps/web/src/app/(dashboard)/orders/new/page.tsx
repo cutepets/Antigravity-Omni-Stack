@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   description: 'Tạo đơn hàng nhiều bước trong workspace Orders',
 }
 
-export default function NewOrderPage() {
-  return <OrderWorkspace mode="create" />
+export default async function NewOrderPage(props: { searchParams?: Promise<{ copyFrom?: string }> }) {
+  const searchParams = props.searchParams ? await props.searchParams : undefined
+  return <OrderWorkspace mode="create" copyFromOrderId={searchParams?.copyFrom} />
 }

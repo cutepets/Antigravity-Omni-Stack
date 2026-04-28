@@ -5,12 +5,18 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Staff, CreateStaffDto, UpdateStaffDto } from '@/lib/api/staff.api'
 import { AvatarCropperModal } from './AvatarCropperModal'
 import { Camera, User, Phone, Shield, Briefcase, Plus, X, Upload, Edit2, Check, MapPin, ChevronDown } from 'lucide-react'
-import { settingsApi } from '@/lib/api'
+import { settingsApi, uploadApi } from '@/lib/api'
 
 
 // Common Dark Input Style
 const inputStyle = "w-full rounded-xl border border-border bg-background-elevated px-4 py-3 text-sm text-foreground placeholder-foreground-muted outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/30 transition-all"
 const labelStyle = "mb-2 block text-xs font-semibold uppercase tracking-wider text-foreground-muted"
+
+const dataUrlToFile = async (dataUrl: string, fileName: string) => {
+  const response = await fetch(dataUrl)
+  const blob = await response.blob()
+  return new File([blob], fileName, { type: blob.type || 'image/png' })
+}
 
 interface StaffFormModalProps {
   isOpen: boolean
@@ -195,6 +201,18 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
     setError(null)
 
     try {
+      let avatarUrl = avatarBase64 || undefined
+      if (avatarBase64?.startsWith('data:')) {
+        const avatarFile = await dataUrlToFile(avatarBase64, `${formData.username || initialData?.username || 'staff'}-avatar.png`)
+        avatarUrl = await uploadApi.uploadImage(avatarFile, {
+          scope: 'staff',
+          ownerType: 'STAFF',
+          ownerId: initialData?.id || formData.username || 'draft',
+          fieldName: 'avatar',
+          displayName: formData.fullName || formData.username || initialData?.fullName || 'staff',
+        })
+      }
+
       const payload: any = {
         fullName: formData.fullName,
         role: formData.role,
@@ -215,7 +233,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         shiftStart: formData.shiftStart || undefined,
         shiftEnd: formData.shiftEnd || undefined,
         spaCommissionRate: formData.spaCommissionRate ? Number(formData.spaCommissionRate) : undefined,
-        avatar: avatarBase64 || undefined,
+        avatar: avatarUrl,
       }
 
       if (isEditing) {
@@ -234,7 +252,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 app-modal-overlay">
       <div className="relative flex max-h-[95vh] w-full max-w-5xl flex-col rounded-2xl bg-background shadow-2xl ring-1 ring-border/50 overflow-hidden">
 
         {/* Header */}

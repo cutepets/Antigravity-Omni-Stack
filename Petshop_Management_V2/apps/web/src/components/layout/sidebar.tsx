@@ -195,6 +195,8 @@ const NAV_GROUPS: NavGroup[] = [
 ]
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1]
+const SIDEBAR_OPEN_WIDTH = 200
+const SIDEBAR_COLLAPSED_WIDTH = 60
 
 const fadeIn = {
   initial: { opacity: 0 },
@@ -250,15 +252,16 @@ export function Sidebar() {
   return (
     <motion.aside
       initial={false}
-      animate={{ width: isSidebarOpen ? 250 : 80 }}
+      animate={{ width: isSidebarOpen ? SIDEBAR_OPEN_WIDTH : SIDEBAR_COLLAPSED_WIDTH }}
       transition={{ duration: 0.3, ease: EASE }}
       className="relative flex h-screen flex-col overflow-hidden border-r border-border bg-background-secondary"
       style={{ flexShrink: 0 }}
     >
-      <div className="relative flex h-16 w-full shrink-0 items-center border-b border-border/50">
+      <div className='relative flex h-[55px] w-full shrink-0 items-center border-b border-border/50'>
         <div
           className={clsx(
-            'ml-[24px] flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg transition-all duration-300',
+            'flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg transition-all duration-300',
+            isSidebarOpen ? 'ml-[24px]' : 'mx-auto',
             config?.shopLogo
               ? 'bg-transparent'
               : 'bg-primary-500 text-white shadow-lg shadow-primary-500/20',
@@ -291,7 +294,6 @@ export function Sidebar() {
           ) : null}
         </AnimatePresence>
       </div>
-
       <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto py-2">
         {NAV_GROUPS.map((navGroup, groupIndex) => {
           const visibleItems = navGroup.items.filter(canAccessItem)
@@ -331,7 +333,12 @@ export function Sidebar() {
                         : 'text-foreground-secondary hover:bg-white/5 hover:text-foreground-base',
                     )}
                   >
-                    <div className="flex h-full w-[56px] shrink-0 items-center justify-center transition-all duration-300">
+                    <div
+                      className={clsx(
+                        'flex h-full shrink-0 items-center justify-center transition-all duration-300',
+                        isSidebarOpen ? 'w-[56px]' : 'w-full',
+                      )}
+                    >
                       <Icon
                         size={22}
                         className={clsx(
@@ -360,7 +367,6 @@ export function Sidebar() {
           )
         })}
       </div>
-
       <div className="relative flex w-full shrink-0 flex-col items-center border-t border-border/50 bg-background-base py-4">
         {canViewSettings ? (
           <Link
@@ -373,7 +379,12 @@ export function Sidebar() {
                 : 'text-foreground-secondary hover:bg-white/5 hover:text-foreground-base',
             )}
           >
-            <div className="flex h-full w-[56px] shrink-0 items-center justify-center transition-all duration-300">
+            <div
+              className={clsx(
+                'flex h-full shrink-0 items-center justify-center transition-all duration-300',
+                isSidebarOpen ? 'w-[56px]' : 'w-full',
+              )}
+            >
               <Settings
                 size={22}
                 className={clsx(
@@ -396,7 +407,10 @@ export function Sidebar() {
         {user ? (
           <div className="group relative mx-3 flex h-14 w-[calc(100%-24px)] items-center overflow-hidden rounded-lg transition-colors hover:bg-white/5">
             <div
-              className="flex h-full w-[56px] shrink-0 cursor-pointer items-center justify-center transition-all duration-300"
+              className={clsx(
+                'flex h-full shrink-0 cursor-pointer items-center justify-center transition-all duration-300',
+                isSidebarOpen ? 'w-[56px]' : 'w-full',
+              )}
               title={!isSidebarOpen ? 'Đăng xuất' : undefined}
               onClick={!isSidebarOpen ? () => logout() : undefined}
             >
@@ -469,5 +483,5 @@ export function Sidebar() {
         ) : null}
       </div>
     </motion.aside>
-  )
+  );
 }

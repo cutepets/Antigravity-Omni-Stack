@@ -189,7 +189,7 @@ export function PosShiftClosingModal({ isOpen, currentShift, onClose, onSaved }:
   const isSaving = startShift.isPending || endShift.isPending
 
   return (
-    <div className="fixed inset-0 z-1000 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-1000 flex items-center justify-center app-modal-overlay p-4">
       <div className="flex max-h-[96vh] w-full max-w-[840px] flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl">
         <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-6 py-4">
           <h2 className="text-xl font-bold text-slate-900">{modeLabel}</h2>

@@ -46,6 +46,7 @@ export interface HotelPriceRule {
 
 export interface HotelExtraService {
   sku?: string | null
+  imageUrl?: string | null
   name: string
   minWeight?: number | null
   maxWeight?: number | null
@@ -101,6 +102,7 @@ export interface HotelRulePayload {
 
 export interface HotelExtraServicePayload {
   sku?: string | null
+  imageUrl?: string | null
   name: string
   minWeight?: number | null
   maxWeight?: number | null
@@ -151,18 +153,52 @@ export const pricingApi = {
     api.delete<HolidayCalendarDate>(`/pricing/holidays/${id}`).then((res) => res.data),
 
   getSpaServiceImages: () =>
-    api.get<Array<{ packageCode: string; imageUrl: string; label?: string }>>('/pricing/spa-service-images').then((res) => res.data),
+    api.get<Array<{ species?: string | null; packageCode: string; imageUrl: string; label?: string }>>('/pricing/spa-service-images').then((res) => res.data),
 
-  uploadSpaServiceImage: (packageCode: string, file: File, label?: string) => {
+  uploadSpaServiceImage: (packageCode: string, file: File, label?: string, species?: string | null) => {
     const formData = new FormData()
     formData.append('file', file)
     if (label) formData.append('label', label)
+    if (species) formData.append('species', species)
+    formData.append('displayName', label || packageCode)
     return api
-      .post<{ packageCode: string; imageUrl: string; label?: string }>(`/pricing/spa-service-images/${encodeURIComponent(packageCode)}`, formData, {
+      .post<{ species?: string | null; packageCode: string; imageUrl: string; label?: string }>(`/pricing/spa-service-images/${encodeURIComponent(packageCode)}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       .then((res) => res.data)
   },
+
+  uploadPricingServiceImage: (file: File, displayName?: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (displayName) formData.append('displayName', displayName)
+    return api
+      .post<{ imageUrl: string }>('/pricing/service-images/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((res) => res.data)
+  },
+
+  bulkUpdateSpaServiceImages: (images: Array<{ species?: string | null; packageCode: string; imageUrl: string }>) =>
+    api.put<Array<{ species?: string | null; packageCode: string; imageUrl: string }>>('/pricing/spa-service-images', { images }).then((res) => res.data),
+
+  getHotelServiceImages: () =>
+    api.get<Array<{ species: string; packageCode: string; imageUrl: string; label?: string }>>('/pricing/hotel-service-images').then((res) => res.data),
+
+  uploadHotelServiceImage: (species: string, file: File, label?: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (label) formData.append('label', label)
+    formData.append('displayName', label || species)
+    return api
+      .post<{ species: string; packageCode: string; imageUrl: string; label?: string }>(`/pricing/hotel-service-images/${encodeURIComponent(species)}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((res) => res.data)
+  },
+
+  bulkUpdateHotelServiceImages: (images: Array<{ species?: string | null; packageCode?: string | null; imageUrl: string; label?: string | null }>) =>
+    api.put<Array<{ species: string; packageCode: string; imageUrl: string; label?: string }>>('/pricing/hotel-service-images', { images }).then((res) => res.data),
 
   // ─── Excel Export / Import ──────────────────────────────────────────────
 

@@ -8,6 +8,9 @@ describe('CustomerService', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'branch-main', code: 'HCM', name: 'HCM', isMain: true }),
         findUnique: jest.fn().mockResolvedValue(null),
       },
+      customerGroup: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
       customer: {
         findUnique: jest.fn().mockResolvedValue(null),
         findFirst: jest.fn().mockResolvedValue(null),

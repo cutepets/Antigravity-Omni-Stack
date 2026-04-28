@@ -313,12 +313,14 @@ export class OrderLifecycleService {
     if (hasServiceItems) {
       const groomingSessions = order.items.filter((item: any) => item.groomingSession).map((item: any) => item.groomingSession!);
       const hotelStays = order.items.filter((item: any) => item.hotelStay).map((item: any) => item.hotelStay!);
-      const allGroomingCompleted = groomingSessions.every((session: any) => session.status === 'COMPLETED');
-      const allHotelCompleted = hotelStays.every((stay: any) => stay.status === 'CHECKED_OUT');
+      const allGroomingCompleted = groomingSessions.every((session: any) =>
+        ['COMPLETED', 'RETURNED', 'CANCELLED'].includes(session.status),
+      );
+      const allHotelCompleted = hotelStays.every((stay: any) => ['CHECKED_OUT', 'CANCELLED'].includes(stay.status));
 
       if (!allGroomingCompleted || !allHotelCompleted) {
         throw new BadRequestException(
-          'Cannot export stock until all grooming sessions are COMPLETED and all hotel stays are CHECKED_OUT.',
+          'Cannot export stock until all grooming sessions are COMPLETED/RETURNED and all hotel stays are CHECKED_OUT.',
         );
       }
     }
@@ -329,7 +331,7 @@ export class OrderLifecycleService {
     );
     const pendingTempCount = order.items.filter((item: any) => item.type === 'product' && (item as any).isTemp).length;
 
-    if (exportableItems.length === 0 && pendingTempCount === 0) {
+    if (exportableItems.length === 0 && pendingTempCount === 0 && !hasServiceItems) {
       throw new BadRequestException('Khong co san pham nao can xuat kho.');
     }
 
@@ -359,6 +361,7 @@ export class OrderLifecycleService {
         where: { id },
         data: {
           status: nextStatus,
+          ...(nextStatus === 'COMPLETED' ? { completedAt: now } : {}),
           stockExportedAt: now,
           stockExportedBy: staffId,
         },

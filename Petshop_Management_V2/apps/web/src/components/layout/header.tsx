@@ -116,18 +116,18 @@ export function Header() {
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-      className="glass-panel"
+      className="glass-panel flex w-full flex-row items-center justify-between gap-[normal]"
       style={{
-        height: 64,
-        margin: '16px 16px 16px 0',
-        borderRadius: '24px',
+        height: 55,
+        margin: 0,
+        borderRadius: 0,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 24px',
         flexShrink: 0,
         position: 'sticky',
-        top: 16,
+        top: 0,
         zIndex: 40,
       }}
     >
@@ -198,7 +198,6 @@ export function Header() {
           </div>
         ) : null}
       </div>
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <button
           type="button"
@@ -318,12 +317,11 @@ export function Header() {
           </button>
         ) : null}
       </div>
-
       <UserSettingsDrawer isOpen={showDrawer} onClose={() => setShowDrawer(false)} />
       <CustomerSettingsDrawer isOpen={showCustomerSettingsDrawer} onClose={() => setShowCustomerSettingsDrawer(false)} />
       <InventorySettingsDrawer isOpen={showInventorySettingsDrawer} onClose={() => setShowInventorySettingsDrawer(false)} />
       <CashbookSettingsDrawer isOpen={showCashbookSettingsDrawer} onClose={() => setShowCashbookSettingsDrawer(false)} />
       <PetSettingsModal open={showPetSettings} onClose={() => setShowPetSettings(false)} />
     </motion.header>
-  )
+  );
 }

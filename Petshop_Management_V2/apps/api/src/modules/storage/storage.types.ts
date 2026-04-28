@@ -3,7 +3,19 @@ import type { StorageProviderKind, StoredAsset } from '@prisma/client'
 
 export type StorageUploadCategory = 'image' | 'document' | 'backup'
 export type StorageVisibility = 'private' | 'public'
-export type StorageUploadScope = 'products' | 'staff' | 'equipment'
+export type StorageUploadScope =
+  | 'products'
+  | 'variants'
+  | 'staff'
+  | 'pets'
+  | 'vaccines'
+  | 'equipment'
+  | 'services'
+  | 'suppliers'
+  | 'supplier-documents'
+  | 'settings'
+  | 'documents'
+  | 'backups'
 
 export interface UploadStorageFileInput {
   originalName: string
@@ -19,10 +31,28 @@ export interface UploadStoredAssetInput {
   uploadedById?: string | null
   visibility?: StorageVisibility
   providerOverride?: StorageProviderKind
+  ownerType?: string | null
+  ownerId?: string | null
+  fieldName?: string | null
+  displayName?: string | null
 }
 
 export interface DeleteStoredAssetInput {
   url: string
+}
+
+export interface BindStoredAssetReferenceInput {
+  assetUrl: string
+  entityType: string
+  entityId: string
+  fieldName: string
+}
+
+export interface UnbindStoredAssetReferenceInput {
+  assetUrl: string
+  entityType: string
+  entityId: string
+  fieldName: string
 }
 
 export interface StoredAssetContent {
@@ -35,4 +65,13 @@ export interface GoogleDriveConnectionCheck {
   sharedDriveId: string | null
   rootFolderId: string | null
   storageProvider: StorageProviderKind
+}
+
+export interface ListStoredAssetsInput {
+  status?: string | null
+  category?: StorageUploadCategory | 'all' | null
+  provider?: StorageProviderKind | 'all' | 'LEGACY' | null
+  q?: string | null
+  page?: number
+  limit?: number
 }

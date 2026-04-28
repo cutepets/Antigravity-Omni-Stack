@@ -160,6 +160,10 @@ export class HotelDetailsDto {
   @IsString()
   @IsOptional()
   weightBandLabel?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  checkInNow?: boolean;
 }
 
 // === Order Item ===

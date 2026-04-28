@@ -4,6 +4,7 @@ import { generateHotelStayCode as formatHotelStayCode } from '@petshop/shared';
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js';
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js';
 import { DatabaseService } from '../../database/database.service.js';
+import { autoExportPaidServiceOnlyOrder } from '../orders/application/order-service-auto-export.application.js';
 import { CreateHotelRateTableDto, CreateHotelStayDto, CreateCageDto, HotelStayAdjustmentDto, CreateHotelStayHealthLogDto, CreateHotelStayNoteDto } from './dto/create-hotel.dto.js';
 import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateHotelRateTableDto, UpdateHotelStayDto, UpdateCageDto } from './dto/update-hotel.dto.js';
 
@@ -1668,6 +1669,11 @@ export class HotelService {
     });
 
     await this.syncLinkedOrder(updated.id, updated.orderId);
+    await autoExportPaidServiceOnlyOrder(this.prisma as any, {
+      orderId: updated.orderId,
+      staffId: user?.userId ?? null,
+      source: 'HOTEL_CHECKED_OUT_AUTO_EXPORT',
+    });
     await this.logStayActivity('HOTEL_STAY_CHECKED_OUT', updated, user, {
       previousStatus: stay.status,
       checkOutActual: updated.checkOutActual,

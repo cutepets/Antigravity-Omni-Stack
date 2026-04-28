@@ -468,7 +468,7 @@ export default function StaffDetailPage() {
 
         {previewImage && (
           <div
-            className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-100 flex items-center justify-center app-modal-overlay p-4"
             onClick={() => setPreviewImage(null)}
           >
             <Image src={previewImage}

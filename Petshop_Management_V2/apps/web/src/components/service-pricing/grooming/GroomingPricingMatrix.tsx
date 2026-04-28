@@ -68,6 +68,7 @@ export function GroomingPricingMatrix({
   setSpecies,
   flatRateDrafts,
   onFlatRateChange,
+  onFlatRateImageUpload,
 }: {
   bands: BandDraft[]
   serviceColumns: SpaServiceColumn[]
@@ -90,6 +91,7 @@ export function GroomingPricingMatrix({
   setSpecies: (value: string) => void
   flatRateDrafts: FlatRateDraft[]
   onFlatRateChange: (drafts: FlatRateDraft[]) => void
+  onFlatRateImageUpload?: (index: number, file: File) => void
 }) {
   const [isEditMode, setIsEditMode] = useState(false)
   const [activeTab, setActiveTab] = useState<string>(species)
@@ -497,9 +499,9 @@ export function GroomingPricingMatrix({
 
             <div
               className="grid border-b border-border bg-background-secondary"
-              style={{ gridTemplateColumns: 'minmax(70px, 120px) minmax(120px, 1fr) minmax(50px, 100px) minmax(50px, 100px) minmax(50px, 150px) minmax(50px, 100px) 72px' }}
+              style={{ gridTemplateColumns: 'minmax(70px, 120px) 56px minmax(120px, 1fr) minmax(50px, 100px) minmax(50px, 100px) minmax(50px, 150px) minmax(50px, 100px) 72px' }}
             >
-              {['SKU', 'Tên dịch vụ', 'Từ kg', 'Đến kg', 'Giá', 'Phút', ''].map((label) => (
+              {['SKU', 'Ảnh', 'Tên dịch vụ', 'Từ kg', 'Đến kg', 'Giá', 'Phút', ''].map((label) => (
                 <div key={label} className="px-1.5 py-2 text-center text-[10px] font-black uppercase tracking-[0.14em] text-foreground-muted">{label}</div>
               ))}
             </div>
@@ -514,7 +516,7 @@ export function GroomingPricingMatrix({
                 <div
                   key={flatRate.key}
                   className="grid items-center border-b border-border/60 last:border-b-0"
-                  style={{ gridTemplateColumns: 'minmax(70px, 120px) minmax(120px, 1fr) minmax(50px, 100px) minmax(50px, 100px) minmax(50px, 150px) minmax(50px, 100px) 72px' }}
+                  style={{ gridTemplateColumns: 'minmax(70px, 120px) 56px minmax(120px, 1fr) minmax(50px, 100px) minmax(50px, 100px) minmax(50px, 150px) minmax(50px, 100px) 72px' }}
                 >
                   <div className="px-1 py-1.5">
                     <input
@@ -524,6 +526,34 @@ export function GroomingPricingMatrix({
                       disabled={!canEditPricing}
                       className="h-8 w-full rounded border border-border bg-background-secondary px-1 text-center text-[10px] font-black uppercase tracking-widest text-primary-500 placeholder:text-foreground-muted/30 outline-none focus:border-primary-500 disabled:opacity-60"
                     />
+                  </div>
+
+                  <div className="flex justify-center px-1 py-1.5">
+                    <input
+                      ref={(el) => { fileInputRefs.current[`flat-${flatRate.key}`] = el }}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        e.target.value = ''
+                        onFlatRateImageUpload?.(index, file)
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={!canEditPricing}
+                      onClick={() => canEditPricing && fileInputRefs.current[`flat-${flatRate.key}`]?.click()}
+                      className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-border bg-background-secondary text-foreground-muted disabled:opacity-60"
+                    >
+                      {flatRate.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={flatRate.imageUrl} alt={flatRate.name || flatRate.sku || 'Dịch vụ'} className="h-full w-full object-cover" />
+                      ) : (
+                        <Camera size={14} />
+                      )}
+                    </button>
                   </div>
 
                   <div className="px-1 py-1.5">

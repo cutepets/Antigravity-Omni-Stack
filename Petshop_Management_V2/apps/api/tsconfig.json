@@ -14,26 +14,26 @@
     "skipLibCheck": true,
     "paths": {
       "@petshop/auth": [
-        "../../packages/auth/src/index.ts"
+        "../../packages/auth/src/index"
       ],
       "@petshop/config": [
-        "../../packages/config/src/index.ts"
+        "../../packages/config/src/index"
       ],
       "@petshop/core": [
-        "../../packages/core/src/index.ts"
+        "../../packages/core/src/index"
       ],
       "@petshop/database": [
-        "../../packages/database/src/index.ts"
+        "../../packages/database/src/index"
       ],
       "@prisma/client": [
         "../../node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3/node_modules/@prisma/client",
         "../../node_modules/@prisma/client"
       ],
       "@petshop/queue": [
-        "../../packages/queue/src/index.ts"
+        "../../packages/queue/src/index"
       ],
       "@petshop/shared": [
-        "../../packages/shared/src/index.ts"
+        "../../packages/shared/src/index"
       ]
     }
   },

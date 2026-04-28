@@ -559,17 +559,17 @@ function PriceBookCard({
       return extractPriceBooks(res)
     },
   })
-  const items: DictionaryItem[] = Array.isArray(rawItems) ? rawItems : []
-
   const orderedItems = useMemo(
-    () =>
-      [...items].sort((left, right) => {
+    () => {
+      const items: DictionaryItem[] = Array.isArray(rawItems) ? rawItems : []
+      return [...items].sort((left, right) => {
         const leftOrder = left.sortOrder ?? Number.MAX_SAFE_INTEGER
         const rightOrder = right.sortOrder ?? Number.MAX_SAFE_INTEGER
         if (leftOrder !== rightOrder) return leftOrder - rightOrder
         return left.name.localeCompare(right.name, 'vi')
-      }),
-    [items]
+      })
+    },
+    [rawItems]
   )
 
   const createMutation = useMutation({
@@ -869,7 +869,7 @@ export function InventorySettingsDrawer({ isOpen, onClose }: InventorySettingsDr
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50"
+            className="fixed inset-0 app-modal-overlay z-50"
           />
 
           <motion.div

@@ -1,28 +1,3 @@
-'use client'
-
-import { motion, AnimatePresence } from 'framer-motion'
-import { usePathname } from 'next/navigation'
-import { useAnimationStore } from '@/stores/animation.store'
-
 export function PageTransition({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const { pageTransition } = useAnimationStore()
-
-  return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={pathname}
-        initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
-        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-        exit={{ opacity: 0, y: -12, filter: 'blur(4px)' }}
-        transition={{ 
-          duration: pageTransition.enabled ? pageTransition.durationMs / 1000 : 0, 
-          ease: [0.22, 1, 0.36, 1] 
-        }}
-        style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
-  )
+  return <>{children}</>
 }

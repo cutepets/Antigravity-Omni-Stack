@@ -202,7 +202,7 @@ export function OrderReturnModal({
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay animate-fade-in">
             <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-background shadow-xl">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">

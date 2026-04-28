@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common'
 import { DatabaseService } from '../../../../../database/database.service.js'
 import { resolveBranchIdentity } from '../../../../../common/utils/branch-identity.util.js'
 import { assertBranchAccess, resolveWritableBranchId, type BranchScopedUser } from '../../../../../common/utils/branch-scope.util.js'
+import { autoExportPaidServiceOnlyOrder } from '../../../../orders/application/order-service-auto-export.application.js'
 import { UpdateGroomingCommand } from './update-grooming.command.js'
 
 @CommandHandler(UpdateGroomingCommand)
@@ -72,6 +73,14 @@ export class UpdateGroomingHandler implements ICommandHandler<UpdateGroomingComm
                 branch: { select: { id: true, name: true, code: true } },
             },
         })
+
+        if (dto.status === 'RETURNED' && updated.order?.id) {
+            await autoExportPaidServiceOnlyOrder(this.db as any, {
+                orderId: updated.order.id,
+                staffId: actor?.userId ?? null,
+                source: 'GROOMING_RETURNED_AUTO_EXPORT',
+            })
+        }
 
         return { success: true, data: updated }
     }

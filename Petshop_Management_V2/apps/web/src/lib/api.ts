@@ -47,10 +47,28 @@ export const settingsApi = {
   deleteCashbookCategory: (id: string) => api.delete(`/settings/cashbook-categories/${id}`).then((r) => r.data),
 }
 
+type UploadOptions = {
+  scope?: string
+  ownerType?: string
+  ownerId?: string
+  fieldName?: string
+  displayName?: string
+}
+
+const appendUploadOptions = (formData: FormData, options?: UploadOptions) => {
+  if (!options) return
+  if (options.scope) formData.append('scope', options.scope)
+  if (options.ownerType) formData.append('ownerType', options.ownerType)
+  if (options.ownerId) formData.append('ownerId', options.ownerId)
+  if (options.fieldName) formData.append('fieldName', options.fieldName)
+  if (options.displayName) formData.append('displayName', options.displayName)
+}
+
 export const uploadApi = {
-  uploadImage: async (file: File): Promise<string> => {
+  uploadImage: async (file: File, options?: UploadOptions): Promise<string> => {
     const formData = new FormData()
     formData.append('image', file)
+    appendUploadOptions(formData, options)
 
     const res = await fetch(`${API_URL}/api/upload/image`, {
       method: 'POST',
@@ -65,9 +83,10 @@ export const uploadApi = {
     }
     return data.url as string
   },
-  uploadFile: async (file: File): Promise<{ url: string; name: string }> => {
+  uploadFile: async (file: File, options?: UploadOptions): Promise<{ url: string; name: string; assetId?: string; reused?: boolean }> => {
     const formData = new FormData()
     formData.append('file', file)
+    appendUploadOptions(formData, options)
 
     const res = await fetch(`${API_URL}/api/upload/file`, {
       method: 'POST',
@@ -84,6 +103,8 @@ export const uploadApi = {
     return {
       url: data.url as string,
       name: (data.name as string) || file.name,
+      assetId: data.assetId as string | undefined,
+      reused: Boolean(data.reused),
     }
   },
   deleteFile: async (url: string): Promise<void> => {

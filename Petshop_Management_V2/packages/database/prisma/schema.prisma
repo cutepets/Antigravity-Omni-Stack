@@ -1822,6 +1822,7 @@ model SystemConfig {
   petVaccineOpts             String?
   hotelExtraServices         String?
   spaServiceImages           String?
+  hotelServiceImages         String?
 
   @@map("system_configs")
 }
@@ -1830,12 +1831,20 @@ model StoredAsset {
   id           String              @id @default(cuid())
   provider     StorageProviderKind
   category     String
+  scope        String?
+  ownerType    String?
+  ownerId      String?
   originalName String
   mimeType     String
   size         Int
   extension    String?
+  sha256       String?
+  status       StoredAssetStatus   @default(ACTIVE)
+  referenceCount Int                @default(0)
+  lastReferencedAt DateTime?
+  orphanedAt   DateTime?
   storageKey   String?
-  url          String
+  url          String              @unique
   previewUrl   String?
   googleFileId String?
   uploadedById String?
@@ -1843,11 +1852,31 @@ model StoredAsset {
   updatedAt    DateTime            @updatedAt
   deletedAt    DateTime?
   uploadedBy   User?               @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  references   StoredAssetReference[]
 
   @@index([provider, category])
+  @@index([status, category])
+  @@index([sha256])
+  @@index([ownerType, ownerId])
   @@index([uploadedById])
   @@index([googleFileId])
   @@map("stored_assets")
+}
+
+model StoredAssetReference {
+  id         String      @id @default(cuid())
+  assetId    String
+  entityType String
+  entityId   String
+  fieldName  String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  asset      StoredAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, entityType, entityId, fieldName])
+  @@index([entityType, entityId])
+  @@index([fieldName])
+  @@map("stored_asset_references")
 }
 
 model Category {
@@ -2003,6 +2032,12 @@ enum CustomerTier {
 enum StorageProviderKind {
   LOCAL
   GOOGLE_DRIVE
+}
+
+enum StoredAssetStatus {
+  ACTIVE
+  ORPHANED
+  DELETED
 }
 
 enum GoogleDriveAuthMode {

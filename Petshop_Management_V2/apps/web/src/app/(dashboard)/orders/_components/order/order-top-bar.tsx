@@ -4,8 +4,8 @@ import { useState } from 'react'
 import {
   ArrowLeft,
   ArrowLeftRight,
-  CheckCircle2,
   CheckSquare,
+  CopyPlus,
   CreditCard,
   Loader2,
   Package,
@@ -64,10 +64,10 @@ interface OrderTopBarProps {
   onOpenPay: () => void
 
   onOpenExportStock: () => void
-  onOpenSettle: () => void
   onOpenRefund: () => void
   onOpenReturn: () => void
   onCancelOrder: () => void
+  onDuplicateOrder: () => void
   onOpenPos: () => void
 }
 
@@ -125,10 +125,10 @@ export function OrderTopBar({
   onSelectSuggestedService,
 
   onOpenExportStock,
-  onOpenSettle,
   onOpenRefund,
   onOpenReturn,
   onCancelOrder,
+  onDuplicateOrder,
   onOpenPos,
 }: OrderTopBarProps) {
   const operatorLabel = operatorName
@@ -277,17 +277,17 @@ export function OrderTopBar({
               </button>
             ) : null}
 
-            {actionFlags.canSettleCurrentOrder ? (
+            {mode === 'detail' && order?.id ? (
               <button
                 type="button"
-                onClick={onOpenSettle}
-                className="btn-outline h-9 justify-center border-orange-500/30 px-4 text-orange-600 hover:bg-orange-500/10"
+                onClick={onDuplicateOrder}
+                className="btn-outline order-3 h-9 justify-center px-4"
+                title="Sao chép thành đơn mới"
               >
-                <CheckCircle2 size={14} />
-                Quyết toán
+                <CopyPlus size={14} />
+                Sao chép
               </button>
             ) : null}
-
 
             {actionFlags.canReturnCurrentOrder ? (
               <button

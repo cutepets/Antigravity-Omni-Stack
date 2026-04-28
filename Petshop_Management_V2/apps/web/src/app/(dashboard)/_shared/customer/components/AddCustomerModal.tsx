@@ -112,7 +112,7 @@ export function AddCustomerModal({ isOpen, onClose, initialData, onSaved }: AddC
 
   return createPortal(
     <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 sm:p-6">
-      <div className="absolute inset-0 bg-background-base/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 app-modal-overlay" onClick={onClose} />
 
       <div className="card relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden p-0 shadow-2xl animate-in fade-in zoom-in duration-200">
         <div className="flex items-start justify-between gap-4 border-b border-border bg-background-tertiary px-6 py-5">

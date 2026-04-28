@@ -408,7 +408,7 @@ export function CashbookSettingsDrawer({ isOpen, onClose }: CashbookSettingsDraw
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
+            className="fixed inset-0 z-50 app-modal-overlay"
           />
 
           <motion.div
@@ -418,7 +418,7 @@ export function CashbookSettingsDrawer({ isOpen, onClose }: CashbookSettingsDraw
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed right-0 top-0 z-50 flex h-full w-[880px] max-w-screen flex-col overflow-y-auto border-l border-white/10 bg-background shadow-2xl"
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-background/85 p-6 backdrop-blur-xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background p-6">
               <div className="flex items-center gap-3 text-primary-400">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary-500/20 bg-primary-500/10 text-primary-500">
                   <Settings size={20} />

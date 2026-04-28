@@ -103,14 +103,14 @@ export function BankTransactionsTab({ canManagePayment }: Props) {
           { label: 'Giao dịch thật', value: summary.real },
           { label: 'Giao dịch test', value: summary.test },
         ].map((card) => (
-          <div key={card.label} className="rounded-2xl border border-border bg-card/95 p-5 shadow-sm">
+          <div key={card.label} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <p className="text-sm text-foreground-muted">{card.label}</p>
             <p className="mt-3 text-2xl font-semibold text-foreground">{card.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="rounded-2xl border border-border bg-card/95 p-4 shadow-sm">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Lịch sử chuyển khoản</h2>
@@ -160,7 +160,7 @@ export function BankTransactionsTab({ canManagePayment }: Props) {
         <div className="mt-4 overflow-hidden rounded-2xl border border-border/70">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border/70">
-              <thead className="bg-background-secondary/80">
+              <thead className="bg-background-secondary">
                 <tr className="text-left text-xs uppercase tracking-[0.16em] text-foreground-muted">
                   <th className="px-4 py-3">Nguồn</th>
                   <th className="px-4 py-3">Số tiền</th>
@@ -172,7 +172,7 @@ export function BankTransactionsTab({ canManagePayment }: Props) {
                   <th className="px-4 py-3 text-right"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/70 bg-card/95 text-sm">
+              <tbody className="divide-y divide-border/70 bg-card text-sm">
                 {bankTransactionsQuery.isLoading ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-foreground-muted">

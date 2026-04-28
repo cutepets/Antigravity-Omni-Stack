@@ -339,9 +339,6 @@ const DEFAULT_TEMPLATES = [
     <span>{{finalAmount}}</span>
   </div>
   
-  <div class="text-center mb-1 text-xs font-bold">Lưu ý sau khi Spa:</div>
-  <div class="text-xs mb-3 text-justify">Vui lòng theo dõi bé trong 24h đầu. Không nên tắm ngay sau khi về hoặc thay đổi thức ăn quá đột ngột.</div>
-  
   <div class="text-center mb-1 text-xs">Cảm ơn quý khách và hẹn gặp lại!</div>
 </div>`,
   },

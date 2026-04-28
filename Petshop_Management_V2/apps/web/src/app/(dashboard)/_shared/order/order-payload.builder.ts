@@ -16,6 +16,7 @@ type BuildOrderRequestPayloadParams = {
   shippingFee?: number
   notes?: string
   payments?: OrderPaymentPayload[]
+  hotelCheckInNow?: boolean
 }
 
 export function buildOrderRequestPayload(
@@ -78,6 +79,7 @@ export function buildOrderRequestPayload(
             chargeSubtotal: item.hotelDetails.chargeSubtotal,
             chargeWeightBandId: item.hotelDetails.chargeWeightBandId ?? undefined,
             chargeWeightBandLabel: item.hotelDetails.chargeWeightBandLabel ?? undefined,
+            checkInNow: params.hotelCheckInNow ? true : undefined,
           }
         : undefined,
     })),

@@ -182,7 +182,7 @@ export function SwapGroomingServiceModal({
 
     return (
         <div
-            className="fixed inset-0 z-999 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 z-999 flex items-center justify-center app-modal-overlay"
             onClick={(event) => {
                 if (event.target === event.currentTarget && !swapMutation.isPending) onClose()
             }}

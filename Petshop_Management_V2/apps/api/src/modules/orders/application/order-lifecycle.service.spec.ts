@@ -81,4 +81,114 @@ describe('OrderLifecycleService', () => {
     expect(timelineService.createTimelineEntry).toHaveBeenCalled();
     expect(queryService.findOne).toHaveBeenCalledWith('order-1', { userId: 'u1' });
   });
+
+  it('completes a paid service order when stock export finishes', async () => {
+    const { prisma, queryService, timelineService, service } = buildService();
+    prisma.order.findFirst.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'DH260428003',
+      status: 'PROCESSING',
+      paymentStatus: 'PAID',
+      branchId: 'branch-1',
+      items: [
+        {
+          id: 'item-1',
+          type: 'hotel',
+          productId: null,
+          groomingSession: null,
+          hotelStay: { id: 'stay-1', status: 'CHECKED_OUT' },
+        },
+        {
+          id: 'item-2',
+          type: 'product',
+          productId: 'product-1',
+          productVariantId: null,
+          quantity: 1,
+          isTemp: false,
+          stockExportedAt: null,
+          groomingSession: null,
+          hotelStay: null,
+        },
+      ],
+    });
+    const orderUpdate = jest.fn();
+    prisma.$transaction.mockImplementation(async (callback: any) =>
+      callback({
+        order: { update: orderUpdate },
+        orderItem: { update: jest.fn() },
+      }),
+    );
+
+    await service.exportStock('DH260428003', { note: 'done' }, 'staff-1', { userId: 'u1' } as any);
+
+    expect(orderUpdate).toHaveBeenCalledWith({
+      where: { id: 'order-1' },
+      data: expect.objectContaining({
+        status: 'COMPLETED',
+        completedAt: expect.any(Date),
+        stockExportedAt: expect.any(Date),
+        stockExportedBy: 'staff-1',
+      }),
+    });
+    expect(timelineService.createStockExportTimelineEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'order-1',
+        fromStatus: 'PROCESSING',
+        toStatus: 'COMPLETED',
+        exportedItemCount: 1,
+      }),
+      expect.any(Object),
+    );
+    expect(queryService.findOne).toHaveBeenCalledWith('order-1', { userId: 'u1' });
+  });
+
+  it('marks a paid service-only grooming order exported and completed when the pet has been returned', async () => {
+    const { prisma, queryService, timelineService, service } = buildService();
+    prisma.order.findFirst.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'DH260428002',
+      status: 'PROCESSING',
+      paymentStatus: 'PAID',
+      branchId: 'branch-1',
+      items: [
+        {
+          id: 'item-1',
+          type: 'grooming',
+          productId: null,
+          groomingSession: { id: 'session-1', status: 'RETURNED' },
+          hotelStay: null,
+        },
+      ],
+    });
+    const orderUpdate = jest.fn();
+    prisma.$transaction.mockImplementation(async (callback: any) =>
+      callback({
+        order: { update: orderUpdate },
+        orderItem: { update: jest.fn() },
+      }),
+    );
+
+    await service.exportStock('DH260428002', { note: 'done' }, 'staff-1', { userId: 'u1' } as any);
+
+    expect(orderUpdate).toHaveBeenCalledWith({
+      where: { id: 'order-1' },
+      data: expect.objectContaining({
+        status: 'COMPLETED',
+        completedAt: expect.any(Date),
+        stockExportedAt: expect.any(Date),
+        stockExportedBy: 'staff-1',
+      }),
+    });
+    expect(timelineService.createStockExportTimelineEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'order-1',
+        fromStatus: 'PROCESSING',
+        toStatus: 'COMPLETED',
+        exportedItemCount: 0,
+        metadata: { hasServiceItems: true },
+      }),
+      expect.any(Object),
+    );
+    expect(queryService.findOne).toHaveBeenCalledWith('order-1', { userId: 'u1' });
+  });
 });

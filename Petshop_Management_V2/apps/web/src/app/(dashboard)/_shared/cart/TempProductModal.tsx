@@ -41,7 +41,7 @@ export function TempProductModal({ isOpen, onClose, onConfirm }: TempProductModa
 
     return (
         <div
-            className="fixed inset-0 z-999 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-999 flex items-center justify-center app-modal-overlay"
             onKeyDown={handleKeyDown}
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >

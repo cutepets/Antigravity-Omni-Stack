@@ -47,32 +47,32 @@ const MANUAL_LINK_TAGS = {
 
 const INCOME_THEME = {
   shell: 'border-sky-500/20',
-  headerGlow: 'from-sky-500/14 via-sky-500/6 to-transparent',
-  icon: 'bg-sky-500/12 text-sky-300',
-  badge: 'border-sky-500/20 bg-sky-500/10 text-sky-200',
-  accentText: 'text-sky-300',
-  accentStrong: 'text-sky-200',
-  accentBorder: 'border-sky-500/25',
-  accentCard: 'border-sky-500/18 bg-sky-500/8',
+  headerGlow: 'from-sky-100 via-sky-50 to-transparent',
+  icon: 'bg-sky-100 text-sky-700',
+  badge: 'border-sky-300 bg-sky-50 text-sky-700',
+  accentText: 'text-sky-600',
+  accentStrong: 'text-sky-700',
+  accentBorder: 'border-sky-300',
+  accentCard: 'border-sky-300 bg-sky-50',
   focus: 'focus:border-sky-400',
   primaryButton: 'bg-sky-500 hover:bg-sky-600',
   ghostButton: 'hover:border-sky-500/50 hover:text-sky-200',
-  amountBg: 'bg-sky-500/10 text-sky-200',
+  amountBg: 'bg-sky-50 text-sky-700',
 } as const
 
 const EXPENSE_THEME = {
   shell: 'border-rose-500/20',
-  headerGlow: 'from-rose-500/14 via-rose-500/6 to-transparent',
-  icon: 'bg-rose-500/12 text-rose-300',
-  badge: 'border-rose-500/20 bg-rose-500/10 text-rose-200',
-  accentText: 'text-rose-300',
-  accentStrong: 'text-rose-200',
-  accentBorder: 'border-rose-500/25',
-  accentCard: 'border-rose-500/18 bg-rose-500/8',
+  headerGlow: 'from-rose-100 via-rose-50 to-transparent',
+  icon: 'bg-rose-100 text-rose-700',
+  badge: 'border-rose-300 bg-rose-50 text-rose-700',
+  accentText: 'text-rose-600',
+  accentStrong: 'text-rose-700',
+  accentBorder: 'border-rose-300',
+  accentCard: 'border-rose-300 bg-rose-50',
   focus: 'focus:border-rose-400',
   primaryButton: 'bg-rose-500 hover:bg-rose-600',
   ghostButton: 'hover:border-rose-500/50 hover:text-rose-200',
-  amountBg: 'bg-rose-500/10 text-rose-200',
+  amountBg: 'bg-rose-50 text-rose-700',
 } as const
 
 function parseManualReferenceKind(tags?: string | null, refType?: string | null): ManualReferenceKind {
@@ -345,7 +345,7 @@ export function CreateTransactionModal({
   const theme = form.type === 'INCOME' ? INCOME_THEME : EXPENSE_THEME
   const amountDisplay = form.amount > 0 ? formatCurrency(form.amount) : ''
   const headerCode = transaction?.voucherNumber ?? null
-  const inputClass = `h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors ${theme.focus} disabled:cursor-not-allowed disabled:opacity-70`
+  const inputClass = `h-11 w-full rounded-xl border border-border bg-background-secondary px-3 text-sm text-foreground outline-none transition-colors ${theme.focus} disabled:cursor-not-allowed disabled:opacity-100`
 
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
@@ -560,7 +560,7 @@ export function CreateTransactionModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay px-4 py-6"
       onClick={(e) => {
         if (e.target === e.currentTarget && isView) {
           onClose()
@@ -571,7 +571,7 @@ export function CreateTransactionModal({
         className={`relative flex max-h-[90vh] w-full max-w-[760px] flex-col overflow-hidden rounded-3xl border bg-background-base shadow-2xl ${theme.shell}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className={`relative flex items-start justify-between gap-4 border-b border-border px-5 py-4 bg-gradient-to-r ${theme.headerGlow}`}>
+        <div className={`relative flex items-start justify-between gap-4 border-b border-border px-5 py-4 bg-linear-to-r ${theme.headerGlow}`}>
           <div className="flex items-start gap-4">
             <div className={`rounded-xl p-2.5 ${theme.icon}`}>
               <ReceiptText size={18} />
@@ -862,7 +862,7 @@ export function CreateTransactionModal({
                 </div>
               ) : (
                 <div
-                  className="mt-2 rounded-xl border border-dashed border-border bg-background-secondary/30 py-3 px-4 text-center text-sm text-foreground-muted"
+                  className="mt-2 rounded-xl border border-dashed border-border bg-background-secondary py-3 px-4 text-center text-sm text-foreground-muted"
                 >
                   Kéo thả ảnh hoặc dán (Ctrl+V) vào đây
                 </div>
@@ -871,7 +871,7 @@ export function CreateTransactionModal({
 
           </div>
 
-          <aside className="min-h-0 overflow-y-auto sm:border-l border-border px-5 py-5 bg-card/30">
+          <aside className="min-h-0 overflow-y-auto sm:border-l border-border px-5 py-5 bg-card">
             <div className="space-y-4">
               <div className={`rounded-2xl border p-4 ${theme.accentCard}`}>
                 <p className="text-sm font-semibold text-foreground">Liên kết</p>
@@ -978,7 +978,7 @@ export function CreateTransactionModal({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border bg-card/80 p-4">
+              <div className="rounded-2xl border border-border bg-card p-4">
                 <p className="text-sm font-semibold text-foreground">Thông tin hệ thống</p>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex items-center justify-between gap-3">

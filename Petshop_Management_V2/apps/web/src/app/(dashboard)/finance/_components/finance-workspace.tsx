@@ -391,7 +391,7 @@ export function FinanceWorkspace() {
               type="button"
               onClick={() => handleChangeTab(tabId)}
               className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${activeTab === tabId
-                ? 'border-primary-500/40 bg-primary-500/12 text-primary-100'
+                ? 'border-primary-500/70 bg-primary-500/18 text-primary-700 shadow-sm'
                 : 'border-border/60 bg-background-secondary text-foreground-muted hover:border-border hover:text-foreground'
                 }`}
             >
@@ -408,12 +408,12 @@ export function FinanceWorkspace() {
             <div className="grid shrink-0 gap-3 lg:grid-cols-4">
               {[
                 { label: 'Số dư đầu kỳ', value: financeData?.openingBalance ?? 0 },
-                { label: 'Tổng thu', value: financeData?.totalIncome ?? 0, tone: 'text-emerald-400' },
-                { label: 'Tổng chi', value: financeData?.totalExpense ?? 0, tone: 'text-rose-400' },
-                { label: 'Tồn cuối kỳ', value: financeData?.closingBalance ?? 0, tone: 'text-primary-400' },
+                { label: 'Tổng thu', value: financeData?.totalIncome ?? 0, tone: 'text-emerald-600' },
+                { label: 'Tổng chi', value: financeData?.totalExpense ?? 0, tone: 'text-rose-600' },
+                { label: 'Tồn cuối kỳ', value: financeData?.closingBalance ?? 0, tone: 'text-sky-600' },
               ].map((card) => (
-                <div key={card.label} className="rounded-2xl border border-border bg-card/95 p-5 shadow-sm">
-                  <p className="text-sm text-foreground-muted">{card.label}</p>
+                <div key={card.label} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                  <p className="text-sm font-medium text-foreground-secondary">{card.label}</p>
                   <p className={`mt-3 text-2xl font-semibold ${card.tone ?? 'text-foreground'}`}>{formatCurrency(card.value)}</p>
                 </div>
               ))}
@@ -478,14 +478,14 @@ export function FinanceWorkspace() {
                     <button
                       type="button"
                       onClick={() => handleCreateClick('INCOME')}
-                      className="inline-flex h-11 items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/12 px-4 text-sm font-semibold text-sky-100 transition-colors hover:border-sky-400/60 hover:bg-sky-500/18"
+                      className="inline-flex h-11 items-center gap-2 rounded-xl border border-sky-300 bg-sky-50 px-4 text-sm font-semibold text-sky-700 shadow-sm transition-colors hover:border-sky-400 hover:bg-sky-100"
                     >
                       + Phiếu Thu
                     </button>
                     <button
                       type="button"
                       onClick={() => handleCreateClick('EXPENSE')}
-                      className="inline-flex h-11 items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-4 text-sm font-semibold text-rose-100 transition-colors hover:border-rose-400/60 hover:bg-rose-500/18"
+                      className="inline-flex h-11 items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 text-sm font-semibold text-rose-700 shadow-sm transition-colors hover:border-rose-400 hover:bg-rose-100"
                     >
                       + Phiếu Chi
                     </button>
@@ -652,7 +652,7 @@ export function FinanceWorkspace() {
                           ) : null}
                           {columnId === 'paymentMethod' ? <span>{transaction.paymentAccountLabel || transaction.paymentMethod || '-'}</span> : null}
                           {columnId === 'amount' ? (
-                            <span className={transaction.type === 'INCOME' ? 'font-semibold text-emerald-400' : 'font-semibold text-rose-400'}>
+                            <span className={transaction.type === 'INCOME' ? 'font-semibold text-emerald-600' : 'font-semibold text-rose-600'}>
                               {transaction.type === 'INCOME' ? '+' : '-'}
                               {formatCurrency(transaction.amount)}
                             </span>

@@ -100,7 +100,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
+            className="fixed inset-0 z-50 app-modal-overlay"
           />
 
           <motion.div
@@ -108,10 +108,10 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 z-50 flex h-full w-[360px] flex-col overflow-y-auto border-l border-white/10 glass-panel"
+            className="fixed right-0 top-0 z-50 flex h-full w-[360px] flex-col overflow-y-auto border-l border-border bg-background-secondary"
             style={{ boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.4)' }}
           >
-            <div className="flex items-center justify-between border-b border-white/5 p-5">
+            <div className="flex items-center justify-between border-b border-border p-5">
               <div className="flex items-center gap-2 text-primary-400">
                 <Settings className="h-5 w-5" />
                 <h2 className="text-lg font-semibold text-foreground-base">Cài đặt tài khoản</h2>
@@ -125,7 +125,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
             </div>
 
             <div className="flex-1 space-y-6 p-5">
-              <div className="group relative flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="group relative flex items-center gap-4 rounded-2xl border border-border bg-background-base p-4">
                 <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 text-xl font-bold text-white shadow-[0_4px_12px_color-mix(in_srgb,var(--color-primary-500)_40%,transparent)]">
                   {user.avatar ? (
                     <Image
@@ -157,7 +157,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                 </button>
               </div>
 
-              <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/20 p-4">
+              <div className="flex items-center justify-between rounded-2xl border border-border bg-background-base p-4">
                 <div className="flex items-center gap-3">
                   <div className="rounded-lg bg-orange-500/10 p-2 text-orange-400">
                     <Shield className="h-4 w-4" />
@@ -169,7 +169,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                 </button>
               </div>
 
-              <div className="space-y-3 rounded-2xl border border-white/5 bg-black/20 p-4">
+              <div className="space-y-3 rounded-2xl border border-border bg-background-base p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="rounded-lg bg-sky-500/10 p-2 text-sky-400">
@@ -226,24 +226,24 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                 )}
               </div>
 
-              <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/20 p-4">
+              <div className="flex items-center justify-between rounded-2xl border border-border bg-background-base p-4">
                 <div className="flex items-center gap-3">
                   <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400">
                     <Monitor className="h-4 w-4" />
                   </div>
                   <span className="text-sm font-medium text-foreground-base">Giao diện</span>
                 </div>
-                <div className="flex items-center rounded-full border border-white/10 bg-background p-1">
+                <div className="flex items-center rounded-full border border-border bg-background-secondary p-1">
                   <button
                     onClick={() => setTheme('light')}
-                    className={`flex items-center justify-center rounded-full p-1.5 transition-all ${theme === 'light' ? 'bg-white/10 text-primary-400' : 'text-foreground-muted hover:text-white'
+                  className={`flex items-center justify-center rounded-full p-1.5 transition-all ${theme === 'light' ? 'bg-background-tertiary text-primary-500' : 'text-foreground-muted hover:text-foreground'
                       }`}
                   >
                     <Sun className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => setTheme('dark')}
-                    className={`flex items-center justify-center rounded-full p-1.5 transition-all ${theme === 'dark' ? 'bg-white/10 text-primary-400' : 'text-foreground-muted hover:text-white'
+                  className={`flex items-center justify-center rounded-full p-1.5 transition-all ${theme === 'dark' ? 'bg-background-tertiary text-primary-500' : 'text-foreground-muted hover:text-foreground'
                       }`}
                   >
                     <Moon className="h-3.5 w-3.5" />
@@ -251,7 +251,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-2xl border border-white/5 bg-black/20 p-4">
+              <div className="space-y-3 rounded-2xl border border-border bg-background-base p-4">
                 <div className="mb-1 flex items-center gap-2">
                   <Monitor className="h-4 w-4 text-primary-400" />
                   <span className="text-sm font-medium text-foreground-base">Thông tin hệ thống</span>
@@ -271,7 +271,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
               </div>
             </div>
 
-            <div className="mt-auto border-t border-white/5 bg-black/20 p-5">
+            <div className="mt-auto border-t border-border bg-background-base p-5">
               <button
                 onClick={async () => {
                   onClose()

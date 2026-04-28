@@ -82,7 +82,7 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center app-modal-overlay">
       <div className="w-full max-w-sm rounded-[24px] bg-[#11131A] shadow-2xl overflow-hidden flex flex-col border border-white/5">
         
         {/* Header */}

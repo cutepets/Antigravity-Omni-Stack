@@ -6,6 +6,7 @@ import { X, Save, ImagePlus, Plus, Trash2, ChevronDown, ChevronUp, Tag, Loader2 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { buildProductVariantName, resolveProductVariantLabels } from '@petshop/shared'
 import { inventoryApi } from '@/lib/api/inventory.api'
+import { uploadApi } from '@/lib/api'
 import { PRICE_BOOK_QUERY_KEY, extractPriceBooks } from '@/lib/price-books'
 import { toast } from 'sonner'
 import { NumericFormat } from 'react-number-format'
@@ -129,7 +130,7 @@ const fileToDataUrl = (file: File) =>
     const reader = new FileReader()
     reader.addEventListener('load', () => resolve(reader.result?.toString() || ''))
     reader.addEventListener('error', () => reject(new Error('Không thể đọc file ảnh')))
-    reader.readAsDataURL(file)
+    reject(new Error('Unused local data URL helper'))
   })
 
 export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: ProductFormModalProps) {
@@ -626,14 +627,21 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
   const handleImageChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    onSuccessAction: (image: string) => void
+    onSuccessAction: (image: string) => void,
+    displayName?: string,
   ) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
 
     try {
-      const image = await fileToDataUrl(file)
+      const image = await uploadApi.uploadImage(file, {
+        scope: 'products',
+        ownerType: 'PRODUCT',
+        ownerId: initialData?.id || 'draft',
+        fieldName: 'image',
+        displayName: displayName || formData.name || initialData?.name || 'product',
+      })
       onSuccessAction(image)
     } catch (error: any) {
       toast.error(error?.message || 'Không thể tải ảnh, vui lòng thử lại')
@@ -677,12 +685,12 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pb-20 pt-10">
-      <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" />
-      <div className="card p-0 relative w-full flex flex-col max-w-[98vw] h-full max-h-[96vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-5">
+      <div className="fixed inset-0 app-modal-overlay" />
+      <div className="card p-0 relative w-full flex flex-col max-w-[1160px] max-h-[92vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-border bg-background flex items-center justify-between shrink-0">
+        <div className="px-5 py-3 border-b border-border bg-background flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary-500/10 flex items-center justify-center text-primary-500">
               <BoxIcon size={18} />
@@ -701,20 +709,22 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
 
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto bg-background-secondary/30 relative">
-          <form id="productForm" onSubmit={handleSubmit} className="p-6 flex flex-col gap-6 w-full max-w-[1600px] mx-auto">
+          <form id="productForm" onSubmit={handleSubmit} className="p-2.5 flex flex-col gap-3 w-full">
 
             {/* SECTION: THÔNG TIN CHUNG */}
-            <div className="border border-border bg-background rounded-2xl shadow-sm relative z-20">
-              <div className="px-5 py-3 border-b border-border bg-background-tertiary/50 text-[11px] font-bold uppercase tracking-wider text-foreground-muted">Thông tin chung</div>
-              <div className="p-5 flex gap-6">
+            <div className="border border-border bg-background rounded-xl shadow-sm relative z-20">
+              <div className="px-4 py-2.5 border-b border-border bg-background-tertiary/50 text-[11px] font-bold uppercase tracking-wider text-foreground-muted">Thông tin chung</div>
+              <div className="p-2.5 flex flex-col gap-3">
+                <div className="flex gap-3">
                 {/* Left: Avatar */}
-                <div className="w-32 shrink-0">
-                  <label className="group relative flex h-32 w-32 cursor-pointer overflow-hidden rounded-xl border-2 border-dashed border-border bg-background-secondary transition-colors hover:border-primary-500 hover:bg-background-tertiary">
+                <div className="w-24 shrink-0">
+                  <label className="mb-1.5 block text-xs font-medium text-foreground-muted">Ảnh SP</label>
+                  <label className="group relative flex h-24 w-24 cursor-pointer overflow-hidden rounded-xl border-2 border-dashed border-border bg-background-secondary transition-colors hover:border-primary-500 hover:bg-background-tertiary">
                     {productImage ? (
                       <Image src={productImage} alt={formData.name || 'Sản phẩm'} className="h-full w-full object-cover" width={400} height={400} unoptimized />
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center text-foreground-muted">
-                        <ImagePlus size={24} className="mb-2" />
+                        <ImagePlus size={20} className="mb-1.5" />
                         <span className="text-[10px] uppercase font-bold tracking-wider">Tải ảnh</span>
                       </div>
                     )}
@@ -725,7 +735,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => handleImageChange(e, setProductImage)}
+                      onChange={(e) => handleImageChange(e, setProductImage, formData.name || initialData?.name || 'product')}
                     />
                   </label>
                   {productImage && (
@@ -740,14 +750,14 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                 </div>
 
                 {/* Right: Info */}
-                <div className="flex-1 flex flex-col gap-4">
+                <div className="flex-1 flex flex-col gap-3">
                   {/* Hàng 1: Tên sản phẩm + Dùng cho + Danh mục */}
-                  <div className="flex gap-4">
+                  <div className="grid grid-cols-[minmax(0,1fr)_112px_200px] gap-3">
                     <div className="flex-1 min-w-0">
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Tên sản phẩm <span className="text-error">*</span></label>
-                      <input required name="name" value={formData.name} onChange={handleChange} className="form-input w-full font-semibold" placeholder="thức ăn cho mèo Canin 1kg" />
+                      <input required name="name" value={formData.name} onChange={handleChange} className="form-input w-full font-semibold" />
                     </div>
-                    <div className="w-28 shrink-0">
+                    <div>
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Dùng cho</label>
                       <select
                         name="targetSpecies"
@@ -762,7 +772,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                         <option value="OTHER">Khác</option>
                       </select>
                     </div>
-                    <div className="w-56 shrink-0">
+                    <div>
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Danh mục</label>
                       <SearchableCreatableSelect
                         options={(categories?.data || [])
@@ -790,10 +800,10 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                     </div>
                   </div>
                   {/* Hàng 2: Tên nhập hàng + Nhãn hiệu */}
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="col-span-2">
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Tên nhập hàng <span className="italic font-normal">(không bắt buộc)</span></label>
-                      <input name="importName" value={formData.importName} onChange={handleChange} className="form-input w-full" placeholder="Phục vụ đối soát với hoá đơn nhập kho..." />
+                      <input name="importName" value={formData.importName} onChange={handleChange} className="form-input w-full" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Nhãn hiệu</label>
@@ -809,30 +819,31 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                       />
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-7 gap-3 pt-2">
-                    <div className="col-span-1">
+                </div>
+                </div>
+                <div className="grid grid-cols-12 gap-3">
+                    <div className="col-span-2">
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Mã nhóm SP</label>
                       <input name="sku" value={formData.sku} onChange={handleChange} className="form-input w-full text-xs uppercase" />
                     </div>
-                    <div className="col-span-2">
+                    <div className="col-span-3">
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Mã vạch</label>
                       <input name="barcode" value={formData.barcode} onChange={handleChange} className="form-input w-full text-xs" />
                     </div>
-                    <div className="col-span-1">
+                    <div className="col-span-2">
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Đơn vị bán <span className="text-error">*</span></label>
                       <SearchableCreatableSelect
                         options={units}
                         value={formData.unit}
                         onChange={v => setFormData(f => ({ ...f, unit: v }))}
-                        placeholder="Vd: Cái"
+                        placeholder=""
                         onAdd={async (search) => {
                           await inventoryApi.createUnit({ name: search })
                           queryClient.invalidateQueries({ queryKey: ['units'] })
                         }}
                       />
                     </div>
-                    <div className="col-span-1">
+                    <div className="col-span-2">
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Trọng lượng (g)</label>
                       <NumericFormat
                         value={formData.weight}
@@ -849,7 +860,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Tồn min</label>
                       <input type="number" name="minStock" value={formData.minStock} onChange={handleChange} className="form-input w-full text-xs" />
                     </div>
-                    <div className="col-span-1">
+                    <div className="col-span-2">
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Ca kiểm kho</label>
                       <div className="flex gap-1.5">
                         <select
@@ -895,23 +906,20 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                         </select>
                       </div>
                     </div>
-                  </div>
                 </div>
               </div>
             </div>
 
-            {/* SECTION: BẢNG GIÁ */}
-            <div className="border border-border bg-background rounded-2xl overflow-hidden shadow-sm">
-              <div className="px-5 py-3 border-b border-border bg-background-tertiary/50 text-[11px] font-bold uppercase tracking-wider text-foreground-muted">Bảng Giá</div>
-              <div className="p-5 flex gap-4 items-center flex-wrap">
-                <div className="w-48">
+            <div className="px-2.5 py-1">
+              <div className="flex gap-3 items-center flex-wrap">
+                <div className="w-40">
                   <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Giá nhập</label>
                   <PriceInput value={formData.costPrice} onChange={(val: number) => setFormData(f => ({ ...f, costPrice: val }))} />
                 </div>
                 {priceBooks.map((pb: any) => {
                   const isGiaLe = pb.name.toLowerCase().includes('lẻ')
                   return (
-                    <div className="w-48" key={pb.id}>
+                    <div className="w-40" key={pb.id}>
                       <label className="block text-xs font-medium mb-1.5 text-foreground-muted">
                         {pb.name} {isGiaLe && <span className="text-error">*</span>}
                       </label>
@@ -931,9 +939,9 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
             </div>
 
             {/* SECTION: THUỘC TÍNH PHIÊN BẢN */}
-            <div className="grid grid-cols-2 gap-6 w-full items-start">
-              <div className={`border ${hasAttributes ? 'border-primary-500/50 shadow-md ring-1 ring-primary-500/20' : 'border-border'} bg-background rounded-2xl overflow-hidden transition-all duration-300`}>
-                <div className="px-5 py-3 bg-background flex justify-between items-center cursor-pointer" onClick={() => setHasAttributes(!hasAttributes)}>
+            <div className="grid grid-cols-2 gap-4 w-full items-start">
+              <div className={`border ${hasAttributes ? 'border-primary-500/50 shadow-md ring-1 ring-primary-500/20' : 'border-border'} bg-background rounded-xl overflow-hidden transition-all duration-300`}>
+                <div className="px-4 py-2.5 bg-background flex justify-between items-center cursor-pointer" onClick={() => setHasAttributes(!hasAttributes)}>
                   <div className="flex items-center gap-3">
                     <Tag size={16} className={hasAttributes ? 'text-primary-500' : 'text-foreground-muted'} />
                     <span className={`text-[12px] font-bold uppercase tracking-wider ${hasAttributes ? 'text-primary-500' : 'text-foreground-muted'}`}>Thuộc tính phiên bản</span>
@@ -943,9 +951,9 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                 </div>
 
                 {hasAttributes && (
-                  <div className="p-5 border-t border-border flex flex-col gap-4 bg-background-secondary/10 relative">
+                  <div className="p-4 border-t border-border flex flex-col gap-3 bg-background-secondary/10 relative">
                     {attributes.map((attr, index) => (
-                      <div key={index} className="flex gap-4 items-start pb-4 border-b border-border/50 last:border-b-0 last:pb-0 relative">
+                      <div key={index} className="flex gap-3 items-start pb-3 border-b border-border/50 last:border-b-0 last:pb-0 relative">
                         <button type="button" onClick={() => setAttributes(a => a.filter((_, i) => i !== index))} className="absolute right-0 top-6 text-foreground-muted hover:text-error">
                           <Trash2 size={14} />
                         </button>
@@ -959,7 +967,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                               next[index].name = e.target.value;
                               setAttributes(next);
                             }}
-                            placeholder="Vd: Loại"
+                            placeholder=""
                           />
                         </div>
                         <div className="w-2/3 pr-6">
@@ -971,7 +979,7 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                               next[index].values = newVals;
                               setAttributes(next);
                             }}
-                            placeholder={attr.values.length === 0 ? "Vị gà, Vị bò..." : ""}
+                            placeholder=""
                           />
                         </div>
                       </div>
@@ -984,8 +992,8 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
               </div>
 
               {/* SECTION: ĐƠN VỊ QUY ĐỔI */}
-              <div className={`border ${hasConversions ? 'border-success/50 shadow-md ring-1 ring-success/20' : 'border-border'} bg-background rounded-2xl relative z-10 transition-all duration-300`}>
-                <div className={`px-5 py-3 bg-background flex justify-between items-center cursor-pointer ${hasConversions ? 'rounded-t-2xl' : 'rounded-2xl'}`} onClick={() => setHasConversions(!hasConversions)}>
+              <div className={`border ${hasConversions ? 'border-success/50 shadow-md ring-1 ring-success/20' : 'border-border'} bg-background rounded-xl relative z-10 transition-all duration-300`}>
+                <div className={`px-4 py-2.5 bg-background flex justify-between items-center cursor-pointer ${hasConversions ? 'rounded-t-xl' : 'rounded-xl'}`} onClick={() => setHasConversions(!hasConversions)}>
                   <div className="flex items-center gap-3">
                     <RefreshIcon size={16} className={hasConversions ? 'text-success' : 'text-foreground-muted'} />
                     <span className={`text-[12px] font-bold uppercase tracking-wider ${hasConversions ? 'text-success' : 'text-foreground-muted'}`}>Đơn vị quy đổi</span>
@@ -995,14 +1003,14 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                 </div>
 
                 {hasConversions && (
-                  <div className="p-5 border-t border-border flex flex-col gap-4 bg-background-secondary/10 relative rounded-b-2xl">
+                  <div className="p-4 border-t border-border flex flex-col gap-3 bg-background-secondary/10 relative rounded-b-xl">
                     {conversions.map((conv, index) => (
-                      <div key={index} className="flex items-end gap-3 pb-4 border-b border-border/50 last:border-b-0 last:pb-0 relative">
+                      <div key={index} className="flex items-end gap-3 pb-3 border-b border-border/50 last:border-b-0 last:pb-0 relative">
                         <button type="button" onClick={() => setConversions(c => c.filter((_, i) => i !== index))} className="absolute right-0 top-8 text-foreground-muted hover:text-error">
                           <Trash2 size={14} />
                         </button>
-                        <div className="w-1/4">
-                          <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Áp dụng phiên bản</label>
+                        <div className="w-24">
+                          <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Áp dụng</label>
                           <select
                             className="form-input w-full"
                             value={conv.applyTo}
@@ -1019,8 +1027,8 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                             <label className="block text-xs font-medium mb-1.5 text-foreground-muted">SL chính</label>
                             <input type="number" className="form-input w-full text-center font-bold" value={conv.mainQty} onChange={e => { const n = [...conversions]; n[index].mainQty = Number(e.target.value); setConversions(n) }} />
                           </div>
-                          <div className="w-24">
-                            <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Đơn vị chính</label>
+                          <div className="w-16">
+                            <label className="block text-xs font-medium mb-1.5 text-foreground-muted">ĐV chính</label>
                             <input className="form-input w-full bg-background-tertiary" readOnly value={formData.unit} />
                           </div>
                         </div>
@@ -1030,13 +1038,13 @@ export function ProductFormModal({ isOpen, onClose, initialData, onSuccess }: Pr
                             <label className="block text-xs font-medium mb-1.5 text-foreground-muted">SL quy đổi</label>
                             <input type="number" className="form-input w-full text-center" value={conv.convQty} readOnly />
                           </div>
-                          <div className="w-40">
-                            <label className="block text-xs font-medium mb-1.5 text-foreground-muted">Đơn vị quy đổi <span className="text-error">*</span></label>
+                          <div className="w-28">
+                            <label className="block text-xs font-medium mb-1.5 text-foreground-muted">ĐV quy đổi <span className="text-error">*</span></label>
                             <SearchableCreatableSelect
                               options={units}
                               value={conv.convUnit}
                               onChange={v => { const n = [...conversions]; n[index].convUnit = v; setConversions(n) }}
-                              placeholder="Vd: Thùng"
+                              placeholder=""
                               onAdd={async (search) => {
                                 await inventoryApi.createUnit({ name: search })
                                 queryClient.invalidateQueries({ queryKey: ['units'] })

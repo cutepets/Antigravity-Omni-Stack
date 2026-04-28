@@ -200,7 +200,7 @@ export function PetFormModal({ isOpen, onClose, customerId, customerName, custom
   };
 
   return (
-    <div className="fixed inset-0 z-100 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-100 app-modal-overlay flex items-center justify-center p-4">
       <div className="bg-background-base border border-border rounded-2xl shadow-2xl w-full max-w-[550px] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
 
         <div className="p-4 border-b border-border flex items-center justify-between">

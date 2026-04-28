@@ -245,7 +245,7 @@ export function ShiftScheduleMatrix() {
 
             {/* Quick Editor Modal */}
             {selectedCell && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onPointerDown={() => setSelectedCell(null)}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 app-modal-overlay" onPointerDown={() => setSelectedCell(null)}>
                     <div className="w-full max-w-md bg-background rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95" onPointerDown={(e) => e.stopPropagation()}>
                         {/* Header */}
                         <div className="flex items-start justify-between p-5 border-b border-border">

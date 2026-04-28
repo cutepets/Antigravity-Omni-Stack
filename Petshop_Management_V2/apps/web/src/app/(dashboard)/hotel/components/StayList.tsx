@@ -21,7 +21,7 @@ import {
   useDataListSelection,
   filterSelectClass,
   toolbarSelectClass,
-} from '@/components/data-list'
+} from '@petshop/ui/data-list'
 import { Pin, PinOff, Trash2 } from 'lucide-react'
 
 type DisplayColumnId = 'code' | 'pet' | 'customer' | 'checkIn' | 'checkOut' | 'days' | 'status'

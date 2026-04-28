@@ -59,6 +59,7 @@ export interface CreateOrderPayload {
       chargeSubtotal?: number;
       chargeWeightBandId?: string;
       chargeWeightBandLabel?: string;
+      checkInNow?: boolean;
     };
   }[];
   payments?: { method: string; amount: number; note?: string; paymentAccountId?: string; paymentAccountLabel?: string }[];

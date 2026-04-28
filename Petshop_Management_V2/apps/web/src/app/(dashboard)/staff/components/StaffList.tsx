@@ -3,7 +3,7 @@ import Image from 'next/image';
 
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Clock, MapPin, Phone, Filter, ShieldAlert, Pin, PinOff, XCircle, Trash2 } from 'lucide-react'
+import { CheckCircle2, Clock, MapPin, Phone, Filter, ShieldAlert, Pin, PinOff, Plus, XCircle, Trash2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { Staff } from '@/lib/api/staff.api'
 import {
@@ -28,6 +28,8 @@ interface StaffListProps {
   canEdit: boolean
   canDeactivate: boolean
   canBulkDeactivate: boolean
+  canCreate?: boolean
+  onCreate?: () => void
   onEdit: (staff: Staff) => void
   onDeactivate: (id: string, name: string) => void
   onBulkDeactivate: (ids: string[]) => void
@@ -59,7 +61,18 @@ const STATUS_CONFIG: Record<string, { label: string; badgeClass: string; icon: a
   QUIT: { label: 'Thôi việc', badgeClass: 'badge-error', icon: XCircle },
 }
 
-export function StaffList({ staffList, roles, canEdit, canDeactivate, canBulkDeactivate, onEdit, onDeactivate, onBulkDeactivate }: StaffListProps) {
+export function StaffList({
+  staffList,
+  roles,
+  canEdit,
+  canDeactivate,
+  canBulkDeactivate,
+  canCreate = false,
+  onCreate,
+  onEdit,
+  onDeactivate,
+  onBulkDeactivate,
+}: StaffListProps) {
   const router = useRouter()
 
   const [search, setSearch] = useState('')
@@ -210,6 +223,18 @@ export function StaffList({ staffList, roles, canEdit, canDeactivate, canBulkDea
             onDragStart={(id) => dataListState.setDraggingColumnId(id as DisplayColumnId)}
             onDragEnd={() => dataListState.setDraggingColumnId(null)}
           />
+        }
+        extraActions={
+          canCreate && onCreate ? (
+            <button
+              type="button"
+              onClick={onCreate}
+              className="flex h-8 items-center gap-1.5 rounded-lg bg-primary-500 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-primary-600"
+            >
+              <Plus size={13} />
+              Thêm nhân viên
+            </button>
+          ) : undefined
         }
       />
 

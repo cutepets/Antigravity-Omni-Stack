@@ -29,6 +29,7 @@ import type {
   SupplierQuickForm,
 } from './receipt.types'
 import { LOCAL_RECEIPT_DRAFT_KEY, SUPPLIER_RECEIPT_DRAFT_KEY } from './receipt.constants'
+import { compactLocalReceiptDraftItems, type LocalReceiptDraftItem } from './receipt-draft'
 import {
   applyVariantSelection,
   buildReceiptNotes,
@@ -64,7 +65,7 @@ interface LocalReceiptDraftPayload {
   supplierId: string
   supplierQuery: string
   notes: string
-  items: SelectedItem[]
+  items: LocalReceiptDraftItem[]
   receiptDiscount: number
   receiptTax: number
   extraCosts: ExtraCostRow[]
@@ -146,6 +147,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const hydratedSupplierDraftRef = useRef(false)
   const hydratedReceiptRef = useRef<string | null>(null)
+  const warnedLocalDraftQuotaRef = useRef(false)
   const scanRequestRef = useRef(0)
   const lastAutoScannedRef = useRef('')
 
@@ -957,7 +959,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       supplierId,
       supplierQuery,
       notes,
-      items,
+      items: compactLocalReceiptDraftItems(items),
       receiptDiscount: discountAmount,
       receiptTax: taxAmount,
       extraCosts,
@@ -965,7 +967,25 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
       splitDuplicateLines,
     }
 
-    window.localStorage.setItem(LOCAL_RECEIPT_DRAFT_KEY, JSON.stringify(payload))
+    try {
+      window.localStorage.setItem(LOCAL_RECEIPT_DRAFT_KEY, JSON.stringify(payload))
+      warnedLocalDraftQuotaRef.current = false
+    } catch (error) {
+      try {
+        window.localStorage.removeItem(LOCAL_RECEIPT_DRAFT_KEY)
+        window.localStorage.setItem(LOCAL_RECEIPT_DRAFT_KEY, JSON.stringify(payload))
+        warnedLocalDraftQuotaRef.current = false
+        return
+      } catch {
+        // Fall through to the single user-facing warning below.
+      }
+
+      if (!warnedLocalDraftQuotaRef.current) {
+        warnedLocalDraftQuotaRef.current = true
+        toast.error('Khong the luu nhap tam tren may nay vi bo nho trinh duyet da day.')
+      }
+      console.warn('Failed to save local receipt draft', error)
+    }
   }, [
     branchId,
     discountAmount,

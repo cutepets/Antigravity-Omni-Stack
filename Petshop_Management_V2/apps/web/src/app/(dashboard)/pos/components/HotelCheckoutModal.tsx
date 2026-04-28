@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Calendar, Clock, DollarSign, Hotel, PawPrint, X } from 'lucide-react';
 import { hotelApi } from '@/lib/api/hotel.api';
 import { useAuthStore } from '@/stores/auth.store';
+import { appendSpeciesToServiceName } from '@/app/(dashboard)/_shared/cart/cart.utils';
 import { useCustomerPets } from '../_hooks/use-pos-queries';
 
 const formatCurrency = (value: number) =>
@@ -92,26 +93,44 @@ export function HotelCheckoutModal({
 
   const handleConfirm = () => {
     if (!activeStay) return;
+    const preview = checkoutPreviewQuery.data;
+    const chargeLine = Array.isArray(preview?.chargeLines) && preview.chargeLines.length === 1
+      ? preview.chargeLines[0]
+      : null;
 
     onConfirm({
       id: `HOTEL-CHECKOUT-${activeStay.id}`,
-      description: `Thanh toan tra chuong (${activeStay.cage?.name ?? activeStay.stayCode ?? 'Hotel'})`,
-      unitPrice: checkoutPreviewQuery.data?.totalPrice ?? activeStay.totalPrice,
+      description: appendSpeciesToServiceName(`Thanh toán trả chuồng (${activeStay.cage?.name ?? activeStay.stayCode ?? 'Hotel'})`, selectedPetProfile),
+      quantity: Number(chargeLine?.quantityDays ?? 1),
+      unitPrice: Number(chargeLine?.unitPrice ?? preview?.totalPrice ?? activeStay.totalPrice),
       type: 'hotel',
-      unit: 'lan',
+      unit: 'Ngày',
       hotelDetails: {
         petId: activeStay.petId,
         stayId: activeStay.id,
+        stayCode: activeStay.stayCode,
+        status: activeStay.status,
         checkIn: activeStay.checkIn,
         checkOut: checkoutAt,
-        lineType: checkoutPreviewQuery.data?.lineType ?? activeStay.lineType,
-        pricingPreview: checkoutPreviewQuery.data,
+        checkedInAt: activeStay.checkedInAt ?? null,
+        estimatedCheckOut: activeStay.estimatedCheckOut ?? null,
+        checkOutActual: activeStay.checkOutActual ?? null,
+        lineType: preview?.lineType ?? activeStay.lineType,
+        chargeLineIndex: chargeLine ? 0 : undefined,
+        chargeLineLabel: chargeLine?.label,
+        chargeDayType: chargeLine?.dayType,
+        chargeQuantityDays: chargeLine?.quantityDays,
+        chargeUnitPrice: chargeLine?.unitPrice,
+        chargeSubtotal: chargeLine?.subtotal,
+        chargeWeightBandId: preview?.weightBand?.id ?? null,
+        chargeWeightBandLabel: preview?.weightBand?.label ?? null,
+        pricingPreview: preview,
       },
     });
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay p-4">
       <div className="animate-slide-in flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-background-secondary shadow-xl">
         <div className="flex items-center justify-between border-b border-border p-4">
           <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">

@@ -112,9 +112,9 @@ function VaultCollectionModal({ branch, isOpen, onClose }: VaultCollectionModalP
   const shortageAfterAmount = Math.max(0, reserveAmount - cashAfterAmount)
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center app-modal-overlay p-4">
       <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border/60 bg-background-secondary/70 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border bg-background-secondary px-5 py-4">
           <div>
             <h3 className="text-base font-bold text-foreground">Thu tiền két</h3>
             <p className="text-sm text-foreground-muted">{branch.branchName}</p>
@@ -254,7 +254,7 @@ export function CashVaultTab() {
           ].map((card) => {
             const Icon = card.icon
             return (
-              <div key={card.label} className="rounded-2xl border border-border bg-card/95 p-4 shadow-sm">
+              <div key={card.label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm text-foreground-muted">{card.label}</p>
                   <Icon size={18} className={card.tone} />
@@ -265,7 +265,7 @@ export function CashVaultTab() {
           })}
         </div>
 
-        <div className="shrink-0 rounded-2xl border border-border bg-card/95 p-4">
+        <div className="shrink-0 rounded-2xl border border-border bg-card p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-bold text-foreground">Chọn nhanh chi nhánh</h3>
@@ -319,7 +319,7 @@ export function CashVaultTab() {
                   onClick={() => setSelectedBranchId(branch.branchId)}
                   className={`min-w-[190px] rounded-2xl border p-3 text-left transition-colors ${
                     isActive
-                      ? 'border-primary-500/50 bg-primary-500/12 text-primary-100'
+                      ? 'border-primary-500/70 bg-primary-500/18 text-primary-700 shadow-sm'
                       : 'border-border/70 bg-background-secondary text-foreground-muted hover:border-border hover:text-foreground'
                   }`}
                 >
@@ -344,7 +344,7 @@ export function CashVaultTab() {
               { label: 'Chờ thu', value: selectedBranch.pendingAmount, tone: 'text-emerald-300' },
               { label: 'Thiếu để lại', value: selectedBranch.reserveShortageAmount, tone: selectedBranch.reserveShortageAmount > 0 ? 'text-amber-300' : 'text-foreground' },
             ].map((item) => (
-              <div key={item.label} className="rounded-2xl border border-border bg-card/95 p-4">
+              <div key={item.label} className="rounded-2xl border border-border bg-card p-4">
                 <p className="text-sm text-foreground-muted">{item.label}</p>
                 <p className={`mt-2 text-xl font-bold ${item.tone}`}>{formatCurrency(item.value)}</p>
               </div>
@@ -352,7 +352,7 @@ export function CashVaultTab() {
           </div>
         ) : null}
 
-        <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card/95">
+        <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card">
           <table className="w-full min-w-[1320px] text-left text-sm">
             <thead className="sticky top-0 bg-background-secondary text-xs uppercase text-foreground-muted">
               <tr>

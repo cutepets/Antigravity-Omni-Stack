@@ -313,7 +313,13 @@ export function TabGeneral() {
 
     setUploadingLogo(true)
     try {
-      const imageUrl = await uploadApi.uploadImage(file)
+      const imageUrl = await uploadApi.uploadImage(file, {
+        scope: 'settings',
+        ownerType: 'SYSTEM_CONFIG',
+        ownerId: 'global',
+        fieldName: 'shopLogo',
+        displayName: formData.shopName || 'system-logo',
+      })
       setFormData((current) => ({ ...current, shopLogo: imageUrl }))
       toast.success('Tải logo thành công')
     } catch (uploadError: any) {

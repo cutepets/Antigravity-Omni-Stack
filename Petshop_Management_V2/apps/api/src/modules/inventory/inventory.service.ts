@@ -184,6 +184,23 @@ function sumBranchStock(rows: Array<{ branchId?: string | null; stock?: number |
   }, 0)
 }
 
+function toQuantity(value: unknown) {
+  const quantity = Number(value ?? 0)
+  return Number.isFinite(quantity) ? quantity : 0
+}
+
+function buildBranchMetricKey(branchId: string | null | undefined, productId: string | null | undefined, productVariantId?: string | null) {
+  return `${branchId ?? 'UNASSIGNED'}::${productId ?? 'NO_PRODUCT'}::${productVariantId ?? 'BASE'}`
+}
+
+type BranchStockMetric = {
+  branchId: string | null
+  productId: string
+  productVariantId: string | null
+  incomingStock: number
+  reservedStock: number
+}
+
 // â”€â”€â”€ Service â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Injectable()
@@ -208,6 +225,148 @@ export class InventoryService {
       name: priceBook.name,
       isDefault: priceBook.isDefault,
       sortOrder: priceBook.sortOrder,
+    }))
+  }
+
+  private collectProductIds(products: any[]) {
+    return Array.from(new Set(products.map((product) => product?.id).filter(Boolean)))
+  }
+
+  private addMetric(metrics: Map<string, BranchStockMetric>, metric: BranchStockMetric) {
+    const key = buildBranchMetricKey(metric.branchId, metric.productId, metric.productVariantId)
+    const current = metrics.get(key) ?? {
+      branchId: metric.branchId,
+      productId: metric.productId,
+      productVariantId: metric.productVariantId,
+      incomingStock: 0,
+      reservedStock: 0,
+    }
+    current.incomingStock += metric.incomingStock
+    current.reservedStock += metric.reservedStock
+    metrics.set(key, current)
+  }
+
+  private async buildBranchStockMetrics(products: any[], branchId?: string | null) {
+    const productIds = this.collectProductIds(products)
+    const metrics = new Map<string, BranchStockMetric>()
+    if (productIds.length === 0) return metrics
+
+    const [receiptItems, orderItems] = await Promise.all([
+      this.db.stockReceiptItem.findMany({
+        where: {
+          productId: { in: productIds },
+          receipt: {
+            status: { not: 'CANCELLED' },
+            receiptStatus: { not: 'CANCELLED' },
+            ...(branchId ? { branchId } : {}),
+          },
+        },
+        select: {
+          productId: true,
+          productVariantId: true,
+          quantity: true,
+          receivedQuantity: true,
+          closedQuantity: true,
+          receipt: { select: { branchId: true, status: true, receiptStatus: true } },
+        },
+      }),
+      this.db.orderItem.findMany({
+        where: {
+          productId: { in: productIds },
+          type: 'product',
+          isTemp: false,
+          stockExportedAt: null,
+          order: {
+            status: 'PROCESSING',
+            ...(branchId ? { branchId } : {}),
+          },
+        },
+        select: {
+          productId: true,
+          productVariantId: true,
+          quantity: true,
+          stockExportedAt: true,
+          order: { select: { branchId: true, status: true } },
+        },
+      }),
+    ])
+
+    for (const item of receiptItems as any[]) {
+      const incomingStock = Math.max(
+        0,
+        toQuantity(item.quantity) - toQuantity(item.receivedQuantity) - toQuantity(item.closedQuantity),
+      )
+      if (incomingStock <= 0 || !item.productId) continue
+      this.addMetric(metrics, {
+        branchId: item.receipt?.branchId ?? null,
+        productId: item.productId,
+        productVariantId: item.productVariantId ?? null,
+        incomingStock,
+        reservedStock: 0,
+      })
+    }
+
+    for (const item of orderItems as any[]) {
+      const reservedStock = Math.max(0, toQuantity(item.quantity))
+      if (reservedStock <= 0 || !item.productId) continue
+      this.addMetric(metrics, {
+        branchId: item.order?.branchId ?? null,
+        productId: item.productId,
+        productVariantId: item.productVariantId ?? null,
+        incomingStock: 0,
+        reservedStock,
+      })
+    }
+
+    return metrics
+  }
+
+  private applyBranchStockMetrics(rows: any[] | undefined, metrics: Map<string, BranchStockMetric>, productId: string, productVariantId?: string | null) {
+    const nextRows = Array.isArray(rows) ? rows.map((row) => ({ ...row })) : []
+    const seen = new Set<string>()
+
+    for (const row of nextRows) {
+      const key = buildBranchMetricKey(row.branchId, productId, productVariantId ?? row.productVariantId ?? null)
+      const metric = metrics.get(key)
+      seen.add(key)
+      row.reservedStock = toQuantity(row.reservedStock) + toQuantity(metric?.reservedStock)
+      row.incomingStock = toQuantity(row.incomingStock) + toQuantity(metric?.incomingStock)
+      row.incoming = row.incomingStock
+    }
+
+    for (const metric of metrics.values()) {
+      if (metric.productId !== productId) continue
+      if ((metric.productVariantId ?? null) !== (productVariantId ?? null)) continue
+      const key = buildBranchMetricKey(metric.branchId, productId, productVariantId ?? null)
+      if (seen.has(key)) continue
+      nextRows.push({
+        branchId: metric.branchId,
+        productId,
+        productVariantId: productVariantId ?? null,
+        stock: 0,
+        reservedStock: metric.reservedStock,
+        incomingStock: metric.incomingStock,
+        incoming: metric.incomingStock,
+        minStock: 0,
+      })
+    }
+
+    return nextRows
+  }
+
+  private async enrichProductsInventoryQuantities(products: any[], branchId?: string | null) {
+    const metrics = await this.buildBranchStockMetrics(products, branchId)
+    if (metrics.size === 0) return products
+
+    return products.map((product) => ({
+      ...product,
+      branchStocks: this.applyBranchStockMetrics(product.branchStocks, metrics, product.id, null),
+      variants: Array.isArray(product.variants)
+        ? product.variants.map((variant: any) => ({
+          ...variant,
+          branchStocks: this.applyBranchStockMetrics(variant.branchStocks, metrics, product.id, variant.id),
+        }))
+        : product.variants,
     }))
   }
 
@@ -295,6 +454,8 @@ export class InventoryService {
         this.db.product.count({ where }),
       ])
     }
+
+    data = await this.enrichProductsInventoryQuantities(data, branchId ?? null)
 
     return {
       success: true,
@@ -830,7 +991,8 @@ export class InventoryService {
       },
     })
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
-    return { success: true, data: product }
+    const [enrichedProduct] = await this.enrichProductsInventoryQuantities([product])
+    return { success: true, data: enrichedProduct }
   }
 
   async createProduct(dto: CreateProductDto) {

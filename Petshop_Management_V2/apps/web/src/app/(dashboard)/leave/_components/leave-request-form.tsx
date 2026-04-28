@@ -74,7 +74,7 @@ export function LeaveRequestForm({ open, onOpenChange, defaultBranchId = '' }: L
     if (!open) return null
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onPointerDown={() => onOpenChange(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 app-modal-overlay" onPointerDown={() => onOpenChange(false)}>
             <div className="w-full max-w-md bg-background rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95" onPointerDown={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between p-5 border-b border-border">
                     <h3 className="text-base font-bold">Tạo đơn xin nghỉ</h3>

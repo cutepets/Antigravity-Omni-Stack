@@ -1,7 +1,5 @@
 import { Metadata } from 'next'
 import { Suspense } from 'react'
-import { PageContainer, PageHeader } from '@/components/layout/PageLayout'
-import { Building2 } from 'lucide-react'
 import { SupplierList } from './_components/supplier-list'
 
 export const metadata: Metadata = {

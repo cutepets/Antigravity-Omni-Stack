@@ -47,30 +47,30 @@ const REVIEW_STATUS_OPTIONS: ReviewStatusOption[] = [
   {
     value: 'PENDING',
     label: 'Chờ duyệt',
-    activeClass: 'border-slate-400 bg-slate-500/20 text-slate-200',
+    activeClass: 'border-slate-400 bg-slate-200 text-slate-800',
     inactiveClass:
-      'border-border/60 bg-background-secondary text-foreground-muted hover:border-slate-400/50 hover:text-slate-300',
+      'border-border bg-background-secondary text-foreground-muted hover:border-slate-400 hover:text-slate-700',
   },
   {
     value: 'APPROVED',
     label: 'Duyệt',
-    activeClass: 'border-emerald-500 bg-emerald-500/20 text-emerald-300',
+    activeClass: 'border-emerald-500 bg-emerald-100 text-emerald-800',
     inactiveClass:
-      'border-border/60 bg-background-secondary text-foreground-muted hover:border-emerald-500/50 hover:text-emerald-300',
+      'border-border bg-background-secondary text-foreground-muted hover:border-emerald-500 hover:text-emerald-700',
   },
   {
     value: 'CHECKED',
     label: 'Sai tiền',
-    activeClass: 'border-rose-500 bg-rose-500/20 text-rose-300',
+    activeClass: 'border-rose-500 bg-rose-100 text-rose-800',
     inactiveClass:
-      'border-border/60 bg-background-secondary text-foreground-muted hover:border-rose-500/50 hover:text-rose-300',
+      'border-border bg-background-secondary text-foreground-muted hover:border-rose-500 hover:text-rose-700',
   },
   {
     value: 'REJECTED',
     label: 'Cần xử lý',
-    activeClass: 'border-amber-500 bg-amber-500/20 text-amber-300',
+    activeClass: 'border-amber-500 bg-amber-100 text-amber-800',
     inactiveClass:
-      'border-border/60 bg-background-secondary text-foreground-muted hover:border-amber-500/50 hover:text-amber-300',
+      'border-border bg-background-secondary text-foreground-muted hover:border-amber-500 hover:text-amber-700',
   },
 ]
 
@@ -109,10 +109,20 @@ function parseAmount(value: string) {
 type ShiftReviewModalProps = {
   shift: CashShift | null
   canManage: boolean
+  canDelete: boolean
+  isDeletePending: boolean
   onClose: () => void
+  onDelete: (shift: CashShift) => void
 }
 
-function ShiftReviewModal({ shift, canManage, onClose }: ShiftReviewModalProps) {
+function ShiftReviewModal({
+  shift,
+  canManage,
+  canDelete,
+  isDeletePending,
+  onClose,
+  onDelete,
+}: ShiftReviewModalProps) {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<ReviewForm | null>(shift ? buildReviewForm(shift) : null)
   const [isEditing, setIsEditing] = useState(false)
@@ -150,11 +160,11 @@ function ShiftReviewModal({ shift, canManage, onClose }: ShiftReviewModalProps) 
   const statusBadge = getStatusBadge(form.reviewStatus)
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center app-modal-overlay p-4">
       <div className="w-full max-w-[840px] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border/60 bg-background-secondary/60 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border bg-background-secondary px-5 py-4">
           <div>
             <div className="flex items-center gap-3">
               <h3 className="text-base font-bold text-foreground">Kiểm tra ca tiền mặt</h3>
@@ -195,7 +205,7 @@ function ShiftReviewModal({ shift, canManage, onClose }: ShiftReviewModalProps) 
             ).map(([label, value]) => (
               <div
                 key={label}
-                className="flex items-center justify-between rounded-xl border border-border/50 bg-background-secondary/60 px-3 py-2 text-sm"
+                className="flex items-center justify-between rounded-xl border border-border bg-background-secondary px-3 py-2 text-sm"
               >
                 <span className="text-foreground-muted">{label}</span>
                 <strong className="text-right text-foreground">{value}</strong>
@@ -232,13 +242,13 @@ function ShiftReviewModal({ shift, canManage, onClose }: ShiftReviewModalProps) 
             ].map(({ label, value }) => (
               <div
                 key={label}
-                className="flex items-center justify-between rounded-xl border border-border/50 bg-background-secondary/60 px-3 py-2 text-sm"
+                className="flex items-center justify-between rounded-xl border border-border bg-background-secondary px-3 py-2 text-sm"
               >
                 <span className="text-foreground-muted">{label}</span>
                 <strong className="text-foreground">{formatCurrency(Number(value) || 0)}</strong>
               </div>
             ))}
-            <div className="flex items-center justify-between rounded-xl border border-border/50 bg-background-secondary/60 px-3 py-2 text-sm">
+            <div className="flex items-center justify-between rounded-xl border border-border bg-background-secondary px-3 py-2 text-sm">
               <span className="text-foreground-muted">Chênh lệch</span>
               <strong className={`text-lg font-bold ${diffTone(shift.differenceAmount)}`}>
                 {formatCurrency(shift.differenceAmount)}
@@ -248,7 +258,7 @@ function ShiftReviewModal({ shift, canManage, onClose }: ShiftReviewModalProps) 
         </div>
 
         {/* Footer: editable area */}
-        <div className="space-y-4 border-t border-border/60 bg-background-secondary/30 p-5">
+        <div className="space-y-4 border-t border-border bg-background-secondary p-5">
 
           {/* Số tiền */}
           <div className="grid gap-3 md:grid-cols-2">
@@ -339,6 +349,17 @@ function ShiftReviewModal({ shift, canManage, onClose }: ShiftReviewModalProps) 
 
           {/* Action buttons */}
           <div className="flex justify-end gap-2 pt-1">
+            {canDelete ? (
+              <button
+                type="button"
+                disabled={isDeletePending || shift.status !== 'CLOSED'}
+                onClick={() => onDelete(shift)}
+                className="inline-flex items-center gap-2 rounded-xl border border-rose-500 bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 size={16} />
+                Xoá
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onClose}
@@ -350,7 +371,7 @@ function ShiftReviewModal({ shift, canManage, onClose }: ShiftReviewModalProps) 
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-background-base px-4 py-2 text-sm font-semibold text-foreground hover:bg-background-tertiary"
               >
                 <Edit3 size={16} />
                 Sửa sổ
@@ -427,7 +448,7 @@ export function CashShiftsTab() {
     <>
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card/95 p-4">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-4">
           {allowedBranches && allowedBranches.length > 0 ? (
             <>
               <button
@@ -435,7 +456,7 @@ export function CashShiftsTab() {
                 onClick={() => setSelectedBranchId('ALL')}
                 className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
                   selectedBranchId === 'ALL'
-                    ? 'border-primary-500/50 bg-primary-500/12 text-primary-100'
+                    ? 'border-primary-500/70 bg-primary-500/18 text-primary-700 shadow-sm'
                     : 'border-border/70 bg-background-secondary text-foreground-muted hover:border-border hover:text-foreground'
                 }`}
               >
@@ -448,7 +469,7 @@ export function CashShiftsTab() {
                   onClick={() => setSelectedBranchId(branch.id)}
                   className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
                     selectedBranchId === branch.id
-                      ? 'border-primary-500/50 bg-primary-500/12 text-primary-100'
+                      ? 'border-primary-500/70 bg-primary-500/18 text-primary-700 shadow-sm'
                       : 'border-border/70 bg-background-secondary text-foreground-muted hover:border-border hover:text-foreground'
                   }`}
                 >
@@ -493,7 +514,7 @@ export function CashShiftsTab() {
         </div>
 
         {/* Table */}
-        <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card/95">
+        <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card">
           <table className="w-full min-w-[1320px] text-left text-sm">
             <thead className="sticky top-0 bg-background-secondary text-xs uppercase text-foreground-muted">
               <tr>
@@ -510,19 +531,18 @@ export function CashShiftsTab() {
                 <th className="px-4 py-3 text-right">Đã thu</th>
                 <th className="px-4 py-3 text-right">Thừa/thiếu</th>
                 <th className="px-4 py-3">Trạng thái</th>
-                <th className="px-4 py-3 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {query.isLoading ? (
                 <tr>
-                  <td colSpan={14} className="px-4 py-12 text-center text-foreground-muted">
+                  <td colSpan={13} className="px-4 py-12 text-center text-foreground-muted">
                     Đang tải sổ tiền mặt...
                   </td>
                 </tr>
               ) : shifts.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="px-4 py-12 text-center text-foreground-muted">
+                  <td colSpan={13} className="px-4 py-12 text-center text-foreground-muted">
                     Chưa có ca tiền mặt trong khoảng thời gian này.
                   </td>
                 </tr>
@@ -530,7 +550,19 @@ export function CashShiftsTab() {
                 shifts.map((shift) => {
                   const badge = getStatusBadge(shift.reviewStatus)
                   return (
-                    <tr key={shift.id} className="border-t border-border/70 hover:bg-white/[0.03]">
+                    <tr
+                      key={shift.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedShift(shift)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setSelectedShift(shift)
+                        }
+                      }}
+                      className="cursor-pointer border-t border-border/70 transition-colors hover:bg-background-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
                       <td className="px-4 py-3">
                         <div className="font-semibold text-foreground">
                           {formatDateTime(shift.openedAt)}
@@ -575,33 +607,10 @@ export function CashShiftsTab() {
                           {shift.status === 'CLOSED' ? 'Đã đóng' : 'Đang mở'}
                         </div>
                         <span
-                          className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badge.activeClass}`}
+                          className={`mt-1 inline-flex rounded-full border px-3 py-1 text-xs font-bold ${badge.activeClass}`}
                         >
                           {badge.label}
                         </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedShift(shift)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground-muted hover:text-foreground"
-                          >
-                            <Edit3 size={14} />
-                            {canManage ? 'Sửa/duyệt' : 'Xem'}
-                          </button>
-                          {canDelete ? (
-                            <button
-                              type="button"
-                              disabled={deleteShift.isPending || shift.status !== 'CLOSED'}
-                              onClick={() => handleDeleteShift(shift)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <Trash2 size={14} />
-                              Xoá
-                            </button>
-                          ) : null}
-                        </div>
                       </td>
                     </tr>
                   )
@@ -615,7 +624,10 @@ export function CashShiftsTab() {
       <ShiftReviewModal
         shift={selectedShift}
         canManage={canManage}
+        canDelete={canDelete}
+        isDeletePending={deleteShift.isPending}
         onClose={() => setSelectedShift(null)}
+        onDelete={handleDeleteShift}
       />
     </>
   )

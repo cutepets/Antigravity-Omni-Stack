@@ -226,7 +226,13 @@ export function SupplierFormModal({ isOpen, onClose, initialData }: Props) {
 
     setUploadingAvatar(true)
     try {
-      const uploadedUrl = await uploadApi.uploadImage(file)
+      const uploadedUrl = await uploadApi.uploadImage(file, {
+        scope: 'suppliers',
+        ownerType: 'SUPPLIER',
+        ownerId: initialData?.id || 'draft',
+        fieldName: 'avatar',
+        displayName: supplierNameValue || initialData?.name || 'supplier',
+      })
       setAvatarUrl(uploadedUrl)
       toast.success('Đã tải avatar NCC')
     } catch (error: any) {
@@ -243,7 +249,13 @@ export function SupplierFormModal({ isOpen, onClose, initialData }: Props) {
 
     setUploadingDocument(true)
     try {
-      const uploaded = await uploadApi.uploadFile(file)
+      const uploaded = await uploadApi.uploadFile(file, {
+        scope: 'supplier-documents',
+        ownerType: 'SUPPLIER_DOCUMENT',
+        ownerId: initialData?.id || 'draft',
+        fieldName: 'documents',
+        displayName: supplierNameValue || initialData?.name || documentDraft.type || 'supplier-document',
+      })
       setDocuments((current) => [
         ...current,
         {
@@ -294,7 +306,7 @@ export function SupplierFormModal({ isOpen, onClose, initialData }: Props) {
 
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6">
-      <div className="fixed inset-0 bg-background-base/80 backdrop-blur-sm" />
+      <div className="fixed inset-0 app-modal-overlay" />
 
       <div className="card relative z-[81] flex max-h-[92vh] w-full max-w-[1440px] flex-col overflow-hidden p-0 shadow-2xl animate-in fade-in zoom-in duration-200">
         <div className="flex items-center justify-between border-b border-border bg-background-tertiary px-6 py-5">

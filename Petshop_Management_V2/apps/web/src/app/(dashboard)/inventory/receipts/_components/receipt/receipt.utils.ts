@@ -266,28 +266,51 @@ export function getVariantSnapshot(item: SelectedItem) {
   const selectedVariant =
     variants.find((variant) => variant.id === item.productVariantId) ?? null
   const selectedLabels = selectedVariant ? getNormalizedVariantLabels(item.name, selectedVariant) : null
+  const stockSource =
+    selectedVariant && isConversionVariant(selectedVariant)
+      ? findParentTrueVariant(variants, selectedVariant, item.name) ?? selectedVariant
+      : selectedVariant
   const branchStocks = getDisplayBranchStocks(
     {
       name: item.name,
       branchStocks: item.baseBranchStocks ?? item.branchStocks ?? [],
       variants,
     },
-    selectedVariant?.id ?? item.productVariantId ?? null,
+    stockSource?.id ?? item.productVariantId ?? null,
   ) as BranchStock[]
 
   const totalStock =
     branchStocks.length > 0
       ? sumBranchStock(branchStocks)
-      : selectedVariant
-        ? selectedVariant.stock !== undefined && selectedVariant.stock !== null
-          ? Number(selectedVariant.stock)
+      : stockSource
+        ? stockSource.stock !== undefined && stockSource.stock !== null
+          ? Number(stockSource.stock)
           : 0
         : item.baseTotalStock ?? item.totalStock ?? 0
+  const totalAvailableStock =
+    stockSource?.availableStock !== undefined && stockSource.availableStock !== null
+      ? Number(stockSource.availableStock)
+      : branchStocks.length > 0
+        ? branchStocks.reduce((sum, row) => {
+          const available =
+            row.availableStock !== undefined && row.availableStock !== null
+              ? Number(row.availableStock)
+              : Number(row.stock ?? 0) - Number(row.reservedStock ?? (row as any).reserved ?? 0)
+          return sum + available
+        }, 0)
+        : totalStock - Number((stockSource as any)?.trading ?? (stockSource as any)?.reserved ?? 0)
+  const totalTradingStock =
+    (stockSource as any)?.trading !== undefined && (stockSource as any)?.trading !== null
+      ? Number((stockSource as any).trading)
+      : null
 
   return {
     selectedVariant,
+    stockSource,
     branchStocks,
     totalStock,
+    totalAvailableStock,
+    totalTradingStock,
     displayName: selectedLabels
       ? buildProductVariantName(item.name, selectedLabels.variantLabel, null) || item.name
       : item.name,

@@ -20,7 +20,7 @@ export const ORDER_STATUS_BADGE: Record<string, string> = {
   PROCESSING: 'badge badge-accent',
   COMPLETED: 'badge badge-success',
   DRAFT: 'badge badge-ghost',
-  CANCELLED: 'badge bg-destructive/10 text-destructive border-transparent font-medium',
+  CANCELLED: 'badge badge-error',
   PARTIALLY_REFUNDED: 'badge bg-orange-100 text-orange-700 border-transparent font-medium',
   FULLY_REFUNDED: 'badge bg-orange-100 text-orange-700 border-transparent font-medium',
   PARTIALLY_RETURNED: 'badge bg-amber-100 text-amber-700 border-transparent font-medium',

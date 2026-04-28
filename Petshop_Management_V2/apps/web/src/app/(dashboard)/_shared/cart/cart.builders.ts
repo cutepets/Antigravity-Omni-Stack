@@ -5,6 +5,7 @@
 
 import { buildProductVariantName, type CartItem } from '@petshop/shared'
 import {
+  appendSpeciesToServiceName,
   getOrderServiceId,
   inferSpaPackageCodeFromService,
   isGroomingService,
@@ -58,19 +59,18 @@ export function buildProductCartItem(product: any): CartItem {
 export function buildDirectServiceCartItem(service: any, petId?: string, petName?: string): CartItem {
   const itemType = isHotelService(service) ? 'hotel' : 'service'
   const unitPrice = Number(service?.sellingPrice ?? service?.price ?? 0)
+  const serviceName = itemType === 'hotel' ? service.name ?? 'Hotel lưu trú' : service.name
 
   return {
     id: buildCartLineId(itemType, service.id, petId),
     serviceId: getOrderServiceId(service),
-    description: isHotelService(service)
-      ? `Luu tru${service.weightBandLabel ? ` - ${service.weightBandLabel}` : ''}`
-      : service.name,
+    description: appendSpeciesToServiceName(serviceName, service),
     sku: service.sku,
     weightBandLabel: service.weightBandLabel,
     unitPrice,
     type: itemType,
     image: service.image,
-    unit: itemType === 'hotel' ? 'ngay' : 'lan',
+    unit: itemType === 'hotel' ? 'Ngày' : 'Lần',
     discountItem: 0,
     vatRate: 0,
     quantity: 1,
@@ -122,13 +122,13 @@ export function buildGroomingCartItem(service: any, petId?: string, petName?: st
   return {
     id: buildCartLineId('grooming', service.id, petId, isExtraService ? service?.pricingRuleId ?? service?.sku ?? service?.name ?? 'extra' : undefined),
     serviceId: getOrderServiceId(service),
-    description: service.name,
+    description: appendSpeciesToServiceName(service.name, service),
     sku: service.sku,
     weightBandLabel: service.weightBandLabel,
     unitPrice,
     type: 'grooming',
     image: service.image,
-    unit: 'lan',
+    unit: 'Lần',
     discountItem: 0,
     vatRate: 0,
     quantity: 1,

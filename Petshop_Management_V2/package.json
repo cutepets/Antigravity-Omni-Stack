@@ -10,6 +10,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
+    "ui:editor": "node scripts/react-rewrite-workspace.mjs 3000",
     "audit:generated-artifacts": "node scripts/audit-generated-artifacts.mjs",
     "utf8:check": "node scripts/check-utf8.mjs",
     "utf8:check:staged": "node scripts/check-utf8.mjs --staged",

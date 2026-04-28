@@ -232,6 +232,8 @@ export class OrderPaymentService {
           stockExportedAt?: Date | null;
           groomingSessionId?: string | null;
           hotelStayId?: string | null;
+          groomingSession?: { status?: string | null } | null;
+          hotelStay?: { status?: string | null } | null;
         }>;
         hotelStays?: Array<{ id: string; stayCode?: string | null }>;
       };
@@ -320,6 +322,29 @@ export class OrderPaymentService {
       || Boolean(item.groomingSessionId)
       || Boolean(item.hotelStayId),
     );
+    const hasPhysicalProductItems = orderItems.some((item) =>
+      item.type === 'product'
+      && Boolean(item.productId)
+      && item.isTemp !== true,
+    );
+    const serviceItemsReady = orderItems.every((item) => {
+      if (item.groomingSession?.status) {
+        return ['COMPLETED', 'RETURNED', 'CANCELLED'].includes(item.groomingSession.status);
+      }
+
+      if (item.hotelStay?.status) {
+        return ['CHECKED_OUT', 'CANCELLED'].includes(item.hotelStay.status);
+      }
+
+      return true;
+    });
+    const shouldAutoExportServiceOnly =
+      paymentStatus === 'PAID'
+      && Boolean(params.staffId)
+      && !params.order.stockExportedAt
+      && hasServiceItems
+      && !hasPhysicalProductItems
+      && serviceItemsReady;
     const autoExportItems =
       paymentStatus === 'PAID' && Boolean(params.staffId) && !params.order.stockExportedAt && !hasServiceItems
         ? orderItems.filter(
@@ -352,6 +377,11 @@ export class OrderPaymentService {
     }
 
     const shouldAutoComplete = autoExportItems.length > 0;
+    const shouldCompleteExportedOrder =
+      paymentStatus === 'PAID'
+      && Boolean(params.order.stockExportedAt)
+      && params.order.status !== 'COMPLETED';
+    const shouldCompleteOrder = shouldAutoComplete || shouldCompleteExportedOrder || shouldAutoExportServiceOnly;
     return tx.order
       .update({
         where: { id: params.order.id },
@@ -359,12 +389,16 @@ export class OrderPaymentService {
           paidAmount: totalPaid,
           remainingAmount: remaining,
           paymentStatus: paymentStatus as any,
-          ...(shouldAutoComplete
+          ...(shouldCompleteOrder
             ? {
               status: 'COMPLETED' as any,
               completedAt: now,
-              stockExportedAt: now,
-              stockExportedBy: params.staffId ?? null,
+              ...(shouldAutoComplete || shouldAutoExportServiceOnly
+                ? {
+                  stockExportedAt: now,
+                  stockExportedBy: params.staffId ?? null,
+                }
+                : {}),
             }
             : {}),
         },
@@ -382,6 +416,34 @@ export class OrderPaymentService {
             exportedItemCount: autoExportItems.length,
             pendingTempCount,
             metadata: { source: 'PAYMENT_AUTO_EXPORT' },
+          });
+        }
+        if (shouldCompleteExportedOrder) {
+          await (tx as any).orderTimeline.create({
+            data: {
+              orderId: params.order.id,
+              action: 'SETTLED',
+              fromStatus: params.order.status ?? null,
+              toStatus: 'COMPLETED',
+              note: null,
+              performedBy: params.staffId ?? null,
+              metadata: { source: 'PAYMENT_AUTO_COMPLETE' },
+              createdAt: now,
+            } as any,
+          });
+        }
+        if (shouldAutoExportServiceOnly) {
+          await (tx as any).orderTimeline.create({
+            data: {
+              orderId: params.order.id,
+              action: 'STOCK_EXPORTED',
+              fromStatus: params.order.status ?? null,
+              toStatus: 'COMPLETED',
+              note: null,
+              performedBy: params.staffId ?? null,
+              metadata: { source: 'PAYMENT_SERVICE_AUTO_EXPORT' },
+              createdAt: now,
+            } as any,
           });
         }
         return updatedOrder;
@@ -413,8 +475,8 @@ export class OrderPaymentService {
   }
 
   async payOrder(id: string, dto: PayOrderDto, staffId: string, user?: AccessUser): Promise<any> {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+    const order = await this.prisma.order.findFirst({
+      where: { OR: [{ id }, { orderNumber: id }] },
       include: {
         customer: true,
         items: {
@@ -428,6 +490,16 @@ export class OrderPaymentService {
             quantity: true,
             isTemp: true,
             stockExportedAt: true,
+            groomingSession: {
+              select: {
+                status: true,
+              },
+            },
+            hotelStay: {
+              select: {
+                status: true,
+              },
+            },
           },
         },
         hotelStays: {

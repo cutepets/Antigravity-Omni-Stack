@@ -23,12 +23,12 @@ import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
 import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import {
-  createDiskUploadOptions,
-  deleteUploadedFile,
+  createMemoryUploadOptions,
   IMAGE_UPLOAD_EXTENSIONS,
   validateUploadedFile,
 } from '../../common/utils/upload.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
+import { StorageService } from '../storage/storage.service.js'
 import { AddVaccinationCommand } from './application/commands/add-vaccination/add-vaccination.command.js'
 import { AddWeightLogCommand } from './application/commands/add-weight-log/add-weight-log.command.js'
 import { CreatePetCommand } from './application/commands/create-pet/create-pet.command.js'
@@ -72,6 +72,7 @@ export class PetController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly storageService: StorageService,
   ) {}
 
   @Post()
@@ -150,8 +151,8 @@ export class PetController {
   @Permissions('pet.update')
   @UseInterceptors(
     FileInterceptor('file', {
-      ...createDiskUploadOptions({
-        destination: './uploads/pets',
+      ...createMemoryUploadOptions({
+        destination: 'uploads/pets',
         ...petImageUploadValidation,
       }),
     }),
@@ -163,17 +164,32 @@ export class PetController {
   ) {
     validateUploadedFile(file, {
       ...petImageUploadValidation,
-      requireStoredFilename: true,
     })
-    const avatarUrl = `/uploads/pets/${file.filename}`
+    const asset = await this.storageService.uploadAsset({
+      category: 'image',
+      scope: 'pets',
+      ownerType: 'PET',
+      ownerId: id,
+      fieldName: 'avatar',
+      displayName: await this.resolvePetDisplayName(id, req),
+      uploadedById: req.user?.userId ?? null,
+      file: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        buffer: file.buffer,
+      },
+    })
 
     try {
-      return await this.commandBus.execute(new UpdatePetAvatarCommand(id, avatarUrl, req.user))
+      return await this.commandBus.execute(new UpdatePetAvatarCommand(id, asset.url, req.user))
     } catch (error) {
       try {
-        await deleteUploadedFile(avatarUrl, {
-          publicPrefix: '/uploads/pets/',
-          rootDir: './uploads/pets',
+        await this.storageService.unbindAssetReference({
+          assetUrl: asset.url,
+          entityType: 'PET',
+          entityId: id,
+          fieldName: 'avatar',
         })
       } catch {
         // Preserve the original domain error when cleanup fails.
@@ -186,22 +202,43 @@ export class PetController {
   @Permissions('pet.update')
   @UseInterceptors(
     FileInterceptor('file', {
-      ...createDiskUploadOptions({
-        destination: './uploads/vaccines',
+      ...createMemoryUploadOptions({
+        destination: 'uploads/vaccines',
         ...petImageUploadValidation,
       }),
     }),
   )
-  uploadVaccinePhoto(
+  async uploadVaccinePhoto(
     @Param('id') _id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
     validateUploadedFile(file, {
       ...petImageUploadValidation,
-      requireStoredFilename: true,
     })
-    const photoUrl = `/uploads/vaccines/${file.filename}`
-    return { photoUrl }
+    const asset = await this.storageService.uploadAsset({
+      category: 'image',
+      scope: 'vaccines',
+      ownerType: 'PET',
+      ownerId: _id,
+      fieldName: 'vaccinationPhoto',
+      displayName: _id,
+      file: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        buffer: file.buffer,
+      },
+    })
+    return { photoUrl: asset.url, assetId: asset.id, reused: Boolean((asset as any).reused) }
+  }
+
+  private async resolvePetDisplayName(id: string, req: AuthenticatedRequest) {
+    try {
+      const pet = await this.queryBus.execute(new FindPetQuery(id, req.user))
+      return pet?.name ?? id
+    } catch {
+      return id
+    }
   }
 
   @Post('sync-attribute')

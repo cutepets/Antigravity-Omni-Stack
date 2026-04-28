@@ -101,6 +101,9 @@ export class BackupService {
     if (dto.destination === 'google_drive') {
       const asset = await this.storageService.uploadAsset({
         category: 'backup',
+        scope: 'backups',
+        fieldName: 'backup',
+        displayName: fileName,
         providerOverride: StorageProviderKind.GOOGLE_DRIVE,
         uploadedById: createdBy,
         file: {

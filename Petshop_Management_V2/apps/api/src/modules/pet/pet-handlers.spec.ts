@@ -270,7 +270,10 @@ describe('Pet CQRS Handlers', () => {
 
       const { UpdatePetAvatarHandler } = await import('./application/commands/update-pet-avatar/update-pet-avatar.handler')
       const { UpdatePetAvatarCommand } = await import('./application/commands/update-pet-avatar/update-pet-avatar.command')
-      const handler = new UpdatePetAvatarHandler(accessPolicy, medicalRecords as any)
+      const handler = new UpdatePetAvatarHandler(accessPolicy, medicalRecords as any, {
+        isStoredAssetUrl: jest.fn().mockReturnValue(false),
+        unbindAssetReference: jest.fn(),
+      } as any)
 
       const result = await handler.execute(
         new UpdatePetAvatarCommand('pet-1', '/uploads/pets/avatar.png', makeActor()),

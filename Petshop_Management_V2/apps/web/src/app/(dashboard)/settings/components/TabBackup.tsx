@@ -812,7 +812,7 @@ function PurgeSection({ catalog }: { catalog: BackupCatalogEntry[] }) {
 
       {/* Confirmation Dialog */}
       {showConfirmDialog ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay">
           <div className="w-full max-w-md space-y-5 rounded-3xl border border-rose-500/30 bg-background-secondary p-6 shadow-xl">
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-rose-500/15 p-3">

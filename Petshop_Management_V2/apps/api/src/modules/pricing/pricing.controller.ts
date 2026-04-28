@@ -17,12 +17,13 @@ import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import {
   createDiskUploadOptions,
-  deleteUploadedFile,
+  createMemoryUploadOptions,
   IMAGE_UPLOAD_EXTENSIONS,
   IMAGE_UPLOAD_MIME_TYPES,
   validateUploadedFile,
 } from '../../common/utils/upload.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
+import { StorageService } from '../storage/storage.service.js'
 import {
   BulkUpsertHotelExtraServicesDto,
   BulkUpsertHotelRulesDto,
@@ -46,7 +47,10 @@ const serviceImageUploadOptions = {
 @Controller('pricing')
 @UseGuards(JwtGuard, PermissionsGuard)
 export class PricingController {
-  constructor(private readonly pricingService: PricingService) { }
+  constructor(
+    private readonly pricingService: PricingService,
+    private readonly storageService: StorageService,
+  ) { }
 
   @Get('weight-bands')
   @Permissions('hotel.read', 'grooming.read', 'settings.pricing_policy.manage')
@@ -96,8 +100,8 @@ export class PricingController {
   @Permissions('grooming.update', 'settings.pricing_policy.manage')
   @UseInterceptors(
     FileInterceptor('file', {
-      ...createDiskUploadOptions({
-        destination: './uploads/spa-services',
+      ...createMemoryUploadOptions({
+        destination: 'uploads/spa-services',
         ...serviceImageUploadOptions,
       }),
     }),
@@ -106,17 +110,33 @@ export class PricingController {
     @Param('packageCode') packageCode: string,
     @UploadedFile() file: Express.Multer.File,
     @Body('label') label?: string,
+    @Body('species') species?: string,
   ) {
-    validateUploadedFile(file, { ...serviceImageUploadOptions, requireStoredFilename: true })
-    const imageUrl = `/uploads/spa-services/${file.filename}`
+    validateUploadedFile(file, serviceImageUploadOptions)
+    const asset = await this.storageService.uploadAsset({
+      category: 'image',
+      scope: 'services',
+      ownerType: 'SPA_SERVICE_IMAGE',
+      ownerId: `${species?.trim() || 'all'}:${packageCode}`,
+      fieldName: 'imageUrl',
+      displayName: label?.trim() || packageCode,
+      file: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        buffer: file.buffer,
+      },
+    })
 
     try {
-      return await this.pricingService.uploadSpaServiceImage(packageCode, imageUrl, label?.trim())
+      return await this.pricingService.uploadSpaServiceImage(packageCode, asset.url, label?.trim(), species?.trim())
     } catch (error) {
       try {
-        await deleteUploadedFile(imageUrl, {
-          publicPrefix: '/uploads/spa-services/',
-          rootDir: './uploads/spa-services',
+        await this.storageService.unbindAssetReference({
+          assetUrl: asset.url,
+          entityType: 'SPA_SERVICE_IMAGE',
+          entityId: `${species?.trim() || 'all'}:${packageCode}`,
+          fieldName: 'imageUrl',
         })
       } catch {
         // Preserve original error when cleanup fails
@@ -127,8 +147,98 @@ export class PricingController {
 
   @Put('spa-service-images')
   @Permissions('grooming.update', 'settings.pricing_policy.manage')
-  bulkUpdateSpaServiceImages(@Body() body: { images: Array<{ packageCode: string; imageUrl: string }> }) {
+  bulkUpdateSpaServiceImages(@Body() body: { images: Array<{ species?: string | null; packageCode: string; imageUrl: string }> }) {
     return this.pricingService.bulkUpdateSpaServiceImages(body.images ?? [])
+  }
+
+  @Get('hotel-service-images')
+  @Permissions('hotel.read', 'settings.pricing_policy.manage')
+  listHotelServiceImages() {
+    return this.pricingService.listHotelServiceImages()
+  }
+
+  @Post('hotel-service-images/:species')
+  @Permissions('hotel.update', 'settings.pricing_policy.manage')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      ...createMemoryUploadOptions({
+        destination: 'uploads/pricing-services',
+        ...serviceImageUploadOptions,
+      }),
+    }),
+  )
+  async uploadHotelServiceImage(
+    @Param('species') species: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('label') label?: string,
+  ) {
+    validateUploadedFile(file, serviceImageUploadOptions)
+    const asset = await this.storageService.uploadAsset({
+      category: 'image',
+      scope: 'services',
+      ownerType: 'HOTEL_SERVICE_IMAGE',
+      ownerId: species,
+      fieldName: 'imageUrl',
+      displayName: label?.trim() || species,
+      file: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        buffer: file.buffer,
+      },
+    })
+
+    try {
+      return await this.pricingService.uploadHotelServiceImage(species, asset.url, label?.trim())
+    } catch (error) {
+      try {
+        await this.storageService.unbindAssetReference({
+          assetUrl: asset.url,
+          entityType: 'HOTEL_SERVICE_IMAGE',
+          entityId: species,
+          fieldName: 'imageUrl',
+        })
+      } catch {
+        // Preserve original error when cleanup fails
+      }
+      throw error
+    }
+  }
+
+  @Put('hotel-service-images')
+  @Permissions('hotel.update', 'settings.pricing_policy.manage')
+  bulkUpdateHotelServiceImages(@Body() body: { images: Array<{ species?: string | null; packageCode?: string | null; imageUrl: string; label?: string | null }> }) {
+    return this.pricingService.bulkUpdateHotelServiceImages(body.images ?? [])
+  }
+
+  @Post('service-images/upload')
+  @Permissions('hotel.update', 'grooming.update', 'settings.pricing_policy.manage')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      ...createMemoryUploadOptions({
+        destination: 'uploads/pricing-services',
+        ...serviceImageUploadOptions,
+      }),
+    }),
+  )
+  async uploadPricingServiceImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('displayName') displayName?: string,
+  ) {
+    validateUploadedFile(file, serviceImageUploadOptions)
+    const asset = await this.storageService.uploadAsset({
+      category: 'image',
+      scope: 'services',
+      fieldName: 'imageUrl',
+      displayName: displayName || null,
+      file: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        buffer: file.buffer,
+      },
+    })
+    return { imageUrl: asset.url, assetId: asset.id, reused: Boolean((asset as any).reused) }
   }
 
   // ─── Hotel Rules ──────────────────────────────────────────────────────────

@@ -92,6 +92,7 @@ export function fillEmptyGroomingSkus(
   spaServiceColumns: SpaServiceColumn[],
   spaDrafts: Record<string, SpaDraft>,
   flatRateDrafts: FlatRateDraft[],
+  species: string,
 ) {
   let filledCount = 0
   const nextSpaDrafts = { ...spaDrafts }
@@ -109,7 +110,7 @@ export function fillEmptyGroomingSkus(
       if (existing.sku.trim()) continue
       nextSpaDrafts[key] = {
         ...existing,
-        sku: buildServicePricingSku('SPA', packageCode, band.label, undefined, minWeight, maxWeight),
+        sku: buildServicePricingSku('SPA', packageCode, band.label, species, minWeight, maxWeight),
       }
       filledCount += 1
     }

@@ -16,6 +16,7 @@ node_modules/
 
 # Local reports
 .reports/
+.backups/
 
 # Node debug scripts
 check-gsd.js
@@ -26,3 +27,6 @@ skill-audit.js
 diff*.txt
 _tmp_*
 *.orig
+
+# Local developer tools
+.tools/

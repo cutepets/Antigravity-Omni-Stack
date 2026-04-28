@@ -114,13 +114,27 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     enabled: mode === 'GROOMING',
   })
 
+  const hotelServiceImagesQuery = useQuery({
+    queryKey: ['pricing', 'hotel-service-images'],
+    queryFn: () => pricingApi.getHotelServiceImages(),
+    enabled: mode === 'HOTEL',
+  })
+
   const spaServiceImagesMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const item of spaServiceImagesQuery.data ?? []) {
-      map.set(item.packageCode, item.imageUrl)
+      map.set(`${item.species ?? 'NULL'}:${item.packageCode}`, item.imageUrl)
     }
     return map
   }, [spaServiceImagesQuery.data])
+
+  const hotelServiceImagesMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const item of hotelServiceImagesQuery.data ?? []) {
+      map.set(item.species, item.imageUrl)
+    }
+    return map
+  }, [hotelServiceImagesQuery.data])
 
   const rawBands = useMemo(() => bandsQuery.data ?? [], [bandsQuery.data])
   const spaRules = useMemo(() => spaRulesQuery.data ?? [], [spaRulesQuery.data])
@@ -147,11 +161,14 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     const nextState = createGroomingPricingState(spaRules, species)
     const columnsWithImages = nextState.serviceColumns.map((col) => ({
       ...col,
-      imageUrl: spaServiceImagesMap.get(col.packageCode) ?? null,
+      imageUrl: spaServiceImagesMap.get(`${species}:${col.packageCode}`) ?? spaServiceImagesMap.get(`NULL:${col.packageCode}`) ?? null,
     }))
     setSpaServiceColumns(columnsWithImages)
     setSpaDrafts(nextState.spaDrafts)
-    setFlatRateDrafts(nextState.flatRateDrafts)
+    setFlatRateDrafts(nextState.flatRateDrafts.map((draft) => ({
+      ...draft,
+      imageUrl: spaServiceImagesMap.get(`NULL:${draft.name}`) ?? draft.imageUrl ?? null,
+    })))
   }, [mode, spaRules, species, spaServiceImagesMap])
 
   useEffect(() => {
@@ -195,7 +212,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     if (!ensureCanManagePricing()) return
 
     if (mode === 'GROOMING') {
-      const nextState = fillEmptyGroomingSkus(bandDrafts, spaServiceColumns, spaDrafts, flatRateDrafts)
+      const nextState = fillEmptyGroomingSkus(bandDrafts, spaServiceColumns, spaDrafts, flatRateDrafts, species)
       setSpaDrafts(nextState.spaDrafts)
       setFlatRateDrafts(nextState.flatRateDrafts)
       toast.success(nextState.filledCount > 0 ? `Da set SKU tu dong cho ${nextState.filledCount} o trong.` : 'Khong co o SKU trong nao can set.')
@@ -278,7 +295,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   const handleSpaServiceImageUpload = async (column: SpaServiceColumn, file: File) => {
     if (!column.packageCode.trim()) return
     try {
-      const result = await pricingApi.uploadSpaServiceImage(column.packageCode.trim(), file, column.packageCode.trim())
+      const result = await pricingApi.uploadSpaServiceImage(column.packageCode.trim(), file, column.packageCode.trim(), species)
       // Update local state immediately
       setSpaServiceColumns((current) =>
         current.map((col) => (col.key === column.key ? { ...col, imageUrl: result.imageUrl } : col)),
@@ -286,6 +303,39 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       // Invalidate query so F5 / next load shows persisted image
       queryClient.invalidateQueries({ queryKey: ['pricing', 'spa-service-images'] })
       toast.success('Đã lưu ảnh dịch vụ')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(`Lưu ảnh thất bại: ${msg}`)
+    }
+  }
+
+  const handleFlatRateImageUpload = async (index: number, file: File) => {
+    try {
+      const result = await pricingApi.uploadPricingServiceImage(file, flatRateDrafts[index]?.name || 'service')
+      setFlatRateDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, imageUrl: result.imageUrl } : item))
+      toast.success('Đã lưu ảnh dịch vụ')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(`Lưu ảnh thất bại: ${msg}`)
+    }
+  }
+
+  const handleHotelExtraImageUpload = async (index: number, file: File) => {
+    try {
+      const result = await pricingApi.uploadPricingServiceImage(file, hotelExtraServiceDrafts[index]?.name || 'hotel-extra-service')
+      setHotelExtraServiceDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, imageUrl: result.imageUrl } : item))
+      toast.success('Đã lưu ảnh dịch vụ')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(`Lưu ảnh thất bại: ${msg}`)
+    }
+  }
+
+  const handleHotelServiceImageUpload = async (nextSpecies: string, file: File) => {
+    try {
+      await pricingApi.uploadHotelServiceImage(nextSpecies, file, `Hotel ${nextSpecies}`)
+      queryClient.invalidateQueries({ queryKey: ['pricing', 'hotel-service-images'] })
+      toast.success('Đã lưu ảnh Hotel')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       toast.error(`Lưu ảnh thất bại: ${msg}`)
@@ -425,6 +475,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
           minWeight: parseWeightInput(draft.minWeight),
           maxWeight: parseWeightInput(draft.maxWeight),
           sku: draft.sku.trim() || null,
+          imageUrl: draft.imageUrl ?? null,
           price: parseCurrencyInput(draft.price) ?? 0,
           durationMinutes: parseIntegerInput(draft.durationMinutes ?? '') ?? null,
           isActive: true,
@@ -437,6 +488,26 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
       }
 
       await pricingApi.bulkUpsertSpaRules({ rules: [...rules, ...flatRateRules] })
+
+      const nextImageEntries = new Map<string, { species?: string | null; packageCode: string; imageUrl: string }>()
+      for (const image of spaServiceImagesQuery.data ?? []) {
+        nextImageEntries.set(`${image.species ?? 'NULL'}:${image.packageCode}`, {
+          species: image.species ?? null,
+          packageCode: image.packageCode,
+          imageUrl: image.imageUrl,
+        })
+      }
+      for (const draft of flatRateDrafts) {
+        if (!draft.name.trim() || !draft.imageUrl) continue
+        nextImageEntries.set(`NULL:${draft.name.trim()}`, {
+          species: null,
+          packageCode: draft.name.trim(),
+          imageUrl: draft.imageUrl,
+        })
+      }
+      if (nextImageEntries.size > 0) {
+        await pricingApi.bulkUpdateSpaServiceImages(Array.from(nextImageEntries.values()))
+      }
 
       for (const bandId of removedBandIds) {
         await pricingApi.deactivateWeightBand(bandId)
@@ -573,6 +644,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
           .filter((draft) => hasHotelExtraServiceContent(draft))
           .map((draft) => ({
             sku: draft.sku.trim() || null,
+            imageUrl: draft.imageUrl ?? null,
             name: draft.name.trim(),
             minWeight: parseWeightInput(draft.minWeight),
             maxWeight: parseWeightInput(draft.maxWeight),
@@ -678,6 +750,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
               setSpecies={setSpecies}
               flatRateDrafts={flatRateDrafts}
               onFlatRateChange={setFlatRateDrafts}
+              onFlatRateImageUpload={handleFlatRateImageUpload}
             />
           </div>
         ) : (
@@ -694,8 +767,11 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
             onImportExcel={handleImportExcel}
             isSaving={isSavingHotel}
             holidays={holidays}
+            hotelServiceImages={hotelServiceImagesMap}
+            onHotelServiceImageUpload={handleHotelServiceImageUpload}
             hotelExtraServiceDrafts={hotelExtraServiceDrafts}
             onHotelExtraServiceDraftsChange={setHotelExtraServiceDrafts}
+            onHotelExtraServiceImageUpload={handleHotelExtraImageUpload}
             newHoliday={newHoliday}
             editingHolidayId={editingHolidayId}
             onHolidayDraftChange={updateHolidayDraft}

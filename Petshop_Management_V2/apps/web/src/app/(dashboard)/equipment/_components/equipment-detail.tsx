@@ -183,7 +183,7 @@ export function EquipmentDetail({ code }: { code: string }) {
     const file = event.target.files?.[0]
     if (!file) return
     try {
-      const url = await equipmentApi.uploadImage(file)
+      const url = await equipmentApi.uploadImage(file, form.name || 'equipment')
       setForm((current) => ({ ...current, imageUrl: url }))
       toast.success('Đã upload ảnh')
     } catch (error: any) {

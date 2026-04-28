@@ -8,6 +8,7 @@ import {
   type HotelPriceRule,
   type SpaPriceRule,
 } from '@/lib/api/pricing.api';
+import { appendSpeciesToServiceName } from '@/app/(dashboard)/_shared/cart/cart.utils';
 export { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches';
 export {
   useCustomerDetail,
@@ -121,6 +122,9 @@ const normalizeSkuText = (value?: string | null) =>
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase();
 
+const getSpaRuleDisplayName = (rule: { packageCode?: string | null; label?: string | null }) =>
+  rule.label?.trim() || packageLabel(rule.packageCode);
+
 const getWeightBandSkuSuffix = (label?: string | null) => {
   const numbers = String(label ?? '').match(/\d+(?:[.,]\d+)?/g);
   return numbers?.map((value) => value.replace(/[.,]/g, '')).join('') ?? '';
@@ -174,10 +178,10 @@ export function usePetPricingSuggestions(pet: any) {
   const currentYear = new Date().getFullYear();
 
   const spaRulesQuery = useQuery({
-    queryKey: ['pos', 'pricing-suggestions', 'spa', 'all-active'],
-    queryFn: () => pricingApi.getSpaRules({ isActive: true }),
+    queryKey: ['pos', 'pricing-suggestions', 'spa', species ?? '__NO_SPECIES__'],
+    queryFn: () => pricingApi.getSpaRules({ ...(species ? { species } : {}), isActive: true }),
     // Fetch for all pets — needed to show flat-rate services (no weight band)
-    enabled: Boolean(pet?.id),
+    enabled: Boolean(pet?.id) && Boolean(species),
     staleTime: 30_000,
   });
 
@@ -233,20 +237,27 @@ function buildPricingSuggestions({
 }) {
   if (!pet) return [];
 
-  const extraSpaRules = spaRules.filter((rule) => !rule.weightBand && !rule.weightBandId);
+  const withSpecies = (name: string, source?: any) =>
+    appendSpeciesToServiceName(name, {
+      ...source,
+      species: source?.species ?? (source ? getRuleSpecies(source) : null) ?? species,
+      petSnapshot: pet,
+    });
+
+  const visibleSpaRules = spaRules.filter((rule) => rule.weightBand && rule.weightBandId);
 
   // ── Weight-matched spa suggestions (score 90) ─────────────────────────────
   const weightMatchedSpaSuggestions = hasPricingProfile
-    ? spaRules
+    ? visibleSpaRules
       .filter((rule) => rule.weightBand && isSpeciesMatch(species, getRuleSpecies(rule)) && isWeightInBand(weight, rule.weightBand))
       .map((rule) => ({
         id: `pricing:grooming:${rule.id}`,
         entryType: 'pricing-grooming',
         pricingKind: 'GROOMING',
         type: 'grooming',
-        name: packageLabel(rule.packageCode),
+        name: withSpecies(getSpaRuleDisplayName(rule), rule),
         description: undefined,
-        sku: getPricingSku('SPA', packageLabel(rule.packageCode), rule.weightBand?.label, rule.packageCode),
+        sku: getPricingSku('SPA', getSpaRuleDisplayName(rule), rule.weightBand?.label, rule.packageCode),
         price: rule.price,
         sellingPrice: rule.price,
         duration: rule.durationMinutes ?? undefined,
@@ -267,8 +278,8 @@ function buildPricingSuggestions({
           weightBandId: rule.weightBandId ?? null,
           weightBandLabel: rule.weightBand?.label ?? null,
           price: rule.price,
-          serviceName: packageLabel(rule.packageCode),
-          sku: getPricingSku('SPA', packageLabel(rule.packageCode), rule.weightBand?.label, rule.packageCode),
+          serviceName: getSpaRuleDisplayName(rule),
+          sku: getPricingSku('SPA', getSpaRuleDisplayName(rule), rule.weightBand?.label, rule.packageCode),
           durationMinutes: rule.durationMinutes ?? null,
         },
         suggestionScore: 90,
@@ -277,8 +288,7 @@ function buildPricingSuggestions({
       }))
     : [];
 
-  // ── Flat-rate spa suggestions (no weightBand, score 60) ───────────────────
-  // Common rules without weightBand are extra SPA services, selectable separately from main packages.
+  const extraSpaRules = spaRules.filter((rule) => !rule.weightBand && !rule.weightBandId);
   const customRangeSpaSuggestions = hasPricingProfile
     ? pickPreferredSpaExtraRules(
       extraSpaRules.filter(
@@ -293,7 +303,7 @@ function buildPricingSuggestions({
         entryType: 'pricing-grooming',
         pricingKind: 'GROOMING',
         type: 'grooming',
-        name: packageLabel(rule.packageCode),
+        name: withSpecies(packageLabel(rule.packageCode), rule),
         description: undefined,
         sku: getPricingSku('SPA', packageLabel(rule.packageCode), getSpaRuleWeightLabel(rule), rule.packageCode),
         price: rule.price,
@@ -336,7 +346,7 @@ function buildPricingSuggestions({
       entryType: 'pricing-grooming',
       pricingKind: 'GROOMING',
       type: 'grooming',
-      name: packageLabel(rule.packageCode),
+      name: withSpecies(packageLabel(rule.packageCode), rule),
       description: undefined,
       sku: getPricingSku('SPA', packageLabel(rule.packageCode), undefined, rule.packageCode),
       price: rule.price,
@@ -368,7 +378,7 @@ function buildPricingSuggestions({
       reason: 'Dịch vụ giá cố định (không phân loại theo cân nặng).',
     }));
 
-  // ── Weight-matched hotel suggestions (score 85, REGULAR only) ──────────────
+  // Weight-matched hotel suggestions (score 85, REGULAR only) ──────────────
   // Chỉ hiện 1 dòng "Hotel lưu trú" per weight band. Giá ngày lễ/thường tự tính
   // theo ngày check-in/out khi nhập — không cần chọn riêng "Ngày lễ".
   const matchingHotelRules = hasPricingProfile
@@ -384,7 +394,7 @@ function buildPricingSuggestions({
     entryType: 'pricing-hotel',
     pricingKind: 'HOTEL',
     type: 'hotel',
-    name: 'Hotel lưu trú',
+    name: withSpecies('Hotel lưu trú', rule),
     description: 'Giá tính theo ngày — tự động áp giá lễ/thường theo lịch',
     sku: getPricingSku('HOTEL', 'Hotel lưu trú', rule.weightBand?.label),
     price: rule.fullDayPrice,
@@ -419,7 +429,7 @@ function buildPricingSuggestions({
     entryType: 'pricing-hotel',
     pricingKind: 'HOTEL',
     type: 'hotel',
-    name: 'Hotel lưu trú',
+    name: withSpecies('Hotel lưu trú', rule),
     description: 'Giá tính theo ngày — tự động áp giá lễ/thường theo lịch',
     sku: getPricingSku('HOTEL', 'Hotel lưu trú', undefined),
     price: rule.fullDayPrice,
@@ -450,7 +460,7 @@ function buildPricingSuggestions({
     entryType: 'pricing-hotel-extra',
     pricingKind: 'HOTEL',
     type: 'hotel',
-    name: svc.name,
+    name: withSpecies(svc.name, svc),
     description: undefined,
     sku: svc.sku ?? undefined,
     price: svc.price,

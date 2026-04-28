@@ -171,9 +171,10 @@ export const equipmentApi = {
     }>,
   ) => api.patch<{ success: boolean; data: EquipmentLocationPreset }>(`/equipment/locations/${id}`, payload).then((res) => res.data.data),
 
-  uploadImage: async (file: File) => {
+  uploadImage: async (file: File, displayName?: string) => {
     const formData = new FormData()
     formData.append('image', file)
+    if (displayName) formData.append('displayName', displayName)
     const response = await api.post<{ success: boolean; url: string }>('/equipment/upload-image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })

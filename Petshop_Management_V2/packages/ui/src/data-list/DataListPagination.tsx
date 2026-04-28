@@ -1,9 +1,12 @@
+'use client'
+
 import { ReactNode } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
 } from 'lucide-react'
+import { useDataList } from './DataListShell'
 
 interface DataListPaginationProps {
   page: number
@@ -16,6 +19,7 @@ interface DataListPaginationProps {
   onPageSizeChange: (size: number) => void
   pageSizeOptions?: number[]
   totalItemText?: ReactNode
+  attachedToTable?: boolean
 }
 
 export function DataListPagination({
@@ -29,15 +33,25 @@ export function DataListPagination({
   onPageSizeChange,
   pageSizeOptions = [10, 20, 50, 100],
   totalItemText,
+  attachedToTable = false,
 }: DataListPaginationProps) {
+  const { variant } = useDataList()
+  const isPageVariant = variant === 'page'
+
   return (
-    <div className="flex shrink-0 flex-col gap-2 border-t border-border px-4 py-2.5 text-sm md:flex-row md:items-center md:justify-between md:gap-5">
+    <div
+      className={
+        isPageVariant
+          ? `${attachedToTable ? '' : '-mt-3'} flex h-[50px] shrink-0 items-center justify-between gap-5 rounded-b-2xl border-t border-border bg-background-secondary px-4 py-0 text-sm`
+          : 'flex shrink-0 flex-col gap-2 border-t border-border px-4 py-2.5 text-sm md:flex-row md:items-center md:justify-between md:gap-5'
+      }
+    >
       {/* Left side: Total Info */}
       <div className="flex items-center text-foreground-muted">
         {totalItemText}
       </div>
 
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-center md:gap-5">
+      <div className={isPageVariant ? 'flex items-center justify-center gap-5' : 'flex flex-col gap-2 md:flex-row md:items-center md:justify-center md:gap-5'}>
         {/* Page size */}
         <div className="flex items-center justify-center gap-2 text-foreground-muted">
           <span>Hiển thị</span>

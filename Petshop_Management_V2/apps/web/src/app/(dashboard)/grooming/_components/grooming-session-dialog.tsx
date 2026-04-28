@@ -796,7 +796,7 @@ export function GroomingSessionDialog({
   return (
     <>
 
-      <div className="fixed inset-0 z-50 flex items-start justify-center bg-background-backdrop/60 p-4 pt-[10vh] backdrop-blur-sm sm:p-0 sm:pt-[10vh]">
+      <div className="fixed inset-0 z-50 flex items-start justify-center app-modal-overlay p-4 pt-[10vh] sm:p-0 sm:pt-[10vh]">
         <aside
           className="flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-background-base shadow-xl"
           onClick={(event) => event.stopPropagation()}

@@ -183,38 +183,12 @@ export class BootstrapService implements OnModuleInit {
 
         this.logger.log('💰 Đang khởi tạo bảng giá mặc định...')
 
-        const GROOMING_BANDS = [
-            { label: '1-3kg', minWeight: 1, maxWeight: 3, sortOrder: 1 },
-            { label: '3-6kg', minWeight: 3, maxWeight: 6, sortOrder: 2 },
-            { label: '6-10kg', minWeight: 6, maxWeight: 10, sortOrder: 3 },
-            { label: '10-20kg', minWeight: 10, maxWeight: 20, sortOrder: 4 },
-            { label: '20-30kg', minWeight: 20, maxWeight: 30, sortOrder: 5 },
-            { label: '>30kg', minWeight: 30, maxWeight: null, sortOrder: 6 },
-        ]
-
         const HOTEL_BANDS = [
             { label: '1-5kg', minWeight: 1, maxWeight: 5, sortOrder: 1 },
             { label: '5-10kg', minWeight: 5, maxWeight: 10, sortOrder: 2 },
             { label: '10-20kg', minWeight: 10, maxWeight: 20, sortOrder: 3 },
             { label: '20-30kg', minWeight: 20, maxWeight: 30, sortOrder: 4 },
             { label: '>30kg', minWeight: 30, maxWeight: null, sortOrder: 5 },
-        ]
-
-        // Grooming prices per band [BATH, HYGIENE, SHAVE, FULL]
-        const GROOMING_PRICES: Record<string, number[]> = {
-            '1-3kg': [80000, 120000, 150000, 200000],
-            '3-6kg': [100000, 150000, 180000, 250000],
-            '6-10kg': [130000, 180000, 220000, 300000],
-            '10-20kg': [170000, 230000, 280000, 380000],
-            '20-30kg': [220000, 300000, 350000, 480000],
-            '>30kg': [280000, 380000, 430000, 580000],
-        }
-
-        const SPA_PACKAGES = [
-            { code: 'BATH', label: 'Tắm sấy', duration: 30 },
-            { code: 'HYGIENE', label: 'Tắm vệ sinh', duration: 45 },
-            { code: 'SHAVE', label: 'Cạo lông', duration: 60 },
-            { code: 'FULL', label: 'Tắm trọn gói', duration: 90 },
         ]
 
         // Hotel prices per band { REGULAR, HOLIDAY }
@@ -229,22 +203,7 @@ export class BootstrapService implements OnModuleInit {
         const currentYear = new Date().getFullYear()
 
         await this.db.$transaction(async (tx) => {
-            // 1. Create weight bands
-            const groomingBandIds: Record<string, string> = {}
-            for (const band of GROOMING_BANDS) {
-                const created = await tx.serviceWeightBand.create({
-                    data: {
-                        serviceType: 'GROOMING',
-                        label: band.label,
-                        minWeight: band.minWeight,
-                        maxWeight: band.maxWeight,
-                        sortOrder: band.sortOrder,
-                        isActive: true,
-                    },
-                })
-                groomingBandIds[band.label] = created.id
-            }
-
+            // Create hotel weight bands
             const hotelBandIds: Record<string, string> = {}
             for (const band of HOTEL_BANDS) {
                 const created = await tx.serviceWeightBand.create({
@@ -260,26 +219,7 @@ export class BootstrapService implements OnModuleInit {
                 hotelBandIds[band.label] = created.id
             }
 
-            // 2. Create grooming spa rules
-            for (const [bandLabel, prices] of Object.entries(GROOMING_PRICES)) {
-                const bandId = groomingBandIds[bandLabel]
-                if (!bandId) continue
-                for (let i = 0; i < SPA_PACKAGES.length; i++) {
-                    const pkg = SPA_PACKAGES[i]!
-                    await tx.spaPriceRule.create({
-                        data: {
-                            packageCode: pkg.code,
-                            label: pkg.label,
-                            weightBandId: bandId,
-                            price: prices[i]!,
-                            durationMinutes: pkg.duration,
-                            isActive: true,
-                        } as any,
-                    })
-                }
-            }
-
-            // 3. Create hotel rules
+            // Create hotel rules
             for (const [bandLabel, [regular, holiday]] of Object.entries(HOTEL_PRICES)) {
                 const bandId = hotelBandIds[bandLabel]
                 if (!bandId) continue
@@ -297,7 +237,7 @@ export class BootstrapService implements OnModuleInit {
                 }
             }
 
-            this.logger.log(`✅ Đã tạo bảng giá mặc định: ${Object.keys(GROOMING_PRICES).length * SPA_PACKAGES.length} Grooming rules, ${Object.keys(HOTEL_PRICES).length * 2} Hotel rules`)
+            this.logger.log(`✅ Đã tạo bảng giá Hotel mặc định: ${Object.keys(HOTEL_PRICES).length * 2} Hotel rules`)
         })
     }
 }

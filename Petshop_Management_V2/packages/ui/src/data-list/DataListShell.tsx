@@ -4,9 +4,11 @@ import type { ReactNode } from 'react'
 import { createContext, useCallback, useContext, useState } from 'react'
 
 type ActivePanel = 'filter' | 'column' | null
+export type DataListVariant = 'page' | 'embedded'
 
 interface DataListContextValue {
   activePanel: ActivePanel
+  variant: DataListVariant
   openPanel: (panel: ActivePanel) => void
   closePanel: () => void
   togglePanel: (panel: 'filter' | 'column') => void
@@ -23,9 +25,10 @@ export function useDataList() {
 interface DataListShellProps {
   children: ReactNode
   className?: string
+  variant?: DataListVariant
 }
 
-export function DataListShell({ children, className }: DataListShellProps) {
+export function DataListShell({ children, className, variant = 'page' }: DataListShellProps) {
   const [activePanel, setActivePanel] = useState<ActivePanel>(null)
 
   const openPanel = useCallback((panel: ActivePanel) => setActivePanel(panel), [])
@@ -35,7 +38,7 @@ export function DataListShell({ children, className }: DataListShellProps) {
   }, [])
 
   return (
-    <DataListContext.Provider value={{ activePanel, openPanel, closePanel, togglePanel }}>
+    <DataListContext.Provider value={{ activePanel, variant, openPanel, closePanel, togglePanel }}>
       <div className={`relative flex h-full min-h-0 flex-col gap-3 ${className ?? ''}`}>
         {children}
       </div>

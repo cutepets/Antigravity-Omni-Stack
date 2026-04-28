@@ -18,7 +18,7 @@ function OrderListLoading() {
 
 export default function OrdersPage() {
   return (
-    <PageContainer maxWidth="full" className="!h-full !min-h-0 !gap-0 !overflow-hidden !py-4">
+    <PageContainer maxWidth="full" variant="data-list">
       <Suspense fallback={<OrderListLoading />}>
         <OrderList />
       </Suspense>

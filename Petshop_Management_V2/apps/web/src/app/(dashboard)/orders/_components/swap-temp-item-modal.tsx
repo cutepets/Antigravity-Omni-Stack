@@ -141,7 +141,7 @@ export function SwapTempItemModal({
 
     return (
         <div
-            className="fixed inset-0 z-999 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 z-999 flex items-center justify-center app-modal-overlay"
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
             <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">

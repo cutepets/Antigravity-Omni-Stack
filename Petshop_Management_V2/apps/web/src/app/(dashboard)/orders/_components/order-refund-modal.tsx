@@ -35,7 +35,7 @@ export function OrderRefundModal({
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay animate-fade-in">
             <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-xl">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-bold text-foreground flex items-center gap-2">

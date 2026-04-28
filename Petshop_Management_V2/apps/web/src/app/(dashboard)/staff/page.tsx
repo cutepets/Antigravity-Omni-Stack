@@ -3,8 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Briefcase, Plus, Search, ShieldAlert, Users } from 'lucide-react'
-import { PageContainer, PageHeader } from '@/components/layout/PageLayout'
+import { ShieldAlert, Users } from 'lucide-react'
+import { PageContainer } from '@/components/layout/PageLayout'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { rolesApi } from '@/lib/api'
 import { CreateStaffDto, Staff, staffApi, UpdateStaffDto } from '@/lib/api/staff.api'
@@ -123,26 +123,7 @@ export default function StaffManagementPage() {
   }
 
   return (
-    <PageContainer maxWidth="full">
-      <PageHeader
-        title="Quản lý nhân sự"
-        description="Quản lý danh sách nhân viên, hợp đồng và phân quyền truy cập"
-        icon={Briefcase}
-        actions={
-          activeTab === 'staff' && canCreateStaff ? (
-            <button
-              onClick={() => {
-                setSelectedStaff(null)
-                setIsModalOpen(true)
-              }}
-              className="flex items-center gap-2 rounded-xl bg-primary-500 px-6 py-2.5 font-bold text-white shadow-md shadow-primary-500/20 transition-all hover:scale-[1.02] hover:bg-primary-600 active:scale-95"
-            >
-              <Plus size={20} />
-              <span>Thêm nhân viên</span>
-            </button>
-          ) : null
-        }
-      />
+    <PageContainer maxWidth="full" variant="data-list">
 
       {/* Tab Navigation */}
       {visibleTabs.length > 1 ? (
@@ -214,6 +195,11 @@ export default function StaffManagementPage() {
                   canEdit={canEditStaff}
                   canDeactivate={canDeactivateStaff}
                   canBulkDeactivate={canDeactivateStaff && isSuperAdmin()}
+                  canCreate={canCreateStaff}
+                  onCreate={() => {
+                    setSelectedStaff(null)
+                    setIsModalOpen(true)
+                  }}
                   onEdit={(member) => {
                     setSelectedStaff(member)
                     setIsModalOpen(true)

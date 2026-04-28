@@ -1,8 +1,8 @@
 'use client'
 /* eslint-disable react/no-unescaped-entities */
 
-import { ArrowLeft, Copy, Download, Pencil, Plus, RefreshCw, Save, Upload, X } from 'lucide-react'
-import { useState } from 'react'
+import { ArrowLeft, Camera, Copy, Download, Pencil, Plus, RefreshCw, Save, Upload, X } from 'lucide-react'
+import { useRef, useState } from 'react'
 import type { HolidayCalendarDate, PricingDayType } from '@/lib/api/pricing.api'
 import { cn } from '@/lib/utils'
 import { PriceInput } from '../shared/PriceInput'
@@ -25,8 +25,11 @@ export function UnifiedHotelPricingPanel({
   onImportExcel,
   isSaving,
   holidays,
+  hotelServiceImages,
+  onHotelServiceImageUpload,
   hotelExtraServiceDrafts,
   onHotelExtraServiceDraftsChange,
+  onHotelExtraServiceImageUpload,
   newHoliday,
   editingHolidayId,
   onHolidayDraftChange,
@@ -50,8 +53,11 @@ export function UnifiedHotelPricingPanel({
   onImportExcel: (file: File) => void
   isSaving: boolean
   holidays: HolidayCalendarDate[]
+  hotelServiceImages: Map<string, string>
+  onHotelServiceImageUpload?: (species: string, file: File) => void
   hotelExtraServiceDrafts: HotelExtraServiceDraft[]
   onHotelExtraServiceDraftsChange: (drafts: HotelExtraServiceDraft[]) => void
+  onHotelExtraServiceImageUpload?: (index: number, file: File) => void
   newHoliday: HolidayDraft
   editingHolidayId: string | null
   onHolidayDraftChange: (patch: Partial<HolidayDraft>) => void
@@ -64,6 +70,7 @@ export function UnifiedHotelPricingPanel({
   permissionHint: string
 }) {
   const [isEditMode, setIsEditMode] = useState(false)
+  const hotelImageInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const totalColumns = 1 + HOTEL_SPECIES_COLUMNS.length * (DAY_TYPE_OPTIONS.length + 1)
   const canEditHotelPricing = canManagePricing && isEditMode
 
@@ -178,7 +185,35 @@ export function UnifiedHotelPricingPanel({
                 </th>
                 {HOTEL_SPECIES_COLUMNS.map((speciesOption, idx) => (
                   <th key={speciesOption.value} colSpan={DAY_TYPE_OPTIONS.length + 1} className={cn('border-b border-border px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-foreground-muted', idx > 0 ? 'border-l' : '')}>
-                    {speciesOption.label}
+                    <div className="flex items-center justify-center gap-3">
+                      <input
+                        ref={(el) => { hotelImageInputRefs.current[speciesOption.value] = el }}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          if (!file) return
+                          event.target.value = ''
+                          onHotelServiceImageUpload?.(speciesOption.value, file)
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={!canEditHotelPricing}
+                        onClick={() => canEditHotelPricing && hotelImageInputRefs.current[speciesOption.value]?.click()}
+                        title={canEditHotelPricing ? 'Đổi ảnh Hotel' : undefined}
+                        className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-border bg-background-base text-foreground-muted disabled:opacity-60"
+                      >
+                        {hotelServiceImages.get(speciesOption.value) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={hotelServiceImages.get(speciesOption.value)} alt={`Hotel ${speciesOption.label}`} className="h-full w-full object-cover" />
+                        ) : (
+                          <Camera size={14} />
+                        )}
+                      </button>
+                      <span>{speciesOption.label}</span>
+                    </div>
                   </th>
                 ))}
               </tr>
@@ -318,6 +353,7 @@ export function UnifiedHotelPricingPanel({
         <HotelExtraServicesPanel
           drafts={hotelExtraServiceDrafts}
           onChange={onHotelExtraServiceDraftsChange}
+          onImageUpload={onHotelExtraServiceImageUpload}
           canEditPricing={canEditHotelPricing}
         />
       </div>

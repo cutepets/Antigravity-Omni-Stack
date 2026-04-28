@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function HotelPage() {
   return (
-    <PageContainer maxWidth="full" className="!gap-0 !py-4">
+    <PageContainer maxWidth="full" variant="data-list">
       <Suspense fallback={<div className="p-4">Đang tải không gian làm việc...</div>}>
         <HotelWorkspace />
       </Suspense>

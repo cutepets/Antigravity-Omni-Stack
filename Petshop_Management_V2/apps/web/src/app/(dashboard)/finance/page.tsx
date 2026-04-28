@@ -11,7 +11,7 @@ import { Suspense } from 'react'
 
 export default function FinancePage() {
   return (
-    <PageContainer maxWidth="full" className="!h-full !min-h-0 !gap-0 !overflow-hidden !py-4">
+    <PageContainer maxWidth="full" variant="data-list">
       <Suspense fallback={<div>Loading finance workspace...</div>}>
         <FinanceWorkspace />
       </Suspense>

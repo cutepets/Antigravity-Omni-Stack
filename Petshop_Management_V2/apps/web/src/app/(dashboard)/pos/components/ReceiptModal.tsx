@@ -55,7 +55,7 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
   const money = (n: number) => new Intl.NumberFormat('vi-VN').format(n) + 'đ';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 print:bg-white print:p-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay p-4 print:bg-white print:p-0">
       
       {/* ── Screen View ── */}
       <div className="bg-background-secondary border border-border w-full max-w-sm rounded-2xl shadow-xl overflow-hidden flex flex-col animate-slide-in print:hidden">

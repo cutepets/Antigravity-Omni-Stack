@@ -250,6 +250,7 @@ export class OrderServiceSyncService {
       rateTableId: details.rateTableId ?? null,
       notes: details.notes ?? null,
       orderId: params.orderId,
+      ...(details.checkInNow ? { checkedInAt: new Date() } : {}),
     };
 
     if (params.existingStayId) {
@@ -260,7 +261,10 @@ export class OrderServiceSyncService {
 
       await tx.hotelStay.update({
         where: { id: params.existingStayId },
-        data: payload as any,
+        data: {
+          ...payload,
+          ...(details.checkInNow ? { status: 'CHECKED_IN' } : {}),
+        } as any,
       });
 
       return params.existingStayId;
@@ -272,7 +276,7 @@ export class OrderServiceSyncService {
       data: {
         stayCode,
         ...payload,
-        status: 'BOOKED',
+        status: details.checkInNow ? 'CHECKED_IN' : 'BOOKED',
         paymentStatus: 'UNPAID',
       } as any,
     });
@@ -304,7 +308,6 @@ export class OrderServiceSyncService {
       checkInDate,
       checkOutDate,
       totalPrice,
-      totalDays,
       displayLineType,
       pricingSnapshot,
       breakdownSnapshot,
@@ -312,6 +315,7 @@ export class OrderServiceSyncService {
     const branch = await resolveBranchIdentity(tx as any, firstDetails.branchId ?? params.branchId ?? null);
     const stayCode = await this.generateHotelStayCode(tx as any, params.order.createdAt, branch.code);
     const pet = await tx.pet.findUnique({ where: { id: firstDetails.petId } });
+    const checkInNow = sortedGroupItems.some((entry) => entry.item.hotelDetails?.checkInNow === true);
 
     const overlap = await tx.hotelStay.findFirst({
       where: {
@@ -349,11 +353,11 @@ export class OrderServiceSyncService {
         promotion: firstDetails.promotion ?? 0,
         surcharge: firstDetails.surcharge ?? 0,
         totalPrice,
-        totalDays,
         rateTableId: firstDetails.rateTableId ?? null,
         notes: firstDetails.notes ?? null,
         orderId: params.order.id,
-        status: 'BOOKED',
+        status: checkInNow ? 'CHECKED_IN' : 'BOOKED',
+        ...(checkInNow ? { checkedInAt: new Date() } : {}),
         paymentStatus: 'UNPAID',
         pricingSnapshot: pricingSnapshot as any,
         breakdownSnapshot: breakdownSnapshot as any,

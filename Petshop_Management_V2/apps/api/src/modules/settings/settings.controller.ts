@@ -640,7 +640,15 @@ export class SettingsController {
       }),
     ),
   )
-  async uploadImage(@UploadedFile() file: Express.Multer.File, @Req() req: Request & { user?: { userId?: string } }) {
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request & { user?: { userId?: string } },
+    @Body('scope') scope?: any,
+    @Body('ownerType') ownerType?: string,
+    @Body('ownerId') ownerId?: string,
+    @Body('fieldName') fieldName?: string,
+    @Body('displayName') displayName?: string,
+  ) {
     if (!file) return { success: false, message: 'Không tìm thấy file ảnh' }
     validateUploadedFile(file, {
       allowedMimeTypes: IMAGE_UPLOAD_MIME_TYPES,
@@ -651,6 +659,11 @@ export class SettingsController {
 
     const asset = await this.storageService.uploadAsset({
       category: 'image',
+      scope: scope || null,
+      ownerType: ownerType || null,
+      ownerId: ownerId || null,
+      fieldName: fieldName || null,
+      displayName: displayName || ownerId || null,
       uploadedById: req.user?.userId ?? null,
       file: {
         originalName: file.originalname,
@@ -660,7 +673,7 @@ export class SettingsController {
       },
     })
 
-    return { success: true, url: asset.url }
+    return { success: true, url: asset.url, assetId: asset.id, reused: Boolean((asset as any).reused), name: asset.originalName }
   }
 
   @Post('upload/file')
@@ -679,7 +692,15 @@ export class SettingsController {
       }),
     ),
   )
-  async uploadFile(@UploadedFile() file: Express.Multer.File, @Req() req: Request & { user?: { userId?: string } }) {
+  async uploadFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request & { user?: { userId?: string } },
+    @Body('scope') scope?: any,
+    @Body('ownerType') ownerType?: string,
+    @Body('ownerId') ownerId?: string,
+    @Body('fieldName') fieldName?: string,
+    @Body('displayName') displayName?: string,
+  ) {
     if (!file) return { success: false, message: 'Không tìm thấy file tài liệu' }
     validateUploadedFile(file, {
       allowedMimeTypes: DOCUMENT_UPLOAD_MIME_TYPES,
@@ -690,6 +711,11 @@ export class SettingsController {
 
     const asset = await this.storageService.uploadAsset({
       category: 'document',
+      scope: scope || null,
+      ownerType: ownerType || null,
+      ownerId: ownerId || null,
+      fieldName: fieldName || null,
+      displayName: displayName || ownerId || null,
       uploadedById: req.user?.userId ?? null,
       file: {
         originalName: file.originalname,
@@ -699,7 +725,7 @@ export class SettingsController {
       },
     })
 
-    return { success: true, url: asset.url, name: file.originalname }
+    return { success: true, url: asset.url, assetId: asset.id, reused: Boolean((asset as any).reused), name: asset.originalName }
   }
 
   @Delete('upload/file')
@@ -720,6 +746,83 @@ export class SettingsController {
     }
 
     return { success: true }
+  }
+
+  @Get('settings/storage/assets')
+  @Permissions('settings.app.read')
+  @ApiOperation({ summary: 'Danh sach file upload trong DB/Driver' })
+  listStorageAssets(@Query() query: any) {
+    return this.storageService.listAssets({
+      status: query.status,
+      category: query.category,
+      provider: query.provider,
+      q: query.q,
+      page: Number(query.page ?? 1),
+      limit: Number(query.limit ?? 25),
+    })
+  }
+
+  @Post('settings/storage/assets/scan')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Quet va dong bo reference file dang duoc su dung' })
+  scanStorageAssets(@Body('dryRun') dryRun?: boolean) {
+    return this.storageService.scanAssetReferences({ dryRun: Boolean(dryRun) })
+  }
+
+  @Post('settings/storage/assets/cleanup')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Don file orphan qua han giu lai' })
+  cleanupStorageAssets(@Body('retentionDays') retentionDays?: number) {
+    return this.storageService.cleanupOrphanedAssets({ retentionDays: Number(retentionDays ?? 30) })
+  }
+
+  @Post('settings/storage/assets/bulk-delete')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Xoa vinh vien nhieu file upload theo ID' })
+  bulkDeleteStorageAssets(@Body('ids') ids?: string[]) {
+    return this.storageService.bulkDeleteAssets(Array.isArray(ids) ? ids : [])
+  }
+
+  @Post('settings/storage/assets/orphan')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Danh dau file khong con ket noi' })
+  markStorageAssetOrphaned(@Body('url') url: string) {
+    return this.storageService.markAssetOrphaned(url)
+  }
+
+  @Post('settings/storage/assets/:id/orphan')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Danh dau file khong con ket noi theo ID' })
+  markStorageAssetOrphanedById(@Param('id') id: string) {
+    return this.storageService.markAssetOrphanedById(id)
+  }
+
+  @Post('settings/storage/assets/:id/restore')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Gan lai file vao entity/field' })
+  restoreStorageAsset(
+    @Param('id') id: string,
+    @Body() body: { entityType?: string; entityId?: string; fieldName?: string },
+  ) {
+    return this.storageService.restoreAssetReference(id, {
+      entityType: String(body.entityType ?? '').trim(),
+      entityId: String(body.entityId ?? '').trim(),
+      fieldName: String(body.fieldName ?? '').trim(),
+    })
+  }
+
+  @Delete('settings/storage/assets')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Xoa vinh vien file upload' })
+  deleteStorageAsset(@Body('url') url: string) {
+    return this.storageService.deleteAssetByUrl({ url })
+  }
+
+  @Delete('settings/storage/assets/:id')
+  @Permissions('settings.app.update')
+  @ApiOperation({ summary: 'Xoa vinh vien file upload theo ID' })
+  deleteStorageAssetById(@Param('id') id: string) {
+    return this.storageService.deleteAssetById(id)
   }
 
   // ─── Module Config ──────────────────────────────────────────────────────────

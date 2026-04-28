@@ -55,4 +55,4 @@ pnpm --filter @petshop/api test:e2e
 ## Known Tooling Debt
 
 - Web `type-check` is coupled to Next build behavior; use `pnpm --filter @petshop/web build` as the primary frontend gate when standalone web type-check is unstable.
-- GitNexus currently reports dirty files from sibling folders when run at `C:\Dev2`; ignore `claw-code` and `glm-key-monitor` for this repository unless explicitly working on them.
+- GitNexus currently reports dirty files from sibling folders when run at `C:\Dev2`; ignore `claw-code` for this repository unless explicitly working on it.

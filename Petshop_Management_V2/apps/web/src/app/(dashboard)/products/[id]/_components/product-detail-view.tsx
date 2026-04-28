@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { inventoryApi } from '@/lib/api/inventory.api'
 import { PRICE_BOOK_QUERY_KEY, extractPriceBooks } from '@/lib/price-books'
 import { findParentTrueVariant, getDisplayBranchStocks, getResolvedVariantLabels, groupVariantsWithConversions, parseConversionRate } from '@/lib/inventory-conversion-stock'
+import { buildInventoryHistoryRows, isSingleProductVariantSet, mergeInventoryHistoryStockRows } from '@/lib/inventory-history'
 import { ProductFormModal } from '../../_components/product-form-modal'
 import { settingsApi } from '@/lib/api'
 import { useAuthorization } from '@/hooks/useAuthorization'
@@ -115,7 +116,7 @@ function mergeBranchRowsWithBranches(rows: BranchStockRow[], branches: BranchOpt
     rowMap.set(key, {
       ...row,
       branchId: row.branchId ?? key,
-      branch: row.branch ?? { id: key, name: `Chi nh?nh ${key}` },
+      branch: row.branch ?? { id: key, name: `Chi nhánh ${key}` },
       stock: row.stock ?? 0,
       reservedStock: row.reservedStock ?? 0,
       minStock: row.minStock ?? 0,
@@ -153,8 +154,14 @@ function mergeBranchRowsWithBranches(rows: BranchStockRow[], branches: BranchOpt
 }
 
 function buildDetailTree(product: any) {
-  const rootBranchStocks = normalizeBranchStocks(getDisplayBranchStocks(product) as BranchStockRow[])
   const rawVariants = Array.isArray(product.variants) ? product.variants : []
+  const isSingleProductVariant = isSingleProductVariantSet(rawVariants)
+  const singleVariantBranchStocks = normalizeBranchStocks(rawVariants[0]?.branchStocks as BranchStockRow[] | undefined)
+  const productBranchStocks = normalizeBranchStocks(product.branchStocks as BranchStockRow[] | undefined)
+    .filter((row) => !row.productVariantId)
+  const rootBranchStocks = isSingleProductVariant
+    ? mergeInventoryHistoryStockRows(productBranchStocks, singleVariantBranchStocks) as BranchStockRow[]
+    : normalizeBranchStocks(getDisplayBranchStocks(product) as BranchStockRow[])
 
   const detailItems: DetailItem[] = rawVariants.map((variant: any) => {
     const conversionRate = parseConversionRate(variant.conversions)
@@ -215,8 +222,8 @@ function buildDetailTree(product: any) {
   const looseConversions = grouped.looseConversions
     .map((item) => itemMap.get(`variant:${item.id}`))
     .filter((item): item is DetailItem => Boolean(item))
-  const defaultItemKey = groups[0]?.item.key ?? looseConversions[0]?.key ?? rootItem.key
-  const showRootRow = rawVariants.length === 0
+  const defaultItemKey = isSingleProductVariant ? rootItem.key : groups[0]?.item.key ?? looseConversions[0]?.key ?? rootItem.key
+  const showRootRow = rawVariants.length === 0 || isSingleProductVariant
 
   return {
     rootItem,
@@ -226,6 +233,7 @@ function buildDetailTree(product: any) {
     count: showRootRow ? 1 : grouped.totalItems,
     defaultItemKey,
     showRootRow,
+    isSingleProductVariant,
   }
 }
 
@@ -268,12 +276,12 @@ export function ProductDetailView({ productId }: { productId: string }) {
   const deleteMutation = useMutation({
     mutationFn: () => inventoryApi.deleteProduct(productId),
     onSuccess: () => {
-      toast.success('?? x?a s?n ph?m')
+      toast.success('Đã xóa sản phẩm')
       queryClient.invalidateQueries({ queryKey: ['products'] })
       router.push('/products')
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Kh?ng th? x?a s?n ph?m')
+      toast.error(err?.response?.data?.message || 'Không thể xóa sản phẩm')
     },
   })
 
@@ -290,11 +298,11 @@ export function ProductDetailView({ productId }: { productId: string }) {
   }
 
   if (isLoading) {
-    return <div className="p-6 text-foreground-muted flex items-center justify-center h-40">?ang t?i chi ti?t...</div>
+    return <div className="p-6 text-foreground-muted flex items-center justify-center h-40">Đang tải chi tiết...</div>
   }
 
   if (!product || !detailTree) {
-    return <div className="p-6 text-error text-center">Kh?ng t?m th?y s?n ph?m</div>
+    return <div className="p-6 text-error text-center">Không tìm thấy sản phẩm</div>
   }
 
   const handleDelete = () => {
@@ -318,7 +326,16 @@ export function ProductDetailView({ productId }: { productId: string }) {
       ? Number(product.weight) * activeItem.conversionRate
       : product.weight
   const activeHistorySourceVariantId = activeItem.kind === 'product' ? undefined : activeItem.sourceVariantId ?? activeItem.id
-  const activeHistoryRate = activeItem.kind === 'conversion' ? activeItem.conversionRate ?? null : null
+  const activeHistoryStockRows =
+    activeItem.kind === 'conversion' && activeItem.sourceVariantId
+      ? mergeBranchRowsWithBranches(
+        normalizeBranchStocks(getDisplayBranchStocks(product, activeItem.sourceVariantId) as BranchStockRow[]),
+        branches,
+      )
+      : activeStockRows
+  const activeHistoryUnit = activeItem.kind === 'conversion'
+    ? product.unit || ''
+    : activeItem.displayUnit || product.unit || ''
   const activeItemLabel =
     activeItem.kind === 'conversion'
       ? 'Quy đổi'
@@ -345,7 +362,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                   onClick={() => {
                     if (window.confirm('Khôi phục sản phẩm này?')) {
                       inventoryApi.restoreProduct(product.id).then(() => {
-                        toast.success('?? kh?i ph?c s?n ph?m')
+                        toast.success('Đã khôi phục sản phẩm')
                         queryClient.invalidateQueries({ queryKey: ['products'] })
                         queryClient.invalidateQueries({ queryKey: ['product-detail', product.id] })
                       }).catch(() => toast.error('Lỗi khi khôi phục'))
@@ -393,7 +410,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* C?t tr?i - th?ng tin chung (kho?ng 3/10) */}
+        {/* Cột trái - thông tin chung (khoảng 3/10) */}
         <div className="card p-6 border border-border rounded-2xl flex flex-col gap-8 bg-background-secondary/30 lg:col-span-3">
           <div className="flex flex-col gap-6">
             <div className="w-full aspect-square rounded-xl border border-border bg-background-tertiary flex items-center justify-center overflow-hidden shrink-0">
@@ -442,9 +459,9 @@ export function ProductDetailView({ productId }: { productId: string }) {
           </div>
         </div>
 
-        {/* C?t ph?i - phi?n b?n v? chi ti?t (kho?ng 7/10) */}
+        {/* Cột phải - phiên bản và chi tiết (khoảng 7/10) */}
         <div className="lg:col-span-9 flex flex-col gap-6">
-          {/* Ph?n phi?n b?n & quy ??i m?i (tr?n c?ng b?n ph?i) */}
+          {/* Phần phiên bản & quy đổi mới (trên cùng bên phải) */}
           <div className="card p-0 overflow-hidden border border-border rounded-2xl flex flex-col">
             <div className="p-4 border-b border-border font-semibold flex items-center justify-between text-[13px] tracking-wide uppercase text-foreground-muted bg-background-secondary/50">
               <div className="flex items-center gap-2">
@@ -541,7 +558,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                                     </div>
                                     <div className="flex flex-col leading-tight overflow-hidden">
                                       <div className={`text-sm font-medium truncate ${activeItem.key === child.key ? 'text-primary-500' : 'text-foreground'}`}>{child.name}</div>
-                                      <div className="text-[10px] text-foreground-muted mt-0.5 truncate">{(child.sku ? child.sku + ' â€¢ ' : '') + (child.formula || 'Quy đổi')}</div>
+                                      <div className="text-[10px] text-foreground-muted mt-0.5 truncate">{(child.sku ? child.sku + ' • ' : '') + (child.formula || 'Quy đổi')}</div>
                                     </div>
                                   </div>
                                   {priceBooks.length > 0 && (
@@ -594,7 +611,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
             </div>
           </div>
 
-          {/* Ph?n chi ti?t t?n kho/l?ch s? (d??i c?ng b?n ph?i) */}
+          {/* Phần chi tiết tồn kho/lịch sử (dưới cùng bên phải) */}
           <div className="card overflow-hidden border border-border rounded-2xl flex flex-col flex-1">
             <div className="flex items-center justify-between border-b border-border bg-background-secondary/50 px-2 pt-2">
               <div className="flex">
@@ -678,7 +695,7 @@ export function ProductDetailView({ productId }: { productId: string }) {
                     ) : (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-sm text-foreground-muted">
-                          Chưa có dữ liệu tá»“n kho cho má»¥c Ä‘ang chá»n
+                          Chưa có dữ liệu tồn kho cho mục đang chọn
                         </td>
                       </tr>
                     )}
@@ -690,8 +707,8 @@ export function ProductDetailView({ productId }: { productId: string }) {
                 <ProductHistoryTab
                   productId={productId}
                   sourceVariantId={activeHistorySourceVariantId}
-                  displayConversionRate={activeHistoryRate}
-                  displayUnit={activeItem.displayUnit || product.unit || ''}
+                  displayUnit={activeHistoryUnit}
+                  stockRows={activeHistoryStockRows}
                   itemName={activeItem.name}
                   itemSku={activeItem.sku}
                 />
@@ -745,7 +762,7 @@ function resolveTransactionLink(tx: {
     case 'STOCK_RECEIPT':
       return `/inventory/receipts/${lookupId}`
     case 'SUPPLIER_RETURN':
-      return `/inventory/receipts` // supplier return kh?ng c? route ri?ng, d?n v? danh s?ch
+      return `/inventory/receipts` // supplier return không có route riêng, dẫn về danh sách
     case 'ORDER':
       return `/orders/${lookupId}`
     default:
@@ -756,15 +773,15 @@ function resolveTransactionLink(tx: {
 function ProductHistoryTab({
   productId,
   sourceVariantId,
-  displayConversionRate,
   displayUnit,
+  stockRows,
   itemName,
   itemSku,
 }: {
   productId: string
   sourceVariantId?: string | null
-  displayConversionRate?: number | null
   displayUnit?: string | null
+  stockRows: BranchStockRow[]
   itemName: string
   itemSku?: string | null
 }) {
@@ -794,6 +811,22 @@ function ProductHistoryTab({
       return (tx.sourceProductVariantId ?? tx.productVariantId ?? null) === sourceVariantId
     })
   }, [data?.data, sourceVariantId])
+
+  const currentStock = useMemo(() => {
+    const filteredRows = selectedBranchId
+      ? stockRows.filter((row) => (row.branch?.id ?? row.branchId) === selectedBranchId)
+      : stockRows
+
+    return filteredRows.reduce((total, row) => {
+      const stock = Number(row.stock ?? 0)
+      return total + (Number.isFinite(stock) ? stock : 0)
+    }, 0)
+  }, [selectedBranchId, stockRows])
+
+  const historyRows = useMemo(
+    () => buildInventoryHistoryRows(txs, currentStock),
+    [currentStock, txs],
+  )
 
   const typeLabel = (type: string) => {
     switch (type) {
@@ -842,7 +875,7 @@ function ProductHistoryTab({
             <History className="h-10 w-10 opacity-30" />
             <p className="text-sm text-center">
               {selectedBranchId
-                ? `Ch?a c? giao d?ch cho ${itemLabel} t?i ${selectedBranchName ?? 'chi nh?nh n?y'}`
+                ? `Chưa có giao dịch cho ${itemLabel} tại ${selectedBranchName ?? 'chi nhánh này'}`
                 : `Chưa có lịch sử giao dịch cho ${itemLabel}`}
             </p>
             {selectedBranchId && (
@@ -861,29 +894,20 @@ function ProductHistoryTab({
                 <th className="py-3 px-4 text-[11px] whitespace-nowrap">THỜI GIAN</th>
                 <th className="py-3 px-4 text-[11px] whitespace-nowrap">NHÂN VIÊN</th>
                 <th className="py-3 px-4 text-[11px] whitespace-nowrap">CHI NHÁNH</th>
-                <th className="py-3 px-4 text-[11px] text-right whitespace-nowrap">SL THAY ĐỔI</th>
+                <th className="py-3 px-4 text-[11px] text-right whitespace-nowrap">NHẬP</th>
+                <th className="py-3 px-4 text-[11px] text-right whitespace-nowrap">XUẤT</th>
+                <th className="py-3 px-4 text-[11px] text-right whitespace-nowrap">TỒN</th>
                 <th className="py-3 px-4 text-[11px] whitespace-nowrap">LOẠI</th>
                 <th className="py-3 px-4 text-[11px] whitespace-nowrap">MÃ ĐƠN</th>
               </tr>
             </thead>
             <tbody>
-              {txs.map((tx: any) => {
+              {historyRows.map(({ transaction: tx, inboundQuantity, outboundQuantity, balanceAfter }) => {
                 const txLink = resolveTransactionLink(tx)
-                const sourceQuantity = Number(tx.sourceQuantity ?? tx.quantity ?? 0)
-                const normalizedQuantity = Number.isFinite(sourceQuantity) ? sourceQuantity : 0
-                const convertedQuantity =
-                  displayConversionRate && displayConversionRate > 0
-                    ? normalizedQuantity / displayConversionRate
-                    : normalizedQuantity
-                const displayQuantity = tx.type === 'ADJUST' ? convertedQuantity : Math.abs(convertedQuantity)
-                const quantityText = displayQuantity.toLocaleString('vi-VN', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 3,
-                })
-                const quantityPrefix = tx.type === 'IN' ? '+' : tx.type === 'OUT' ? '-' : ''
-                const quantityClass =
-                  tx.type === 'IN' ? 'text-success' : tx.type === 'OUT' ? 'text-error' : 'text-foreground'
                 const referenceCode = tx.referenceCode ?? tx.referenceId
+                const inboundText = inboundQuantity > 0 ? formatInventoryQuantity(inboundQuantity) : '—'
+                const outboundText = outboundQuantity > 0 ? formatInventoryQuantity(outboundQuantity) : '—'
+                const balanceText = formatInventoryQuantity(balanceAfter)
 
                 return (
                   <tr key={tx.id} className="hover:bg-surface/50 transition-colors">
@@ -896,8 +920,16 @@ function ProductHistoryTab({
                     <td className="py-3 px-4 text-sm whitespace-nowrap">
                       {tx.branch?.name ?? <span className="text-foreground-muted">?</span>}
                     </td>
-                    <td className={`py-3 px-4 text-right font-bold text-base tabular-nums whitespace-nowrap ${quantityClass}`}>
-                      {quantityPrefix}{quantityText}
+                    <td className="py-3 px-4 text-right font-bold text-base tabular-nums whitespace-nowrap text-success">
+                      {inboundText}
+                      {inboundQuantity > 0 && displayUnit ? <span className="ml-1 text-sm font-medium text-foreground-muted">{displayUnit}</span> : null}
+                    </td>
+                    <td className="py-3 px-4 text-right font-bold text-base tabular-nums whitespace-nowrap text-error">
+                      {outboundText}
+                      {outboundQuantity > 0 && displayUnit ? <span className="ml-1 text-sm font-medium text-foreground-muted">{displayUnit}</span> : null}
+                    </td>
+                    <td className="py-3 px-4 text-right font-bold text-base tabular-nums whitespace-nowrap text-foreground">
+                      {balanceText}
                       {displayUnit ? <span className="ml-1 text-sm font-medium text-foreground-muted">{displayUnit}</span> : null}
                     </td>
                     <td className="py-3 px-4">

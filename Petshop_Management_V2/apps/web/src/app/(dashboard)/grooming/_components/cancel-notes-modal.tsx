@@ -39,7 +39,7 @@ export function CancelNotesModal({
   if (isOpen === false) return null
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70" onClick={handleClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 app-modal-overlay" onClick={handleClose}>
       <div
         className="w-full max-w-sm border shadow-2xl bg-background border-border rounded-2xl animate-in zoom-in-95"
         onClick={(e) => e.stopPropagation()}

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import {
   resolveProductVariantLabels,
   type CartItem,
@@ -92,6 +92,112 @@ const repriceCartByCustomer = (
   cart: OrderTab['cart'],
   customerPricing?: CustomerPricingProfile | null,
 ) => cart.map((item) => applyCustomerPricingToCartItem(item, customerPricing));
+
+const compactVariantForPersist = (variant: any): any => {
+  if (!variant || typeof variant !== 'object') return variant;
+
+  const compact: any = {
+    id: variant.id,
+    sku: variant.sku,
+    unit: variant.unit,
+    price: variant.price,
+    sellingPrice: variant.sellingPrice,
+    stock: variant.stock,
+    availableStock: variant.availableStock,
+    trading: variant.trading,
+    reserved: variant.reserved,
+    variantLabel: variant.variantLabel,
+    unitLabel: variant.unitLabel,
+    name: variant.name,
+    priceBookPrices: variant.priceBookPrices,
+  };
+
+  if (Array.isArray(variant.children) && variant.children.length > 0) {
+    compact.children = variant.children.map(compactVariantForPersist);
+  }
+
+  return compact;
+};
+
+const compactCartItemForPersist = (item: CartItem): CartItem => {
+  const compactItem: CartItem = {
+    id: item.id,
+    orderItemId: item.orderItemId,
+    productId: item.productId,
+    productVariantId: item.productVariantId,
+    serviceId: item.serviceId,
+    serviceVariantId: item.serviceVariantId,
+    description: item.description,
+    sku: item.sku,
+    barcode: item.barcode,
+    weightBandLabel: item.weightBandLabel,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    discountItem: item.discountItem,
+    vatRate: item.vatRate,
+    petId: item.petId,
+    petName: item.petName,
+    type: item.type,
+    serviceType: item.serviceType,
+    unit: item.unit,
+    baseUnit: item.baseUnit,
+    baseUnitPrice: item.baseUnitPrice,
+    priceBookPrices: item.priceBookPrices,
+    basePriceBookPrices: item.basePriceBookPrices,
+    baseSku: item.baseSku,
+    variantName: item.variantName,
+    variantLabel: item.variantLabel,
+    unitLabel: item.unitLabel,
+    variants: Array.isArray(item.variants) ? item.variants.map(compactVariantForPersist) : undefined,
+    itemNotes: item.itemNotes,
+    isTempItem: item.isTempItem,
+    stock: item.stock,
+    availableStock: item.availableStock,
+    trading: item.trading,
+    reserved: item.reserved,
+    branchStocks: item.branchStocks,
+  };
+
+  if (item.groomingDetails) {
+    const { pricingSnapshot: _pricingSnapshot, ...groomingDetails } = item.groomingDetails;
+    compactItem.groomingDetails = groomingDetails;
+  }
+
+  if (item.hotelDetails) {
+    const { pricingPreview: _pricingPreview, ...hotelDetails } = item.hotelDetails;
+    compactItem.hotelDetails = hotelDetails;
+  }
+
+  return compactItem;
+};
+
+const compactTabForPersist = (tab: OrderTab): OrderTab => ({
+  ...tab,
+  cart: tab.cart.map(compactCartItemForPersist),
+});
+
+const isStorageQuotaExceeded = (error: unknown) =>
+  typeof DOMException !== 'undefined' &&
+  error instanceof DOMException &&
+  (error.name === 'QuotaExceededError' ||
+    error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    error.code === 22 ||
+    error.code === 1014);
+
+const posStorage = createJSONStorage<Partial<PosStore>>(() => ({
+  getItem: (name) => localStorage.getItem(name),
+  setItem: (name, value) => {
+    try {
+      localStorage.setItem(name, value);
+    } catch (error) {
+      if (!isStorageQuotaExceeded(error)) throw error;
+
+      localStorage.removeItem(name);
+      localStorage.setItem(name, value);
+    }
+  },
+  removeItem: (name) => localStorage.removeItem(name),
+}));
 
 // ─── Store Interface ──────────────────────────────────────────────────────────
 interface PosStore {
@@ -629,9 +735,11 @@ export const usePosStore = create<PosStore>()(
     },
     {
       name: 'pos-v3-storage',
+      storage: posStorage,
       partialize: (state) => {
         const draftTabs = state.tabs.filter(t => !t.linkedOrderId);
-        const persistTabs = draftTabs.length > 0 ? draftTabs : [createNewTab(`tab-${Date.now()}`)];
+        const persistTabs = (draftTabs.length > 0 ? draftTabs : [createNewTab(`tab-${Date.now()}`)])
+          .map(compactTabForPersist);
         const persistActiveTabId = persistTabs.find(t => t.id === state.activeTabId)
           ? state.activeTabId
           : persistTabs[0].id;
@@ -663,7 +771,7 @@ export const usePosStore = create<PosStore>()(
         const roundingUnit = normalizeRoundingUnit(mergedState.roundingUnit);
         const roundingEnabled = Boolean(mergedState.roundingEnabled);
         const tabs =
-          mergedState.tabs?.map((tab) => reconcileTabDiscounts(tab, roundingEnabled, roundingUnit)) ??
+          mergedState.tabs?.map((tab) => reconcileTabDiscounts(compactTabForPersist(tab), roundingEnabled, roundingUnit)) ??
           currentState.tabs;
 
         // Tính lại tabCounter từ tên tab hiện có để tránh trùng số sau reload

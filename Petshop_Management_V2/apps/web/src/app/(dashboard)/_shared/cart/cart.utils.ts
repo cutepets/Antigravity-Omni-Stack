@@ -85,6 +85,36 @@ export function parseCartQuantityInput(value: string) {
     return Number.isFinite(parsed) ? parsed : Number.NaN
 }
 
+export function getServiceSpeciesLabel(service: any) {
+    const rawSpecies =
+        service?.species ??
+        service?.petSnapshot?.species ??
+        service?.pricingSnapshot?.species ??
+        service?.weightBand?.species ??
+        service?.weightBandSpecies
+    const normalized = normalizeServiceText(String(rawSpecies ?? '').trim())
+
+    if (!normalized) return undefined
+    if (['cho', 'dog', 'canine'].includes(normalized)) return 'Chó'
+    if (['meo', 'cat', 'feline'].includes(normalized)) return 'Mèo'
+    return String(rawSpecies).trim()
+}
+
+export function appendSpeciesToServiceName(name?: string | null, service?: any) {
+    const baseName = String(name ?? '').trim()
+    const speciesLabel = getServiceSpeciesLabel(service)
+
+    if (!baseName || !speciesLabel) return baseName
+    if (normalizeServiceText(baseName).endsWith(`- ${normalizeServiceText(speciesLabel)}`)) return baseName
+    return `${baseName} - ${speciesLabel}`
+}
+
+export function resolveCartUnitLabel(item: { type?: string; unit?: string | null }) {
+    if (item.type === 'hotel') return 'Ngày'
+    if (item.type === 'service' || item.type === 'grooming') return 'Lần'
+    return item.unit
+}
+
 function parseConversionRate(raw?: string | null) {
     if (!raw) return null
     try {

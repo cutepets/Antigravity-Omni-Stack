@@ -9,7 +9,7 @@ export interface VariantTableProps {
   priceBooks: any[]
   formData: { unit: string }
   productImage: string | null | undefined
-  handleImageChange: (e: ChangeEvent<HTMLInputElement>, cb: (image: string) => void) => void
+  handleImageChange: (e: ChangeEvent<HTMLInputElement>, cb: (image: string) => void, displayName?: string) => void
   setVariantImages: React.Dispatch<React.SetStateAction<Record<string, string | null>>>
   clearVariantImage: (imageKey: string) => void
   handleVariantSkuChange: (key: string, value: string) => void
@@ -32,33 +32,33 @@ export function VariantTable({
   handleVariantPriceBookChange,
 }: VariantTableProps) {
   return (
-    <div className="border border-border bg-background rounded-2xl overflow-x-auto overflow-y-hidden shadow-sm pt-4">
-      <div className="px-5 mb-3 flex items-center gap-3">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted">Bang phien ban</span>
-        <span className="badge badge-primary px-2">{generatedVariants.length} phien ban</span>
+    <div className="border border-border bg-background rounded-xl overflow-x-auto overflow-y-hidden shadow-sm pt-3">
+      <div className="px-4 mb-2.5 flex items-center gap-3">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted">Bảng phiên bản</span>
+        <span className="badge badge-primary px-2">{generatedVariants.length} phiên bản</span>
       </div>
 
-      <table className="min-w-[1440px] w-full text-left border-collapse">
+      <table className="min-w-[1120px] w-full text-left border-collapse">
         <thead className="bg-background-tertiary/50">
           <tr>
-            <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-14 text-center">Anh</th>
-            <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-wider min-w-[180px]">Phien ban</th>
-            <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-wider min-w-[140px] border-l border-border/50">Don vi</th>
-            <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-40 border-l border-border/50">SKU</th>
-            <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-44 border-l border-border/50">Ma vach</th>
-            <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-32 border-l border-border/50">Gia nhap</th>
+            <th className="py-2 px-3 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-12 text-center">Ảnh</th>
+            <th className="py-2 px-3 text-[10px] font-bold text-foreground-muted uppercase tracking-wider min-w-[150px]">Phiên bản</th>
+            <th className="py-2 px-3 text-[10px] font-bold text-foreground-muted uppercase tracking-wider min-w-[120px] border-l border-border/50">Đơn vị</th>
+            <th className="py-2 px-3 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-32 border-l border-border/50">SKU</th>
+            <th className="py-2 px-3 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-36 border-l border-border/50">Mã vạch</th>
+            <th className="py-2 px-3 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-28 border-l border-border/50">Giá nhập</th>
             {priceBooks.map((pb: any) => (
-              <th key={pb.id} className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-40 border-l border-border/50">
+              <th key={pb.id} className="py-2 px-3 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-32 border-l border-border/50">
                 {pb.name}
               </th>
             ))}
-            <th className="py-2.5 px-4 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-28 text-right border-l border-border/50">Luong (g)</th>
+            <th className="py-2 px-3 text-[10px] font-bold text-foreground-muted uppercase tracking-wider w-24 text-right border-l border-border/50">Lượng (g)</th>
           </tr>
         </thead>
         <tbody className="text-sm divide-y divide-border/50">
           {generatedVariants.map((variant) => (
             <tr key={variant.key} className={`group hover:bg-background-secondary/30 ${variant.isConversion ? 'bg-background-tertiary/20' : ''}`}>
-              <td className="py-3 px-4 text-center relative">
+              <td className="py-2.5 px-3 text-center relative">
                 {variant.isConversion ? <div className="absolute top-0 bottom-1/2 left-4 w-px border-l-2 border-border/50" /> : null}
                 {variant.isConversion ? <div className="absolute top-1/2 left-4 w-2 h-px border-t-2 border-border/50" /> : null}
                 <div className="relative z-10 mx-auto w-8">
@@ -88,6 +88,7 @@ export function VariantTable({
                       onChange={(event) =>
                         handleImageChange(event, (image) =>
                           setVariantImages((current) => ({ ...current, [variant.imageKey]: image })),
+                          variant.displayName || variant.name,
                         )
                       }
                     />
@@ -104,13 +105,13 @@ export function VariantTable({
                 </div>
               </td>
 
-              <td className="py-3 px-4">
+              <td className="py-2.5 px-3">
                 <div className="font-semibold text-foreground bg-background-tertiary/50 px-3 py-1.5 rounded-lg border border-border inline-flex w-full">
                   {variant.variantLabel || '—'}
                 </div>
               </td>
 
-              <td className="py-3 px-4 border-l border-border/50">
+              <td className="py-2.5 px-3 border-l border-border/50">
                 <div className="font-semibold text-foreground bg-background-tertiary/50 px-3 py-1.5 rounded-lg border border-border inline-flex w-full">
                   {variant.unitLabel || '—'}
                 </div>
@@ -121,25 +122,25 @@ export function VariantTable({
                 ) : null}
               </td>
 
-              <td className="py-3 px-4 border-l border-border/50">
+              <td className="py-2.5 px-3 border-l border-border/50">
                 <input
                   value={variant.sku}
                   onChange={(event) => handleVariantSkuChange(variant.key, event.target.value)}
                   className="form-input w-full text-xs font-mono uppercase"
-                  placeholder="SKU phien ban"
+                  placeholder=""
                 />
               </td>
 
-              <td className="py-3 px-4 border-l border-border/50">
+              <td className="py-2.5 px-3 border-l border-border/50">
                 <input
                   value={variant.barcode}
                   onChange={(event) => handleVariantBarcodeChange(variant.key, event.target.value)}
                   className="form-input w-full text-xs"
-                  placeholder="Ma vach phien ban"
+                  placeholder=""
                 />
               </td>
 
-              <td className="py-3 px-4 border-l border-border/50">
+              <td className="py-2.5 px-3 border-l border-border/50">
                 <PriceInput
                   value={variant.costPrice || 0}
                   onChange={(value: number) => handleVariantCostPriceChange(variant.key, value)}
@@ -148,7 +149,7 @@ export function VariantTable({
               </td>
 
               {priceBooks.map((pb: any) => (
-                <td key={`${variant.key}-${pb.id}`} className="py-3 px-4 border-l border-border/50">
+                <td key={`${variant.key}-${pb.id}`} className="py-2.5 px-3 border-l border-border/50">
                   <PriceInput
                     value={variant.priceBookPrices?.[pb.id] || 0}
                     onChange={(value: number) => handleVariantPriceBookChange(variant.key, pb.id, value)}
@@ -157,7 +158,7 @@ export function VariantTable({
                 </td>
               ))}
 
-              <td className="py-3 px-4 border-l border-border/50">
+              <td className="py-2.5 px-3 border-l border-border/50">
                 <input
                   className="form-input w-full text-right text-xs h-9 py-0 bg-transparent shadow-none focus:bg-background focus:ring-1"
                   value={variant.weight}

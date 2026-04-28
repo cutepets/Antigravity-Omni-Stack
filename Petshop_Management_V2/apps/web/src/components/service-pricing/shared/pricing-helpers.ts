@@ -49,6 +49,13 @@ function getSkuInitials(value?: string | null) {
     .join('')
 }
 
+function getSpeciesSkuPrefix(species?: string | null) {
+  const normalized = normalizeSkuText(species)
+  if (normalized === 'CHO' || normalized === 'DOG') return 'C'
+  if (normalized === 'MEO' || normalized === 'CAT') return 'M'
+  return ''
+}
+
 export function buildServicePricingSku(
   kind: 'HOTEL' | 'SPA',
   label: string,
@@ -58,7 +65,7 @@ export function buildServicePricingSku(
   maxWeight?: number | string | null,
 ) {
   const prefix = getSkuInitials(resolveSkuDisplayName(kind, label, species)) || (kind === 'HOTEL' ? 'HT' : 'SKU')
-  return `${prefix}${getWeightBandSkuSuffix(weightBandLabel, minWeight, maxWeight)}`
+  return `${getSpeciesSkuPrefix(species)}${prefix}${getWeightBandSkuSuffix(weightBandLabel, minWeight, maxWeight)}`
 }
 
 export function normalizeCurrencyInput(value: string) {
@@ -157,6 +164,7 @@ export function createHotelExtraServiceDraft(base?: Partial<HotelExtraServiceDra
   return {
     key: base?.key ?? createDraftKey('hotel-extra'),
     sku: base?.sku ?? '',
+    imageUrl: base?.imageUrl ?? null,
     name: base?.name ?? '',
     minWeight: base?.minWeight ?? '',
     maxWeight: base?.maxWeight ?? '',
@@ -191,6 +199,7 @@ export function mapWeightBandToDraft(band: ServiceWeightBand) {
 
 export function mapHotelExtraServiceToDraft(service: {
   sku?: string | null
+  imageUrl?: string | null
   name: string
   minWeight?: number | null
   maxWeight?: number | null
@@ -198,6 +207,7 @@ export function mapHotelExtraServiceToDraft(service: {
 }) {
   return createHotelExtraServiceDraft({
     sku: service.sku ?? '',
+    imageUrl: service.imageUrl ?? null,
     name: service.name,
     minWeight: formatWeightInput(service.minWeight),
     maxWeight: formatWeightInput(service.maxWeight),
@@ -208,6 +218,7 @@ export function mapHotelExtraServiceToDraft(service: {
 export function mapSpaFlatRateRuleToDraft(rule: {
   id: string
   sku?: string | null
+  imageUrl?: string | null
   packageCode: string
   minWeight?: number | null
   maxWeight?: number | null
@@ -218,6 +229,7 @@ export function mapSpaFlatRateRuleToDraft(rule: {
     key: rule.id,
     id: rule.id,
     sku: rule.sku ?? '',
+    imageUrl: rule.imageUrl ?? null,
     name: rule.packageCode,
     minWeight: formatWeightInput(rule.minWeight),
     maxWeight: formatWeightInput(rule.maxWeight),

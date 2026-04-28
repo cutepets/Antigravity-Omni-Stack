@@ -414,7 +414,13 @@ export function SupplierDetailDrawer({
 
     setUploadingDocument(true)
     try {
-      const uploaded = await uploadApi.uploadFile(file)
+      const uploaded = await uploadApi.uploadFile(file, {
+        scope: 'supplier-documents',
+        ownerType: 'SUPPLIER_DOCUMENT',
+        ownerId: String(supplier.id),
+        fieldName: 'documents',
+        displayName: supplier.name || documentDraft.type || 'supplier-document',
+      })
       const nextDocument: SupplierDocument = {
         name: uploaded.name || file.name,
         type: documentDraft.type,
@@ -467,7 +473,13 @@ export function SupplierDetailDrawer({
 
     setUploadingDocument(true)
     try {
-      const uploaded = await uploadApi.uploadFile(file)
+      const uploaded = await uploadApi.uploadFile(file, {
+        scope: 'supplier-documents',
+        ownerType: 'SUPPLIER_DOCUMENT',
+        ownerId: String(supplier.id),
+        fieldName: 'documents',
+        displayName: supplier.name || target.name || 'supplier-document',
+      })
       const nextDocuments = documents.map((document, index) =>
         index === currentIndex
           ? {
@@ -517,7 +529,7 @@ export function SupplierDetailDrawer({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center app-modal-overlay p-4" onClick={onClose}>
       <div
         className="flex max-h-[92vh] w-full max-w-[1440px] flex-col overflow-hidden rounded-[28px] border border-border bg-background-base shadow-2xl"
         onClick={(event) => event.stopPropagation()}
@@ -1068,7 +1080,7 @@ export function SupplierDetailDrawer({
                 <Activity size={14} />
                 Mặt hàng nhập từ NCC
               </div>
-              <DataListShell className="min-h-0">
+              <DataListShell variant="embedded" className="min-h-0">
                 <DataListToolbar
                   searchValue={productSearch}
                   onSearchChange={setProductSearch}

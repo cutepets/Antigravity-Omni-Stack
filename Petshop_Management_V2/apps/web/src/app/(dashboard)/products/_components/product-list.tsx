@@ -26,6 +26,8 @@ import { ProductFormModal } from './product-form-modal'
 import { ProductExcelModal } from './product-excel-modal'
 import { exportProductWorkbook } from './product-excel'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import { uploadApi } from '@/lib/api'
+import { extractPriceBooks, PRICE_BOOK_QUERY_KEY } from '@/lib/price-books'
 import {
 
   DataListShell,
@@ -43,6 +45,7 @@ import {
   useDataListSelection,
 } from '@petshop/ui/data-list'
 import { ImageCell, NameCell } from './product-list.cells'
+import { getUniqueOptionValues } from './product-options'
 
 type BranchStockRow = {
   stock?: number | null
@@ -60,6 +63,7 @@ type ListVariantItem = {
   unit?: string | null
   price?: number | null
   costPrice?: number | null
+  priceBookPrices?: unknown
   formula?: string | null
   branchStocks: BranchStockRow[]
 }
@@ -69,7 +73,20 @@ type VariantGroup = {
   children: ListVariantItem[]
 }
 
-type DisplayColumnId = 'image' | 'product' | 'sku' | 'barcode' | 'category' | 'stock' | 'price' | 'status' | 'lastCountShift'
+type DisplayColumnId =
+  | 'image'
+  | 'product'
+  | 'groupCode'
+  | 'sku'
+  | 'barcode'
+  | 'category'
+  | 'stock'
+  | 'sellableStock'
+  | 'minStock'
+  | 'costPrice'
+  | 'status'
+  | 'lastCountShift'
+  | `priceBook:${string}`
 type SaleStatusFilter = 'all' | 'active' | 'inactive'
 type SystemStatusFilter = 'ACTIVE' | 'DELETED'
 type StockStatusFilter = 'all' | 'in_stock' | 'out_of_stock' | 'low_stock'
@@ -80,16 +97,31 @@ type BulkEditableField = 'image' | 'category' | 'unit' | 'brand' | 'price' | 'co
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
   { id: 'image', label: 'Ảnh', width: 'w-20' },
   { id: 'product', label: 'Sản phẩm', sortable: true, minWidth: 'min-w-[300px]' },
-  { id: 'sku', label: 'Mã nhóm / SKU', sortable: true, minWidth: 'min-w-[140px]' },
+  { id: 'groupCode', label: 'Mã nhóm', sortable: true, minWidth: 'min-w-[120px]' },
+  { id: 'sku', label: 'SKU', sortable: true, minWidth: 'min-w-[120px]' },
   { id: 'barcode', label: 'Mã vạch', sortable: true, minWidth: 'min-w-[140px]' },
   { id: 'category', label: 'Danh mục', sortable: true, minWidth: 'min-w-[140px]' },
-  { id: 'stock', label: 'Tồn kho', sortable: true, minWidth: 'min-w-[140px]' },
-  { id: 'price', label: 'Giá vốn / Giá bán', sortable: true, minWidth: 'min-w-[140px]' },
+  { id: 'stock', label: 'Tồn kho', sortable: true, minWidth: 'min-w-[110px]' },
+  { id: 'sellableStock', label: 'Có thể bán', sortable: true, minWidth: 'min-w-[120px]' },
+  { id: 'minStock', label: 'Tồn tối thiểu', sortable: true, minWidth: 'min-w-[130px]' },
+  { id: 'costPrice', label: 'Giá vốn', sortable: true, minWidth: 'min-w-[120px]' },
   { id: 'status', label: 'Trạng thái', sortable: true, minWidth: 'min-w-[140px]' },
   { id: 'lastCountShift', label: 'Ca kiểm', sortable: true, minWidth: 'min-w-[100px]' },
 ]
 
-const SORTABLE_COLUMNS = new Set<DisplayColumnId>(['product', 'sku', 'barcode', 'category', 'stock', 'price', 'status', 'lastCountShift'])
+const SORTABLE_COLUMNS = new Set<DisplayColumnId>([
+  'product',
+  'groupCode',
+  'sku',
+  'barcode',
+  'category',
+  'stock',
+  'sellableStock',
+  'minStock',
+  'costPrice',
+  'status',
+  'lastCountShift',
+])
 
 function sumStock(rows: BranchStockRow[] | undefined, fallback = 0) {
   if (!rows || rows.length === 0) return fallback
@@ -110,6 +142,44 @@ function formatMoney(value?: number | null) {
   return `${(value ?? 0).toLocaleString('vi-VN')}₫`
 }
 
+function parsePriceBookPrices(raw: unknown): Record<string, number> {
+  if (!raw) return {}
+  let source = raw
+  if (typeof raw === 'string') {
+    try {
+      source = JSON.parse(raw)
+    } catch {
+      return {}
+    }
+  }
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return {}
+
+  return Object.fromEntries(
+    Object.entries(source as Record<string, unknown>)
+      .map(([key, value]) => [key, Number(value)] as const)
+      .filter(([, value]) => Number.isFinite(value))
+  )
+}
+
+function getPriceBookColumnId(priceBookId: string): DisplayColumnId {
+  return `priceBook:${priceBookId}`
+}
+
+function getPriceBookIdFromColumnId(columnId: DisplayColumnId) {
+  return columnId.startsWith('priceBook:') ? columnId.slice('priceBook:'.length) : null
+}
+
+function getPriceBookPrice(row: { priceBookPrices?: unknown }, priceBookId: string) {
+  return parsePriceBookPrices(row.priceBookPrices)[priceBookId]
+}
+
+function PriceBookPriceCell({ value }: { value?: number }) {
+  if (value === undefined) {
+    return <td className="px-3 py-3 text-sm text-foreground-muted">—</td>
+  }
+  return <td className="px-3 py-3 text-sm font-semibold text-primary-500">{formatMoney(value)}</td>
+}
+
 function buildVariantGroups(product: any) {
   const rawVariants = Array.isArray(product.variants) ? product.variants : []
   const items: ListVariantItem[] = rawVariants.map((variant: any) => {
@@ -127,6 +197,7 @@ function buildVariantGroups(product: any) {
       unit: displayUnit,
       price: variant.price ?? product.price,
       costPrice: variant.costPrice ?? product.costPrice,
+      priceBookPrices: variant.priceBookPrices ?? product.priceBookPrices,
       formula: conversionRate ? `${conversionRate} ${product.unit} = 1 ${displayUnit}` : null,
       branchStocks: getDisplayBranchStocks(product, variant.id) as BranchStockRow[],
     }
@@ -167,7 +238,7 @@ const fileToDataUrl = (file: File) =>
     const reader = new FileReader()
     reader.addEventListener('load', () => resolve(reader.result?.toString() || ''))
     reader.addEventListener('error', () => reject(new Error('Không thể đọc file ảnh')))
-    reader.readAsDataURL(file)
+    reject(new Error('Unused local data URL helper'))
   })
 
 export function ProductList() {
@@ -202,9 +273,66 @@ export function ProductList() {
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
     initialTopFilterVisibility: { category: true, stock: false, sale: true },
-    storageKey: 'product-list-columns-v2',
+    storageKey: 'product-list-columns-v4',
   })
-  const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
+  const {
+    topFilterVisibility,
+    columnSort,
+    orderedVisibleColumns,
+    visibleColumns,
+    columnOrder,
+    draggingColumnId,
+    setColumnOrder,
+    setVisibleColumns,
+  } = dataListState
+
+  const { data: priceBooksRes } = useQuery({
+    queryKey: PRICE_BOOK_QUERY_KEY,
+    queryFn: () => inventoryApi.getPriceBooks(),
+  })
+  const priceBooks = useMemo(
+    () => extractPriceBooks(priceBooksRes).filter((priceBook: any) => priceBook.isActive !== false),
+    [priceBooksRes]
+  )
+  const priceBookColumns = useMemo(
+    () => priceBooks.map((priceBook) => ({
+      id: getPriceBookColumnId(priceBook.id),
+      label: priceBook.name,
+      sortable: true,
+      minWidth: 'min-w-[120px]',
+    })),
+    [priceBooks]
+  )
+  const columnOptions = useMemo(
+    () => [...COLUMN_OPTIONS, ...priceBookColumns],
+    [priceBookColumns]
+  )
+  const sortableColumns = useMemo(
+    () => new Set<DisplayColumnId>([...SORTABLE_COLUMNS, ...priceBookColumns.map((column) => column.id)]),
+    [priceBookColumns]
+  )
+
+  useEffect(() => {
+    if (priceBookColumns.length === 0) return
+    const priceBookColumnIds = priceBookColumns.map((column) => column.id)
+
+    setColumnOrder((current) => {
+      const existing = new Set(current)
+      const missing = priceBookColumnIds.filter((id) => !existing.has(id))
+      return missing.length === 0 ? current : [...current, ...missing]
+    })
+    setVisibleColumns((current) => {
+      const next = new Set(current)
+      let changed = false
+      for (const id of priceBookColumnIds) {
+        if (!next.has(id)) {
+          next.add(id)
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [priceBookColumns, setColumnOrder, setVisibleColumns])
 
   useEffect(() => {
     if (isAuthLoading) return
@@ -250,7 +378,7 @@ export function ProductList() {
   const total = (data as any)?.total ?? 0
   const totalPages = (data as any)?.totalPages ?? 1
 
-  const categoryOptions = Array.isArray(categories) ? categories : (categories as any)?.data ?? []
+  const categoryOptions = getUniqueOptionValues(Array.isArray(categories) ? categories : (categories as any)?.data ?? [])
 
   const productRows = useMemo(() => {
     const rows = rawProducts.map((product: any) => {
@@ -284,8 +412,11 @@ export function ProductList() {
         case 'product':
           comparison = compareText(left.name, right.name)
           break
+        case 'groupCode':
+          comparison = compareText(left.groupCode, right.groupCode)
+          break
         case 'sku':
-          comparison = compareText(left.groupCode || left.sku, right.groupCode || right.sku)
+          comparison = compareText(left.sku, right.sku)
           break
         case 'barcode':
           comparison = compareText(left.barcode, right.barcode)
@@ -296,8 +427,14 @@ export function ProductList() {
         case 'stock':
           comparison = left.totalStock - right.totalStock
           break
-        case 'price':
-          comparison = Number(left.price ?? 0) - Number(right.price ?? 0)
+        case 'sellableStock':
+          comparison = left.sellableStock - right.sellableStock
+          break
+        case 'minStock':
+          comparison = left.minStock - right.minStock
+          break
+        case 'costPrice':
+          comparison = Number(left.costPrice ?? 0) - Number(right.costPrice ?? 0)
           break
         case 'status':
           comparison = Number(Boolean(left.isActive ?? true)) - Number(Boolean(right.isActive ?? true))
@@ -306,7 +443,12 @@ export function ProductList() {
           comparison = compareText(left.lastCountShift, right.lastCountShift)
           break
         default:
-          comparison = 0
+          if (columnSort.columnId) {
+            const priceBookId = getPriceBookIdFromColumnId(columnSort.columnId)
+            comparison = priceBookId
+              ? Number(getPriceBookPrice(left, priceBookId) ?? 0) - Number(getPriceBookPrice(right, priceBookId) ?? 0)
+              : 0
+          }
       }
 
       if (comparison === 0) comparison = compareText(left.name, right.name)
@@ -413,7 +555,7 @@ export function ProductList() {
   }
 
   const toggleColumnSort = (columnId: DisplayColumnId) => {
-    if (!SORTABLE_COLUMNS.has(columnId)) return
+    if (!sortableColumns.has(columnId)) return
     dataListState.toggleColumnSort(columnId)
   }
 
@@ -428,11 +570,15 @@ export function ProductList() {
 
   const visibleRangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
   const visibleRangeEnd = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rawProducts.length)
+  const activeVisibleColumns = useMemo(() => {
+    const optionIds = new Set(columnOptions.map((column) => column.id))
+    return orderedVisibleColumns.filter((columnId) => optionIds.has(columnId))
+  }, [columnOptions, orderedVisibleColumns])
 
   // Computed columns for DataListTable
-  const tableColumns = orderedVisibleColumns.map((columnId) => {
-    const col = COLUMN_OPTIONS.find((item) => item.id === columnId)!
-    return { ...col, id: columnId as DisplayColumnId }
+  const tableColumns = activeVisibleColumns.flatMap((columnId) => {
+    const col = columnOptions.find((item) => item.id === columnId)
+    return col ? [{ ...col, id: columnId as DisplayColumnId }] : []
   })
 
   if (isAuthLoading) {
@@ -510,11 +656,11 @@ export function ProductList() {
         }
         columnPanelContent={
           <DataListColumnPanel
-            columns={COLUMN_OPTIONS}
+            columns={columnOptions}
             columnOrder={columnOrder}
             visibleColumns={visibleColumns}
             sortInfo={columnSort}
-            sortableColumns={SORTABLE_COLUMNS}
+            sortableColumns={sortableColumns}
             draggingColumnId={draggingColumnId}
             onToggle={(id) => dataListState.toggleColumn(id as DisplayColumnId)}
             onReorder={(sourceId, targetId) => dataListState.reorderColumn(sourceId as DisplayColumnId, targetId as DisplayColumnId)}
@@ -620,11 +766,9 @@ export function ProductList() {
             className={filterSelectClass}
           >
             <option value="">Tất cả</option>
-            {categoryOptions.map((item: any) => {
-              const value = typeof item === 'string' ? item : item?.name ?? item?.value ?? ''
-              if (!value) return null
-              return <option key={value} value={value}>{value}</option>
-            })}
+            {categoryOptions.map((value) => (
+              <option key={value} value={value}>{value}</option>
+            ))}
           </select>
         </label>
 
@@ -703,6 +847,25 @@ export function ProductList() {
         emptyText="Không có sản phẩm phù hợp."
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
+        footer={
+          <DataListPagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            total={total}
+            rangeStart={visibleRangeStart}
+            rangeEnd={visibleRangeEnd}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+            attachedToTable
+            totalItemText={
+              <p className="shrink-0 text-xs text-foreground-muted">
+                Tổng <strong className="text-foreground">{total}</strong> sản phẩm
+                {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
+              </p>
+            }
+          />
+        }
         bulkBar={
           selectedProductIds.length > 0 && (canUpdateProduct || canDeleteProduct) ? (
             <DataListBulkBar
@@ -742,7 +905,7 @@ export function ProductList() {
           <ProductRowBlock
             key={product.id}
             product={product}
-            orderedVisibleColumns={orderedVisibleColumns}
+            orderedVisibleColumns={activeVisibleColumns}
             expanded={expandedProductIds.has(product.id)}
             selectedRowIds={selectedRowIds}
             onToggleExpanded={toggleExpanded}
@@ -750,28 +913,6 @@ export function ProductList() {
           />
         ))}
       </DataListTable>
-
-      {/* ── Pagination — rendered outside DataListTable so it sits below ── */}
-      <div className="-mt-3">
-        <div className="rounded-b-2xl border border-t-0 border-border bg-card/95">
-          <DataListPagination
-            page={page}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            total={total}
-            rangeStart={visibleRangeStart}
-            rangeEnd={visibleRangeEnd}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
-            totalItemText={
-              <p className="shrink-0 text-xs text-foreground-muted">
-                Tổng <strong className="text-foreground">{total}</strong> sản phẩm
-                {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
-              </p>
-            }
-          />
-        </div>
-      </div>
 
       <ProductFormModal
         isOpen={isModalOpen}
@@ -845,7 +986,7 @@ function BulkEditProductsModal({
   const { data: brands } = useQuery({ queryKey: ['brands'], queryFn: () => inventoryApi.getBrands(), enabled: isOpen })
   const { data: units } = useQuery({ queryKey: ['units'], queryFn: () => inventoryApi.getUnits(), enabled: isOpen })
 
-  const categoryOptions = Array.isArray(categories) ? categories : (categories as any)?.data ?? []
+  const categoryOptions = getUniqueOptionValues(Array.isArray(categories) ? categories : (categories as any)?.data ?? [])
   const brandOptions = Array.isArray(brands) ? brands : (brands as any)?.data ?? []
   const unitOptions = Array.isArray(units) ? units : (units as any)?.data ?? []
 
@@ -900,7 +1041,7 @@ function BulkEditProductsModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay px-4 py-6">
       <div className="max-h-[86vh] w-full max-w-[760px] overflow-hidden rounded-[28px] border border-border/90 bg-[#0f1726] shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
           <div>
@@ -937,9 +1078,21 @@ function BulkEditProductsModal({
                   onChange={async (event) => {
                     const file = event.target.files?.[0]
                     if (!file) return
-                    const image = await fileToDataUrl(file)
-                    setFormData((current) => ({ ...current, image }))
-                    setEnabledFields((current) => ({ ...current, image: true }))
+                    try {
+                      const image = await uploadApi.uploadImage(file, {
+                        scope: 'products',
+                        ownerType: 'PRODUCT',
+                        ownerId: selectedProductIds.length === 1 ? selectedProductIds[0] : 'bulk',
+                        fieldName: 'image',
+                        displayName: selectedProductIds.length === 1 ? 'product' : 'bulk-products',
+                      })
+                      setFormData((current) => ({ ...current, image }))
+                      setEnabledFields((current) => ({ ...current, image: true }))
+                    } catch (error: any) {
+                      toast.error(error?.message || 'Khong the tai anh')
+                    } finally {
+                      event.target.value = ''
+                    }
                   }}
                 />
               </label>
@@ -957,15 +1110,11 @@ function BulkEditProductsModal({
                 className="h-11 w-full rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
               >
                 <option value="">Chọn hoặc gõ tìm...</option>
-                {categoryOptions.map((item: any) => {
-                  const value = typeof item === 'string' ? item : item?.name ?? item?.value ?? ''
-                  if (!value) return null
-                  return (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  )
-                })}
+                {categoryOptions.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
               </select>
             </BulkEditField>
 
@@ -1230,31 +1379,22 @@ function ProductRowBlock({
                   />
                 </td>
               )
+            case 'groupCode':
+              return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.groupCode || '—'}</td>
             case 'sku':
-              return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.groupCode || product.sku || '—'}</td>
+              return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.sku || '—'}</td>
             case 'barcode':
               return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.barcode || '—'}</td>
             case 'category':
               return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.category || '—'}</td>
             case 'stock':
-              return (
-                <td key={columnId} className="px-3 py-3 text-sm text-foreground">
-                  <div className="truncate">
-                    <span className="font-semibold text-foreground">{product.totalStock}</span>
-                    <span className="text-foreground-muted"> · Bán {product.sellableStock} · Min {product.minStock}</span>
-                  </div>
-                </td>
-              )
-            case 'price':
-              return (
-                <td key={columnId} className="px-3 py-3 text-sm text-foreground">
-                  <div className="truncate">
-                    <span>{formatMoney(product.costPrice)}</span>
-                    <span className="text-foreground-muted"> / </span>
-                    <span className="font-semibold text-primary-500">{formatMoney(product.price)}</span>
-                  </div>
-                </td>
-              )
+              return <td key={columnId} className="px-3 py-3 text-sm font-semibold text-foreground">{product.totalStock}</td>
+            case 'sellableStock':
+              return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.sellableStock}</td>
+            case 'minStock':
+              return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.minStock}</td>
+            case 'costPrice':
+              return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{formatMoney(product.costPrice)}</td>
             case 'status':
               if (product.deletedAt) {
                 return (
@@ -1288,6 +1428,12 @@ function ProductRowBlock({
                 </td>
               )
             default:
+              {
+                const priceBookId = getPriceBookIdFromColumnId(columnId)
+                if (priceBookId) {
+                  return <PriceBookPriceCell key={columnId} value={getPriceBookPrice(product, priceBookId)} />
+                }
+              }
               return null
           }
         })}
@@ -1341,6 +1487,8 @@ function VariantRows({
                         />
                       </td>
                     )
+                  case 'groupCode':
+                    return <td key={columnId} className="px-3 py-3 text-sm text-foreground">—</td>
                   case 'sku':
                     return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{group.item.sku || '—'}</td>
                   case 'barcode':
@@ -1348,24 +1496,13 @@ function VariantRows({
                   case 'category':
                     return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{product.category || '—'}</td>
                   case 'stock':
-                    return (
-                      <td key={columnId} className="px-3 py-3 text-sm text-foreground">
-                        <div className="truncate">
-                          <span className="font-semibold text-red-400">{sumStock(group.item.branchStocks)}</span>
-                          <span className="text-foreground-muted"> · Bán {variantSellable} · Min {sumMinStock(group.item.branchStocks)}</span>
-                        </div>
-                      </td>
-                    )
-                  case 'price':
-                    return (
-                      <td key={columnId} className="px-3 py-3 text-sm text-foreground">
-                        <div className="truncate">
-                          <span>{formatMoney(group.item.costPrice)}</span>
-                          <span className="text-foreground-muted"> / </span>
-                          <span className="font-semibold text-primary-500">{formatMoney(group.item.price)}</span>
-                        </div>
-                      </td>
-                    )
+                    return <td key={columnId} className="px-3 py-3 text-sm font-semibold text-red-400">{sumStock(group.item.branchStocks)}</td>
+                  case 'sellableStock':
+                    return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{variantSellable}</td>
+                  case 'minStock':
+                    return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{sumMinStock(group.item.branchStocks)}</td>
+                  case 'costPrice':
+                    return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{formatMoney(group.item.costPrice)}</td>
                   case 'status':
                     return (
                       <td key={columnId} className="px-3 py-3">
@@ -1377,6 +1514,12 @@ function VariantRows({
                   case 'lastCountShift':
                     return <td key={columnId} className="px-3 py-3 text-sm text-foreground"></td>
                   default:
+                    {
+                      const priceBookId = getPriceBookIdFromColumnId(columnId)
+                      if (priceBookId) {
+                        return <PriceBookPriceCell key={columnId} value={getPriceBookPrice(group.item, priceBookId)} />
+                      }
+                    }
                     return null
                 }
               })}
@@ -1446,6 +1589,8 @@ function ConversionRow({
                 />
               </td>
             )
+          case 'groupCode':
+            return <td key={columnId} className="px-3 py-3 text-sm text-foreground">—</td>
           case 'sku':
             return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{item.sku || '—'}</td>
           case 'barcode':
@@ -1453,24 +1598,13 @@ function ConversionRow({
           case 'category':
             return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{productCategory || '—'}</td>
           case 'stock':
-            return (
-              <td key={columnId} className="px-3 py-3 text-sm text-foreground">
-                <div className="truncate">
-                  <span className="font-semibold text-foreground">{sumStock(item.branchStocks)}</span>
-                  <span className="text-foreground-muted"> · Bán {sellable} · Min {sumMinStock(item.branchStocks)}</span>
-                </div>
-              </td>
-            )
-          case 'price':
-            return (
-              <td key={columnId} className="px-3 py-3 text-sm text-foreground">
-                <div className="truncate">
-                  <span>{formatMoney(item.costPrice)}</span>
-                  <span className="text-foreground-muted"> / </span>
-                  <span className="font-semibold text-primary-500">{formatMoney(item.price)}</span>
-                </div>
-              </td>
-            )
+            return <td key={columnId} className="px-3 py-3 text-sm font-semibold text-foreground">{sumStock(item.branchStocks)}</td>
+          case 'sellableStock':
+            return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{sellable}</td>
+          case 'minStock':
+            return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{sumMinStock(item.branchStocks)}</td>
+          case 'costPrice':
+            return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{formatMoney(item.costPrice)}</td>
           case 'status':
             return (
               <td key={columnId} className="px-3 py-3">
@@ -1482,6 +1616,12 @@ function ConversionRow({
           case 'lastCountShift':
             return <td key={columnId} className="px-3 py-3 text-sm text-foreground"></td>
           default:
+            {
+              const priceBookId = getPriceBookIdFromColumnId(columnId)
+              if (priceBookId) {
+                return <PriceBookPriceCell key={columnId} value={getPriceBookPrice(item, priceBookId)} />
+              }
+            }
             return null
         }
       })}

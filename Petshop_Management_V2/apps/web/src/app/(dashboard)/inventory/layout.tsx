@@ -15,7 +15,7 @@ export default function InventoryLayout({ children }: { children: React.ReactNod
   const pathname = usePathname() ?? ''
 
   return (
-    <PageContainer maxWidth="full" className="gap-3 py-4">
+    <PageContainer maxWidth="full" variant="data-list" className="gap-3">
       <div className="mb-1">
         <div className="flex -mb-px space-x-5 border-b border-border text-sm font-medium">
           {TABS.map((tab) => {

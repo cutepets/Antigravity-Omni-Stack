@@ -197,7 +197,11 @@ export class EquipmentController {
       }),
     ),
   )
-  async uploadImage(@UploadedFile() file: Express.Multer.File, @Req() req: Request & { user?: { userId?: string } }) {
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request & { user?: { userId?: string } },
+    @Body('displayName') displayName?: string,
+  ) {
     if (!file) {
       return { success: false, message: 'Khong tim thay file anh' }
     }
@@ -205,6 +209,8 @@ export class EquipmentController {
     const asset = await this.storageService.uploadAsset({
       category: 'image',
       scope: 'equipment',
+      fieldName: 'imageUrl',
+      displayName: displayName || null,
       uploadedById: req.user?.userId ?? null,
       file: {
         originalName: file.originalname,

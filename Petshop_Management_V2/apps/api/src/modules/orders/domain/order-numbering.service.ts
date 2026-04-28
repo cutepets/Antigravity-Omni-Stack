@@ -1,9 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  generateGroomingSessionCode as formatGroomingSessionCode,
-  generateHotelStayCode as formatHotelStayCode,
-  generateOrderNumber as formatOrderNumber,
-} from '@petshop/shared';
+import { generateGroomingSessionCode as formatGroomingSessionCode, generateHotelStayCode as formatHotelStayCode, generateOrderNumber as formatOrderNumber } from '@petshop/shared';
 import { generateFinanceVoucherNumber } from '../../../common/utils/finance-voucher.util.js';
 import { DatabaseService } from '../../../database/database.service.js';
 
@@ -11,11 +7,14 @@ import { DatabaseService } from '../../../database/database.service.js';
 export class OrderNumberingService {
   async generateOrderNumber(prisma: Pick<DatabaseService, 'order'>): Promise<string> {
     const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const count = await prisma.order.count({
-      where: { createdAt: { gte: startOfDay } },
+    const prefix = formatOrderNumber(today, 0).slice(0, -3);
+    const latestOrder = await prisma.order.findFirst({
+      where: { orderNumber: { startsWith: prefix } },
+      orderBy: { orderNumber: 'desc' },
+      select: { orderNumber: true },
     });
-    return formatOrderNumber(today, count + 1);
+    const latestSequence = latestOrder?.orderNumber ? Number.parseInt(latestOrder.orderNumber.slice(prefix.length), 10) : 0;
+    return formatOrderNumber(today, (Number.isFinite(latestSequence) ? latestSequence : 0) + 1);
   }
 
   async generateVoucherNumber(prisma: Pick<DatabaseService, 'transaction'>): Promise<string> {
@@ -28,11 +27,7 @@ export class OrderNumberingService {
     return `VCH-${dateStr}-${String(count + 1).padStart(4, '0')}`;
   }
 
-  async generateHotelStayCode(
-    db: Pick<DatabaseService, 'hotelStay'>,
-    createdAt: Date,
-    branchCode: string,
-  ): Promise<string> {
+  async generateHotelStayCode(db: Pick<DatabaseService, 'hotelStay'>, createdAt: Date, branchCode: string): Promise<string> {
     const startOfMonth = new Date(createdAt.getFullYear(), createdAt.getMonth(), 1);
     const endOfMonth = new Date(createdAt.getFullYear(), createdAt.getMonth() + 1, 1);
     const codePrefix = formatHotelStayCode(createdAt, branchCode, 0).slice(0, -3);
@@ -50,11 +45,7 @@ export class OrderNumberingService {
     return formatHotelStayCode(createdAt, branchCode, count + 1);
   }
 
-  async generateGroomingSessionCode(
-    db: Pick<DatabaseService, 'groomingSession'>,
-    createdAt: Date,
-    branchCode: string,
-  ): Promise<string> {
+  async generateGroomingSessionCode(db: Pick<DatabaseService, 'groomingSession'>, createdAt: Date, branchCode: string): Promise<string> {
     const startOfMonth = new Date(createdAt.getFullYear(), createdAt.getMonth(), 1);
     const endOfMonth = new Date(createdAt.getFullYear(), createdAt.getMonth() + 1, 1);
     const codePrefix = formatGroomingSessionCode(createdAt, branchCode, 0).slice(0, -3);
@@ -72,10 +63,7 @@ export class OrderNumberingService {
     return formatGroomingSessionCode(createdAt, branchCode, count + 1);
   }
 
-  async generateFinanceVoucherNumber(
-    db: DatabaseService,
-    type: 'INCOME' | 'EXPENSE',
-  ): Promise<string> {
+  async generateFinanceVoucherNumber(db: DatabaseService, type: 'INCOME' | 'EXPENSE'): Promise<string> {
     return generateFinanceVoucherNumber(db as any, type);
   }
 }

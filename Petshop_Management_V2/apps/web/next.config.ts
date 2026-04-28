@@ -1,12 +1,15 @@
 import type { NextConfig } from 'next'
 import { join } from 'path'
 
+const output: NextConfig['output'] =
+  process.platform === 'win32' && process.env['NEXT_STANDALONE'] !== '1'
+    ? undefined
+    : 'standalone'
+
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  output,
   outputFileTracingRoot: join(__dirname, '../..'),
   transpilePackages: ['@petshop/shared', '@petshop/auth', '@petshop/config'],
-  eslint: { ignoreDuringBuilds: true },
-  typescript: { ignoreBuildErrors: true },
   images: {
     unoptimized: true,
     remotePatterns: [

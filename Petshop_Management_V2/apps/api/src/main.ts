@@ -54,6 +54,18 @@ async function bootstrap() {
   const corsOrigins = (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000')
     .split(',')
     .map((origin: string) => origin.trim())
+    .filter(Boolean)
+  const isLocalDevOrigin = (origin: string | undefined) => {
+    if (process.env['NODE_ENV'] === 'production' || !origin) return false
+
+    try {
+      const url = new URL(origin)
+      const hostname = url.hostname.toLowerCase()
+      return url.protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1')
+    } catch {
+      return false
+    }
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -65,7 +77,13 @@ async function bootstrap() {
   )
 
   app.enableCors({
-    origin: corsOrigins,
+    origin: (origin, callback) => {
+      if (!origin || corsOrigins.includes(origin) || isLocalDevOrigin(origin)) {
+        callback(null, true)
+        return
+      }
+      callback(new Error(`Origin ${origin} is not allowed by CORS`))
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })

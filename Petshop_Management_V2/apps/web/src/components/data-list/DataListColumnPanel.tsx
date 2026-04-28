@@ -46,10 +46,10 @@ export function DataListColumnPanel({
   const columnMap = Object.fromEntries(columns.map((col) => [col.id, col]))
 
   return (
-    <div className="w-[320px] rounded-2xl border border-border bg-[#161d29] p-4 shadow-2xl">
-      <div className="flex items-center justify-between gap-3">
+    <div className="w-[calc(100vw-24px)] max-w-[320px] rounded-xl border border-border bg-background-secondary p-3 shadow-xl">
+      <div className="flex items-start justify-between gap-3 px-1">
         <div>
-          <div className="text-lg font-semibold text-foreground">Tùy chỉnh hiển thị cột</div>
+          <div className="text-sm font-semibold text-foreground">Tùy chỉnh hiển thị cột</div>
           <div className="text-xs text-foreground-muted mt-1">Kéo thả để đổi thứ tự, bỏ chọn để ẩn cột.</div>
         </div>
         <button
@@ -61,7 +61,7 @@ export function DataListColumnPanel({
         </button>
       </div>
 
-      <div className="mt-4 max-h-[320px] overflow-y-auto pr-1 space-y-2">
+      <div className="custom-scrollbar mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-1">
         {columnOrder.map((columnId) => {
           const col = columnMap[columnId]
           if (!col) return null
@@ -81,17 +81,17 @@ export function DataListColumnPanel({
                 onReorder(draggingColumnId, columnId)
                 onDragEnd?.()
               }}
-              className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors ${
+              className={`flex min-h-12 items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
                 draggingColumnId === columnId
                   ? 'border-primary-500 bg-primary-500/10'
-                  : 'border-transparent bg-background-secondary hover:border-border'
+                  : 'border-border bg-background hover:bg-background-tertiary'
               }`}
             >
               <TableCheckbox
                 checked={visibleColumns.has(columnId)}
                 onCheckedChange={() => onToggle(columnId)}
               />
-              <span className="flex-1 text-base font-semibold text-foreground">{col.label}</span>
+              <span className="flex-1 text-sm font-semibold text-foreground">{col.label}</span>
 
               {onToggleSort && (
                 <button

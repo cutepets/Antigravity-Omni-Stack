@@ -31,13 +31,13 @@ export function DataListPagination({
   totalItemText,
 }: DataListPaginationProps) {
   return (
-    <div className="flex shrink-0 flex-col gap-2 border-t border-border px-4 py-2.5 text-sm md:flex-row md:items-center md:justify-between md:gap-5">
+    <div className="-mt-3 flex h-[50px] shrink-0 items-center justify-between gap-5 border-t border-border px-4 py-0 text-sm">
       {/* Left side: Total Info */}
       <div className="flex items-center text-foreground-muted">
         {totalItemText}
       </div>
 
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-center md:gap-5">
+      <div className="flex items-center justify-center gap-5">
         {/* Page size */}
         <div className="flex items-center justify-center gap-2 text-foreground-muted">
           <span>Hiển thị</span>

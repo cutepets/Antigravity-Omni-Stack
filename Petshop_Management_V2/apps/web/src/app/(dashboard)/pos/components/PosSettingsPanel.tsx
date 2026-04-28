@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Keyboard, Moon, Monitor, Printer, Settings, SlidersHorizontal, Sun, X } from 'lucide-react'
 import { settingsApi } from '@/lib/api/settings.api'
 import { getPaymentMethodColorClasses, PAYMENT_METHOD_TYPE_LABELS } from '@/lib/payment-methods'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePosStore } from '@/stores/pos.store'
+
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -331,11 +333,23 @@ export function PosSettingsPanel() {
     staleTime: 30_000,
   })
 
-  // Apply zoom to main container
-  useEffect(() => {
-    const container = document.querySelector('main')?.parentElement
-    if (container) {
-      ; (container as any).style.zoom = `${zoomLevel}%`
+  // Apply POS zoom without resizing the dashboard wrapper.
+  useIsomorphicLayoutEffect(() => {
+    const legacyContainer = document.querySelector('main')?.parentElement as HTMLElement | null
+    legacyContainer?.style.removeProperty('zoom')
+
+    const viewport = document.querySelector('[data-pos-viewport]') as HTMLElement | null
+    if (!viewport) return
+
+    const scale = Math.max(75, Math.min(150, zoomLevel)) / 100
+    viewport.style.zoom = `${scale}`
+    viewport.style.width = `${100 / scale}%`
+    viewport.style.height = `${100 / scale}vh`
+
+    return () => {
+      viewport.style.removeProperty('zoom')
+      viewport.style.removeProperty('width')
+      viewport.style.removeProperty('height')
     }
   }, [zoomLevel])
 
@@ -381,7 +395,7 @@ export function PosSettingsPanel() {
 
       {isOpen ? (
         <div className="fixed inset-0 z-100 flex justify-end font-sans">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
+          <div className="absolute inset-0 app-modal-overlay" onClick={() => setIsOpen(false)} />
 
           <div className="relative flex h-full w-[400px] flex-col bg-surface shadow-2xl animate-in slide-in-from-right duration-250 ease-[cubic-bezier(0.16,1,0.3,1)]">
             <div className="flex items-center justify-between border-b border-border p-4">

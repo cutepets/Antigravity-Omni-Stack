@@ -168,6 +168,25 @@ export function ReceiptList() {
         emptyText="Không có phiếu nhập nào."
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
+        footer={
+          <DataListPagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            total={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[15, 30, 50, 100]}
+            attachedToTable
+            totalItemText={
+              <span className="text-xs">
+                Tổng <strong className="text-foreground">{total}</strong> phiếu
+              </span>
+            }
+          />
+        }
         bulkBar={
           selectedRowIds.size > 0 ? (
             <DataListBulkBar selectedCount={selectedRowIds.size} onClear={clearSelection}>
@@ -241,26 +260,6 @@ export function ReceiptList() {
         })}
       </DataListTable>
 
-      <div className="-mt-1">
-        <div className="rounded-b-2xl border border-t-0 border-border bg-card/95">
-          <DataListPagination
-            page={page}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            total={total}
-            rangeStart={rangeStart}
-            rangeEnd={rangeEnd}
-            onPageChange={setPage}
-            onPageSizeChange={setPageSize}
-            pageSizeOptions={[15, 30, 50, 100]}
-            totalItemText={
-              <span className="text-xs">
-                Tổng <strong className="text-foreground">{total}</strong> phiếu
-              </span>
-            }
-          />
-        </div>
-      </div>
     </DataListShell>
   )
 }
