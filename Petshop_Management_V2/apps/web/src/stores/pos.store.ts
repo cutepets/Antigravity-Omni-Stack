@@ -27,6 +27,9 @@ const createNewTab = (id?: string, tabNumber?: number): OrderTab => ({
   payments: [],
   manualDiscountTotal: 0,
   roundingDiscountTotal: 0,
+  promotionDiscountTotal: 0,
+  promotionPreview: null,
+  promotionVoucherCode: '',
   discountTotal: 0,
   shippingFee: 0,
   notes: '',
@@ -70,7 +73,11 @@ const reconcileTabDiscounts = (
   const baseTotal = calculateBaseTotal(tab);
   const manualSeed = toFiniteNumber(tab.manualDiscountTotal ?? tab.discountTotal);
   const manualDiscountTotal = Math.min(baseTotal, Math.max(0, manualSeed));
-  const payableBeforeRounding = Math.max(0, baseTotal - manualDiscountTotal);
+  const promotionDiscountTotal = Math.min(
+    Math.max(0, baseTotal - manualDiscountTotal),
+    Math.max(0, toFiniteNumber(tab.promotionDiscountTotal)),
+  );
+  const payableBeforeRounding = Math.max(0, baseTotal - manualDiscountTotal - promotionDiscountTotal);
   const roundingDiscountTotal = Math.min(
     payableBeforeRounding,
     calculateRoundingDiscount(payableBeforeRounding, roundingEnabled, roundingUnit),
@@ -80,8 +87,9 @@ const reconcileTabDiscounts = (
     ...tab,
     shippingFee: Math.max(0, toFiniteNumber(tab.shippingFee)),
     manualDiscountTotal,
+    promotionDiscountTotal,
     roundingDiscountTotal,
-    discountTotal: Math.min(baseTotal, manualDiscountTotal + roundingDiscountTotal),
+    discountTotal: Math.min(baseTotal, manualDiscountTotal + promotionDiscountTotal + roundingDiscountTotal),
   };
 };
 
@@ -151,6 +159,9 @@ const compactCartItemForPersist = (item: CartItem): CartItem => {
     variants: Array.isArray(item.variants) ? item.variants.map(compactVariantForPersist) : undefined,
     itemNotes: item.itemNotes,
     isTempItem: item.isTempItem,
+    isPromotionGift: item.isPromotionGift,
+    promotionRedemptionId: item.promotionRedemptionId,
+    promotionSnapshot: item.promotionSnapshot,
     stock: item.stock,
     availableStock: item.availableStock,
     trading: item.trading,
@@ -281,6 +292,8 @@ interface PosStore {
 
   // ── Order-level Actions ──────────────────────────────────────
   setDiscount: (discount: number) => void;
+  setPromotionPreview: (preview: any | null) => void;
+  setPromotionVoucherCode: (code: string) => void;
   setShippingFee: (fee: number) => void;
   setNotes: (notes: string) => void;
   setSearch: (search: string) => void;
@@ -685,6 +698,15 @@ export const usePosStore = create<PosStore>()(
         // ── Order-level ──────────────────────────────────────────
         setDiscount: (discount) =>
           set((s) => updateActiveTab(s, () => ({ manualDiscountTotal: discount }))),
+
+        setPromotionPreview: (preview) =>
+          set((s) => updateActiveTab(s, () => ({
+            promotionPreview: preview,
+            promotionDiscountTotal: Number(preview?.promotionDiscount ?? 0) || 0,
+          }))),
+
+        setPromotionVoucherCode: (code) =>
+          set((s) => updateActiveTab(s, () => ({ promotionVoucherCode: code }))),
 
         setShippingFee: (fee) =>
           set((s) => updateActiveTab(s, () => ({ shippingFee: fee }))),

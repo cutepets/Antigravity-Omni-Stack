@@ -10,6 +10,7 @@ import { UpdateOrderDto } from '../dto/update-order.dto.js';
 import { buildGroupedHotelStayPlan } from './order-hotel-sync.application.js';
 import { OrderQueryService } from './order-query.service.js';
 import { OrderServiceSyncService } from './order-service-sync.service.js';
+import { PromotionApplicationService } from '../../promotions/promotion-application.service.js';
 
 type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>;
 
@@ -23,6 +24,7 @@ export class OrderUpdateService {
     private readonly paymentHelperService: OrderPaymentHelperService,
     private readonly queryService: OrderQueryService,
     private readonly syncService: OrderServiceSyncService,
+    private readonly promotionApplication?: PromotionApplicationService,
   ) {}
 
   private assertOrderScope(order: { branchId?: string | null }, user?: AccessUser) {
@@ -64,14 +66,30 @@ export class OrderUpdateService {
       }
     }
 
-    const discount = data.discount ?? 0;
+    const promotionDraft = this.promotionApplication
+      ? await this.promotionApplication.applyToOrderDraft({
+      branchId: data.branchId ?? null,
+      customerId: data.customerId ?? null,
+      items: data.items as any,
+      manualDiscount: data.manualDiscount ?? data.discount ?? 0,
+      voucherCode: data.voucherCode ?? null,
+    })
+      : {
+        result: { enabled: false, previewToken: '', promotionDiscount: 0 } as any,
+        discount: data.discount ?? 0,
+        promotionDiscount: 0,
+        manualDiscount: data.discount ?? 0,
+        items: data.items,
+      };
+    const orderItems = promotionDraft.items as UpdateOrderDto['items'];
+    const discount = promotionDraft.discount;
     const shippingFee = data.shippingFee ?? 0;
-    const subtotal = this.orderItemService.calculateOrderSubtotal(data.items);
+    const subtotal = this.orderItemService.calculateOrderSubtotal(orderItems);
     const total = subtotal + shippingFee - discount;
     const paymentStatus = this.calculatePaymentStatus(total, order.paidAmount);
 
     await this.prisma.$transaction(async (tx) => {
-      const normalizedItems = await this.orderItemService.validateAndNormalizeCreateItems(tx as any, data.items);
+      const normalizedItems = await this.orderItemService.validateAndNormalizeCreateItems(tx as any, orderItems);
       const existingItems = await tx.orderItem.findMany({
         where: { orderId: id },
       });
@@ -293,12 +311,27 @@ export class OrderUpdateService {
           branchId: data.branchId ?? null,
           subtotal,
           discount,
+          manualDiscount: promotionDraft.manualDiscount,
+          promotionDiscount: promotionDraft.promotionDiscount,
+          promotionSnapshot: promotionDraft.result as any,
+          promotionPreviewToken: promotionDraft.result.previewToken,
           shippingFee,
           total,
           remainingAmount: Math.max(0, total - order.paidAmount),
           paymentStatus: paymentStatus as any,
           notes: data.notes ?? null,
+        } as any,
+      });
+
+      await this.promotionApplication?.recordRedemptions(tx as any, {
+        order: {
+          id,
+          orderNumber: order.orderNumber,
+          customerId: data.customerId ?? null,
+          branchId: data.branchId ?? null,
         },
+        staffId,
+        preview: promotionDraft.result,
       });
     });
 

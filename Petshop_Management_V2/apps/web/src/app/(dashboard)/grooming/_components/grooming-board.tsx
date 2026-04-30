@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -21,6 +21,7 @@ import {
   useDataListSelection,
   useDataListCore,
 } from '@petshop/ui/data-list'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { useAuthStore } from '@/stores/auth.store'
 import { groomingApi, type GroomingSession, type GroomingStatus } from '@/lib/api/grooming.api'
@@ -40,15 +41,15 @@ import {
 type ViewMode = 'kanban' | 'list' | 'pricing'
 
 const TABLE_COLUMNS = [
-  { id: 'session', label: 'MÃ£ SPA', width: 'w-24' },
-  { id: 'pet', label: 'ThÃº cÆ°ng', minWidth: 'min-w-[180px]' },
-  { id: 'customer', label: 'KhÃ¡ch hÃ ng', minWidth: 'min-w-[170px]' },
-  { id: 'staff', label: 'NhÃ¢n viÃªn', minWidth: 'min-w-[150px]' },
-  { id: 'branch', label: 'Chi nhÃ¡nh', width: 'whitespace-nowrap' },
-  { id: 'status', label: 'Tráº¡ng thÃ¡i', width: 'w-32' },
-  { id: 'start', label: 'Báº¯t Ä‘áº§u', width: 'w-32' },
-  { id: 'price', label: 'GiÃ¡', width: 'w-28', align: 'right' as const },
-  { id: 'created', label: 'Táº¡o lÃºc', width: 'w-[140px]' },
+  { id: 'session', label: 'Mã SPA', width: 'w-24' },
+  { id: 'pet', label: 'Thú cưng', minWidth: 'min-w-[180px]' },
+  { id: 'customer', label: 'Khách hàng', minWidth: 'min-w-[170px]' },
+  { id: 'staff', label: 'Nhân viên', minWidth: 'min-w-[150px]' },
+  { id: 'branch', label: 'Chi nhánh', width: 'whitespace-nowrap' },
+  { id: 'status', label: 'Trạng thái', width: 'w-32' },
+  { id: 'start', label: 'Bắt đầu', width: 'w-32' },
+  { id: 'price', label: 'Giá', width: 'w-28', align: 'right' as const },
+  { id: 'created', label: 'Tạo lúc', width: 'w-[140px]' },
 ] as const
 
 type DisplayColumnId = typeof TABLE_COLUMNS[number]['id']
@@ -103,7 +104,7 @@ function KanbanCard({
       : session.weightBand?.label || null,
   ]
     .filter(Boolean)
-    .join(' Â· ')
+    .join(' · ')
 
   const allStaff = session.assignedStaff?.length
     ? session.assignedStaff.map((s) => s.fullName)
@@ -114,7 +115,7 @@ function KanbanCard({
   const snap = session.pricingSnapshot as Record<string, any> | null | undefined
   const mainServiceName =
     snap?.mainService?.name ||
-    (session.packageCode ? `GÃ³i ${session.packageCode}` : null)
+    (session.packageCode ? `Gói ${session.packageCode}` : null)
   const extraNames =
     session.extraServices?.map((e) => e.name).join(', ') ||
     (snap?.extraServices as any[] | undefined)?.map((e: any) => e.name).join(', ') ||
@@ -146,14 +147,14 @@ function KanbanCard({
     >
       {/* Top block: Avatar left + 2 rows right */}
       <div className="grid grid-cols-[44px_1fr] gap-3">
-        {/* Avatar â€” spans 2 rows */}
+        {/* Avatar spans 2 rows */}
         <div className="row-span-2 flex h-11 w-11 shrink-0 items-start justify-center pt-0.5">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-base font-black text-primary-500">
             {petInitial}
           </div>
         </div>
 
-        {/* Row 1: TÃªn | Giá»‘ng Â· CÃ¢n - TÃ­nh cÃ¡ch */}
+        {/* Row 1: Tên | Giống ? Cân - Tính cách */}
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
           <span className="text-[15px] font-bold leading-tight text-foreground">{session.petName}</span>
           {breedLine ? (
@@ -161,7 +162,7 @@ function KanbanCard({
           ) : null}
         </div>
 
-        {/* Row 2: MÃ£ phiáº¿u ná»•i báº­t + Giá» â€” Tá»•ng tiá»n */}
+        {/* Row 2: Mã phiếu nổi bật + Giờ - Tổng tiền */}
         <div className="flex items-center gap-2">
           <span className="rounded-lg bg-primary-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary-500">
             {session.sessionCode || `#${session.id.slice(-6).toUpperCase()}`}
@@ -171,7 +172,7 @@ function KanbanCard({
         </div>
       </div>
 
-      {/* Dá»‹ch vá»¥ â€” ná»•i báº­t */}
+      {/* Dịch vụ nổi bật */}
       {(mainServiceName || extraNames) ? (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {mainServiceName ? (
@@ -189,11 +190,11 @@ function KanbanCard({
 
       <div className="my-2.5 h-px bg-border/50" />
 
-      {/* KH + SÄT + badge liÃªn há»‡ */}
+      {/* KH + SĐT + badge liên hệ */}
       <div className="flex items-center gap-1.5 text-[13px]">
         <span className="shrink-0 text-foreground-muted">KH:</span>
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">
-          {session.pet?.customer?.fullName || 'KhÃ¡ch láº»'}
+          {session.pet?.customer?.fullName || 'Khách lẻ'}
         </span>
         {session.pet?.customer?.phone ? (
           <span className="shrink-0 text-[12px] text-foreground-muted">{session.pet.customer.phone}</span>
@@ -203,7 +204,7 @@ function KanbanCard({
             className={`ml-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight ${isCalled ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
               }`}
           >
-            {isCalled ? 'ÄÃ£ gá»i' : 'ChÆ°a gá»i'}
+            {isCalled ? 'Đã gọi' : 'Chưa gọi'}
           </span>
         ) : null}
       </div>
@@ -376,7 +377,7 @@ export function GroomingBoard() {
     mutationFn: ({ id, status, notes }: { id: string; status: GroomingStatus; notes?: string }) =>
       groomingApi.updateSession({ id, status, ...(notes !== undefined ? { notes } : {}) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['grooming-sessions'] }),
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'KhÃ´ng thá»ƒ cáº­p nháº­t tráº¡ng thÃ¡i'),
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể cập nhật trạng thái'),
   })
 
   const bulkStatusMutation = useMutation({
@@ -385,21 +386,21 @@ export function GroomingBoard() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['grooming-sessions'] })
-      toast.success(`ÄÃ£ cáº­p nháº­t ${variables.ids.length} phiÃªn`)
+      toast.success(`Đã cập nhật ${variables.ids.length} phiên`)
       clearSelection()
     },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'KhÃ´ng thá»ƒ cáº­p nháº­t hÃ ng loáº¡t'),
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể cập nhật hàng loạt'),
   })
 
   const bulkDeleteMutation = useMutation({
     mutationFn: (ids: string[]) => groomingApi.bulkDeleteSessions(ids),
     onSuccess: (result) => {
-      if (result.deletedIds.length > 0) toast.success(`Da xoa ${result.deletedIds.length} phien grooming`)
-      if (result.blocked.length > 0) toast.error(`${result.blocked.length} phien grooming khong the xoa`)
+      if (result.deletedIds.length > 0) toast.success(`Đã xóa ${result.deletedIds.length} phiên grooming`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} phiên grooming không thể xóa`)
       queryClient.invalidateQueries({ queryKey: ['grooming-sessions'] })
       clearSelection()
     },
-    onError: (error: any) => toast.error(error?.response?.data?.message || 'Khong the xoa hang loat grooming'),
+    onError: (error: any) => toast.error(error?.response?.data?.message || 'Không thể xóa hàng loạt grooming'),
   })
 
   const clearFilters = () => {
@@ -442,11 +443,11 @@ export function GroomingBoard() {
   const activeFilterCount = [statusFilter, staffFilter, dateFilter].filter(Boolean).length
 
   if (isAuthLoading) {
-    return <div className="flex h-64 items-center justify-center text-gray-400">Dang kiem tra quyen truy cap...</div>
+    return <div className="flex h-64 items-center justify-center text-gray-400">Đang kiểm tra quyền truy cập...</div>
   }
 
   if (!canReadGrooming) {
-    return <div className="flex h-64 items-center justify-center text-gray-400">Dang chuyen huong...</div>
+    return <div className="flex h-64 items-center justify-center text-gray-400">Đang chuyển hướng...</div>
   }
 
   return (
@@ -461,7 +462,7 @@ export function GroomingBoard() {
             <DataListToolbar
               searchValue={search}
               onSearchChange={(value) => { setSearch(value); setPage(1) }}
-              searchPlaceholder="TÃ¬m theo thÃº cÆ°ng, khÃ¡ch, SÄT, mÃ£ phiÃªn..."
+              searchPlaceholder="Tìm theo thú cưng, khách, SĐT, mã phiên..."
               showColumnToggle={viewMode === 'list'}
               columnPanelContent={
                 viewMode === 'list' && (
@@ -482,11 +483,11 @@ export function GroomingBoard() {
               filterSlot={
                 <>
                   <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as GroomingStatus | ''); setPage(1) }} className={toolbarSelectClass}>
-                    <option value="">Táº¥t cáº£ tráº¡ng thÃ¡i</option>
+                    <option value="">Tất cả trạng thái</option>
                     {GROOMING_STATUS_ORDER.map((status) => <option key={status} value={status}>{GROOMING_STATUS_META[status].label}</option>)}
                   </select>
                   <select value={staffFilter} onChange={(event) => { setStaffFilter(event.target.value); setPage(1) }} className={toolbarSelectClass}>
-                    <option value="">Táº¥t cáº£ nhÃ¢n viÃªn</option>
+                    <option value="">Tất cả nhân viên</option>
                     {staffOptions.map((staff) => <option key={staff.id} value={staff.id}>{staff.fullName}</option>)}
                   </select>
                   <input type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1) }} className={toolbarSelectClass} />
@@ -496,16 +497,16 @@ export function GroomingBoard() {
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="inline-flex items-center p-1 border rounded-2xl border-border bg-background-secondary">
                     <button type="button" onClick={() => setViewMode('kanban')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'kanban' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><LayoutGrid size={15} />Kanban</button>
-                    <button type="button" onClick={() => setViewMode('list')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'list' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><List size={15} />Danh sÃ¡ch</button>
+                    <button type="button" onClick={() => setViewMode('list')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'list' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><List size={15} />Danh sách</button>
                   </div>
                 </div>
               }
             />
 
             <DataListFilterPanel onClearAll={clearFilters}>
-              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><Tag size={14} className="text-primary-500" />Tráº¡ng thÃ¡i</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as GroomingStatus | ''); setPage(1) }} className={filterSelectClass}><option value="">Táº¥t cáº£ tráº¡ng thÃ¡i</option>{GROOMING_STATUS_ORDER.map((status) => <option key={status} value={status}>{GROOMING_STATUS_META[status].label}</option>)}</select></label>
-              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><UserRound size={14} className="text-primary-500" />NhÃ¢n viÃªn</span><select value={staffFilter} onChange={(event) => { setStaffFilter(event.target.value); setPage(1) }} className={filterSelectClass}><option value="">Táº¥t cáº£ nhÃ¢n viÃªn</option>{staffOptions.map((staff) => <option key={staff.id} value={staff.id}>{staff.fullName}</option>)}</select></label>
-              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><CalendarDays size={14} className="text-primary-500" />NgÃ y táº¡o</span><input type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1) }} className={filterInputClass} /></label>
+              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><Tag size={14} className="text-primary-500" />Trạng thái</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as GroomingStatus | ''); setPage(1) }} className={filterSelectClass}><option value="">Tất cả trạng thái</option>{GROOMING_STATUS_ORDER.map((status) => <option key={status} value={status}>{GROOMING_STATUS_META[status].label}</option>)}</select></label>
+              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><UserRound size={14} className="text-primary-500" />Nhân viên</span><select value={staffFilter} onChange={(event) => { setStaffFilter(event.target.value); setPage(1) }} className={filterSelectClass}><option value="">Tất cả nhân viên</option>{staffOptions.map((staff) => <option key={staff.id} value={staff.id}>{staff.fullName}</option>)}</select></label>
+              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><CalendarDays size={14} className="text-primary-500" />Ngày tạo</span><input type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1) }} className={filterInputClass} /></label>
             </DataListFilterPanel>
 
             {viewMode === 'kanban' ? (
@@ -521,7 +522,7 @@ export function GroomingBoard() {
 
                     if (!dateFilter && (status === 'RETURNED' || status === 'CANCELLED')) {
                       const todayStr = getDateKey(new Date().toISOString());
-                      // Lá»c theo ngÃ y cáº­p nháº­t tráº¡ng thÃ¡i (updatedAt), khÃ´ng pháº£i ngÃ y táº¡o
+                      // Lọc theo ngày cập nhật trạng thái (updatedAt), không phải ngày tạo
                       const sessionDateStr = getDateKey(session.updatedAt ?? session.createdAt);
                       if (todayStr !== sessionDateStr) return false;
                     }
@@ -536,7 +537,7 @@ export function GroomingBoard() {
                     }
                   }
 
-                  // áº¨n cá»™t BOOKED khi khÃ´ng cÃ³ items nÃ o
+                  // Ẩn cột BOOKED khi không có items nào
                   if (status === 'BOOKED' && columnSessions.length === 0 && !sessionsQuery.isLoading) return null
 
                   const isCancelledColumn = status === 'CANCELLED'
@@ -549,9 +550,9 @@ export function GroomingBoard() {
                       </div>
                       <div className={cn("flex flex-1 min-h-0", isFlexibleColumn ? "flex-row p-3 gap-4 overflow-hidden" : "custom-scrollbar flex-col gap-2 p-2 overflow-y-auto overflow-x-hidden")}>
                         {sessionsQuery.isLoading ? (
-                          <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-full">Äang táº£i...</div>
+                          <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-full">Đang tải...</div>
                         ) : columnSessions.length === 0 ? (
-                          <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-[296px]">KhÃ´ng cÃ³ phiÃªn nÃ o trong cá»™t nÃ y.</div>
+                          <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-foreground-muted w-[296px]">Không có phiên nào trong cột này.</div>
                         ) : isFlexibleColumn ? (
                           chunks.map((chunk, idx) => (
                             <div key={idx} className="flex flex-col gap-3 w-[296px] shrink-0">
@@ -574,7 +575,7 @@ export function GroomingBoard() {
                   columns={renderActiveColumns()}
                   isLoading={sessionsQuery.isLoading}
                   isEmpty={!sessionsQuery.isLoading && paginatedSessions.length === 0}
-                  emptyText="KhÃ´ng cÃ³ phiÃªn grooming phÃ¹ há»£p."
+                  emptyText="Không có phiên grooming phù hợp."
                   allSelected={allVisibleSelected}
                   onSelectAll={() => {
                     if (!canManageSessions) return
@@ -583,13 +584,13 @@ export function GroomingBoard() {
                   bulkBar={
                     selectedSessionIds.length > 0 ? (
                       <DataListBulkBar selectedCount={selectedSessionIds.length} onClear={clearSelection}>
-                        <button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'IN_PROGRESS' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 text-sm font-semibold text-sky-500 transition-opacity hover:opacity-90 disabled:opacity-50">Dang lam</button>
-                        <button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'CANCELLED' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-error/20 bg-error/10 px-4 text-sm font-semibold text-error transition-opacity hover:opacity-90 disabled:opacity-50"><Trash2 size={14} />Huy phien</button>
+                        <button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'IN_PROGRESS' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 text-sm font-semibold text-sky-500 transition-opacity hover:opacity-90 disabled:opacity-50">Đang làm</button>
+                        <button type="button" onClick={() => bulkStatusMutation.mutate({ ids: selectedSessionIds, status: 'CANCELLED' })} disabled={bulkStatusMutation.isPending} className="inline-flex h-9 items-center gap-2 rounded-xl border border-error/20 bg-error/10 px-4 text-sm font-semibold text-error transition-opacity hover:opacity-90 disabled:opacity-50"><Trash2 size={14} />Hủy phiên</button>
                         {isSuperAdmin() ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              if (window.confirm(`Xoa ${selectedSessionIds.length} phien grooming da chon?`)) {
+                            onClick={async () => {
+                              if (await confirmDialog(`Xóa ${selectedSessionIds.length} phiên grooming đã chọn?`)) {
                                 bulkDeleteMutation.mutate(selectedSessionIds)
                               }
                             }}
@@ -609,17 +610,17 @@ export function GroomingBoard() {
                     const rowId = `g:${session.id}`
                     const isSelected = selectedRowIds.has(rowId)
                     return (
-                      <tr key={session.id} onClick={() => { setSelectedSession(session); setDialogMode('detail'); }} className={cn('border-b border-border/50 transition-colors hover:bg-background-secondary/40 cursor-pointer', isSelected ? 'bg-primary-500/5' : '')}>
+                      <tr key={session.id} onClick={async () => { setSelectedSession(session); setDialogMode('detail'); }} className={cn('border-b border-border/50 transition-colors hover:bg-background-secondary/40 cursor-pointer', isSelected ? 'bg-primary-500/5' : '')}>
                         <td className="w-12 px-3 py-3" onClick={(e) => e.stopPropagation()}><TableCheckbox checked={isSelected} onCheckedChange={(_, shiftKey) => { if (!canManageSessions) return; toggleRowSelection(rowId, shiftKey) }} /></td>
                         {orderedVisibleColumns.map(columnId => {
                           switch (columnId) {
                             case 'session': return <td key={columnId} className="px-3 py-3"><span className="font-mono text-xs font-semibold text-primary-500">{session.sessionCode || session.id.slice(-6).toUpperCase()}</span></td>;
-                            case 'pet': return <td key={columnId} className="px-3 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-sm font-black uppercase text-primary-500">{session.petName?.charAt(0) || 'P'}</div><div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{session.petName}</p><p className="truncate text-xs text-foreground-muted">{session.pet?.breed || session.pet?.species || 'KhÃ´ng rÃµ giá»‘ng'}</p></div></div></td>;
-                            case 'customer': return <td key={columnId} className="px-3 py-3"><p className="text-sm font-medium text-foreground">{session.pet?.customer?.fullName || 'KhÃ¡ch láº»'}</p><p className="mt-1 text-xs text-foreground-muted">{session.pet?.customer?.phone || 'â€”'}</p></td>;
-                            case 'branch': return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{(session as any).branch?.name || session.branchId || 'â€”'}</td>;
-                            case 'staff': return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{session.staff?.fullName || 'ChÆ°a phÃ¢n cÃ´ng'}</td>;
+                            case 'pet': return <td key={columnId} className="px-3 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary-500/15 bg-primary-500/10 text-sm font-black uppercase text-primary-500">{session.petName?.charAt(0) || 'P'}</div><div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{session.petName}</p><p className="truncate text-xs text-foreground-muted">{session.pet?.breed || session.pet?.species || 'Không rõ giống'}</p></div></div></td>;
+                            case 'customer': return <td key={columnId} className="px-3 py-3"><p className="text-sm font-medium text-foreground">{session.pet?.customer?.fullName || 'Khách lẻ'}</p><p className="mt-1 text-xs text-foreground-muted">{session.pet?.customer?.phone || '-'}</p></td>;
+                            case 'branch': return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{(session as any).branch?.name || session.branchId || '-'}</td>;
+                            case 'staff': return <td key={columnId} className="px-3 py-3 text-sm text-foreground">{session.staff?.fullName || 'Chưa phân công'}</td>;
                             case 'status': return <td key={columnId} className="px-3 py-3"><GroomingStatusBadge status={session.status} /></td>;
-                            case 'start': return <td key={columnId} className="px-3 py-3 text-sm text-foreground-muted">{session.startTime ? formatGroomingDateTime(session.startTime) : 'â€”'}</td>;
+                            case 'start': return <td key={columnId} className="px-3 py-3 text-sm text-foreground-muted">{session.startTime ? formatGroomingDateTime(session.startTime) : '-'}</td>;
                             case 'price': return <td key={columnId} className="px-3 py-3 text-sm font-semibold text-primary-500 text-right">{formatGroomingMoney(session.price)}</td>;
                             case 'created': return <td key={columnId} className="px-3 py-3 text-xs text-foreground-muted">{formatGroomingDateTime(session.createdAt)}</td>;
                             default: return null;
@@ -642,8 +643,8 @@ export function GroomingBoard() {
           onClose={() => {
             setDialogMode(null)
             setSelectedSession(null)
-            // Náº¿u dialog Ä‘Æ°á»£c má»Ÿ tá»« URL ?sessionId=... (link tá»« trang Orders)
-            // â†’ reset vá» kanban tá»•ng quan, xÃ³a URL params
+            // Nếu dialog được mở từ URL ?sessionId=... (link từ trang Orders)
+            // reset về kanban tổng quan, xóa URL params
             if (focusSessionId) {
               setViewMode('kanban')
               setSearch('')
@@ -662,4 +663,3 @@ export function GroomingBoard() {
     </DataListShell>
   )
 }
-

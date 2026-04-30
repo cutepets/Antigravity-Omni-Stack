@@ -27,6 +27,7 @@ import {
 } from '@petshop/ui/data-list'
 
 import { UnifiedPetProfile } from '@/components/pet/UnifiedPetProfile'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 
 type SpeciesFilter = '' | 'Chó' | 'Mèo' | 'Chim' | 'Khác'
@@ -111,7 +112,6 @@ export function PetList() {
 
   const { hasPermission, isLoading: isAuthLoading, isSuperAdmin } = useAuthorization()
   const canReadPets = hasPermission('pet.read')
-  const canCreatePet = hasPermission('pet.create')
   const canDeletePet = hasPermission('pet.delete')
   const canImportCrm = hasPermission('customer.create') || hasPermission('customer.update') || hasPermission('pet.create') || hasPermission('pet.update')
 
@@ -213,8 +213,8 @@ export function PetList() {
   const bulkDeleteMutation = useMutation({
     mutationFn: (ids: string[]) => petApi.bulkDeletePets(ids),
     onSuccess: (result) => {
-      if (result.deletedIds.length > 0) toast.success(`Da xoa ${result.deletedIds.length} thu cung`)
-      if (result.blocked.length > 0) toast.error(`${result.blocked.length} thu cung khong the xoa`)
+      if (result.deletedIds.length > 0) toast.success(`Đã xóa ${result.deletedIds.length} thú cưng`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} thú cưng không thể xóa`)
       queryClient.invalidateQueries({ queryKey: ['pets'] })
       clearSelection()
     },
@@ -303,7 +303,6 @@ export function PetList() {
                 queryClient.invalidateQueries({ queryKey: ['pets'] })
               }}
             />
-            {/* Thêm thú cưng button has been removed and restricted to Customer detail page/POS flow */}
           </div>
         }
       />
@@ -352,8 +351,8 @@ export function PetList() {
             >
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm(`Xóa ${selectedPetIds.length} thú cưng đã chọn?`)) {
+                onClick={async () => {
+                  if (await confirmDialog(`Xóa ${selectedPetIds.length} thú cưng đã chọn?`)) {
                     bulkDeleteMutation.mutate(selectedPetIds)
                   }
                 }}
@@ -470,20 +469,11 @@ export function PetList() {
                     </td>
                   )
                 }
-                if (['age'].includes(colId)) {
-                  return (
-                    <td key={colId} className="px-3 py-2.5">
-                      <div className="text-sm text-foreground-muted">
-                        {getAgeLabel(p.dateOfBirth) || '-'}
-                      </div>
-                    </td>
-                  )
-                }
                 if (colId === 'age') {
                   return (
                     <td key={colId} className="px-3 py-2.5">
                       <div className="text-sm text-foreground-muted">
-                        {getAgeLabel(p.dateOfBirth) || 'â€”'}
+                        {getAgeLabel(p.dateOfBirth) || '-'}
                       </div>
                     </td>
                   )

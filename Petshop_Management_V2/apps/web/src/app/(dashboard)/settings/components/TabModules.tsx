@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type ModuleConfig = {
     key: string
@@ -170,9 +171,9 @@ export function TabModules() {
         onSettled: () => setTogglingKey(null),
     })
 
-    const handleToggle = (key: string, isActive: boolean) => {
+    const handleToggle = async (key: string, isActive: boolean) => {
         if (togglingKey) return
-        if (!isActive && !confirm(`Bạn chắc chắn muốn TẮT module này?\nTất cả chức năng liên quan sẽ ngừng hoạt động.`)) return
+        if (!isActive && !(await confirmDialog(`Bạn chắc chắn muốn TẮT module này?\nTất cả chức năng liên quan sẽ ngừng hoạt động.`))) return
         mutationToggle.mutate({ key, isActive })
     }
 

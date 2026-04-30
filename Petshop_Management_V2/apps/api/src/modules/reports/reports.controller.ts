@@ -67,6 +67,18 @@ export class ReportsController {
     return this.reportsService.getDashboard(req.user, getRequestedBranchId(req))
   }
 
+  @Get('overview')
+  @Permissions('dashboard.read')
+  @ApiOperation({ summary: 'Dashboard dieu hanh tong quan cua hang' })
+  getOverview(
+    @Query('branchId') branchId: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.reportsService.getOverview(req.user, branchId || getRequestedBranchId(req), dateFrom, dateTo)
+  }
+
   @Get('revenue-chart')
   @Permissions('report.sales')
   @ApiOperation({ summary: 'Biểu đồ doanh thu theo ngày' })

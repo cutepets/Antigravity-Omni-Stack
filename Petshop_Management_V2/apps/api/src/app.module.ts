@@ -27,6 +27,7 @@ import { HealthController } from './health.controller.js'
 import { QueueModule } from './modules/queue/queue.module.js'
 import { StorageModule } from './modules/storage/storage.module.js'
 import { CrmExcelModule } from './modules/crm/crm-excel.module.js'
+import { PromotionsModule } from './modules/promotions/promotions.module.js'
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { CrmExcelModule } from './modules/crm/crm-excel.module.js'
     CrmExcelModule,
     GroomingModule,
     HotelModule,
+    PromotionsModule,
     OrdersModule,
 
     // Phase 1 — Operational modules

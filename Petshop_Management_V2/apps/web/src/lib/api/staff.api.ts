@@ -24,6 +24,8 @@ export interface Staff {
   shiftEnd?: string | null
   baseSalary?: number | null
   spaCommissionRate?: number | null
+  salaryBankName?: string | null
+  salaryBankAccount?: string | null
   employmentType?: string | null
 }
 
@@ -64,6 +66,18 @@ export interface StaffPerformance {
 export interface BranchRole {
   role: string
   branch: string
+}
+
+export interface StaffActivityLog {
+  id: string
+  userId: string | null
+  action: string
+  target: string | null
+  targetId: string | null
+  details: Record<string, unknown> | null
+  ipAddress: string | null
+  createdAt: string
+  user: { id: string; fullName: string; staffCode: string } | null
 }
 
 export interface BulkDeleteResult {
@@ -183,6 +197,8 @@ export interface CreateStaffDto {
   shiftEnd?: string
   baseSalary?: number
   spaCommissionRate?: number
+  salaryBankName?: string
+  salaryBankAccount?: string
   employmentType?: string
   joinDate?: string
 }
@@ -205,10 +221,19 @@ export interface UpdateStaffDto {
   shiftEnd?: string
   baseSalary?: number
   spaCommissionRate?: number
+  salaryBankName?: string
+  salaryBankAccount?: string
   employmentType?: string
   joinDate?: string
   password?: string
   avatar?: string
+}
+
+export interface UpdateSelfStaffDto {
+  avatar?: string
+  password?: string
+  salaryBankName?: string
+  salaryBankAccount?: string
 }
 
 export interface UploadDocumentDto {
@@ -277,10 +302,31 @@ export const staffApi = {
 
   getById: (id: string) => api.get<Staff>(`/staff/${id}`).then((r) => r.data),
 
+  getSelf: () => api.get<Staff>('/staff/me').then((r) => r.data),
+
+  getSelfDocuments: () =>
+    api.get<EmployeeDocument[]>('/staff/me/documents').then((r) => r.data.map(withDocumentDownloadUrl)),
+
+  getSelfPerformance: (month?: number, year?: number) => {
+    const params = new URLSearchParams()
+    if (month) params.append('month', String(month))
+    if (year) params.append('year', String(year))
+
+    return api.get<StaffPerformance>(`/staff/me/performance?${params}`).then((r) => r.data)
+  },
+
+  getSelfBranchRoles: () => api.get<BranchRole[]>('/staff/me/branch-roles').then((r) => r.data),
+
+  getSelfActivityLogs: (limit = 50) =>
+    api.get<StaffActivityLog[]>(`/staff/me/activity-logs?limit=${encodeURIComponent(String(limit))}`).then((r) => r.data),
+
   create: (data: CreateStaffDto) => api.post<Staff>('/staff', data).then((r) => r.data),
 
   update: (id: string, data: UpdateStaffDto) =>
     api.patch<Staff>(`/staff/${id}`, data).then((r) => r.data),
+
+  updateSelf: (data: UpdateSelfStaffDto) =>
+    api.patch<Staff>('/staff/me', data).then((r) => r.data),
 
   deactivate: (id: string) =>
     api.delete<{ id: string; staffCode: string; status: string }>(`/staff/${id}`).then((r) => r.data),
@@ -354,6 +400,9 @@ export const staffApi = {
   },
 
   getBranchRoles: (userId: string) => api.get<BranchRole[]>(`/staff/${userId}/branch-roles`).then((r) => r.data),
+
+  getActivityLogs: (userId: string, limit = 50) =>
+    api.get<StaffActivityLog[]>(`/staff/${userId}/activity-logs?limit=${encodeURIComponent(String(limit))}`).then((r) => r.data),
 
   // Attendance & Salary
   getAttendance: (userId: string, month?: number, year?: number) => {

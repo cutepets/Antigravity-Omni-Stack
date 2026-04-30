@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -31,6 +31,7 @@ import { BankTransactionsTab } from './bank-transactions-tab'
 import { CashShiftsTab } from './cash-shifts-tab'
 import { CashVaultTab } from './cash-vault-tab'
 import { SourceBadge, TransactionBadge } from './finance-badges'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type DisplayColumnId = 'voucher' | 'tags' | 'date' | 'createdAt' | 'updatedAt' | 'type' | 'payer' | 'creator' | 'branch' | 'paymentMethod' | 'amount' | 'category' | 'description' | 'ref' | 'notes' | 'source'
 type PinFilterId = 'type' | 'branch' | 'paymentMethod'
@@ -43,22 +44,22 @@ type TransactionWindowState = {
 type FinanceViewTab = 'cashbook' | 'bank-transactions' | 'cash-shifts' | 'cash-vault'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
-  { id: 'voucher', label: 'MÃ£ phiáº¿u', minWidth: 'min-w-[110px]' },
-  { id: 'tags', label: 'ThÃ´ng tin thÃªm', width: 'w-40' },
-  { id: 'date', label: 'Thá»i gian giao dá»‹ch', minWidth: 'min-w-[140px]' },
-  { id: 'createdAt', label: 'Thá»i gian táº¡o', minWidth: 'min-w-[140px]' },
-  { id: 'updatedAt', label: 'Cáº­p nháº­t', width: 'w-36' },
-  { id: 'type', label: 'Loáº¡i', width: 'w-24' },
-  { id: 'payer', label: 'NgÆ°á»i ná»™p/nháº­n', minWidth: 'min-w-[180px]' },
-  { id: 'creator', label: 'NgÆ°á»i táº¡o', minWidth: 'min-w-[160px]' },
-  { id: 'branch', label: 'Chi nhÃ¡nh', minWidth: 'min-w-[140px]' },
-  { id: 'paymentMethod', label: 'Thanh toÃ¡n', width: 'w-32' },
-  { id: 'amount', label: 'Sá»‘ tiá»n', width: 'w-36', align: 'right' },
-  { id: 'category', label: 'Danh má»¥c', minWidth: 'min-w-[160px]' },
-  { id: 'description', label: 'MÃ´ táº£', minWidth: 'min-w-[200px]' },
-  { id: 'ref', label: 'MÃ£ liÃªn quan', minWidth: 'min-w-[140px]' },
-  { id: 'notes', label: 'Tham chiáº¿u CK', minWidth: 'min-w-[160px]' },
-  { id: 'source', label: 'Nguá»“n', width: 'w-36' },
+  { id: 'voucher', label: 'Mã phiếu', minWidth: 'min-w-[110px]' },
+  { id: 'tags', label: 'Thông tin thêm', width: 'w-40' },
+  { id: 'date', label: 'Thời gian giao dịch', minWidth: 'min-w-[140px]' },
+  { id: 'createdAt', label: 'Thời gian tạo', minWidth: 'min-w-[140px]' },
+  { id: 'updatedAt', label: 'Cập nhật', width: 'w-36' },
+  { id: 'type', label: 'Loại', width: 'w-24' },
+  { id: 'payer', label: 'Người nộp/nhận', minWidth: 'min-w-[180px]' },
+  { id: 'creator', label: 'Người tạo', minWidth: 'min-w-[160px]' },
+  { id: 'branch', label: 'Chi nhánh', minWidth: 'min-w-[140px]' },
+  { id: 'paymentMethod', label: 'Thanh toán', width: 'w-32' },
+  { id: 'amount', label: 'Số tiền', width: 'w-36', align: 'right' },
+  { id: 'category', label: 'Danh mục', minWidth: 'min-w-[160px]' },
+  { id: 'description', label: 'Mô tả', minWidth: 'min-w-[200px]' },
+  { id: 'ref', label: 'Mã liên quan', minWidth: 'min-w-[140px]' },
+  { id: 'notes', label: 'Tham chiếu CK', minWidth: 'min-w-[160px]' },
+  { id: 'source', label: 'Nguồn', width: 'w-36' },
 ]
 
 function todayString() {
@@ -155,7 +156,7 @@ export function FinanceWorkspace() {
 
   useEffect(() => {
     if (isAuthLoading) return
-    // Khi Ä‘ang xem voucher cá»¥ thá»ƒ (route /finance/[voucher]), khÃ´ng Ä‘á»“ng bá»™ URL
+    // Khi đang xem voucher cụ thể (route /finance/[voucher]), không đồng bộ URL
     if (voucherParam) return
 
     const nextParams = new URLSearchParams()
@@ -241,7 +242,7 @@ export function FinanceWorkspace() {
   const deleteTransaction = useMutation({
     mutationFn: (id: string) => financeApi.remove(id),
     onSuccess: () => {
-      toast.success('ÄÃ£ xÃ³a phiáº¿u thu chi')
+      toast.success('Đã xóa phiếu thu chi')
       queryClient.invalidateQueries({ queryKey: ['finance', 'transactions'] })
       setTransactionWindow(null)
       setCompareTransaction(null)
@@ -249,20 +250,20 @@ export function FinanceWorkspace() {
       router.push('/finance')
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message ?? 'KhÃ´ng thá»ƒ xÃ³a phiáº¿u thu chi')
+      toast.error(error?.response?.data?.message ?? 'Không thể xóa phiếu thu chi')
     },
   })
 
   const bulkDeleteTransactions = useMutation({
     mutationFn: (ids: string[]) => financeApi.bulkRemove(ids),
     onSuccess: (result) => {
-      if (result.deletedIds.length > 0) toast.success(`Da xoa ${result.deletedIds.length} phieu thu chi`)
-      if (result.blocked.length > 0) toast.error(`${result.blocked.length} phieu thu chi khong the xoa`)
+      if (result.deletedIds.length > 0) toast.success(`Đã xóa ${result.deletedIds.length} phiếu thu chi`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} phiếu thu chi không thể xóa`)
       queryClient.invalidateQueries({ queryKey: ['finance', 'transactions'] })
       selection.clearSelection()
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message ?? 'Khong the xoa hang loat phieu thu chi')
+      toast.error(error?.response?.data?.message ?? 'Không thể xóa hàng loạt phiếu thu chi')
     },
   })
 
@@ -323,12 +324,12 @@ export function FinanceWorkspace() {
     setCompareTransaction(transactionWindow.transaction)
   }
 
-  const handleDeleteClick = (transaction: FinanceTransaction) => {
+  const handleDeleteClick = async (transaction: FinanceTransaction) => {
     if (!transaction.canDelete || deleteTransaction.isPending) {
       return
     }
 
-    const confirmed = window.confirm(`Xoa phieu ${transaction.voucherNumber}?`)
+    const confirmed = await confirmDialog(`Xóa phiếu ${transaction.voucherNumber}?`)
     if (!confirmed) {
       return
     }
@@ -360,7 +361,7 @@ export function FinanceWorkspace() {
   useEffect(() => {
     if (!voucherParam || !voucherTransactionQuery.error) return
 
-    toast.error('KhÃ´ng tÃ¬m tháº¥y phiáº¿u thu chi theo sá»‘ chá»©ng tá»«')
+    toast.error('Không tìm thấy phiếu thu chi theo số chứng từ')
     setTransactionWindow(null)
     setCompareTransaction(null)
     setVoucherParam(null)
@@ -369,11 +370,11 @@ export function FinanceWorkspace() {
   }, [voucherParam, voucherTransactionQuery.error, router])
 
   if (isAuthLoading) {
-    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang kiểm tra quyền truy cập...</div>
   }
 
   if (!canReadCashbook && !canReadBankTransactions) {
-    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang chuyển hướng...</div>
   }
 
   return (
@@ -381,10 +382,10 @@ export function FinanceWorkspace() {
       <div className="flex h-full min-h-0 flex-col gap-4">
         <div className="flex shrink-0 flex-wrap gap-2">
           {([
-            canReadCashbook ? (['cashbook', 'Sá»• quá»¹'] as const) : null,
-            canReadBankTransactions ? (['bank-transactions', 'Sá»• chuyá»ƒn khoáº£n'] as const) : null,
-            canReadCashbook ? (['cash-shifts', 'Sá»• Tiá»n máº·t'] as const) : null,
-            canReadCashbook ? (['cash-vault', 'KÃ©t tiá»n'] as const) : null,
+            canReadCashbook ? (['cashbook', 'Sổ quỹ'] as const) : null,
+            canReadBankTransactions ? (['bank-transactions', 'Sổ chuyển khoản'] as const) : null,
+            canReadCashbook ? (['cash-shifts', 'Sổ Tiền mặt'] as const) : null,
+            canReadCashbook ? (['cash-vault', 'Két tiền'] as const) : null,
           ].filter(Boolean) as ReadonlyArray<readonly [FinanceViewTab, string]>).map(([tabId, label]) => (
             <button
               key={tabId}
@@ -407,10 +408,10 @@ export function FinanceWorkspace() {
           <>
             <div className="grid shrink-0 gap-3 lg:grid-cols-4">
               {[
-                { label: 'Sá»‘ dÆ° Ä‘áº§u ká»³', value: financeData?.openingBalance ?? 0 },
-                { label: 'Tá»•ng thu', value: financeData?.totalIncome ?? 0, tone: 'text-emerald-600' },
-                { label: 'Tá»•ng chi', value: financeData?.totalExpense ?? 0, tone: 'text-rose-600' },
-                { label: 'Tá»“n cuá»‘i ká»³', value: financeData?.closingBalance ?? 0, tone: 'text-sky-600' },
+                { label: 'Số dư đầu kỳ', value: financeData?.openingBalance ?? 0 },
+                { label: 'Tổng thu', value: financeData?.totalIncome ?? 0, tone: 'text-emerald-600' },
+                { label: 'Tổng chi', value: financeData?.totalExpense ?? 0, tone: 'text-rose-600' },
+                { label: 'Tồn cuối kỳ', value: financeData?.closingBalance ?? 0, tone: 'text-sky-600' },
               ].map((card) => (
                 <div key={card.label} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                   <p className="text-sm font-medium text-foreground-secondary">{card.label}</p>
@@ -426,21 +427,21 @@ export function FinanceWorkspace() {
                   setSearch(value)
                   setPage(1)
                 }}
-                searchPlaceholder="TÃ¬m mÃ£ phiáº¿u, tham chiáº¿u, tÃªn ngÆ°á»i ná»™p/nháº­n..."
+                searchPlaceholder="Tìm mã phiếu, tham chiếu, tên người nộp/nhận..."
                 showFilterToggle={true}
                 showColumnToggle={true}
                 filterSlot={
                   <>
                     {topFilterVisibility.type ? (
                       <select value={type} onChange={(event) => { setType(event.target.value as 'ALL' | 'INCOME' | 'EXPENSE'); setPage(1) }} className={toolbarSelectClass}>
-                        <option value="ALL">Táº¥t cáº£</option>
-                        <option value="INCOME">Phiáº¿u thu</option>
-                        <option value="EXPENSE">Phiáº¿u chi</option>
+                        <option value="ALL">Tất cả</option>
+                        <option value="INCOME">Phiếu thu</option>
+                        <option value="EXPENSE">Phiếu chi</option>
                       </select>
                     ) : null}
                     {topFilterVisibility.branch ? (
                       <select value={branchId} onChange={(event) => { setBranchId(event.target.value); setPage(1) }} className={toolbarSelectClass}>
-                        <option value="">Táº¥t cáº£ chi nhÃ¡nh</option>
+                        <option value="">Tất cả chi nhánh</option>
                         {(meta?.branches ?? []).map((branch) => (
                           <option key={branch.id} value={branch.id}>
                             {branch.name}
@@ -450,7 +451,7 @@ export function FinanceWorkspace() {
                     ) : null}
                     {topFilterVisibility.paymentMethod ? (
                       <select value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setPage(1) }} className={toolbarSelectClass}>
-                        <option value="">Má»i hÃ¬nh thá»©c</option>
+                        <option value="">Mọi hình thức</option>
                         {(meta?.paymentMethods ?? []).map((method) => (
                           <option key={method.value} value={method.value}>
                             {method.label}
@@ -480,14 +481,14 @@ export function FinanceWorkspace() {
                       onClick={() => handleCreateClick('INCOME')}
                       className="inline-flex h-11 items-center gap-2 rounded-xl border border-sky-300 bg-sky-50 px-4 text-sm font-semibold text-sky-700 shadow-sm transition-colors hover:border-sky-400 hover:bg-sky-100"
                     >
-                      + Phiáº¿u Thu
+                      + Phiếu Thu
                     </button>
                     <button
                       type="button"
                       onClick={() => handleCreateClick('EXPENSE')}
                       className="inline-flex h-11 items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 text-sm font-semibold text-rose-700 shadow-sm transition-colors hover:border-rose-400 hover:bg-rose-100"
                     >
-                      + Phiáº¿u Chi
+                      + Phiếu Chi
                     </button>
                   </>
                 }
@@ -496,27 +497,27 @@ export function FinanceWorkspace() {
               <DataListFilterPanel onClearAll={clearFilters}>
                 <label className="space-y-2">
                   <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
-                    <span>Loáº¡i phiáº¿u</span>
+                    <span>Loại phiếu</span>
                     <button type="button" onClick={() => dataListState.toggleTopFilterVisibility('type')} className="text-foreground-muted hover:text-foreground">
                       {topFilterVisibility.type ? <Pin size={14} /> : <PinOff size={14} />}
                     </button>
                   </span>
                   <select value={type} onChange={(event) => { setType(event.target.value as 'ALL' | 'INCOME' | 'EXPENSE'); setPage(1) }} className={filterSelectClass}>
-                    <option value="ALL">Táº¥t cáº£</option>
-                    <option value="INCOME">Phiáº¿u thu</option>
-                    <option value="EXPENSE">Phiáº¿u chi</option>
+                    <option value="ALL">Tất cả</option>
+                    <option value="INCOME">Phiếu thu</option>
+                    <option value="EXPENSE">Phiếu chi</option>
                   </select>
                 </label>
 
                 <label className="space-y-2">
                   <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
-                    <span>Chi nhÃ¡nh</span>
+                    <span>Chi nhánh</span>
                     <button type="button" onClick={() => dataListState.toggleTopFilterVisibility('branch')} className="text-foreground-muted hover:text-foreground">
                       {topFilterVisibility.branch ? <Pin size={14} /> : <PinOff size={14} />}
                     </button>
                   </span>
                   <select value={branchId} onChange={(event) => { setBranchId(event.target.value); setPage(1) }} className={filterSelectClass}>
-                    <option value="">Táº¥t cáº£ chi nhÃ¡nh</option>
+                    <option value="">Tất cả chi nhánh</option>
                     {(meta?.branches ?? []).map((branch) => (
                       <option key={branch.id} value={branch.id}>
                         {branch.name}
@@ -527,13 +528,13 @@ export function FinanceWorkspace() {
 
                 <label className="space-y-2">
                   <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
-                    <span>Thanh toÃ¡n</span>
+                    <span>Thanh toán</span>
                     <button type="button" onClick={() => dataListState.toggleTopFilterVisibility('paymentMethod')} className="text-foreground-muted hover:text-foreground">
                       {topFilterVisibility.paymentMethod ? <Pin size={14} /> : <PinOff size={14} />}
                     </button>
                   </span>
                   <select value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setPage(1) }} className={filterSelectClass}>
-                    <option value="">Má»i hÃ¬nh thá»©c</option>
+                    <option value="">Mọi hình thức</option>
                     {(meta?.paymentMethods ?? []).map((method) => (
                       <option key={method.value} value={method.value}>
                         {method.label}
@@ -543,7 +544,7 @@ export function FinanceWorkspace() {
                 </label>
 
                 <label className="space-y-2">
-                  <span className="text-sm text-foreground-muted">Khoáº£ng ngÃ y</span>
+                  <span className="text-sm text-foreground-muted">Khoảng ngày</span>
                   <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                     <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1) }} className={filterInputClass} />
                     <span className="text-foreground-muted">-</span>
@@ -556,18 +557,39 @@ export function FinanceWorkspace() {
                 columns={visibleColumnsForTable}
                 isLoading={financeQuery.isLoading}
                 isEmpty={!financeQuery.isLoading && transactions.length === 0}
-                emptyText="ChÆ°a cÃ³ giao dá»‹ch phÃ¹ há»£p trong ká»³ nÃ y."
+                emptyText="Chưa có giao dịch phù hợp trong kỳ này."
                 allSelected={selection.allVisibleSelected}
                 onSelectAll={selection.toggleSelectAllVisible}
+                footer={
+                  <DataListPagination
+                    page={page}
+                    totalPages={totalPages}
+                    pageSize={pageSize}
+                    total={total}
+                    rangeStart={rangeStart}
+                    rangeEnd={rangeEnd}
+                    onPageChange={setPage}
+                    onPageSizeChange={(size) => {
+                      setPageSize(size)
+                      setPage(1)
+                    }}
+                    attachedToTable
+                    totalItemText={
+                      <>
+                        Hiển thị <strong className="px-1 text-foreground">{total}</strong> giao dịch.
+                      </>
+                    }
+                  />
+                }
                 bulkBar={
                   selection.selectedRowIds.size > 0 ? (
                     <DataListBulkBar selectedCount={selection.selectedRowIds.size} onClear={selection.clearSelection}>
                       {isSuperAdmin() ? (
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             const ids = Array.from(selection.selectedRowIds)
-                            if (window.confirm(`Xoa ${ids.length} phieu thu chi da chon?`)) {
+                            if (await confirmDialog(`Xóa ${ids.length} phiếu thu chi đã chọn?`)) {
                               bulkDeleteTransactions.mutate(ids)
                             }
                           }}
@@ -579,7 +601,7 @@ export function FinanceWorkspace() {
                           <Trash2 size={13} />
                         </button>
                       ) : (
-                        <div className="px-4 text-sm text-foreground-muted">Chon thao tac hang loat</div>
+                        <div className="px-4 text-sm text-foreground-muted">Chọn thao tác hàng loạt</div>
                       )}
                     </DataListBulkBar>
                   ) : null
@@ -619,7 +641,7 @@ export function FinanceWorkspace() {
                             <div className="flex flex-wrap gap-1">
                               {transaction.attachmentUrl && (
                                 <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-300">
-                                  <Paperclip size={10} /> ÄÃ­nh kÃ¨m
+                                  <Paperclip size={10} /> Đính kèm
                                 </span>
                               )}
                               {extractTraceTags(transaction).length > 0 ? (
@@ -644,13 +666,13 @@ export function FinanceWorkspace() {
                           ) : null}
                           {columnId === 'type' ? <TransactionBadge type={transaction.type} /> : null}
                           {columnId === 'payer' ? (
-                            <span className="font-medium">{transaction.payerName || 'KhÃ¡ch láº» / Ná»™i bá»™'}</span>
+                            <span className="font-medium">{transaction.payerName || 'Khách lẻ / Nội bộ'}</span>
                           ) : null}
                           {columnId === 'creator' ? (
                             <span className="text-foreground-muted">{transaction.createdBy?.name || '-'}</span>
                           ) : null}
                           {columnId === 'branch' ? (
-                            <span className="text-foreground-muted">{transaction.branchName || 'ToÃ n há»‡ thá»‘ng'}</span>
+                            <span className="text-foreground-muted">{transaction.branchName || 'Toàn hệ thống'}</span>
                           ) : null}
                           {columnId === 'paymentMethod' ? <span>{transaction.paymentAccountLabel || transaction.paymentMethod || '-'}</span> : null}
                           {columnId === 'amount' ? (
@@ -700,25 +722,6 @@ export function FinanceWorkspace() {
                   </tr>
                 ))}
               </DataListTable>
-
-              <DataListPagination
-                page={page}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                total={total}
-                rangeStart={rangeStart}
-                rangeEnd={rangeEnd}
-                onPageChange={setPage}
-                onPageSizeChange={(size) => {
-                  setPageSize(size)
-                  setPage(1)
-                }}
-                totalItemText={
-                  <>
-                    Hiá»ƒn thá»‹ <strong className="px-1 text-foreground">{total}</strong> giao dá»‹ch.
-                  </>
-                }
-              />
             </DataListShell>
           </>
         ) : null}
@@ -747,4 +750,3 @@ export function FinanceWorkspace() {
     </>
   )
 }
-

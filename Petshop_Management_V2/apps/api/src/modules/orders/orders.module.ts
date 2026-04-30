@@ -23,9 +23,10 @@ import { OrderServiceSyncService } from './application/order-service-sync.servic
 import { OrderSwapService } from './application/order-swap.service.js';
 import { OrderTimelineService } from './application/order-timeline.service.js';
 import { OrderUpdateService } from './application/order-update.service.js';
+import { PromotionsModule } from '../promotions/promotions.module.js';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, PromotionsModule],
   controllers: [OrdersController, PaymentWebhookController, PaymentIntentStreamController],
   providers: [
     OrdersService,

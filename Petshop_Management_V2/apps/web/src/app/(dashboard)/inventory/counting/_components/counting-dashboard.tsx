@@ -16,6 +16,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation'
 import { stockCountApi } from '@/lib/api/stock-count.api'
 import { useAuthStore } from '@/stores/auth.store'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 import {
   DataListShell,
   DataListToolbar,
@@ -142,7 +143,7 @@ export function CountingDashboard() {
 
   const handleCreateSession = async () => {
     if (!selectedBranchId) {
-      alert('Vui lòng chọn chi nhánh trước khi tạo phiếu kiểm tuần.')
+      toast.error('Vui lòng chọn chi nhánh trước khi tạo phiếu kiểm tuần.')
       return
     }
 
@@ -151,7 +152,7 @@ export function CountingDashboard() {
     } catch (error: any) {
       const message =
         error?.response?.data?.message ?? 'Không thể tạo phiếu kiểm tuần cho chi nhánh này.'
-      alert(Array.isArray(message) ? message.join('\n') : message)
+      toast.error(Array.isArray(message) ? message.join('\n') : message)
     }
   }
 

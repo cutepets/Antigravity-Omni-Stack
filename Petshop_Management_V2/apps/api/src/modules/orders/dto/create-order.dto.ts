@@ -236,6 +236,17 @@ export class CreateOrderItemDto {
   @IsString()
   @IsOptional()
   tempLabel?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isPromotionGift?: boolean;
+
+  @IsString()
+  @IsOptional()
+  promotionRedemptionId?: string;
+
+  @IsOptional()
+  promotionSnapshot?: Record<string, unknown>;
 }
 
 // === Payment ===
@@ -290,6 +301,19 @@ export class CreateOrderDto {
   @IsOptional()
   @Min(0)
   discount?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  manualDiscount?: number;
+
+  @IsString()
+  @IsOptional()
+  voucherCode?: string;
+
+  @IsString()
+  @IsOptional()
+  promotionPreviewToken?: string;
 
   @IsNumber()
   @IsOptional()

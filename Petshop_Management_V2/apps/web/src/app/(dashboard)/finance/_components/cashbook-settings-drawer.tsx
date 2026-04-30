@@ -8,6 +8,7 @@ import { ArrowDownCircle, ArrowUpCircle, Check, Loader2, Pencil, Plus, Search, S
 import { toast } from 'sonner'
 import { settingsApi, type CashbookCategory } from '@/lib/api'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type CashbookCategoryType = 'INCOME' | 'EXPENSE'
 
@@ -209,7 +210,7 @@ function CategoryCard({ type, title, subtitle, icon: Icon }: CategoryCardProps) 
                 <span className="truncate font-medium text-foreground">{item.name}</span>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     setEditingId(item.id)
                     setDraft(item.name)
                   }}
@@ -220,8 +221,8 @@ function CategoryCard({ type, title, subtitle, icon: Icon }: CategoryCardProps) 
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm(`Xóa "${item.name}"?`)) {
+                  onClick={async () => {
+                    if (await confirmDialog(`Xóa "${item.name}"?`)) {
                       deleteCategory.mutate(item.id)
                     }
                   }}

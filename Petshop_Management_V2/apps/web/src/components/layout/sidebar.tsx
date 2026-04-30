@@ -8,6 +8,7 @@ import { clsx } from 'clsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Banknote,
+  BadgePercent,
   Box,
   Briefcase,
   Clock,
@@ -147,6 +148,13 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Users,
         href: '/customers',
         anyPermissions: ['customer.read.all', 'customer.read.assigned', 'customer.create'],
+      },
+      {
+        label: 'Khuyến mãi',
+        icon: BadgePercent,
+        href: '/promotions',
+        anyPermissions: ['promotions.read', 'promotions.manage', 'promotions.voucher.manage'],
+        moduleKey: 'promotions',
       },
       {
         label: 'Thú cưng',

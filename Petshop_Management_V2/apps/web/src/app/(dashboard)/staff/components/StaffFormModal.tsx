@@ -5,7 +5,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Staff, CreateStaffDto, UpdateStaffDto } from '@/lib/api/staff.api'
 import { AvatarCropperModal } from './AvatarCropperModal'
 import { Camera, User, Phone, Shield, Briefcase, Plus, X, Upload, Edit2, Check, MapPin, ChevronDown } from 'lucide-react'
-import { settingsApi, uploadApi } from '@/lib/api'
+import { uploadApi } from '@/lib/api'
+import { normalizeShiftTime } from './shift-time'
 
 
 // Common Dark Input Style
@@ -24,9 +25,16 @@ interface StaffFormModalProps {
   onSave: (data: any) => Promise<void>
   initialData?: Staff | null
   roles: any[]
+  branches: BranchOption[]
 }
 
-export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: StaffFormModalProps) {
+interface BranchOption {
+  id: string
+  name: string
+  address?: string | null
+}
+
+export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles, branches }: StaffFormModalProps) {
   const isEditing = !!initialData
 
   const [formData, setFormData] = useState({
@@ -48,6 +56,8 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
     authorizedBranchIds: [] as string[],
     joinDate: '',
     baseSalary: '',
+    salaryBankName: '',
+    salaryBankAccount: '',
     shiftStart: '08:00',
     shiftEnd: '17:00',
     spaCommissionRate: '',
@@ -79,29 +89,21 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [branches, setBranches] = useState<any[]>([])
-
   useEffect(() => {
-    // Fetch branches once
-    settingsApi.getBranches()
-      .then(res => {
-        setBranches(res)
-        if (!isEditing && isOpen && res.length > 0) {
-          const firstBranchId = res[0].id
-          setFormData(prev => {
-            if (prev.branchId) return prev
-            return {
-              ...prev,
-              branchId: firstBranchId,
-              authorizedBranchIds: prev.authorizedBranchIds.includes(firstBranchId)
-                ? prev.authorizedBranchIds
-                : [...prev.authorizedBranchIds, firstBranchId],
-            }
-          })
-        }
-      })
-      .catch(err => console.error(err))
-  }, [isEditing, isOpen])
+    if (isEditing || !isOpen || branches.length === 0) return
+
+    const firstBranchId = branches[0].id
+    setFormData(prev => {
+      if (prev.branchId) return prev
+      return {
+        ...prev,
+        branchId: firstBranchId,
+        authorizedBranchIds: prev.authorizedBranchIds.includes(firstBranchId)
+          ? prev.authorizedBranchIds
+          : [...prev.authorizedBranchIds, firstBranchId],
+      }
+    })
+  }, [branches, isEditing, isOpen])
 
   const handleFullNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawVal = e.target.value;
@@ -157,8 +159,10 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         authorizedBranchIds: initialData.authorizedBranches?.map(b => b.id) || [],
         joinDate: initialData.joinDate ? initialData.joinDate.substring(0, 10) : '',
         baseSalary: initialData.baseSalary ? String(initialData.baseSalary) : '',
-        shiftStart: initialData.shiftStart || '08:00',
-        shiftEnd: initialData.shiftEnd || '17:00',
+        salaryBankName: initialData.salaryBankName || '',
+        salaryBankAccount: initialData.salaryBankAccount || '',
+        shiftStart: normalizeShiftTime(initialData.shiftStart, '08:00'),
+        shiftEnd: normalizeShiftTime(initialData.shiftEnd, '17:00'),
         spaCommissionRate: initialData.spaCommissionRate ? String(initialData.spaCommissionRate) : '',
       })
       setAvatarBase64(initialData.avatar || null)
@@ -183,6 +187,8 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         authorizedBranchIds: [],
         joinDate: new Date().toISOString().substring(0, 10),
         baseSalary: '',
+        salaryBankName: '',
+        salaryBankAccount: '',
         shiftStart: '08:00',
         shiftEnd: '17:00',
         spaCommissionRate: '',
@@ -257,8 +263,10 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         authorizedBranchIds: formData.authorizedBranchIds,
         joinDate: formData.joinDate || undefined,
         baseSalary: formData.baseSalary ? Number(formData.baseSalary) : undefined,
-        shiftStart: formData.shiftStart || undefined,
-        shiftEnd: formData.shiftEnd || undefined,
+        salaryBankName: formData.salaryBankName || undefined,
+        salaryBankAccount: formData.salaryBankAccount || undefined,
+        shiftStart: normalizeShiftTime(formData.shiftStart) || undefined,
+        shiftEnd: normalizeShiftTime(formData.shiftEnd) || undefined,
         spaCommissionRate: formData.spaCommissionRate ? Number(formData.spaCommissionRate) : undefined,
         avatar: avatarUrl,
       }
@@ -318,7 +326,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                   <span className="text-sm font-bold text-foreground uppercase tracking-wider">Thông tin nhân viên</span>
                 </div>
 
-                <div className="mb-6 flex justify-center">
+                <div className="relative mx-auto mb-6 flex w-[108px] justify-center">
                   <div className="relative group cursor-pointer h-[144px] w-[108px] mx-auto rounded-xl ring-4 ring-background-elevated transition-transform hover:scale-105 overflow-hidden">
                     {avatarBase64 ? (
                       <Image src={avatarBase64} alt="Avatar" className="h-full w-full object-cover" width={400} height={400} unoptimized />
@@ -498,6 +506,27 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                     <input type="number" value={formData.spaCommissionRate} onChange={e => setFormData({ ...formData, spaCommissionRate: e.target.value })} className={inputStyle} placeholder="Vd: 10" />
                     <span className="absolute right-4 top-3 text-foreground-muted text-sm">%</span>
                   </div>
+                </div>
+                <div className="md:col-span-1">
+                  <label className={labelStyle}>Ngân hàng</label>
+                  <input
+                    type="text"
+                    value={formData.salaryBankName}
+                    onChange={e => setFormData({ ...formData, salaryBankName: e.target.value })}
+                    className={inputStyle}
+                    placeholder="VD: Vietcombank"
+                  />
+                </div>
+                <div className="md:col-span-1">
+                  <label className={labelStyle}>STK nhận lương</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formData.salaryBankAccount}
+                    onChange={e => setFormData({ ...formData, salaryBankAccount: e.target.value.replace(/\D/g, '') })}
+                    className={inputStyle}
+                    placeholder="0123456789"
+                  />
                 </div>
                 <div className="md:col-span-1">
                   <label className={labelStyle}>Giờ vào</label>

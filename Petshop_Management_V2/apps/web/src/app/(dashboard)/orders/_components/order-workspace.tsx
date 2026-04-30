@@ -30,6 +30,7 @@ import { OrderCartSection } from './order/OrderCartSection'
 import { useBranches } from '@/app/(dashboard)/_shared/branches/use-branches'
 import { OrderCustomerSection } from './order/OrderCustomerSection'
 import { OrderQrResumeBanner, OrderTempItemBanner } from './order/order-workspace-banners'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 export function OrderWorkspace({ mode, orderId, copyFromOrderId }: { mode: OrderWorkspaceMode; orderId?: string; copyFromOrderId?: string }) {
   const { data: branches = [] } = useBranches()
@@ -191,8 +192,8 @@ export function OrderWorkspace({ mode, orderId, copyFromOrderId }: { mode: Order
         onOpenExportStock={() => workspace.setShowExportStockModal(true)}
         onOpenRefund={() => workspace.setShowRefundModal(true)}
         onOpenReturn={() => workspace.setShowReturnModal(true)}
-        onCancelOrder={() => {
-          if (!window.confirm('Bạn chắc chắn muốn huỷ đơn hàng này?')) return
+        onCancelOrder={async () => {
+          if (!(await confirmDialog('Bạn chắc chắn muốn huỷ đơn hàng này?'))) return
           workspace.cancelOrderMutation.mutate()
         }}
         onDuplicateOrder={workspace.handleDuplicateOrder}
@@ -232,7 +233,7 @@ export function OrderWorkspace({ mode, orderId, copyFromOrderId }: { mode: Order
           </button>
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               clearQrIntent()
               setShowQrModal(false)
               workspace.setShowPayModal(true)
@@ -320,7 +321,7 @@ export function OrderWorkspace({ mode, orderId, copyFromOrderId }: { mode: Order
                 <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-44 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       setShowPrintMenu(false)
                       if (workspace.printPayload) printOrderA4(workspace.printPayload)
                     }}
@@ -331,7 +332,7 @@ export function OrderWorkspace({ mode, orderId, copyFromOrderId }: { mode: Order
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       setShowPrintMenu(false)
                       if (workspace.printPayload) printOrderK80(workspace.printPayload)
                     }}
@@ -342,7 +343,7 @@ export function OrderWorkspace({ mode, orderId, copyFromOrderId }: { mode: Order
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       setShowPrintMenu(false)
                       if (workspace.printPayload) printOrderPdf(workspace.printPayload)
                     }}

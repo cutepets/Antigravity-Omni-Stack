@@ -846,6 +846,21 @@ export class SettingsController {
 
   // ─── About ──────────────────────────────────────────────────────────────────
 
+  @Get('settings/features/promotions')
+  @Permissions('settings.app.read', 'promotions.read')
+  @ApiOperation({ summary: 'Lay trang thai module khuyen mai' })
+  async getPromotionsFeature() {
+    const active = await this.settingsService.isModuleActive('promotions')
+    return { success: true, data: { enabled: active } }
+  }
+
+  @Patch('settings/features/promotions')
+  @Permissions('settings.app.update', 'promotions.manage')
+  @ApiOperation({ summary: 'Bat/tat module khuyen mai' })
+  async togglePromotionsFeature(@Body('enabled') enabled: boolean) {
+    return this.settingsService.toggleModule('promotions', Boolean(enabled))
+  }
+
   @Get('settings/about')
   @ApiOperation({ summary: 'Thong tin phien ban he thong' })
   getAbout() {

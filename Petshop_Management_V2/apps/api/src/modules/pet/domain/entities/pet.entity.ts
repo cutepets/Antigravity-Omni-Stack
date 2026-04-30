@@ -17,6 +17,11 @@ export interface PetProps {
     microchipId?: string | null
     branchId: string | null
     customerId: string
+    customer?: {
+        id: string
+        fullName: string
+        phone?: string | null
+    } | null
     createdAt: Date
     updatedAt: Date
 }

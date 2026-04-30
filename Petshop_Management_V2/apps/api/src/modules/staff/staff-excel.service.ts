@@ -29,7 +29,6 @@ const STAFF_COLUMNS: ColumnDef[] = [
   { key: 'id', header: 'id', width: 28, readonly: true },
   { key: 'staffCode', header: 'staffCode', width: 14, readonly: true },
   { key: 'username', header: 'username', width: 18, required: true },
-  { key: 'password', header: 'password', width: 18 },
   { key: 'fullName', header: 'fullName', width: 28, required: true },
   { key: 'phone', header: 'phone', width: 18 },
   { key: 'email', header: 'email', width: 26 },
@@ -47,6 +46,8 @@ const STAFF_COLUMNS: ColumnDef[] = [
   { key: 'shiftStart', header: 'shiftStart', width: 14 },
   { key: 'shiftEnd', header: 'shiftEnd', width: 14 },
   { key: 'baseSalary', header: 'baseSalary', width: 16 },
+  { key: 'salaryBankName', header: 'salaryBankName', width: 22 },
+  { key: 'salaryBankAccount', header: 'salaryBankAccount', width: 22 },
   { key: 'spaCommissionRate', header: 'spaCommissionRate', width: 20 },
   { key: 'createdAt', header: 'createdAt', width: 22, readonly: true },
 ]
@@ -87,10 +88,46 @@ function dateValue(value: unknown) {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed
 }
 
+function timeValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return undefined
+  const pad = (part: number) => String(part).padStart(2, '0')
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${pad(value.getHours())}:${pad(value.getMinutes())}`
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const totalMinutes = Math.round((value % 1) * 24 * 60)
+    const hours = Math.floor(totalMinutes / 60) % 24
+    const minutes = totalMinutes % 60
+    return `${pad(hours)}:${pad(minutes)}`
+  }
+
+  const raw = text(value)
+  if (!raw) return undefined
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
+  if (!match) return undefined
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (hours > 23 || minutes > 59) return undefined
+  return `${pad(hours)}:${pad(minutes)}`
+}
+
 function iso(value: unknown) {
   if (!value) return ''
   const date = value instanceof Date ? value : new Date(String(value))
   return Number.isNaN(date.getTime()) ? '' : date.toISOString()
+}
+
+function formatUtcDateTime(value: unknown) {
+  if (!value) return ''
+  const date = value instanceof Date ? value : new Date(String(value))
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return [
+    `${date.getUTCFullYear()}/${pad(date.getUTCMonth() + 1)}/${pad(date.getUTCDate())}`,
+    `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`,
+  ].join(' ')
 }
 
 function splitNames(value: unknown) {
@@ -132,8 +169,7 @@ export class StaffExcelService {
         if (column.key === 'branchName') return user.branch?.name ?? ''
         if (column.key === 'authorizedBranchNames') return user.authorizedBranches?.map((branch: any) => branch.name).join(', ') ?? ''
         if (['dob', 'joinDate'].includes(column.key)) return user[column.key] ? iso(user[column.key]).slice(0, 10) : ''
-        if (column.key === 'createdAt') return iso(user.createdAt)
-        if (column.key === 'password') return ''
+        if (column.key === 'createdAt') return formatUtcDateTime(user.createdAt)
         return user[column.key] ?? ''
       }))
     }
@@ -197,7 +233,7 @@ export class StaffExcelService {
     sheet.addRows([
       ['Cot', 'Ghi chu'],
       ['id', 'De trong khi tao moi. Neu co id trung he thong se cap nhat nhan vien do.'],
-      ['username*, fullName*', 'Bat buoc khi tao moi. Password co the de trong de dung mat khau mac dinh.'],
+      ['username*, fullName*', 'Bat buoc khi tao moi. Tai khoan tao moi se dung mat khau mac dinh.'],
       ['roleName, branchName', 'Nhap bang ten hien thi tren he thong.'],
       ['authorizedBranchNames', 'Nhieu chi nhanh cach nhau bang dau phay.'],
       ['status', [...STAFF_STATUSES].join(', ')],
@@ -293,10 +329,11 @@ export class StaffExcelService {
   }
 
   private async loadLookup(kind: 'role' | 'branch') {
-    const rows = await (this.db as any)[kind].findMany({ select: { id: true, name: true } })
+    const rows = await (this.db as any)[kind].findMany({ select: { id: true, name: true, code: true } })
     const byName = new Map<string, string>()
     const duplicates = new Set<string>()
     for (const row of rows) {
+      if (kind === 'role' && row.code === 'SUPER_ADMIN') continue
       const key = normalizeHeader(row.name)
       if (byName.has(key)) duplicates.add(key)
       byName.set(key, row.id)
@@ -375,6 +412,11 @@ export class StaffExcelService {
     if (key === 'dob' || key === 'joinDate') {
       const value = dateValue(raw)
       if (value === undefined) errors.push({ sheet: STAFF_SHEET, row, column: key, message: `${key} khong phai ngay hop le` })
+      return value
+    }
+    if (key === 'shiftStart' || key === 'shiftEnd') {
+      const value = timeValue(raw)
+      if (value === undefined) errors.push({ sheet: STAFF_SHEET, row, column: key, message: `${key} khong phai gio hop le` })
       return value
     }
     if (key === 'status') {

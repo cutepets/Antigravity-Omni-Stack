@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft, Phone, Mail, MapPin, Star, Edit2,
   PawPrint, ShoppingBag, Receipt, Calendar,
-  AlertCircle, BadgeCheck, Trash2, TrendingUp,
+  AlertCircle, BadgeCheck,
 } from 'lucide-react'
 import { customerApi } from '@/lib/api/customer.api'
 import { CustomerFormModal } from '../_components/customer-form-modal'
@@ -24,9 +24,6 @@ const TIER_CONFIG: Record<string, { label: string; badgeClass: string; icon: str
 const TABS = [
   { id: 'pets', label: 'Danh sách Pet', icon: PawPrint },
   { id: 'orders', label: 'Lịch sử mua hàng', icon: ShoppingBag },
-  { id: 'debt', label: 'Công nợ', icon: Receipt },
-  { id: 'spa', label: 'Spa & Grooming', icon: null },
-  { id: 'hotel', label: 'Pet Hotel', icon: null },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -70,7 +67,6 @@ export default function CustomerDetailPage() {
   const { hasAnyPermission, hasPermission, isLoading: isAuthLoading } = useAuthorization()
   const canReadCustomers = hasAnyPermission(['customer.read.all', 'customer.read.assigned'])
   const canUpdateCustomer = hasPermission('customer.update')
-  const canDeleteCustomer = hasPermission('customer.delete')
   const canCreatePet = hasPermission('pet.create')
   const canReadOrders = hasAnyPermission(['order.read.all', 'order.read.assigned'])
   const [activeTab, setActiveTab] = useState('pets')
@@ -188,11 +184,6 @@ export default function CustomerDetailPage() {
                 <Edit2 size={14} /> Chỉnh sửa
               </button>
             ) : null}
-            {canDeleteCustomer ? (
-              <button className="flex items-center justify-center p-2.5 rounded-xl border border-error/30 bg-error/10 hover:bg-error/20 text-error transition-colors">
-                <Trash2 size={16} />
-              </button>
-            ) : null}
           </div>
         </div>
 
@@ -218,7 +209,7 @@ export default function CustomerDetailPage() {
         </div>
         <div className="text-right flex-1 min-w-[200px]">
           <span className="text-xs text-foreground-muted block mb-2">
-            Cần chi thêm <strong className="text-foreground">30.000.000 đ</strong> để lên hạng <strong className="text-primary-500">Bạch Kim</strong>
+            Chi tiêu kỳ này: <strong className="text-foreground">{fmt(customer.periodSpent)}</strong>
           </span>
           <div className="h-1.5 bg-background-tertiary rounded-full overflow-hidden">
             <div className={`h-full ${tier.barColor} rounded-full transition-all`} style={{ width: '30%' }} />
@@ -231,7 +222,7 @@ export default function CustomerDetailPage() {
         <StatCard label="Tổng chi tiêu" value={fmt(customer.totalSpent)} sub="Toàn thời gian" />
         <StatCard label="Chi tiêu 6 tháng" value={fmt(customer.periodSpent)} sub="Căn cứ xét hạng" />
         <StatCard label="Điểm còn lại" value={`${customer.points ?? 0} điểm`} sub={`Đã dùng ${customer.pointsUsed ?? 0} điểm`} accent />
-        <StatCard label="Công nợ" value="0 đ" sub="0 đơn chưa TT" />
+        <StatCard label="Công nợ" value={fmt(customer.debt)} sub={`${customer.totalOrders ?? 0} đơn đã ghi nhận`} />
       </div>
 
       {/* ── Tabs ── */}
@@ -361,13 +352,6 @@ export default function CustomerDetailPage() {
             </div>
           )}
 
-          {/* ── Other tabs placeholder ── */}
-          {['debt', 'spa', 'hotel'].includes(activeTab) && (
-            <div className="flex flex-col items-center justify-center py-20 text-foreground-muted gap-3">
-              <TrendingUp size={36} className="opacity-30" />
-              <p>Module đang cập nhật...</p>
-            </div>
-          )}
         </div>
       </div>
 

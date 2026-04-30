@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -7,15 +7,12 @@ import { api } from '@/lib/api'
 import {
   AlertCircle,
   BadgeCheck,
-  ExternalLink,
-  Pencil,
   Plus,
   Trash2,
   Pin,
   PinOff,
   MapPin,
   CalendarDays,
-  Users,
 } from 'lucide-react'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { customerApi } from '@/lib/api/customer.api'
@@ -37,28 +34,29 @@ import {
   useDataListCore,
   useDataListSelection,
 } from '@petshop/ui/data-list'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
-// â”€â”€ Types & Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Types & Constants ────────────────────────────────────────────────────────
 type DisplayColumnId = 'code' | 'name' | 'contact' | 'group' | 'address' | 'petCount' | 'petNames' | 'debt' | 'spaCount' | 'hotelCount' | 'tier' | 'points' | 'spent' | 'orders' | 'created' | 'status'
 type PinFilterId = 'tier' | 'status'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
-  { id: 'code', label: 'MÃ£ KH', sortable: true, width: 'w-24' },
-  { id: 'name', label: 'KhÃ¡ch hÃ ng', sortable: true, minWidth: 'min-w-[180px]' },
-  { id: 'contact', label: 'LiÃªn há»‡', minWidth: 'min-w-[140px]' },
-  { id: 'group', label: 'NhÃ³m KH', minWidth: 'min-w-[120px]' },
-  { id: 'address', label: 'Äá»‹a chá»‰', minWidth: 'min-w-[160px]' },
-  { id: 'petCount', label: 'Sá»‘ TC', sortable: false, width: 'w-20' },
-  { id: 'petNames', label: 'TÃªn TC', sortable: false, minWidth: 'min-w-[120px]' },
-  { id: 'debt', label: 'CÃ´ng ná»£', sortable: true, width: 'w-28' },
-  { id: 'spaCount', label: 'LÆ°á»£t Spa', sortable: false, width: 'w-24' },
-  { id: 'hotelCount', label: 'LÆ°á»£t Hotel', sortable: false, width: 'w-24' },
-  { id: 'tier', label: 'Háº¡ng', sortable: true, width: 'w-28' },
-  { id: 'points', label: 'Äiá»ƒm', sortable: true, width: 'w-28' },
-  { id: 'spent', label: 'Chi tiÃªu', sortable: true, width: 'w-32' },
-  { id: 'orders', label: 'ÄÆ¡n hÃ ng', sortable: true, width: 'w-24' },
-  { id: 'created', label: 'NgÃ y táº¡o', sortable: true, width: 'w-28' },
-  { id: 'status', label: 'Tráº¡ng thÃ¡i', sortable: true, width: 'w-32' },
+  { id: 'code', label: 'Mã KH', sortable: true, width: 'w-24' },
+  { id: 'name', label: 'Khách hàng', sortable: true, minWidth: 'min-w-[180px]' },
+  { id: 'contact', label: 'Liên hệ', minWidth: 'min-w-[140px]' },
+  { id: 'group', label: 'Nhóm KH', minWidth: 'min-w-[120px]' },
+  { id: 'address', label: 'Địa chỉ', minWidth: 'min-w-[160px]' },
+  { id: 'petCount', label: 'Số TC', sortable: false, width: 'w-20' },
+  { id: 'petNames', label: 'Tên TC', sortable: false, minWidth: 'min-w-[120px]' },
+  { id: 'debt', label: 'Công nợ', sortable: true, width: 'w-28' },
+  { id: 'spaCount', label: 'Lượt Spa', sortable: false, width: 'w-24' },
+  { id: 'hotelCount', label: 'Lượt Hotel', sortable: false, width: 'w-24' },
+  { id: 'tier', label: 'Hạng', sortable: true, width: 'w-28' },
+  { id: 'points', label: 'Điểm', sortable: true, width: 'w-28' },
+  { id: 'spent', label: 'Chi tiêu', sortable: true, width: 'w-32' },
+  { id: 'orders', label: 'Đơn hàng', sortable: false, width: 'w-24' },
+  { id: 'created', label: 'Ngày tạo', sortable: true, width: 'w-28' },
+  { id: 'status', label: 'Trạng thái', sortable: true, width: 'w-32' },
 ]
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
@@ -73,10 +71,10 @@ const TIER_BADGE: Record<string, string> = {
 }
 
 const TIER_LABEL: Record<string, { label: string; icon: string }> = {
-  BRONZE: { label: 'Äá»“ng', icon: 'ðŸ¥‰' },
-  SILVER: { label: 'Báº¡c', icon: 'ðŸ¥ˆ' },
-  GOLD: { label: 'VÃ ng', icon: 'ðŸ¥‡' },
-  DIAMOND: { label: 'Kim cÆ°Æ¡ng', icon: 'ðŸ’Ž' },
+  BRONZE: { label: 'Đồng', icon: '🥉' },
+  SILVER: { label: 'Bạc', icon: '🥈' },
+  GOLD: { label: 'Vàng', icon: '🥇' },
+  DIAMOND: { label: 'Kim cương', icon: '💎' },
 }
 
 function TierBadge({ tier }: { tier: string }) {
@@ -89,7 +87,7 @@ function compareText(left?: string | null, right?: string | null) {
   return `${left ?? ''}`.localeCompare(`${right ?? ''}`, 'vi', { sensitivity: 'base' })
 }
 
-// â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main component ─────────────────────────────────────────────────────────────
 export function CustomerList() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -98,7 +96,6 @@ export function CustomerList() {
 
   const canReadCustomers = hasAnyPermission(['customer.read.all', 'customer.read.assigned'])
   const canCreateCustomer = hasPermission('customer.create')
-  const canUpdateCustomer = hasPermission('customer.update')
   const canDeleteCustomer = hasPermission('customer.delete')
   const canImportCrm = hasAnyPermission(['customer.create', 'customer.update', 'pet.create', 'pet.update'])
 
@@ -180,7 +177,7 @@ export function CustomerList() {
     }
   }, [canReadCustomers, isActiveFilter, isAuthLoading, page, pageSize, router, search, searchParams, tier])
 
-  // â”€â”€ Queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Queries ──────────────────────────────────────────────────────────────────
   const { data: groupsData } = useQuery({
     queryKey: ['settings', 'customer-groups'],
     queryFn: async () => {
@@ -223,19 +220,7 @@ export function CustomerList() {
     }),
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: customerApi.deleteCustomer,
-    onSuccess: () => {
-      toast.success('ÄÃ£ xoÃ¡ khÃ¡ch hÃ ng')
-      queryClient.invalidateQueries({ queryKey: ['customers'] })
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message || 'KhÃ´ng thá»ƒ xoÃ¡ khÃ¡ch hÃ ng nÃ y'
-      toast.error(msg)
-    },
-  })
-
-  // â”€â”€ Computation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Computation ──────────────────────────────────────────────────────────────
   const rawCustomers = data?.data ?? []
   const total = data?.total ?? 0
   const totalPages = data?.totalPages ?? 1
@@ -259,22 +244,16 @@ export function CustomerList() {
     [selectedRowIds],
   )
 
-  const handleDelete = (c: Customer) => {
-    if (window.confirm(`XoÃ¡ khÃ¡ch hÃ ng "${c.fullName}"?\n\nHá»‡ thá»‘ng sáº½ kiá»ƒm tra trÆ°á»›c khi xoÃ¡.`)) {
-      deleteMutation.mutate(c.id)
-    }
-  }
-
   const bulkDeleteMutation = useMutation({
     mutationFn: (ids: string[]) => customerApi.bulkDeleteCustomers(ids),
     onSuccess: (result) => {
-      if (result.deletedIds.length > 0) toast.success(`Da xoa ${result.deletedIds.length} khach hang`)
-      if (result.blocked.length > 0) toast.error(`${result.blocked.length} khach hang khong the xoa`)
+      if (result.deletedIds.length > 0) toast.success(`Đã xóa ${result.deletedIds.length} khách hàng`)
+      if (result.blocked.length > 0) toast.error(`${result.blocked.length} khách hàng không thể xóa`)
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       clearSelection()
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Khong the xoa hang loat khach hang')
+      toast.error(err?.response?.data?.message || 'Không thể xóa hàng loạt khách hàng')
     },
   })
 
@@ -290,7 +269,7 @@ export function CustomerList() {
     setPage(1)
   }
 
-  // â”€â”€ Layout Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Layout Components ─────────────────────────────────────────────────────────
 
   const activeColumns = useMemo(() => {
     return orderedVisibleColumns.map((id) => {
@@ -303,23 +282,23 @@ export function CustomerList() {
   const rangeEnd = total === 0 ? 0 : Math.min(total, (page - 1) * pageSize + rawCustomers.length)
 
   if (isAuthLoading) {
-    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang kiểm tra quyền truy cập...</div>
   }
 
   if (!canReadCustomers) {
-    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang chuyển hướng...</div>
   }
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <DataListShell>
       {reportSource === 'reports' ? (
         <div className="mx-4 mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-primary-500/15 bg-primary-500/5 px-4 py-3 text-sm text-foreground">
-          <span className="font-semibold text-primary-600">Dang mo tu bao cao</span>
-          {scopedBranchId ? <span className="rounded-full bg-background px-3 py-1 text-xs">Chi nhanh: {scopedBranchId}</span> : null}
+          <span className="font-semibold text-primary-600">Đang mở từ báo cáo</span>
+          {scopedBranchId ? <span className="rounded-full bg-background px-3 py-1 text-xs">Chi nhánh: {scopedBranchId}</span> : null}
           {scopedDateFrom && scopedDateTo ? (
             <span className="rounded-full bg-background px-3 py-1 text-xs">
-              Pham vi ngay: {scopedDateFrom} den {scopedDateTo}
+              Phạm vi ngày: {scopedDateFrom} đến {scopedDateTo}
             </span>
           ) : null}
         </div>
@@ -329,7 +308,7 @@ export function CustomerList() {
       <DataListToolbar
         searchValue={search}
         onSearchChange={(v) => { setSearch(v); setPage(1) }}
-        searchPlaceholder="TÃ¬m kiáº¿m khÃ¡ch hÃ ng..."
+        searchPlaceholder="Tìm kiếm khách hàng..."
         showColumnToggle={true}
         showFilterToggle={true}
         filterSlot={
@@ -341,11 +320,11 @@ export function CustomerList() {
                 onChange={(e) => { setTier(e.target.value); setPage(1) }}
                 className={toolbarSelectClass}
               >
-                <option value="">Táº¥t cáº£ háº¡ng</option>
-                <option value="BRONZE">ðŸ¥‰ Äá»“ng</option>
-                <option value="SILVER">ðŸ¥ˆ Báº¡c</option>
-                <option value="GOLD">ðŸ¥‡ VÃ ng</option>
-                <option value="DIAMOND">ðŸ’Ž Kim cÆ°Æ¡ng</option>
+                <option value="">Tất cả hạng</option>
+                <option value="BRONZE">🥉 Đồng</option>
+                <option value="SILVER">🥈 Bạc</option>
+                <option value="GOLD">🥇 Vàng</option>
+                <option value="DIAMOND">💎 Kim cương</option>
               </select>
             )}
 
@@ -356,9 +335,9 @@ export function CustomerList() {
                 onChange={(e) => { setIsActiveFilter(e.target.value); setPage(1) }}
                 className={toolbarSelectClass}
               >
-                <option value="">Táº¥t cáº£ tráº¡ng thÃ¡i</option>
-                <option value="true">âœ… Hoáº¡t Ä‘á»™ng</option>
-                <option value="false">ðŸš« VÃ´ hiá»‡u hoÃ¡</option>
+                <option value="">Tất cả trạng thái</option>
+                <option value="true">✅ Hoạt động</option>
+                <option value="false">🚫 Vô hiệu hoá</option>
               </select>
             )}
           </>
@@ -390,23 +369,23 @@ export function CustomerList() {
             {canCreateCustomer ? (
               <button
                 type="button"
-                onClick={() => { setEditingCustomer(null); setIsModalOpen(true) }}
+                onClick={async () => { setEditingCustomer(null); setIsModalOpen(true) }}
                 className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
               >
-                <Plus size={15} /> ThÃªm khÃ¡ch hÃ ng
+                <Plus size={15} /> Thêm khách hàng
               </button>
             ) : null}
           </div>
         }
       />
 
-      {/* â”€â”€ Filter Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Filter Panel ────────────────────────────────── */}
       <DataListFilterPanel onClearAll={clearFilters}>
         <label className="space-y-2">
           <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
             <span className="inline-flex items-center gap-2">
               <BadgeCheck size={14} className="text-primary-500" />
-              Háº¡ng thÃ nh viÃªn
+              Hạng thành viên
             </span>
             <button
               type="button"
@@ -422,11 +401,11 @@ export function CustomerList() {
             onChange={(e) => { setTier(e.target.value); setPage(1) }}
             className={filterSelectClass}
           >
-            <option value="">Táº¥t cáº£ háº¡ng</option>
-            <option value="BRONZE">ðŸ¥‰ Äá»“ng</option>
-            <option value="SILVER">ðŸ¥ˆ Báº¡c</option>
-            <option value="GOLD">ðŸ¥‡ VÃ ng</option>
-            <option value="DIAMOND">ðŸ’Ž Kim cÆ°Æ¡ng</option>
+            <option value="">Tất cả hạng</option>
+            <option value="BRONZE">🥉 Đồng</option>
+            <option value="SILVER">🥈 Bạc</option>
+            <option value="GOLD">🥇 Vàng</option>
+            <option value="DIAMOND">💎 Kim cương</option>
           </select>
         </label>
 
@@ -434,7 +413,7 @@ export function CustomerList() {
           <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
             <span className="inline-flex items-center gap-2">
               <AlertCircle size={14} className="text-primary-500" />
-              Tráº¡ng thÃ¡i
+              Trạng thái
             </span>
             <button
               type="button"
@@ -450,9 +429,9 @@ export function CustomerList() {
             onChange={(e) => { setIsActiveFilter(e.target.value); setPage(1) }}
             className={filterSelectClass}
           >
-            <option value="">Táº¥t cáº£</option>
-            <option value="true">âœ… Hoáº¡t Ä‘á»™ng</option>
-            <option value="false">ðŸš« VÃ´ hiá»‡u hoÃ¡</option>
+            <option value="">Tất cả</option>
+            <option value="true">✅ Hoạt động</option>
+            <option value="false">🚫 Vô hiệu hoá</option>
           </select>
         </label>
       </DataListFilterPanel>
@@ -463,7 +442,7 @@ export function CustomerList() {
         columns={activeColumns}
         isLoading={isLoading}
         isEmpty={!isLoading && processedCustomers.length === 0}
-        emptyText="KhÃ´ng tÃ¬m tháº¥y khÃ¡ch hÃ ng nÃ o phÃ¹ há»£p."
+        emptyText="Không tìm thấy khách hàng nào phù hợp."
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
         bulkBar={
@@ -472,25 +451,14 @@ export function CustomerList() {
               selectedCount={selectedRowIds.size}
               onClear={clearSelection}
             >
-              {canUpdateCustomer && (
-                <button
-                  type="button"
-                  className="flex h-8 items-center gap-1.5 rounded-lg border border-primary-500/20 bg-primary-500/10 px-3 text-xs font-semibold text-primary-500 transition-colors hover:bg-primary-500/20"
-                  onClick={() => {
-                    toast.success('Chá»©c nÄƒng sá»­a nhÃ³m khÃ¡ch Ä‘ang Ä‘Æ°á»£c nÃ¢ng cáº¥p.')
-                  }}
-                >
-                  <Users size={13} /> NhÃ³m khÃ¡ch
-                </button>
-              )}
               {canDeleteCustomer && isSuperAdmin() && (
                 <button
                   type="button"
-                  aria-label="Xóa DB"
-                  title="Xóa DB"
+                  aria-label="Xóa khách hàng đã chọn"
+                  title="Xóa khách hàng đã chọn"
                   className="flex h-8 w-8 items-center justify-center rounded-lg border border-error/20 bg-error/10 text-error transition-colors hover:bg-error/20"
-                  onClick={() => {
-                    if (window.confirm(`Xoa ${selectedCustomerIds.length} khach hang da chon?`)) {
+                  onClick={async () => {
+                    if (await confirmDialog(`Xóa ${selectedCustomerIds.length} khách hàng đã chọn?`)) {
                       bulkDeleteMutation.mutate(selectedCustomerIds)
                     }
                   }}
@@ -579,7 +547,7 @@ export function CustomerList() {
                   case 'debt': return (
                     <td key={columnId} className="px-3 py-3 w-28">
                       <div className={`text-sm font-semibold ${(c.debt ?? 0) > 0 ? 'text-error' : 'text-foreground'}`}>
-                        {(c.debt ?? 0).toLocaleString('vi-VN')}â‚«
+                        {(c.debt ?? 0).toLocaleString('vi-VN')} đ
                       </div>
                     </td>
                   );
@@ -606,14 +574,14 @@ export function CustomerList() {
                   case 'spent': return (
                     <td key={columnId} className="px-3 py-3 w-32">
                       <div className="text-sm font-semibold text-foreground">
-                        {(c.totalSpent ?? 0).toLocaleString('vi-VN')}â‚«
+                        {(c.totalSpent ?? 0).toLocaleString('vi-VN')} đ
                       </div>
                     </td>
                   );
                   case 'orders': return (
                     <td key={columnId} className="px-3 py-3 w-24">
                       <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background-tertiary text-xs text-foreground-muted font-medium">
-                        {c.totalOrders ?? 0} Ä‘Æ¡n
+                        {c.totalOrders ?? 0} đơn
                       </div>
                     </td>
                   );
@@ -628,9 +596,9 @@ export function CustomerList() {
                   case 'status': return (
                     <td key={columnId} className="px-3 py-3 w-32">
                       {c.isActive !== false ? (
-                        <span className="badge-success"><BadgeCheck size={11} /> Hoáº¡t Ä‘á»™ng</span>
+                        <span className="badge-success"><BadgeCheck size={11} /> Hoạt động</span>
                       ) : (
-                        <span className="badge-error"><AlertCircle size={11} /> VÃ´ hiá»‡u</span>
+                        <span className="badge-error"><AlertCircle size={11} /> Vô hiệu</span>
                       )}
                     </td>
                   );
@@ -655,8 +623,8 @@ export function CustomerList() {
         pageSizeOptions={[20, 50, 100]}
         totalItemText={
           <p className="shrink-0 text-xs text-foreground-muted">
-            Tá»•ng <strong className="text-foreground">{total}</strong> khÃ¡ch hÃ ng
-            {search && <span> Â· tÃ¬m kiáº¿m &quot;{search}&quot;</span>}
+            Tổng <strong className="text-foreground">{total}</strong> khách hàng
+            {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
           </p>
         }
       />
@@ -665,4 +633,3 @@ export function CustomerList() {
     </DataListShell>
   )
 }
-

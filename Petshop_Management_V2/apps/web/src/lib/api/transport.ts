@@ -49,6 +49,15 @@ const processQueue = (error: unknown) => {
   failedQueue = []
 }
 
+function isPublicAuthPage() {
+  if (typeof window === 'undefined') return false
+
+  return ['/login', '/forgot-password'].some((route) => {
+    const pathname = window.location.pathname
+    return pathname === route || pathname.startsWith(`${route}/`)
+  })
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -57,6 +66,11 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       const requestUrl = String(originalRequest?.url ?? '')
       if (requestUrl.includes('/auth/login') || requestUrl.includes('/auth/refresh')) {
+        return Promise.reject(error)
+      }
+
+      if (isPublicAuthPage()) {
+        clearAuthSessionCookie()
         return Promise.reject(error)
       }
 
@@ -88,7 +102,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError)
         clearAuthSessionCookie()
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && !isPublicAuthPage()) {
           window.location.href = '/login'
         }
         return Promise.reject(refreshError)

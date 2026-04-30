@@ -4,14 +4,16 @@ import React, { useState } from 'react'
 import { FileText, Trash2, Download, Eye, Calendar, Filter } from 'lucide-react'
 import dayjs from 'dayjs'
 import { EmployeeDocument, DOCUMENT_TYPE_LABELS, DOCUMENT_TYPE_ICONS, DocumentType } from '@/lib/api/staff.api'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 interface DocumentListProps {
   documents: EmployeeDocument[]
-  onDelete: (docId: string) => Promise<void>
+  canDelete?: boolean
+  onDelete?: (docId: string) => Promise<void>
   onView: (doc: EmployeeDocument) => void
 }
 
-export function DocumentList({ documents, onDelete, onView }: DocumentListProps) {
+export function DocumentList({ documents, canDelete = false, onDelete, onView }: DocumentListProps) {
   const [filterType, setFilterType] = useState<DocumentType | 'ALL'>('ALL')
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -20,7 +22,14 @@ export function DocumentList({ documents, onDelete, onView }: DocumentListProps)
   const uniqueTypes = Array.from(new Set(documents.map((d) => d.type)))
 
   const handleDelete = async (docId: string) => {
-    if (!confirm('Bạn có chắc muốn xóa tài liệu này?')) return
+    if (!canDelete || !onDelete) return
+    const confirmed = await confirmDialog({
+      title: 'Xóa tài liệu?',
+      description: 'Tài liệu này sẽ bị xóa khỏi hồ sơ nhân viên.',
+      confirmText: 'Xóa',
+      variant: 'danger',
+    })
+    if (!confirmed) return
 
     setDeletingId(docId)
     try {
@@ -136,14 +145,16 @@ export function DocumentList({ documents, onDelete, onView }: DocumentListProps)
                 Tải
               </a>
 
-              <button
-                onClick={() => handleDelete(doc.id)}
-                disabled={deletingId === doc.id}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-500 transition-all hover:bg-red-500/20 disabled:opacity-50"
-              >
-                <Trash2 size={12} />
-                {deletingId === doc.id ? 'Đang xóa...' : 'Xóa'}
-              </button>
+              {canDelete && onDelete && (
+                <button
+                  onClick={() => handleDelete(doc.id)}
+                  disabled={deletingId === doc.id}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-500 transition-all hover:bg-red-500/20 disabled:opacity-50"
+                >
+                  <Trash2 size={12} />
+                  {deletingId === doc.id ? 'Đang xóa...' : 'Xóa'}
+                </button>
+              )}
             </div>
           </div>
         ))}

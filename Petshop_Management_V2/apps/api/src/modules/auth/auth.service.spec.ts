@@ -73,6 +73,77 @@ describe('AuthService', () => {
     expect(result.refreshToken).toBe('refresh-token-1')
   })
 
+  it('logs in with a staff phone number through the username field', async () => {
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          username: 'admin',
+          fullName: 'Admin',
+          staffCode: 'NV001',
+          branchId: 'branch-1',
+          avatar: null,
+          passwordHash: bcrypt.hashSync('secret', 4),
+          status: 'WORKING',
+          branch: { id: 'branch-1', name: 'Main', address: null, isActive: true },
+          authorizedBranches: [],
+          role: { code: 'STAFF', permissions: [] },
+        }),
+      },
+      refreshToken: {
+        create: jest.fn(),
+      },
+    } as any
+    const jwt = {
+      sign: jest
+        .fn()
+        .mockReturnValueOnce('access-token')
+        .mockReturnValueOnce('refresh-token'),
+      decode: jest.fn().mockReturnValue({ exp: 1_900_000_000 }),
+    } as any
+    const service = new AuthService(db, jwt)
+
+    const result = await service.login({ username: '0901234567', password: 'secret' })
+
+    expect(db.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        OR: [
+          { username: '0901234567' },
+          { phone: '0901234567' },
+        ],
+      },
+    }))
+    expect(result.user.username).toBe('admin')
+  })
+
+  it('rejects a phone login when the password is invalid', async () => {
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          username: 'admin',
+          fullName: 'Admin',
+          staffCode: 'NV001',
+          branchId: 'branch-1',
+          avatar: null,
+          passwordHash: bcrypt.hashSync('secret', 4),
+          status: 'WORKING',
+          branch: { id: 'branch-1', name: 'Main', address: null, isActive: true },
+          authorizedBranches: [],
+          role: { code: 'STAFF', permissions: [] },
+        }),
+      },
+      refreshToken: {
+        create: jest.fn(),
+      },
+    } as any
+    const service = new AuthService(db, {} as any)
+
+    await expect(service.login({ username: '0901234567', password: 'wrong-password' }))
+      .rejects.toThrow('Tên đăng nhập hoặc mật khẩu không đúng')
+    expect(db.refreshToken.create).not.toHaveBeenCalled()
+  })
+
   it('runs bootstrap before login so a zero-user database can recreate superadmin', async () => {
     const db = {
       user: {

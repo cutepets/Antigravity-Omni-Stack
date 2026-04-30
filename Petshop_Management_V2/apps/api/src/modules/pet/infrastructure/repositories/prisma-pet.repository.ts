@@ -36,6 +36,8 @@ export class PrismaPetRepository implements IPetRepository {
                     { name: { contains: q, mode: 'insensitive' as const } },
                     { petCode: { contains: q, mode: 'insensitive' as const } },
                     { microchipId: { contains: q, mode: 'insensitive' as const } },
+                    { customer: { fullName: { contains: q, mode: 'insensitive' as const } } },
+                    { customer: { phone: { contains: q, mode: 'insensitive' as const } } },
                 ],
             }),
         }
@@ -47,6 +49,9 @@ export class PrismaPetRepository implements IPetRepository {
                 skip,
                 take: Number(limit),
                 orderBy: { createdAt: 'desc' },
+                include: {
+                    customer: { select: { id: true, fullName: true, phone: true } },
+                },
             }),
         ])
 

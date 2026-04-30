@@ -22,6 +22,64 @@ function createDbMock() {
   } as any
 }
 
+function createOverviewDbMock() {
+  return {
+    order: {
+      aggregate: jest.fn().mockResolvedValue({ _sum: { total: 300_000 }, _count: 3 }),
+      groupBy: jest.fn().mockResolvedValue([
+        { customerId: 'customer-1', _sum: { total: 250_000 }, _count: 2 },
+      ]),
+    },
+    orderItem: {
+      groupBy: jest.fn().mockResolvedValue([
+        { productId: 'product-1', _sum: { quantity: 4, subtotal: 180_000 } },
+      ]),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    customer: {
+      count: jest.fn().mockResolvedValue(8),
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'customer-1', fullName: 'Khach A', phone: '0901', customerCode: 'KH001', debt: 50_000, totalSpent: 250_000, _count: { orders: 2, hotelStays: 0 } },
+      ]),
+    },
+    product: {
+      findMany: jest.fn().mockResolvedValue([{ id: 'product-1', name: 'Pate meo', sku: 'PM001' }]),
+    },
+    groomingSession: {
+      count: jest.fn().mockResolvedValue(2),
+    },
+    hotelStay: {
+      count: jest.fn().mockResolvedValue(1),
+    },
+    branchStock: {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'stock-1',
+          stock: 1,
+          minStock: 5,
+          branch: { id: 'branch-1', name: 'Chi nhanh 1' },
+          product: { id: 'product-1', name: 'Pate meo', sku: 'PM001', unit: 'goi' },
+          variant: null,
+        },
+      ]),
+    },
+    transaction: {
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'tx-1', voucherNumber: 'PT001', type: 'INCOME', amount: 300_000, description: 'Thu ban hang', date: new Date('2026-04-30T08:00:00.000Z'), source: 'ORDER_PAYMENT', payerName: 'Khach A', branchName: 'Chi nhanh 1' },
+      ]),
+      count: jest.fn().mockResolvedValue(1),
+      aggregate: jest
+        .fn()
+        .mockResolvedValueOnce({ _sum: { amount: 300_000 } })
+        .mockResolvedValueOnce({ _sum: { amount: 40_000 } })
+        .mockResolvedValue({ _sum: { amount: 0 } }),
+    },
+    supplier: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+  } as any
+}
+
 function createTransaction(overrides?: Record<string, unknown>) {
   return {
     id: 'tx-1',
@@ -50,6 +108,76 @@ function createTransaction(overrides?: Record<string, unknown>) {
     ...overrides,
   }
 }
+
+describe('ReportsService overview dashboard', () => {
+  it('returns all-branch overview for global users when branchId is omitted', async () => {
+    const db = createOverviewDbMock()
+    const service = new ReportsService(db)
+
+    const result = await (service as any).getOverview(
+      { role: 'SUPER_ADMIN', permissions: ['FULL_BRANCH_ACCESS'] },
+      undefined,
+      '2026-04-01',
+      '2026-04-30',
+    )
+
+    expect(result.data.scope.isAllBranches).toBe(true)
+    expect(result.data.range).toEqual({ dateFrom: '2026-04-01', dateTo: '2026-04-30' })
+    expect(db.order.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.not.objectContaining({ branchId: expect.anything() }),
+      }),
+    )
+    const serviceRevenueQuery = db.orderItem.findMany.mock.calls[0]?.[0]
+    expect(serviceRevenueQuery.include).toBeUndefined()
+    expect(serviceRevenueQuery.select).toEqual(
+      expect.objectContaining({
+        quantity: true,
+        subtotal: true,
+        description: true,
+        pricingSnapshot: true,
+        order: expect.any(Object),
+        service: expect.any(Object),
+      }),
+    )
+    expect(serviceRevenueQuery.select.promotionDiscount).toBeUndefined()
+    expect(result.data.cashbook).toBeDefined()
+    expect(result.data.debt).toBeDefined()
+    expect(result.data.purchase).toBeDefined()
+  })
+
+  it('rejects managers requesting a branch outside their authorized scope', async () => {
+    const db = createOverviewDbMock()
+    const service = new ReportsService(db)
+
+    await expect(
+      (service as any).getOverview(
+        { role: 'MANAGER', permissions: ['report.sales'], authorizedBranchIds: ['branch-1'] },
+        'branch-2',
+        '2026-04-01',
+        '2026-04-30',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+  })
+
+  it('hides cashbook debt and purchase blocks for staff users', async () => {
+    const db = createOverviewDbMock()
+    const service = new ReportsService(db)
+
+    const result = await (service as any).getOverview(
+      { role: 'STAFF', permissions: ['dashboard.read'], branchId: 'branch-1', authorizedBranchIds: ['branch-1'] },
+      'branch-1',
+      '2026-04-01',
+      '2026-04-30',
+    )
+
+    expect(result.data.scope.canViewSensitive).toBe(false)
+    expect(result.data.cashbook).toBeUndefined()
+    expect(result.data.debt).toBeUndefined()
+    expect(result.data.purchase).toBeUndefined()
+    expect(result.data.sales).toBeUndefined()
+  })
+})
 
 describe('ReportsService transaction edit rules', () => {
   it('resolves manual order links when creating a transaction', async () => {

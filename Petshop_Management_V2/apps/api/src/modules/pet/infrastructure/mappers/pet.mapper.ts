@@ -1,12 +1,20 @@
 import type { Pet as PrismaPet, PetGender } from '@petshop/database'
 import { PetEntity, type PetProps } from '../../domain/entities/pet.entity.js'
 
+type PetRow = PrismaPet & {
+    customer?: {
+        id: string
+        fullName: string
+        phone?: string | null
+    } | null
+}
+
 /**
  * Infrastructure Mapper: converts between Prisma DB row and PetEntity.
  * This is the ONLY place Prisma types touch our domain objects.
  */
 export class PetMapper {
-    static toDomain(row: PrismaPet): PetEntity {
+    static toDomain(row: PetRow): PetEntity {
         return PetEntity.reconstitute({
             id: row.id,
             petCode: row.petCode,
@@ -24,6 +32,7 @@ export class PetMapper {
             microchipId: row.microchipId ?? null,
             branchId: row.branchId ?? '',
             customerId: row.customerId,
+            customer: row.customer ?? null,
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
         })

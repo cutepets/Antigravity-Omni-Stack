@@ -46,6 +46,7 @@ import { formatDateTime } from "@/lib/utils";
 import { CancelNotesModal } from "./cancel-notes-modal";
 import { settingsApi } from "@/lib/api/settings.api";
 import { printGroomingSession } from "@/lib/grooming-print";
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 const GROOMING_STATUS_VI: Record<string, string> = {
   BOOKED: 'Đặt lịch',
@@ -1019,7 +1020,7 @@ export function GroomingSessionDialog({
                                     .map((staff) => (
                                       <div
                                         key={staff.id}
-                                        onClick={() => {
+                                        onClick={async () => {
                                           setSelectedStaffIds(prev => [...prev, staff.id]);
                                           setSearchStaff("");
                                         }}
@@ -1279,8 +1280,8 @@ export function GroomingSessionDialog({
                     {canDeleteSession ? (
                       <button
                         type="button"
-                        onClick={() => {
-                          if (window.confirm("Bạn có chắc muốn xóa phiên này?")) {
+                        onClick={async () => {
+                          if (await confirmDialog("Bạn có chắc muốn xóa phiên này?")) {
                             deleteMutation.mutate();
                           }
                         }}

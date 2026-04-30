@@ -7,6 +7,7 @@ import { normalizeBranchCode, suggestBranchCodeFromName } from '@petshop/shared'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { api } from '@/lib/api'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type Branch = {
   id: string
@@ -366,8 +367,8 @@ export function TabBranches() {
 
                     {canDeleteBranch ? (
                       <button
-                        onClick={() => {
-                          if (confirm('Bạn có chắc muốn xóa chi nhánh này?')) {
+                        onClick={async () => {
+                          if (await confirmDialog('Bạn có chắc muốn xóa chi nhánh này?')) {
                             mutationDelete.mutate(branch.id)
                           }
                         }}

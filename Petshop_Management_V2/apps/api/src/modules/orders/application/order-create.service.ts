@@ -9,6 +9,7 @@ import { OrderPaymentService } from './order-payment.service.js';
 import { OrderServiceSyncService } from './order-service-sync.service.js';
 import { buildCreateOrderDraft } from './order-workflow.application.js';
 import { createOrderFinanceTransaction } from './order-finance.application.js';
+import { PromotionApplicationService } from '../../promotions/promotion-application.service.js';
 
 @Injectable()
 export class OrderCreateService {
@@ -21,6 +22,7 @@ export class OrderCreateService {
     private readonly paymentService: OrderPaymentService,
     private readonly inventoryService: OrderInventoryService,
     private readonly syncService: OrderServiceSyncService,
+    private readonly promotionApplication?: PromotionApplicationService,
   ) {}
 
   private async generateOrderNumberFor(prisma: Pick<DatabaseService, 'order'>): Promise<string> {
@@ -45,18 +47,34 @@ export class OrderCreateService {
     }
 
     const normalizedPayments = await this.paymentService.normalizePayments(this.prisma as any, payments);
+    const promotionDraft = this.promotionApplication
+      ? await this.promotionApplication.applyToOrderDraft({
+      branchId: data.branchId ?? null,
+      customerId: data.customerId ?? null,
+      items: items as any,
+      manualDiscount: data.manualDiscount ?? discount,
+      voucherCode: data.voucherCode ?? null,
+    })
+      : {
+        result: { enabled: false, previewToken: '', promotionDiscount: 0 } as any,
+        discount,
+        promotionDiscount: 0,
+        manualDiscount: discount,
+        items,
+      };
+    const orderItems = promotionDraft.items as CreateOrderDto['items'];
 
     const { orderType, orderStatus, paymentStatus, subtotal, total, totalPaid, remainingAmount } = buildCreateOrderDraft({
-      items,
+      items: orderItems,
       payments: normalizedPayments,
-      discount,
+      discount: promotionDraft.discount,
       shippingFee,
     });
 
     for (let attempt = 1; attempt <= OrderCreateService.ORDER_NUMBER_RETRY_LIMIT; attempt += 1) {
       try {
         return await this.prisma.$transaction(async (tx) => {
-          const normalizedItems = await this.orderItemService.validateAndNormalizeCreateItems(tx as any, items);
+          const normalizedItems = await this.orderItemService.validateAndNormalizeCreateItems(tx as any, orderItems);
           const orderNumber = await this.generateOrderNumberFor(tx as any);
 
           const order = await tx.order.create({
@@ -72,7 +90,11 @@ export class OrderCreateService {
               stockExportedAt: orderStatus === 'COMPLETED' ? new Date() : null,
               stockExportedBy: orderStatus === 'COMPLETED' ? staffId : null,
               subtotal,
-              discount,
+              discount: promotionDraft.discount,
+              manualDiscount: promotionDraft.manualDiscount,
+              promotionDiscount: promotionDraft.promotionDiscount,
+              promotionSnapshot: promotionDraft.result as any,
+              promotionPreviewToken: promotionDraft.result.previewToken,
               shippingFee,
               total,
               paidAmount: totalPaid,
@@ -90,7 +112,7 @@ export class OrderCreateService {
                   paymentAccountLabel: payment.paymentAccountLabel ?? null,
                 })),
               },
-            },
+            } as any,
             include: {
               items: true,
               payments: true,
@@ -106,7 +128,7 @@ export class OrderCreateService {
                 createdAt: order.createdAt,
                 completedAt: order.completedAt,
                 branchId: order.branchId ?? null,
-                items: order.items.map((item) => ({
+                items: (order as any).items.map((item: any) => ({
                   id: item.id,
                   productId: item.productId ?? null,
                   productVariantId: item.productVariantId ?? null,
@@ -282,6 +304,17 @@ export class OrderCreateService {
               },
             },
           );
+
+          await this.promotionApplication?.recordRedemptions(tx as any, {
+            order: {
+              id: order.id,
+              orderNumber: order.orderNumber,
+              customerId: order.customerId ?? null,
+              branchId: order.branchId ?? null,
+            },
+            staffId,
+            preview: promotionDraft.result,
+          });
 
           return order;
         });

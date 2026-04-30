@@ -9,6 +9,7 @@ import { ThemeInjector } from './theme-injector'
 import { MSWProvider } from './providers/MSWProvider'
 import { AnimationProvider } from './providers/AnimationProvider'
 import { AuthBootstrap } from './auth-bootstrap'
+import { ConfirmationProvider } from './ui/confirmation-provider'
 
 function isRecoverableAssetLoadError(reason: unknown) {
   const message =
@@ -30,6 +31,7 @@ function isRecoverableAssetLoadError(reason: unknown) {
 
 function RecoverFromStaleBuild() {
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') return
     if (typeof window === 'undefined') return
 
     const reloadKey = 'petshop-stale-build-reloaded'
@@ -81,16 +83,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <AnimationProvider />
       <RecoverFromStaleBuild />
       <QueryClientProvider client={queryClient}>
-        <AuthBootstrap />
-        {children}
-        <Toaster
-          position="top-right"
-          richColors
-          closeButton
-          toastOptions={{
-            duration: 3000,
-          }}
-        />
+        <ConfirmationProvider>
+          <AuthBootstrap />
+          {children}
+          <Toaster
+            position="top-right"
+            richColors
+            closeButton
+            toastOptions={{
+              duration: 3000,
+            }}
+          />
+        </ConfirmationProvider>
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>
       </ThemeProvider>

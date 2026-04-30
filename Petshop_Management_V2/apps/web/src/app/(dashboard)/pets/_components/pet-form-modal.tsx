@@ -160,8 +160,6 @@ export function PetFormModal({ isOpen, onClose, customerId, customerName, custom
         res = await api.post('/pets', payload);
       }
 
-      // TODO: Handle imageFile upload to a server endpoint if available like `/upload`
-
       // Upload avatar if there's a new image
       const petId = initialData?.id || res?.data?.id || res?.data?.data?.id
       if (imageFile && petId) {

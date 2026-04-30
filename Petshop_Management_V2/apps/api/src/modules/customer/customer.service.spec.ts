@@ -1,6 +1,13 @@
 import { CustomerService } from './customer.service'
 
 describe('CustomerService', () => {
+  const makeFindAllDb = () => ({
+    customer: {
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+    },
+  } as any)
+
   it('creates the next sequential customer code from the last valid numeric suffix', async () => {
     const db = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([{ maxNumber: 4 }]),
@@ -39,5 +46,31 @@ describe('CustomerService', () => {
       }),
     )
     expect(result.data.customerCode).toBe('KH000005')
+  })
+
+  it('maps customer list UI sort keys to real database fields', async () => {
+    const db = makeFindAllDb()
+    const service = new CustomerService(db)
+
+    await service.findAll({ sortBy: 'name', sortOrder: 'asc' })
+
+    expect(db.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { fullName: 'asc' },
+      }),
+    )
+  })
+
+  it('falls back to createdAt sort when customer list receives an unsupported sort key', async () => {
+    const db = makeFindAllDb()
+    const service = new CustomerService(db)
+
+    await service.findAll({ sortBy: 'orders', sortOrder: 'asc' })
+
+    expect(db.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { createdAt: 'asc' },
+      }),
+    )
   })
 })

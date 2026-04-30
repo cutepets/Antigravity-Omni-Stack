@@ -17,12 +17,14 @@ import {
   getSelectedReadScope,
   READ_SCOPE_LABELS,
   READ_SCOPE_LEVELS,
+  supportsReadScopeGroup,
   type ReadScopeLevel,
 } from '@petshop/auth'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { rolesApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type PermissionDefinition = {
   code: string
@@ -106,12 +108,31 @@ function isReadScopePermission(permission: PermissionDefinition): boolean {
 }
 
 function getPrimaryReadPermission(group: PermissionGroup): PermissionDefinition | undefined {
-  return group.permissions.find(
+  const readPermission = group.permissions.find(
     (permission) =>
-      permission.kind === 'read' &&
       !isReadScopePermission(permission) &&
+      (permission.kind === 'read' || permission.kind === undefined) &&
       (permission.code === `${group.key}.read` || permission.code.endsWith('.read')),
   )
+
+  if (readPermission?.scopeGroup || !supportsReadScopeGroup(group.key)) return readPermission
+
+  if (readPermission) {
+    return {
+      ...readPermission,
+      kind: 'read',
+      scopeGroup: group.key,
+      defaultScope: readPermission.defaultScope ?? 'all',
+    }
+  }
+
+  return {
+    code: `${group.key}.read`,
+    label: `Xem ${group.label.toLowerCase()}`,
+    kind: 'read',
+    scopeGroup: group.key,
+    defaultScope: 'all',
+  }
 }
 
 function getSelectablePermissions(group: PermissionGroup, includeSettings: boolean): PermissionDefinition[] {
@@ -188,6 +209,49 @@ function PermissionTile({
         <p className="text-[13px] font-medium leading-tight text-foreground-base">{permission.label}</p>
         <p className="mt-0.5 break-all text-[10px] text-foreground-muted">{permission.code}</p>
       </div>
+    </label>
+  )
+}
+
+function ReadScopeTile({
+  permission,
+  value,
+  disabled,
+  onChange,
+}: {
+  permission: PermissionDefinition
+  value: ReadScopeLevel | 'none'
+  disabled: boolean
+  onChange: (scope: ReadScopeLevel | 'none') => void
+}) {
+  return (
+    <label
+      className={cn(
+        'flex min-h-[62px] items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-all',
+        disabled
+          ? 'cursor-not-allowed border-border/30 opacity-60'
+          : value !== 'none'
+            ? 'border-primary-500/40 bg-primary-500/5'
+            : 'border-border/40 hover:border-primary-500/30',
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-medium leading-tight text-foreground-base">Quyền xem</p>
+        <p className="mt-0.5 break-all text-[10px] text-foreground-muted">{permission.code}</p>
+      </div>
+
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value as ReadScopeLevel | 'none')}
+        className="h-9 min-w-[132px] rounded-lg border border-border/50 bg-background-elevated px-2 text-xs font-semibold text-foreground-base outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {(['none', ...READ_SCOPE_LEVELS] as Array<ReadScopeLevel | 'none'>).map((scope) => (
+          <option key={scope} value={scope}>
+            {getReadScopeLabel(scope)}
+          </option>
+        ))}
+      </select>
     </label>
   )
 }
@@ -381,7 +445,7 @@ export function RolePermissionsManager() {
       toast.error('Bạn không có quyền xóa vai trò')
       return
     }
-    if (!confirm(`Bạn có chắc muốn xóa vai trò "${selectedRole.name}"?`)) return
+    if (!(await confirmDialog(`Bạn có chắc muốn xóa vai trò "${selectedRole.name}"?`))) return
 
     try {
       await rolesApi.delete(selectedRole.id!)
@@ -631,37 +695,16 @@ export function RolePermissionsManager() {
 
                       {isExpanded ? (
                         <div className="space-y-3 border-t border-border/40 bg-background-base px-3 py-3">
-                          {readPermission?.scopeGroup ? (
-                            <div className="rounded-xl border border-primary-500/25 bg-primary-500/5 p-3">
-                              <div className="mb-2 flex items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-semibold text-foreground-base">Quyền xem</p>
-                                  <p className="mt-0.5 text-[11px] text-foreground-muted">{readPermission.code}</p>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-3">
-                                {(['none', ...READ_SCOPE_LEVELS] as Array<ReadScopeLevel | 'none'>).map((scope) => (
-                                  <button
-                                    key={scope}
-                                    type="button"
-                                    disabled={selectedRoleReadOnly}
-                                    onClick={() => setReadScope(group, scope)}
-                                    className={cn(
-                                      'rounded-lg border px-3 py-2 text-xs font-semibold transition-colors',
-                                      displayedReadScope === scope
-                                        ? 'border-primary-500 bg-primary-500 text-white'
-                                        : 'border-border/50 bg-background-elevated text-foreground-muted hover:border-primary-500/40 hover:text-foreground-base',
-                                      selectedRoleReadOnly && 'cursor-not-allowed opacity-60',
-                                    )}
-                                  >
-                                    {getReadScopeLabel(scope)}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-
                           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                            {readPermission?.scopeGroup ? (
+                              <ReadScopeTile
+                                permission={readPermission}
+                                value={displayedReadScope}
+                                disabled={selectedRoleReadOnly}
+                                onChange={(scope) => setReadScope(group, scope)}
+                              />
+                            ) : null}
+
                             {mainPermissions
                               .filter((permission) => permission.code !== readPermission?.code)
                               .map((permission) => (

@@ -12,6 +12,8 @@ function makeDb() {
       create: jest.fn(),
     },
     user: {
+      count: jest.fn().mockResolvedValue(0),
+      findUnique: jest.fn().mockResolvedValue(null),
       create: jest.fn(),
     },
   }
@@ -20,6 +22,7 @@ function makeDb() {
     tx,
     db: {
       user: {
+        findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),
       },
       serviceWeightBand: {

@@ -32,6 +32,7 @@ type PosCheckoutPanelProps = {
   quickCashSuggestions: number[];
   isQrIntentPending: boolean;
   onDiscountChange: (discount: number) => void;
+  onVoucherChange: (code: string) => void;
   onSelectSinglePaymentMethod: (method: PaymentMethod) => void;
   onOpenMultiPayment: () => void;
   onOpenBooking: () => void;
@@ -63,6 +64,7 @@ export function PosCheckoutPanel({
   quickCashSuggestions,
   isQrIntentPending,
   onDiscountChange,
+  onVoucherChange,
   onSelectSinglePaymentMethod,
   onOpenMultiPayment,
   onOpenBooking,
@@ -77,6 +79,8 @@ export function PosCheckoutPanel({
     () => activeTab.cart.reduce((sum, item) => sum + ((item.discountItem || 0) * (item.quantity || 1)), 0),
     [activeTab.cart],
   );
+  const promotionPreview = activeTab.promotionPreview;
+  const promotionDiscountTotal = Number(activeTab.promotionDiscountTotal ?? promotionPreview?.promotionDiscount ?? 0) || 0;
 
   return (
     <>
@@ -94,6 +98,30 @@ export function PosCheckoutPanel({
             </div>
           ) : null}
 
+          {promotionPreview?.enabled ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[13px] text-emerald-800">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold">Khuyến mãi</span>
+                <span className="font-bold">-{moneyRaw(promotionDiscountTotal)}</span>
+              </div>
+              {promotionPreview.appliedPromotions?.length ? (
+                <div className="mt-1 space-y-0.5">
+                  {promotionPreview.appliedPromotions.map((promo: any) => (
+                    <div key={promo.promotionId} className="flex justify-between gap-2 text-[12px]">
+                      <span className="truncate">{promo.name}</span>
+                      <span className="shrink-0">-{moneyRaw(Number(promo.discountAmount) || 0)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {promotionPreview.giftLines?.length ? (
+                <div className="mt-1 text-[12px]">
+                  Tặng: {promotionPreview.giftLines.map((gift: any) => `${gift.description} x${gift.quantity}`).join(', ')}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="flex justify-between items-center py-0.5 border-b border-dashed border-border pb-2">
             <span className="text-[15px] text-primary-600 cursor-pointer hover:underline decoration-dashed decoration-primary-400 underline-offset-4">
               Chiết khấu đơn<span className="hidden sm:inline"> (F6)</span>
@@ -108,6 +136,16 @@ export function PosCheckoutPanel({
                 }}
               />
             </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 py-1 border-b border-dashed border-border pb-2">
+            <span className="text-[15px] font-medium text-foreground-muted">Voucher</span>
+            <input
+              className="w-32 rounded-lg border border-border bg-surface px-2 py-1 text-right text-[13px] font-semibold uppercase text-foreground outline-none focus:border-primary-500"
+              value={activeTab.promotionVoucherCode ?? ''}
+              placeholder="NHẬP MÃ"
+              onChange={(event) => onVoucherChange(event.target.value.toUpperCase())}
+            />
           </div>
 
           <div className="flex justify-between items-center py-0.5">

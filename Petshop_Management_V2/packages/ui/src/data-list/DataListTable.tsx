@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { useId } from 'react'
 import { useDataList } from './DataListShell'
 import { TableCheckbox } from './TableCheckbox'
 
@@ -27,6 +28,23 @@ interface DataListTableProps {
   className?: string
 }
 
+function normalizeColumnToken(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function inferColumnAlign(col: ColDef): ColDef['align'] {
+  if (col.align) return col.align
+
+  const token = normalizeColumnToken(`${col.id} ${col.label}`)
+  const looksLikeMoney = /(amount|price|cost|debt|salary|spent|paid|total|revenue|commission|discount|fee)/.test(token)
+    || /(gia|tien|luong|no|cong no|chi tieu|doanh thu|hoa hong|tong tien|thanh tien)/.test(token)
+
+  return looksLikeMoney ? 'right' : undefined
+}
+
 export function DataListTable({
   columns,
   isLoading = false,
@@ -43,13 +61,22 @@ export function DataListTable({
   const { variant } = useDataList()
   const colSpan = columns.length + 1
   const isPageVariant = variant === 'page'
+  const tableScopeClass = `data-list-table-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+  const bodyColumnOffset = onSelectAll ? 1 : 0
+  const rightAlignedBodySelectors = columns
+    .map((col, index) => inferColumnAlign(col) === 'right' ? `.${tableScopeClass} tbody tr > td:nth-child(${index + 1 + bodyColumnOffset})` : null)
+    .filter(Boolean)
+    .join(', ')
 
   return (
     <div
-      className={`flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border shadow-sm ${
-        isPageVariant ? 'grow-0 bg-background-secondary' : 'flex-1 bg-card'
+      className={`${tableScopeClass} flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border shadow-sm ${
+        isPageVariant ? 'flex-1 bg-background-secondary' : 'flex-1 bg-card'
       } ${className ?? ''}`}
     >
+      {rightAlignedBodySelectors ? (
+        <style>{`${rightAlignedBodySelectors}{text-align:right}`}</style>
+      ) : null}
       <div className={`custom-scrollbar min-h-0 flex-1 overflow-auto ${isPageVariant ? 'bg-background-secondary' : ''}`}>
         <table className={`w-full min-w-[1040px] ${isPageVariant ? 'border-separate border-spacing-0' : ''}`}>
           <thead
@@ -76,18 +103,21 @@ export function DataListTable({
                   )}
                 </th>
 
-                {columns.map((col) => (
-                  <th
-                    key={col.id}
-                    className={`px-3 ${
-                      isPageVariant
-                        ? 'border-b border-border py-0 text-xs font-bold uppercase tracking-[0.12em] text-foreground-secondary'
-                        : 'py-3 text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted'
-                    } ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.width ?? ''} ${col.minWidth ?? ''}`}
-                  >
-                    {col.label}
-                  </th>
-                ))}
+                {columns.map((col) => {
+                  const align = inferColumnAlign(col)
+                  return (
+                    <th
+                      key={col.id}
+                      className={`px-3 ${
+                        isPageVariant
+                          ? 'border-b border-border py-0 text-xs font-bold uppercase tracking-[0.12em] text-foreground-secondary'
+                          : 'py-3 text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted'
+                      } ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'} ${col.width ?? ''} ${col.minWidth ?? ''}`}
+                    >
+                      {col.label}
+                    </th>
+                  )
+                })}
               </tr>
             )}
           </thead>

@@ -172,7 +172,7 @@ function resolveLinkedEntity(transaction?: FinanceTransaction | null) {
   if (manualReferenceKind === 'STOCK_RECEIPT') {
     return {
       href: transaction.refId ? `/inventory/receipts/${transaction.refId}` : null,
-      label: transaction.refId ? 'Mở phieu nhap' : 'Đã gắn mã phiếu nhập',
+      label: transaction.refId ? 'Mở phiếu nhập' : 'Đã gắn mã phiếu nhập',
       value: transaction.refNumber || transaction.refId || '-',
       description: 'Liên kết thủ công với phiếu nhập',
       canCompare: false,
@@ -715,7 +715,7 @@ export function CreateTransactionModal({
                     }}
                     className={inputClass}
                   >
-                    <option value="">Chon phuong thuc thanh toan</option>
+                    <option value="">Chọn phương thức thanh toán</option>
                     {paymentMethods.map((method: PaymentMethod) => (
                       <option key={method.id} value={method.id}>
                         {method.name}
@@ -724,7 +724,7 @@ export function CreateTransactionModal({
                   </select>
                   {paymentMethods.length === 0 ? (
                     <p className="text-xs text-amber-300">
-                      Khong co phuong thuc thanh toan nao dang hien cho chi nhanh hoac so tien hien tai.
+                      Không có phương thức thanh toán nào đang hiện cho chi nhánh hoặc số tiền hiện tại.
                     </p>
                   ) : null}
                 </label>

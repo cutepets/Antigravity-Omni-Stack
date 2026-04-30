@@ -25,6 +25,7 @@ import { hotelApi, type HotelStay, type HotelStayHealthLog, type HotelStayOrderI
 import { settingsApi } from '@/lib/api/settings.api'
 import { printHotelStay } from '@/lib/hotel-print'
 import { formatCurrency } from '@/lib/utils'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 interface ChargeLine {
   id?: string
@@ -947,7 +948,7 @@ export default function StayDetailsDialog({
                     <>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           setDateDraft(currentDateDraft)
                           setIsEditingStayDates(false)
                         }}
@@ -968,7 +969,7 @@ export default function StayDetailsDialog({
                   ) : (
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         setDateDraft(currentDateDraft)
                         setIsEditingStayDates(true)
                       }}
@@ -1076,7 +1077,7 @@ export default function StayDetailsDialog({
                               <PhoneLine label="SĐT phụ" phone={secondaryPhone} />
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                   setSecondaryPhoneDraft(secondaryPhone ?? '')
                                   setIsEditingSecondaryPhone(true)
                                 }}
@@ -1187,7 +1188,7 @@ export default function StayDetailsDialog({
                               <button
                                 type="button"
                                 title="Sửa dự kiến trả"
-                                onClick={() => {
+                                onClick={async () => {
                                   setDateDraft(currentDateDraft)
                                   setIsEditingStayDates(true)
                                 }}
@@ -1258,7 +1259,7 @@ export default function StayDetailsDialog({
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setNoteDraft((draft) => ({ ...draft, accessories: accessoryText }))
                                     setIsEditingAccessories(false)
                                   }}
@@ -1279,7 +1280,7 @@ export default function StayDetailsDialog({
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                   setNoteDraft((draft) => ({ ...draft, accessories: accessoryText }))
                                   setIsEditingAccessories(true)
                                 }}
@@ -1317,7 +1318,7 @@ export default function StayDetailsDialog({
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setCareDraft(EMPTY_HEALTH_DRAFT)
                                     setIsAddingCareLog(false)
                                   }}
@@ -1338,7 +1339,7 @@ export default function StayDetailsDialog({
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                   setCareDraft(EMPTY_HEALTH_DRAFT)
                                   setIsAddingCareLog(true)
                                 }}
@@ -1387,8 +1388,8 @@ export default function StayDetailsDialog({
                   {stay && canShowCancel ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm('Bạn có chắc muốn hủy phiếu lưu trú này?')) {
+                      onClick={async () => {
+                        if (await confirmDialog('Bạn có chắc muốn hủy phiếu lưu trú này?')) {
                           cancelMutation.mutate(stay.id)
                         }
                       }}

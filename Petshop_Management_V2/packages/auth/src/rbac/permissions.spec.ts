@@ -1,4 +1,4 @@
-import { ALL_PERMISSION_CODES, getSelectedReadScope } from './permission-catalog'
+import { ALL_PERMISSION_CODES, getSelectedReadScope, supportsReadScopeGroup } from './permission-catalog'
 import { getRolePermissions, resolvePermissions } from './permissions'
 
 describe('permission catalog expansion', () => {
@@ -24,5 +24,30 @@ describe('permission catalog expansion', () => {
     for (const permission of ALL_PERMISSION_CODES) {
       expect(superAdminPermissions).toContain(permission)
     }
+  })
+
+  it('identifies groups that use read scopes', () => {
+    expect(supportsReadScopeGroup('service')).toBe(true)
+    expect(supportsReadScopeGroup('promotions')).toBe(true)
+    expect(supportsReadScopeGroup('dashboard')).toBe(false)
+  })
+
+  it('includes promotion management permissions', () => {
+    const superAdminPermissions = resolvePermissions(getRolePermissions('SUPER_ADMIN'))
+
+    expect(ALL_PERMISSION_CODES).toEqual(expect.arrayContaining([
+      'promotions.read',
+      'promotions.manage',
+      'promotions.activate',
+      'promotions.voucher.manage',
+      'promotions.report.read',
+    ]))
+    expect(superAdminPermissions).toEqual(expect.arrayContaining([
+      'promotions.read',
+      'promotions.manage',
+      'promotions.activate',
+      'promotions.voucher.manage',
+      'promotions.report.read',
+    ]))
   })
 })

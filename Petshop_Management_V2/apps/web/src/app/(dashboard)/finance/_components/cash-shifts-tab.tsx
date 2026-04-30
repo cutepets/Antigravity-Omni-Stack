@@ -6,6 +6,7 @@ import { CheckCircle2, Edit3, RefreshCw, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { shiftApi, type CashShift, type ShiftReviewStatus } from '@/lib/api/shift.api'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 function todayString() {
   const now = new Date()
@@ -307,7 +308,7 @@ function ShiftReviewModal({
               <span className="flex-1">Đang ở chế độ sửa sổ — nhập lại tiền đầu ca / cuối ca nếu nhân viên chốt nhầm.</span>
               <button
                 type="button"
-                onClick={() => { setIsEditing(false); setForm(buildReviewForm(shift)) }}
+                onClick={async () => { setIsEditing(false); setForm(buildReviewForm(shift)) }}
                 className="rounded-lg border border-amber-500/40 px-3 py-1 text-xs font-semibold hover:bg-amber-500/20"
               >
                 Huỷ sửa
@@ -326,7 +327,7 @@ function ShiftReviewModal({
                     key={opt.value}
                     type="button"
                     disabled={!canManage}
-                    onClick={() => {
+                    onClick={async () => {
                       if (!canManage) return
                       setForm((cur) => (cur ? { ...cur, reviewStatus: opt.value } : cur))
                     }}
@@ -435,12 +436,12 @@ export function CashShiftsTab() {
     },
   })
 
-  const handleDeleteShift = (shift: CashShift) => {
+  const handleDeleteShift = async (shift: CashShift) => {
     if (shift.status !== 'CLOSED') {
       toast.error('Chỉ được xoá ca đã chốt')
       return
     }
-    if (!window.confirm('Xoá ca chốt này? Hành động này không thể hoàn tác.')) return
+    if (!(await confirmDialog('Xoá ca chốt này? Hành động này không thể hoàn tác.'))) return
     deleteShift.mutate(shift.id)
   }
 

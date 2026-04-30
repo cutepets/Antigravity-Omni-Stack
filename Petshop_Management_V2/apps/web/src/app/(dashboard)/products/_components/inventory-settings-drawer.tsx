@@ -31,6 +31,7 @@ import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { api } from '@/lib/api'
 import { PRICE_BOOK_QUERY_KEY, invalidatePriceBookQueries, extractPriceBooks } from '@/lib/price-books'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type DictionaryItem = {
   id: string
@@ -278,7 +279,7 @@ function TagDictionaryCard({
                     />
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         if (editingName.trim()) updateMutation.mutate({ id: item.id, name: editingName.trim() })
                       }}
                       className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-primary-500 transition-colors hover:bg-primary-500/10"
@@ -287,7 +288,7 @@ function TagDictionaryCard({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         setEditingItemId(null)
                         setEditingName('')
                       }}
@@ -302,7 +303,7 @@ function TagDictionaryCard({
                     {canUpdate ? (
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           setEditingItemId(item.id)
                           setEditingName(item.name)
                         }}
@@ -314,8 +315,8 @@ function TagDictionaryCard({
                     {canDelete ? (
                       <button
                         type="button"
-                        onClick={() => {
-                          if (confirm(`Xóa "${item.name}"?`)) deleteMutation.mutate(item.id)
+                        onClick={async () => {
+                          if (await confirmDialog(`Xóa "${item.name}"?`)) deleteMutation.mutate(item.id)
                         }}
                         className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-foreground-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
                       >
@@ -440,7 +441,7 @@ function CategoryCard({
               <button
                 type="button"
                 disabled={createMutation.isPending}
-                onClick={() => {
+                onClick={async () => {
                   if (draftName.trim()) {
                     createMutation.mutate({ name: draftName.trim(), targetSpecies: draftSpecies })
                   }
@@ -487,7 +488,7 @@ function CategoryCard({
                               autoFocus
                             />
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (editingName.trim()) updateMutation.mutate({ id: b.id, name: editingName.trim() })
                               }}
                               className="text-primary-500 hover:text-primary-400"
@@ -504,7 +505,7 @@ function CategoryCard({
                             <div className="-mr-1.5 ml-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                               {canUpdate && (
                                 <button
-                                  onClick={() => { setEditingItemId(b.id); setEditingName(b.name) }}
+                                  onClick={async () => { setEditingItemId(b.id); setEditingName(b.name) }}
                                   className="flex h-5 w-5 items-center justify-center rounded-full text-foreground-muted hover:bg-background-secondary hover:text-primary-500"
                                 >
                                   <Pencil size={11} />
@@ -512,8 +513,8 @@ function CategoryCard({
                               )}
                               {canDelete && (
                                 <button
-                                  onClick={() => {
-                                    if (confirm(`Xóa danh mục "${b.name}"?`)) deleteMutation.mutate(b.id)
+                                  onClick={async () => {
+                                    if (await confirmDialog(`Xóa danh mục "${b.name}"?`)) deleteMutation.mutate(b.id)
                                   }}
                                   className="flex h-5 w-5 items-center justify-center rounded-full text-foreground-muted hover:bg-red-500/10 hover:text-red-500"
                                 >
@@ -690,7 +691,7 @@ function PriceBookCard({
               />
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   const value = draftName.trim()
                   if (!value) return toast.error('Vui lòng nhập tên bảng giá')
                   createMutation.mutate(value)
@@ -749,7 +750,7 @@ function PriceBookCard({
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             setEditingItemId(null)
                             setEditingName('')
                           }}
@@ -792,7 +793,7 @@ function PriceBookCard({
                           <div className="flex justify-end gap-1 shrink-0">
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 setEditingItemId(item.id)
                                 setEditingName(item.name)
                               }}
@@ -802,8 +803,8 @@ function PriceBookCard({
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                if (confirm(`Xóa "${item.name}"?`)) {
+                              onClick={async () => {
+                                if (await confirmDialog(`Xóa "${item.name}"?`)) {
                                   deleteMutation.mutate({
                                     id: item.id,
                                     remainingItems: orderedItems.filter((candidate) => candidate.id !== item.id),

@@ -19,10 +19,6 @@ export function middleware(request: NextRequest) {
     }
 
     // Redirect authenticated users away from login page
-    if (isPublic && hasSessionCookie) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
-
     return NextResponse.next()
   } catch (error) {
     // If we fail parsing cookies or URLs due to edge cases, gracefully allow next()

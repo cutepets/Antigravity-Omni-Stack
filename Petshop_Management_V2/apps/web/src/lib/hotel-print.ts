@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from 'sonner'
 import dayjs from 'dayjs'
 import type { HotelStay } from '@/lib/api/hotel.api'
 import type { PrintTemplate } from '@/lib/api/settings.api'
@@ -264,7 +265,7 @@ export function printHotelStay(data: HotelPrintData, template?: PrintTemplate | 
 
   const printWindow = window.open('', '_blank', 'width=900,height=720')
   if (!printWindow) {
-    alert('Trinh duyet chan popup. Vui long cho phep popup de in phieu.')
+    toast.error('Tr?nh duy?t ch?n popup. Vui l?ng cho ph?p popup ?? in phi?u.')
     return
   }
 

@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { formatCurrency, formatDateTime } from './utils'
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -55,7 +56,7 @@ export interface PrintOrderData {
 export function printOrderA4(order: PrintOrderData) {
   const printWindow = window.open('', '_blank')
   if (!printWindow) {
-    alert('Vui lòng cho phép mở cửa sổ mới để in hóa đơn.')
+    toast.error('Vui lòng cho phép mở cửa sổ mới để in hóa đơn.')
     return
   }
 

@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { formatCurrency } from './utils'
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -43,7 +44,7 @@ export interface PrintOrderK80Data {
 export function printOrderK80(order: PrintOrderK80Data) {
   const printWindow = window.open('', '_blank')
   if (!printWindow) {
-    alert('Vui lòng cho phép mở cửa sổ mới để in hóa đơn.')
+    toast.error('Vui lòng cho phép mở cửa sổ mới để in hóa đơn.')
     return
   }
 

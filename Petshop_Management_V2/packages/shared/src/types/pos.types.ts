@@ -82,6 +82,9 @@ export interface CartItem {
   }
   itemNotes?: string
   isTempItem?: boolean
+  isPromotionGift?: boolean
+  promotionRedemptionId?: string
+  promotionSnapshot?: any
   stock?: number
   availableStock?: number
   trading?: number
@@ -101,6 +104,9 @@ export interface OrderTab {
   payments: PaymentEntry[]
   manualDiscountTotal?: number
   roundingDiscountTotal?: number
+  promotionDiscountTotal?: number
+  promotionPreview?: any | null
+  promotionVoucherCode?: string
   discountTotal: number
   shippingFee: number
   notes: string

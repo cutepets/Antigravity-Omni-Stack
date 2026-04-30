@@ -92,6 +92,8 @@ model User {
   shiftEnd              String?
   baseSalary            Float?
   spaCommissionRate     Float?
+  salaryBankName        String?
+  salaryBankAccount     String?
   branchId              String?
   defaultBranchId       String?   // Chi nhánh mặc định khi dùng POS
   posPreferences        Json?     // Cài đặt POS cá nhân (sound, zoom, printer, theme...)
@@ -218,6 +220,7 @@ model Customer {
   phone        String         @unique
   email        String?
   address      String?
+  dateOfBirth  DateTime?
   tier         CustomerTier   @default(BRONZE)
   points       Int            @default(0)
   pointsUsed   Int            @default(0)
@@ -466,6 +469,10 @@ model Order {
   paymentStatus    PaymentStatus     @default(UNPAID)
   subtotal         Float             @default(0)
   discount         Float             @default(0)
+  manualDiscount   Float             @default(0)
+  promotionDiscount Float            @default(0)
+  promotionSnapshot Json?
+  promotionPreviewToken String?
   shippingFee      Float             @default(0)
   total            Float             @default(0)
   paidAmount       Float             @default(0)
@@ -634,6 +641,10 @@ model OrderItem {
   quantity          Float
   unitPrice         Float
   discountItem      Float            @default(0)
+  promotionDiscount Float            @default(0)
+  promotionSnapshot Json?
+  promotionRedemptionId String?
+  isPromotionGift   Boolean          @default(false)
   vatRate           Float            @default(0)
   subtotal          Float
   pricingSnapshot   Json?
@@ -654,7 +665,184 @@ model OrderItem {
 
   @@index([orderId])
   @@index([hotelStayId])
+  @@index([promotionRedemptionId])
   @@map("order_items")
+}
+
+// ============================================================================
+// Promotions / Khuyen mai
+// ============================================================================
+
+model Promotion {
+  id             String          @id @default(cuid())
+  code           String          @unique
+  name           String
+  type           PromotionType
+  status         PromotionStatus @default(DRAFT)
+  priority       Int             @default(0)
+  description    String?
+  startsAt       DateTime?
+  endsAt         DateTime?
+  branchIds      Json?
+  customerGroupIds Json?
+  conditions     Json?
+  reward         Json
+  allowStacking  Boolean         @default(false)
+  usageLimit     Int?
+  redeemedCount  Int             @default(0)
+  budgetLimit    Float?
+  budgetUsed     Float           @default(0)
+  createdBy      String?
+  updatedBy      String?
+  activatedAt    DateTime?
+  archivedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  schedules      PromotionSchedule[]
+  voucherBatches PromotionVoucherBatch[]
+  voucherCodes   PromotionVoucherCode[]
+  redemptions    PromotionRedemption[]
+  assets         PromotionAsset[]
+
+  @@index([status])
+  @@index([type])
+  @@index([startsAt])
+  @@index([endsAt])
+  @@map("promotions")
+}
+
+model PromotionCondition {
+  id          String   @id @default(cuid())
+  promotionId String
+  kind        String
+  payload     Json
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([promotionId])
+  @@index([kind])
+  @@map("promotion_conditions")
+}
+
+model PromotionReward {
+  id          String   @id @default(cuid())
+  promotionId String
+  kind        String
+  payload     Json
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([promotionId])
+  @@index([kind])
+  @@map("promotion_rewards")
+}
+
+model PromotionSchedule {
+  id          String   @id @default(cuid())
+  promotionId String
+  months      Json?
+  monthDays   Json?
+  weekdays    Json?
+  timeRanges  Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@index([promotionId])
+  @@map("promotion_schedules")
+}
+
+model PromotionVoucherBatch {
+  id          String   @id @default(cuid())
+  promotionId String
+  name        String
+  prefix      String?
+  quantity    Int      @default(0)
+  usageLimitPerCode Int @default(1)
+  customerId  String?
+  expiresAt   DateTime?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  codes       PromotionVoucherCode[]
+
+  @@index([promotionId])
+  @@index([customerId])
+  @@map("promotion_voucher_batches")
+}
+
+model PromotionVoucherCode {
+  id          String              @id @default(cuid())
+  promotionId String
+  batchId     String?
+  code        String              @unique
+  status      PromotionVoucherStatus @default(ACTIVE)
+  customerId  String?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  usageLimit  Int                 @default(1)
+  redeemedCount Int               @default(0)
+  lastRedeemedAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  promotion   Promotion           @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  batch       PromotionVoucherBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  redemptions PromotionRedemption[]
+
+  @@index([promotionId])
+  @@index([batchId])
+  @@index([customerId])
+  @@index([status])
+  @@map("promotion_voucher_codes")
+}
+
+model PromotionRedemption {
+  id             String   @id @default(cuid())
+  promotionId    String
+  voucherCodeId  String?
+  orderId        String?
+  orderNumber    String?
+  customerId     String?
+  branchId       String?
+  staffId        String?
+  discountAmount Float    @default(0)
+  giftValue      Float    @default(0)
+  snapshot       Json
+  source         String   @default("ORDER")
+  createdAt      DateTime @default(now())
+  promotion      Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  voucherCode    PromotionVoucherCode? @relation(fields: [voucherCodeId], references: [id], onDelete: SetNull)
+
+  @@index([promotionId])
+  @@index([voucherCodeId])
+  @@index([orderId])
+  @@index([customerId])
+  @@index([branchId])
+  @@index([staffId])
+  @@index([createdAt])
+  @@map("promotion_redemptions")
+}
+
+model PromotionAsset {
+  id          String   @id @default(cuid())
+  promotionId String?
+  kind        String
+  title       String?
+  imageUrl    String
+  templateKey String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@index([promotionId])
+  @@index([kind])
+  @@index([isActive])
+  @@map("promotion_assets")
 }
 
 // ============================================================================
@@ -1964,6 +2152,29 @@ enum PaymentStatus {
   PAID
   COMPLETED
   REFUNDED
+}
+
+enum PromotionType {
+  DISCOUNT
+  BUY_X_GET_Y
+  VOUCHER
+  BIRTHDAY
+  AUTO_VOUCHER
+}
+
+enum PromotionStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  EXPIRED
+  ARCHIVED
+}
+
+enum PromotionVoucherStatus {
+  ACTIVE
+  LOCKED
+  REDEEMED
+  EXPIRED
 }
 
 enum StaffRole {

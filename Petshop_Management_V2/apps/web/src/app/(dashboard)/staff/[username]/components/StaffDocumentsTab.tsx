@@ -11,12 +11,19 @@ import {
 import { QuickUploadGrid } from './DocumentUploadZone'
 import { DocumentList } from './DocumentList'
 import { DocumentPreviewModal } from './DocumentPreviewModal'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 interface StaffDocumentsTabProps {
   userId: string
+  isSelfProfile?: boolean
+  canManageDocuments?: boolean
 }
 
-export function StaffDocumentsTab({ userId }: StaffDocumentsTabProps) {
+export function StaffDocumentsTab({
+  userId,
+  isSelfProfile = false,
+  canManageDocuments = false,
+}: StaffDocumentsTabProps) {
   const [documents, setDocuments] = useState<EmployeeDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -26,7 +33,7 @@ export function StaffDocumentsTab({ userId }: StaffDocumentsTabProps) {
   const loadDocuments = useCallback(async () => {
     try {
       setLoading(true)
-      const data = await staffApi.getDocuments(userId)
+      const data = isSelfProfile ? await staffApi.getSelfDocuments() : await staffApi.getDocuments(userId)
       setDocuments(data)
       setError(null)
     } catch (err: any) {
@@ -34,24 +41,26 @@ export function StaffDocumentsTab({ userId }: StaffDocumentsTabProps) {
     } finally {
       setLoading(false)
     }
-  }, [userId])
+  }, [isSelfProfile, userId])
 
   useEffect(() => {
     void loadDocuments()
   }, [loadDocuments])
 
   const handleUpload = async (file: File, type: DocumentType) => {
+    if (!canManageDocuments) return
+
     // Validate file size (10MB)
     const MAX_SIZE = 10 * 1024 * 1024
     if (file.size > MAX_SIZE) {
-      alert('File quá lớn. Tối đa 10MB.')
+      toast.error('File quá lớn. Tối đa 10MB.')
       return
     }
 
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
     if (!allowedTypes.includes(file.type)) {
-      alert('Loại file không được hỗ trợ. Chỉ chấp nhận ảnh (JPEG, PNG, WebP) và PDF.')
+      toast.error('Loại file không được hỗ trợ. Chỉ chấp nhận ảnh (JPEG, PNG, WebP) và PDF.')
       return
     }
 
@@ -61,8 +70,9 @@ export function StaffDocumentsTab({ userId }: StaffDocumentsTabProps) {
       const uploadData: UploadDocumentDto = { type }
       await staffApi.uploadDocument(userId, file, uploadData)
       await loadDocuments()
+      toast.success('Đã tải tài liệu lên')
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Tải lên thất bại')
+      toast.error(err?.response?.data?.message || 'Tải lên thất bại')
     } finally {
       setUploadingTypes((prev) => {
         const next = new Set(prev)
@@ -73,11 +83,14 @@ export function StaffDocumentsTab({ userId }: StaffDocumentsTabProps) {
   }
 
   const handleDelete = async (docId: string) => {
+    if (!canManageDocuments) return
+
     try {
       await staffApi.deleteDocument(userId, docId)
       await loadDocuments()
+      toast.success('Đã xóa tài liệu')
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Xóa thất bại')
+      toast.error(err?.response?.data?.message || 'Xóa thất bại')
     }
   }
 
@@ -110,12 +123,13 @@ export function StaffDocumentsTab({ userId }: StaffDocumentsTabProps) {
   return (
     <div className="space-y-6">
       {/* Quick Upload Section */}
-      <QuickUploadGrid onUpload={handleUpload} uploadingTypes={uploadingTypes} />
+      {canManageDocuments && <QuickUploadGrid onUpload={handleUpload} uploadingTypes={uploadingTypes} />}
 
       {/* Document List */}
       <DocumentList
         documents={documents}
-        onDelete={handleDelete}
+        canDelete={canManageDocuments}
+        onDelete={canManageDocuments ? handleDelete : undefined}
         onView={(doc) => setPreviewDoc(doc)}
       />
 

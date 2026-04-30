@@ -5,11 +5,12 @@ import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 interface ChangePasswordModalProps {
   staffId: string
+  selfUpdate?: boolean
   onClose: () => void
   onSuccess: () => void
 }
 
-export function ChangePasswordModal({ staffId, onClose, onSuccess }: ChangePasswordModalProps) {
+export function ChangePasswordModal({ staffId, selfUpdate = false, onClose, onSuccess }: ChangePasswordModalProps) {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -27,7 +28,11 @@ export function ChangePasswordModal({ staffId, onClose, onSuccess }: ChangePassw
 
     try {
       setLoading(true)
-      await staffApi.update(staffId, { password })
+      if (selfUpdate) {
+        await staffApi.updateSelf({ password })
+      } else {
+        await staffApi.update(staffId, { password })
+      }
       toast.success('Đổi mật khẩu thành công')
       onSuccess()
     } catch (error) {
@@ -56,7 +61,7 @@ export function ChangePasswordModal({ staffId, onClose, onSuccess }: ChangePassw
         <div className="p-6">
           <div className="mb-6 rounded-lg bg-blue-900/20 border border-blue-800/50 p-4 flex gap-3 text-sm text-blue-200">
             <span>🔑</span>
-            <p>Admin: đặt mật khẩu mới không cần mật khẩu cũ.</p>
+            <p>{selfUpdate ? 'Nhập mật khẩu mới cho tài khoản của bạn.' : 'Admin: đặt mật khẩu mới không cần mật khẩu cũ.'}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">

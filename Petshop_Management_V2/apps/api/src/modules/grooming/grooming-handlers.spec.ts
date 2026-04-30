@@ -90,7 +90,8 @@ const mockOrderItems = [
     },
 ]
 
-const mockDb = {
+const mockDb: any = {
+    $transaction: jest.fn((callback) => callback(mockDb)),
     groomingSession: {
         create: jest.fn().mockResolvedValue({ ...mockSession, pet: mockPet, staff: null, assignedStaff: [], order: null, branch: mockBranch }),
         findMany: jest.fn().mockResolvedValue([{ ...mockSession, pet: mockPet, staff: null, assignedStaff: [], order: mockOrder, branch: mockBranch, orderItems: mockOrderItems }]),
@@ -104,6 +105,12 @@ const mockDb = {
     serviceWeightBand: { findMany: jest.fn().mockResolvedValue([]) },
     spaPriceRule: {
         findMany: jest.fn().mockResolvedValue([mockPriceRule]),
+    },
+    groomingTimeline: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    orderItem: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
 }
 

@@ -19,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DataListBulkBar, TableCheckbox, useDataListSelection } from '@petshop/ui/data-list'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type StoredAssetStatus = 'ACTIVE' | 'ORPHANED' | 'DELETED'
 type FileManagerStatus = StoredAssetStatus | 'LEGACY' | 'all'
@@ -319,16 +320,16 @@ export function TabStorageAssets() {
     })
   }
 
-  const confirmDelete = (asset: StoredAsset) => {
-    if (!window.confirm(`Xóa vĩnh viễn file "${asset.originalName}"? File trên Drive/local và metadata DB sẽ bị xóa thật.`)) {
+  const confirmDelete = async (asset: StoredAsset) => {
+    if (!(await confirmDialog(`Xóa vĩnh viễn file "${asset.originalName}"? File trên Drive/local và metadata DB sẽ bị xóa thật.`))) {
       return
     }
     deleteMutation.mutate(asset.id)
   }
 
-  const confirmBulkDelete = () => {
+  const confirmBulkDelete = async () => {
     if (selectedStoredIds.length === 0) return
-    if (!window.confirm(`Xóa vĩnh viễn ${selectedStoredIds.length} file đã chọn? File trên Drive/local và metadata DB sẽ bị xóa thật.`)) {
+    if (!(await confirmDialog(`Xóa vĩnh viễn ${selectedStoredIds.length} file đã chọn? File trên Drive/local và metadata DB sẽ bị xóa thật.`))) {
       return
     }
     bulkDeleteMutation.mutate(selectedStoredIds)

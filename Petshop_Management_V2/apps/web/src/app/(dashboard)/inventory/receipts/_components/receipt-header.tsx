@@ -26,6 +26,7 @@ import { SUPPLIER_RECEIPT_DRAFT_KEY } from './receipt/receipt.constants'
 import { SupplierQuickDraftPayload } from './receipt/receipt.types'
 import { getReceiptStatusView , fmt } from './receipt/receipt.utils'
 import { useReceiptForm } from './receipt/use-receipt-form'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 interface ReceiptHeaderProps {
   form: ReturnType<typeof useReceiptForm>
@@ -395,8 +396,8 @@ export function ReceiptHeader({ form }: ReceiptHeaderProps) {
                 <button
                   type="button"
                   className="btn-outline border-error/30 text-error hover:bg-error/10 h-9 px-4"
-                  onClick={() => {
-                    if (window.confirm('Bạn có chắc chắn muốn hủy phiếu nhập này?')) {
+                  onClick={async () => {
+                    if (await confirmDialog('Bạn có chắc chắn muốn hủy phiếu nhập này?')) {
                       cancelMutation.mutate()
                     }
                   }}

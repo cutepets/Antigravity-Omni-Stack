@@ -181,8 +181,14 @@ export class AuthService {
   async login(dto: LoginDto): Promise<LoginResponse> {
     await this.bootstrapService?.ensureDefaultSuperAdmin()
 
+    const loginIdentifier = dto.username.trim()
     const user = await this.db.user.findFirst({
-      where: { username: dto.username },
+      where: {
+        OR: [
+          { username: loginIdentifier },
+          { phone: loginIdentifier },
+        ],
+      },
       select: {
         id: true,
         username: true,

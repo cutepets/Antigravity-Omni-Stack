@@ -436,6 +436,32 @@ describe('Pet CQRS Handlers', () => {
 
       expect(petRepo.findAll.mock.calls[0][0].branchIds).toBeUndefined()
     })
+
+    it('returns owner summary from pet list snapshots', async () => {
+      const petRepo = makePetRepo()
+      const referenceLookup = makeReferenceLookup()
+      const accessPolicy = new PetAccessPolicy(referenceLookup as any)
+      petRepo.findAll.mockResolvedValue({
+        data: [
+          makePetEntity(makePetSnapshot({
+            customer: { id: 'customer-1', fullName: 'Nguyen Van A', phone: '0900000001' },
+          })),
+        ],
+        total: 1,
+      })
+
+      const { FindPetsHandler } = await import('./application/queries/find-pets/find-pets.handler')
+      const { FindPetsQuery } = await import('./application/queries/find-pets/find-pets.query')
+      const handler = new FindPetsHandler(petRepo, accessPolicy)
+
+      const result = await handler.execute(new FindPetsQuery({ page: 1, limit: 10 }, makeActor()))
+
+      expect(result.data[0]!.customer).toEqual({
+        id: 'customer-1',
+        fullName: 'Nguyen Van A',
+        phone: '0900000001',
+      })
+    })
   })
 
   describe('PetAccessPolicy', () => {

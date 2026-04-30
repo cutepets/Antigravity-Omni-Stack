@@ -10,10 +10,12 @@ import {
   UseInterceptors,
   UploadedFile,
   Query,
+  Req,
   Res,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger'
+import type { Request } from 'express'
 import { createReadStream, existsSync } from 'fs'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
@@ -28,7 +30,7 @@ import {
 import { resolvePrivateStorageKey } from '../../common/utils/private-storage.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { StorageService } from '../storage/storage.service.js'
-import { BulkUpdateStaffDto, CreateStaffDto, StaffService, UpdateStaffDto } from './staff.service.js'
+import { BulkUpdateStaffDto, CreateStaffDto, StaffService, UpdateSelfStaffDto, UpdateStaffDto } from './staff.service.js'
 import { UploadDocumentDto } from './dto/document.dto.js'
 import type { DocumentType } from '@petshop/database'
 import type { AuthUser } from '@petshop/shared'
@@ -75,6 +77,50 @@ export class StaffController {
   @ApiOperation({ summary: 'Cap nhat hang loat chi nhanh, gio lam, luong va loai hinh' })
   bulkUpdate(@Body() body: { ids?: string[]; updates?: BulkUpdateStaffDto }) {
     return this.staffService.bulkUpdate(body.ids, body.updates ?? {})
+  }
+
+  @Get('me')
+  @ApiOperation({ summary: 'Lay ho so nhan vien cua nguoi dung hien tai' })
+  findSelf(@Req() req: Request & { user?: { userId?: string } }) {
+    return this.staffService.findById(req.user!.userId!)
+  }
+
+  @Patch('me')
+  @ApiOperation({ summary: 'Nhan vien tu cap nhat avatar, mat khau va tai khoan nhan luong' })
+  updateSelf(@Req() req: Request & { user?: { userId?: string } }, @Body() dto: UpdateSelfStaffDto) {
+    return this.staffService.updateSelf(req.user!.userId!, dto)
+  }
+
+  @Get('me/documents')
+  @ApiOperation({ summary: 'Lay tai lieu cua nguoi dung hien tai' })
+  getSelfDocuments(@Req() req: Request & { user?: { userId?: string } }) {
+    return this.staffService.getDocuments(req.user!.userId!)
+  }
+
+  @Get('me/performance')
+  @ApiOperation({ summary: 'Lay chi so hieu suat cua nguoi dung hien tai' })
+  getSelfPerformance(
+    @Req() req: Request & { user?: { userId?: string } },
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    return this.staffService.getPerformanceMetrics(
+      req.user!.userId!,
+      month ? parseInt(month) : undefined,
+      year ? parseInt(year) : undefined,
+    )
+  }
+
+  @Get('me/branch-roles')
+  @ApiOperation({ summary: 'Lay vai tro theo chi nhanh cua nguoi dung hien tai' })
+  getSelfBranchRoles(@Req() req: Request & { user?: { userId?: string } }) {
+    return this.staffService.getBranchRoles(req.user!.userId!)
+  }
+
+  @Get('me/activity-logs')
+  @ApiOperation({ summary: 'Lay lich su hoat dong cua nguoi dung hien tai' })
+  getSelfActivityLogs(@Req() req: Request & { user?: { userId?: string } }, @Query('limit') limit?: string) {
+    return this.staffService.getActivityLogs(req.user!.userId!, limit ? Number(limit) : undefined)
   }
 
   // =========================================================================
@@ -182,7 +228,7 @@ export class StaffController {
       }
     } catch (e: any) {
       res.setHeader('Content-Type', 'text/plain')
-      res.setHeader('Content-Disposition', `attachment; filename="mock_${encodeURIComponent(doc.fileName)}"`)
+      res.setHeader('Content-Disposition', `attachment; filename="error_${encodeURIComponent(doc.fileName)}"`)
       res.send('Could not fetch remote file. Error: ' + String(e))
     }
   }
@@ -218,6 +264,13 @@ export class StaffController {
   @ApiOperation({ summary: 'Lấy vai trò theo chi nhánh của nhân viên' })
   getBranchRoles(@Param('id') id: string) {
     return this.staffService.getBranchRoles(id)
+  }
+
+  @Get(':id/activity-logs')
+  @Permissions('staff.read')
+  @ApiOperation({ summary: 'Lay lich su hoat dong cua nhan vien' })
+  getActivityLogs(@Param('id') id: string, @Query('limit') limit?: string) {
+    return this.staffService.getActivityLogs(id, limit ? Number(limit) : undefined)
   }
 
   // =========================================================================

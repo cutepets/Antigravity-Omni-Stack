@@ -14,6 +14,8 @@ import {
 import { useRouter } from 'next/navigation'
 import { stockCountApi } from '@/lib/api/stock-count.api'
 import { useAuthStore } from '@/stores/auth.store'
+import { confirmDialog, promptDialog } from '@/components/ui/confirmation-provider'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 const DAY_ORDER = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const DAY_LABELS: Record<string, string> = {
@@ -121,7 +123,7 @@ export function SessionDetailClient({ sessionId }: { sessionId: string }) {
 
   const handleClaimShift = async () => {
     if (!selectedDate) {
-      alert('Vui lòng chọn ngày kiểm.')
+      toast.error('Vui lòng chọn ngày kiểm.')
       return
     }
 
@@ -130,36 +132,36 @@ export function SessionDetailClient({ sessionId }: { sessionId: string }) {
     } catch (error: any) {
       const message =
         error?.response?.data?.message ?? 'Không thể nhận ca kiểm ngẫu nhiên cho ngày đã chọn.'
-      alert(Array.isArray(message) ? message.join('\n') : message)
+      toast.error(Array.isArray(message) ? message.join('\n') : message)
     }
   }
 
   const handleApprove = async () => {
-    if (!confirm('Duyệt phiếu kiểm và áp chênh lệch vào tồn kho hiện tại?')) {
+    if (!(await confirmDialog('Duyệt phiếu kiểm và áp chênh lệch vào tồn kho hiện tại?'))) {
       return
     }
 
     try {
       await approveMutation.mutateAsync()
-      alert('Phiếu kiểm đã được duyệt.')
+      toast.success('Phiếu kiểm đã được duyệt.')
     } catch (error: any) {
       const message = error?.response?.data?.message ?? 'Không thể duyệt phiếu kiểm.'
-      alert(Array.isArray(message) ? message.join('\n') : message)
+      toast.error(Array.isArray(message) ? message.join('\n') : message)
     }
   }
 
   const handleReject = async () => {
-    const rejectionReason = prompt('Nhập lý do từ chối phiếu kiểm:')
+    const rejectionReason = await promptDialog('Nhập lý do từ chối phiếu kiểm:')
     if (!rejectionReason?.trim()) {
       return
     }
 
     try {
       await rejectMutation.mutateAsync(rejectionReason.trim())
-      alert('Phiếu kiểm đã bị từ chối.')
+      toast.success('Phiếu kiểm đã bị từ chối.')
     } catch (error: any) {
       const message = error?.response?.data?.message ?? 'Không thể từ chối phiếu kiểm.'
-      alert(Array.isArray(message) ? message.join('\n') : message)
+      toast.error(Array.isArray(message) ? message.join('\n') : message)
     }
   }
 

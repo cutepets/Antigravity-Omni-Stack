@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { settingsApi, type BankTransactionInboxItem } from '@/lib/api/settings.api'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 function formatDateTime(value: string | null) {
   if (!value) return 'Chưa có'
@@ -88,9 +89,9 @@ export function BankTransactionsTab({ canManagePayment }: Props) {
     [records],
   )
 
-  const handleDelete = (transaction: BankTransactionInboxItem) => {
+  const handleDelete = async (transaction: BankTransactionInboxItem) => {
     if (!transaction.isTest || !canManagePayment || deleteMutation.isPending) return
-    const confirmed = window.confirm(`Xoá dữ liệu test ${transaction.id}?`)
+    const confirmed = await confirmDialog(`Xoá dữ liệu test ${transaction.id}?`)
     if (!confirmed) return
     deleteMutation.mutate(transaction.id)
   }

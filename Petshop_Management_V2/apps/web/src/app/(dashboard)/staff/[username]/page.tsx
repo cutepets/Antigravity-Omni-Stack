@@ -24,14 +24,17 @@ import dayjs from 'dayjs'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { Staff, staffApi, UpdateStaffDto } from '@/lib/api/staff.api'
 import { ChangePasswordModal } from '../components/ChangePasswordModal'
+import { SelfProfileModal } from '../components/SelfProfileModal'
 import { StaffFormModal } from '../components/StaffFormModal'
+import { formatShiftTimeRange } from '../components/shift-time'
 import { UpdateStatusModal } from '../components/UpdateStatusModal'
 import { StaffDocumentsTab } from './components/StaffDocumentsTab'
 import { StaffTimekeepingTab } from './components/StaffTimekeepingTab'
 import { StaffSalaryTab } from './components/StaffSalaryTab'
 import { StaffHistoryTab } from './components/StaffHistoryTab'
 import { PerformanceChart, MonthlyPerformance } from './components/PerformanceChart'
-import { api } from '@/lib/api'
+import { api, settingsApi } from '@/lib/api'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 
 type StaffDetailTab = 'OVERVIEW' | 'TIMEKEEPING' | 'SALARY' | 'DOCS' | 'HISTORY'
@@ -47,24 +50,33 @@ interface BranchRole {
   branch: string
 }
 
+interface BranchOption {
+  id: string
+  name: string
+  address?: string | null
+}
+
 export default function StaffDetailPage() {
   const params = useParams()
   const router = useRouter()
   const username = params.username as string
 
-  const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const { user, hasPermission, isLoading: isAuthLoading } = useAuthorization()
   const canViewStaff = hasPermission('staff.read')
   const canUpdateStaff = hasPermission('staff.update')
   const canDeactivateStaff = hasPermission('staff.deactivate')
+  const isOwnProfileRoute = user?.username === username || user?.id === username
 
   const [staff, setStaff] = useState<Staff | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<StaffDetailTab>('OVERVIEW')
   const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [showSelfProfileModal, setShowSelfProfileModal] = useState(false)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showStatusModal, setShowStatusModal] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [roles, setRoles] = useState<any[]>([])
+  const [branches, setBranches] = useState<BranchOption[]>([])
 
   const [performance, setPerformance] = useState<StaffPerformance>({
     monthlyRevenue: 0,
@@ -82,16 +94,18 @@ export default function StaffDetailPage() {
 
     try {
       setLoading(true)
-      const [data, perfData, rolesData, allRolesRes] = await Promise.all([
-        staffApi.getById(username),
-        staffApi.getPerformance(username).catch(() => null),
-        staffApi.getBranchRoles(username).catch(() => []),
-        api.get('/roles').catch(() => ({ data: { data: [] } })),
+      const [data, perfData, rolesData, allRolesRes, branchData] = await Promise.all([
+        isOwnProfileRoute ? staffApi.getSelf() : staffApi.getById(username),
+        isOwnProfileRoute ? staffApi.getSelfPerformance().catch(() => null) : staffApi.getPerformance(username).catch(() => null),
+        isOwnProfileRoute ? staffApi.getSelfBranchRoles().catch(() => []) : staffApi.getBranchRoles(username).catch(() => []),
+        canUpdateStaff ? api.get('/roles').catch(() => ({ data: { data: [] } })) : Promise.resolve({ data: { data: [] } }),
+        canUpdateStaff ? settingsApi.getBranches().catch(() => []) : Promise.resolve([]),
       ])
       setStaff(data)
       if (allRolesRes && (allRolesRes.data?.data || allRolesRes.data)) {
         setRoles(allRolesRes.data.data || allRolesRes.data || [])
       }
+      setBranches(Array.isArray(branchData) ? branchData : [])
 
       if (perfData) {
         setPerformance({
@@ -107,23 +121,23 @@ export default function StaffDetailPage() {
       setBranchRoles(rolesData)
     } catch (error) {
       console.error(error)
-      alert('Không tìm thấy nhân viên')
+      toast.error('Không tìm thấy nhân viên')
       router.push('/staff')
     } finally {
       setLoading(false)
     }
-  }, [username, router])
+  }, [username, isOwnProfileRoute, canUpdateStaff, router])
 
   useEffect(() => {
     if (isAuthLoading) return
 
-    if (!canViewStaff) {
+    if (!canViewStaff && !isOwnProfileRoute) {
       router.replace('/dashboard')
       return
     }
 
     void loadStaff()
-  }, [canViewStaff, isAuthLoading, router, loadStaff])
+  }, [canViewStaff, isAuthLoading, isOwnProfileRoute, router, loadStaff])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -138,9 +152,22 @@ export default function StaffDetailPage() {
   }
 
   const getTenure = (joinDate: string | null | undefined) => {
-    if (!joinDate) return '0 tháng'
-    const months = dayjs().diff(dayjs(joinDate), 'month')
-    return `${months} tháng`
+    if (!joinDate) return '--'
+
+    const startedAt = dayjs(joinDate)
+    if (!startedAt.isValid()) return '--'
+
+    const totalMonths = dayjs().startOf('day').diff(startedAt.startOf('day'), 'month')
+    if (totalMonths < 0) return '--'
+
+    const years = Math.floor(totalMonths / 12)
+    const months = totalMonths % 12
+    const parts: string[] = []
+
+    if (years > 0) parts.push(`${years} năm`)
+    if (months > 0 || parts.length === 0) parts.push(`${months} tháng`)
+
+    return parts.join(' ')
   }
 
   if (isAuthLoading || loading) {
@@ -151,7 +178,7 @@ export default function StaffDetailPage() {
     )
   }
 
-  if (!canViewStaff) {
+  if (!canViewStaff && !isOwnProfileRoute) {
     return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang chuyển hướng...</div>
   }
 
@@ -159,7 +186,8 @@ export default function StaffDetailPage() {
     return null
   }
 
-  const canShowActions = canUpdateStaff || canDeactivateStaff
+  const isSelfProfile = user?.id === staff.id || user?.username === staff.username
+  const canShowActions = isSelfProfile || canUpdateStaff || canDeactivateStaff
 
   return (
     <div className="min-h-screen w-full">
@@ -175,7 +203,7 @@ export default function StaffDetailPage() {
 
           {canShowActions && (
             <div className="flex items-center gap-2">
-              {canUpdateStaff && (
+              {isSelfProfile && (
                 <>
                   <button
                     onClick={() => setShowPasswordModal(true)}
@@ -184,6 +212,26 @@ export default function StaffDetailPage() {
                   >
                     <Key size={16} />
                   </button>
+                  <button
+                    onClick={() => setShowSelfProfileModal(true)}
+                    className="flex h-9 items-center gap-2 rounded-lg bg-primary-500 px-4 text-white transition-colors hover:bg-primary-600"
+                  >
+                    <Edit size={15} />
+                    <span className="text-sm font-medium">Cập nhật cá nhân</span>
+                  </button>
+                </>
+              )}
+              {canUpdateStaff && (
+                <>
+                  {!isSelfProfile && (
+                    <button
+                      onClick={() => setShowPasswordModal(true)}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background-secondary text-foreground-muted transition-colors hover:bg-background-tertiary"
+                      title="Đổi mật khẩu"
+                    >
+                      <Key size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowUpdateModal(true)}
                     className="flex h-9 items-center gap-2 rounded-lg bg-primary-500 px-4 text-white transition-colors hover:bg-primary-600"
@@ -292,7 +340,7 @@ export default function StaffDetailPage() {
                 { id: 'SALARY', label: 'Lương & Thưởng', icon: DollarSign },
                 { id: 'DOCS', label: 'Tài liệu', icon: FileText },
                 { id: 'HISTORY', label: 'Lịch sử', icon: History },
-              ].map((tab) => {
+              ].filter((tab) => tab.id !== 'TIMEKEEPING' && tab.id !== 'SALARY').map((tab) => {
                 const Icon = tab.icon
                 const isActive = activeTab === tab.id
                 return (
@@ -357,11 +405,11 @@ export default function StaffDetailPage() {
                   <div className="space-y-4 text-sm">
                     {[
                       { label: 'Ngày vào làm', value: formatDate(staff.joinDate) },
-                      { label: 'Giờ làm việc', value: `${staff.shiftStart || '08:00'} → ${staff.shiftEnd || '17:00'}`, bold: true },
+                      { label: 'Giờ làm việc', value: formatShiftTimeRange(staff.shiftStart, staff.shiftEnd), bold: true },
                     ].map((item) => (
                       <div key={item.label} className="flex items-center justify-between">
                         <span className="text-foreground-muted">{item.label}:</span>
-                        <span className={item.bold ? 'font-bold text-foreground' : 'font-medium text-foreground'}>{item.value}</span>
+                        <span className={item.bold ? 'whitespace-nowrap font-bold text-foreground' : 'font-medium text-foreground'}>{item.value}</span>
                       </div>
                     ))}
                     <div className="flex items-center justify-between">
@@ -380,6 +428,14 @@ export default function StaffDetailPage() {
                         {staff.spaCommissionRate ? `${staff.spaCommissionRate}%` : '--%'}
                       </span>
                     </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-foreground-muted">Ngân hàng:</span>
+                      <span className="font-medium text-foreground">{staff.salaryBankName || '--'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-foreground-muted">STK nhận lương:</span>
+                      <span className="font-mono font-medium text-foreground">{staff.salaryBankAccount || '--'}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -395,9 +451,9 @@ export default function StaffDetailPage() {
           ) : activeTab === 'SALARY' ? (
             staff && <StaffSalaryTab userId={staff.id} staffName={staff.fullName} />
           ) : activeTab === 'DOCS' ? (
-            staff && <StaffDocumentsTab userId={staff.id} />
+            staff && <StaffDocumentsTab userId={staff.id} isSelfProfile={isSelfProfile} canManageDocuments={canUpdateStaff} />
           ) : activeTab === 'HISTORY' ? (
-            staff && <StaffHistoryTab userId={staff.id} />
+            staff && <StaffHistoryTab userId={staff.id} isSelfProfile={isSelfProfile} />
           ) : (
             <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-background-secondary p-12">
               <Activity size={48} className="mb-4 text-foreground-muted/30" />
@@ -413,6 +469,7 @@ export default function StaffDetailPage() {
             onClose={() => setShowUpdateModal(false)}
             initialData={staff}
             roles={roles}
+            branches={branches}
             onSave={async (data) => {
               await staffApi.update(staff.id, data as UpdateStaffDto)
               setShowUpdateModal(false)
@@ -421,11 +478,28 @@ export default function StaffDetailPage() {
           />
         )}
 
+        {showSelfProfileModal && staff && (
+          <SelfProfileModal
+            isOpen={showSelfProfileModal}
+            staff={staff}
+            onClose={() => setShowSelfProfileModal(false)}
+            onSave={async (data) => {
+              await staffApi.updateSelf(data)
+              setShowSelfProfileModal(false)
+              void loadStaff()
+            }}
+          />
+        )}
+
         {showPasswordModal && staff && (
           <ChangePasswordModal
             staffId={staff.id}
+            selfUpdate={isSelfProfile}
             onClose={() => setShowPasswordModal(false)}
-            onSuccess={() => setShowPasswordModal(false)}
+            onSuccess={() => {
+              setShowPasswordModal(false)
+              void loadStaff()
+            }}
           />
         )}
 

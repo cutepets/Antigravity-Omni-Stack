@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 import Image from 'next/image';
 
 import { useEffect, useMemo, useState } from 'react'
@@ -31,6 +31,7 @@ import {
 } from '@petshop/ui/data-list'
 import { SupplierFormModal } from './supplier-form-modal'
 import { SupplierDetailDrawer } from './supplier-detail-drawer'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 
 type DisplayColumnId = 'name' | 'contact' | 'activity' | 'score' | 'debt'
@@ -50,11 +51,11 @@ interface SupplierListProps {
 }
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
-  { id: 'name', label: 'NhÃ  cung cáº¥p', sortable: true, minWidth: 'min-w-[220px]' },
-  { id: 'contact', label: 'LiÃªn há»‡', width: 'w-56' },
-  { id: 'activity', label: 'Hoáº¡t Ä‘á»™ng nháº­p', sortable: true, minWidth: 'min-w-[220px]' },
-  { id: 'score', label: 'ÄÃ¡nh giÃ¡', sortable: true, width: 'w-44' },
-  { id: 'debt', label: 'CÃ´ng ná»£', sortable: true, width: 'w-44' },
+  { id: 'name', label: 'Nhà cung cấp', sortable: true, minWidth: 'min-w-[220px]' },
+  { id: 'contact', label: 'Liên hệ', width: 'w-56' },
+  { id: 'activity', label: 'Hoạt động nhập', sortable: true, minWidth: 'min-w-[220px]' },
+  { id: 'score', label: 'Đánh giá', sortable: true, width: 'w-44' },
+  { id: 'debt', label: 'Công nợ', sortable: true, width: 'w-44' },
 ]
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(COLUMN_OPTIONS.filter((column) => column.sortable).map((column) => column.id))
@@ -65,7 +66,7 @@ function formatCurrency(value: number | null | undefined) {
 }
 
 function formatDate(value: string | Date | null | undefined) {
-  if (!value) return 'ChÆ°a cÃ³'
+  if (!value) return 'Chưa có'
   return new Date(value).toLocaleDateString('vi-VN')
 }
 
@@ -359,11 +360,11 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
   }
 
   if (isAuthLoading) {
-    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang kiem tra quyen truy cap...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang kiểm tra quyền truy cập...</div>
   }
 
   if (!canReadSuppliers) {
-    return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
+    return <div className="flex h-64 items-center justify-center text-foreground-muted">Đang chuyển hướng...</div>
   }
 
   return (
@@ -371,11 +372,11 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
       <DataListShell>
         {reportSource === 'reports' ? (
           <div className="mx-4 mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-primary-500/15 bg-primary-500/5 px-4 py-3 text-sm text-foreground">
-            <span className="font-semibold text-primary-600">Dang mo tu bao cao</span>
+            <span className="font-semibold text-primary-600">Đang mở từ báo cáo</span>
             {scopedBranchId ? <span className="rounded-full bg-background px-3 py-1 text-xs">Chi nhanh: {scopedBranchId}</span> : null}
             {scopedDateFrom && scopedDateTo ? (
               <span className="rounded-full bg-background px-3 py-1 text-xs">
-                Pham vi ngay: {scopedDateFrom} den {scopedDateTo}
+                Phạm vi ngày: {scopedDateFrom} đến {scopedDateTo}
               </span>
             ) : null}
           </div>
@@ -384,22 +385,22 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
         <div className="grid gap-3 px-4 pt-1 md:grid-cols-2 xl:grid-cols-4">
           {[
             {
-              label: 'Tá»•ng nhÃ  cung cáº¥p',
+              label: 'Tổng nhà cung cấp',
               value: String(summary.totalSuppliers ?? 0),
               icon: Building2,
             },
             {
-              label: 'Äiá»ƒm Ä‘Ã¡nh giÃ¡ TB',
+              label: 'Điểm đánh giá TB',
               value: `${summary.avgEvaluationScore ?? 0}/100`,
               icon: ShieldCheck,
             },
             {
-              label: 'CÃ³ cÃ´ng ná»£',
+              label: 'Có công nợ',
               value: String(summary.suppliersWithDebt ?? 0),
               icon: Wallet,
             },
             {
-              label: 'Nháº­p 30 ngÃ y',
+              label: 'Nhập 30 ngày',
               value: formatCurrency(summary.spendLast30Days),
               icon: Activity,
             },
@@ -420,7 +421,7 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
             setSearch(value)
             setPage(1)
           }}
-          searchPlaceholder="TÃ¬m ID NCC, tÃªn, SÄT, email hoáº·c tráº¡ng thÃ¡i..."
+          searchPlaceholder="Tìm ID NCC, tên, SĐT, email hoặc trạng thái..."
           showColumnToggle={true}
           columnPanelContent={
             <DataListColumnPanel
@@ -440,7 +441,7 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
           extraActions={
             canCreateSupplier ? (
               <button type="button" onClick={handleCreate} className="btn-primary liquid-button h-11 rounded-xl px-4 text-sm">
-                <Plus size={15} /> ThÃªm nhÃ  cung cáº¥p
+                <Plus size={15} /> Thêm nhà cung cấp
               </button>
             ) : null
           }
@@ -450,7 +451,7 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
           columns={activeColumns}
           isLoading={isLoading}
           isEmpty={!isLoading && paginatedSuppliers.length === 0}
-          emptyText="KhÃ´ng tÃ¬m tháº¥y nhÃ  cung cáº¥p nÃ o."
+          emptyText="Không tìm thấy nhà cung cấp nào."
           allSelected={allVisibleSelected}
           onSelectAll={toggleSelectAllVisible}
           bulkBar={
@@ -466,17 +467,17 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
                     if (value) bulkUpdateMutation.mutate({ ids: selectedSupplierIds, updates: { isActive: value === 'ACTIVE' } })
                   }}
                 >
-                  <option value="" disabled>Trang thai</option>
-                  <option value="ACTIVE">Hoat dong</option>
-                  <option value="INACTIVE">Ngung</option>
+                  <option value="" disabled>Trạng thái</option>
+                  <option value="ACTIVE">Hoạt động</option>
+                  <option value="INACTIVE">Ngừng</option>
                 </select>
                 {isSuperAdmin() ? (
                   <button
                     type="button"
-                    aria-label="Xoa DB"
-                    title="Xoa DB"
-                    onClick={() => {
-                      if (window.confirm(`Xoa vinh vien ${selectedSupplierIds.length} nha cung cap da chon?`)) {
+                    aria-label="Xóa DB"
+                    title="Xóa DB"
+                    onClick={async () => {
+                      if (await confirmDialog(`Xóa vĩnh viễn ${selectedSupplierIds.length} nhà cung cấp đã chọn?`)) {
                         bulkDeleteMutation.mutate(selectedSupplierIds)
                       }
                     }}
@@ -528,16 +529,16 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
                                       : 'border-border bg-background text-foreground-muted'
                                   }`}
                                 >
-                                  {supplier.isActive !== false ? 'Active' : 'Paused'}
+                                  {supplier.isActive !== false ? 'Hoạt động' : 'Tạm ngưng'}
                                 </span>
                               </div>
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
                                 {supplier.code ? <span>{supplier.code}</span> : null}
-                                {supplier.code ? <span>â€¢</span> : null}
-                                <span>{supplier.evaluation?.label ?? 'ChÆ°a xáº¿p háº¡ng'}</span>
+                                {supplier.code ? <span>•</span> : null}
+                                <span>{supplier.evaluation?.label ?? 'Chưa xếp hạng'}</span>
                                 {supplier.address ? (
                                   <>
-                                    <span>â€¢</span>
+                                    <span>•</span>
                                     <span className="truncate">{supplier.address}</span>
                                   </>
                                 ) : null}
@@ -556,7 +557,7 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
                                 {supplier.phone}
                               </div>
                             ) : (
-                              <div className="text-foreground-muted">ChÆ°a cÃ³ SÄT</div>
+                              <div className="text-foreground-muted">Chưa có SĐT</div>
                             )}
                             {supplier.address ? (
                               <div className="flex items-start gap-1.5 text-foreground-muted">
@@ -572,14 +573,14 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
                         <td key={columnId} className="min-w-[220px] px-3 py-3">
                           <div className="space-y-1 text-sm">
                             <div className="font-semibold text-foreground">
-                              {Number(stats.totalOrders ?? 0).toLocaleString('vi-VN')} phiáº¿u â€¢ {formatCurrency(stats.totalSpent)}
+                              {Number(stats.totalOrders ?? 0).toLocaleString('vi-VN')} phiếu • {formatCurrency(stats.totalSpent)}
                             </div>
                             <div className="flex items-center gap-1.5 text-foreground-muted">
                               <CalendarClock size={13} />
-                              Gáº§n nháº¥t {formatDate(stats.lastOrderAt)}
+                              Gần nhất {formatDate(stats.lastOrderAt)}
                             </div>
                             <div className="text-xs text-foreground-muted">
-                              30 ngÃ y: {Number(stats.ordersLast30Days ?? 0)} phiáº¿u â€¢ {formatCurrency(stats.spendLast30Days)}
+                              30 ngày: {Number(stats.ordersLast30Days ?? 0)} phiếu • {formatCurrency(stats.spendLast30Days)}
                             </div>
                           </div>
                         </td>
@@ -591,9 +592,9 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
                             <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getScoreTone(score)}`}>
                               {score}/100
                             </span>
-                            <div className="text-sm font-medium text-foreground">{supplier.evaluation?.label ?? 'ChÆ°a Ä‘Ã¡nh giÃ¡'}</div>
+                            <div className="text-sm font-medium text-foreground">{supplier.evaluation?.label ?? 'Chưa đánh giá'}</div>
                             <div className="text-xs text-foreground-muted">
-                              CÃ´ng ná»£/tá»•ng nháº­p: {Math.round(Number(supplier.evaluation?.debtRatio ?? 0) * 100)}%
+                              Công nợ/tổng nhập: {Math.round(Number(supplier.evaluation?.debtRatio ?? 0) * 100)}%
                             </div>
                           </div>
                         </td>
@@ -605,7 +606,7 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
                             {formatCurrency(stats.totalDebt ?? supplier.debt)}
                           </div>
                           <div className="mt-1 text-xs text-foreground-muted">
-                            TB/phiáº¿u {formatCurrency(stats.avgOrderValue)}
+                            TB/phiếu {formatCurrency(stats.avgOrderValue)}
                           </div>
                         </td>
                       )
@@ -630,7 +631,7 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
               pageSizeOptions={[20, 50, 100]}
               totalItemText={
                 <span className="text-xs">
-                  Tá»•ng <strong className="text-foreground">{total}</strong> nhÃ  cung cáº¥p
+                  Tổng <strong className="text-foreground">{total}</strong> nhà cung cấp
                 </span>
               }
             />

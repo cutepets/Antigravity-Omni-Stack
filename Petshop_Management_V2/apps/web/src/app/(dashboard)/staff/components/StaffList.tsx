@@ -1,12 +1,13 @@
 'use client'
 import Image from 'next/image';
 
-import React, { useMemo, useState } from 'react'
+import React, { useDeferredValue, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { BriefcaseBusiness, Building2, CheckCircle2, Clock, DollarSign, MapPin, Phone, Filter, ShieldAlert, Pin, PinOff, Plus, XCircle, Trash2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { StaffImportExportDropdown } from '@/components/staff/StaffImportExportDropdown'
 import { BulkUpdateStaffDto, Staff } from '@/lib/api/staff.api'
+import { formatShiftTimeRange } from './shift-time'
 import {
 
   DataListShell,
@@ -52,6 +53,7 @@ type DisplayColumnId =
   | 'branch'
   | 'employmentType'
   | 'joinDate'
+  | 'seniority'
   | 'shift'
   | 'baseSalary'
   | 'spaCommission'
@@ -71,6 +73,7 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'branch', label: 'Chi nhánh', minWidth: 'min-w-[120px]' },
   { id: 'employmentType', label: 'Loại hình', sortable: true, width: 'w-28' },
   { id: 'joinDate', label: 'Ngày vào làm', sortable: true, width: 'w-32' },
+  { id: 'seniority', label: 'Thâm niên', sortable: true, width: 'w-32' },
   { id: 'shift', label: 'Ca làm', sortable: true, width: 'w-32' },
   { id: 'baseSalary', label: 'Lương cơ bản', sortable: true, minWidth: 'min-w-[140px]' },
   { id: 'spaCommission', label: '% Thưởng Spa', sortable: true, width: 'w-32' },
@@ -107,8 +110,32 @@ function formatEmploymentType(value?: string | null) {
   return value === 'PART_TIME' ? 'PART-TIME' : 'FULL-TIME'
 }
 
+function getSeniorityMonths(joinDate?: string | null) {
+  if (!joinDate) return null
+
+  const startedAt = dayjs(joinDate)
+  if (!startedAt.isValid()) return null
+
+  const totalMonths = dayjs().startOf('day').diff(startedAt.startOf('day'), 'month')
+  return totalMonths >= 0 ? totalMonths : null
+}
+
+function formatSeniority(joinDate?: string | null) {
+  const totalMonths = getSeniorityMonths(joinDate)
+  if (totalMonths === null) return '--'
+
+  const years = Math.floor(totalMonths / 12)
+  const months = totalMonths % 12
+  const parts: string[] = []
+
+  if (years > 0) parts.push(`${years} năm`)
+  if (months > 0 || parts.length === 0) parts.push(`${months} tháng`)
+
+  return parts.join(' ')
+}
+
 function formatShift(start?: string | null, end?: string | null) {
-  return `${start || '08:00'} → ${end || '17:00'}`
+  return formatShiftTimeRange(start, end)
 }
 
 export function StaffList({
@@ -130,6 +157,7 @@ export function StaffList({
   const router = useRouter()
 
   const [search, setSearch] = useState('')
+  const deferredSearch = useDeferredValue(search)
   const [roleFilter, setRoleFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
 
@@ -149,24 +177,24 @@ export function StaffList({
     initialColumnOrder: COLUMN_OPTIONS.map((c) => c.id),
     initialVisibleColumns: COLUMN_OPTIONS.map((c) => c.id),
     initialTopFilterVisibility: { role: true, status: true },
-    storageKey: 'staff-list-columns-v2',
+    storageKey: 'staff-list-columns-v3',
   })
 
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
 
   // Filter & Sort
   const processedStaff = useMemo(() => {
-    const normalizedQuery = search.trim().toLowerCase()
+    const normalizedQuery = deferredSearch.trim().toLowerCase()
 
     let filtered = staffList.filter((member) => {
       const matchesSearch =
         !normalizedQuery ||
         member.fullName.toLowerCase().includes(normalizedQuery) ||
         member.staffCode.toLowerCase().includes(normalizedQuery) ||
-        member.phone?.includes(search) ||
+        member.phone?.includes(deferredSearch) ||
         member.email?.toLowerCase().includes(normalizedQuery) ||
         member.identityCode?.toLowerCase().includes(normalizedQuery) ||
-        member.emergencyContactPhone?.includes(search) ||
+        member.emergencyContactPhone?.includes(deferredSearch) ||
         member.username.toLowerCase().includes(normalizedQuery)
 
       const matchesStatus = statusFilter === 'ALL' || member.status === statusFilter
@@ -201,6 +229,9 @@ export function StaffList({
           case 'joinDate':
             cmp = dayjs(a.joinDate || 0).valueOf() - dayjs(b.joinDate || 0).valueOf()
             break
+          case 'seniority':
+            cmp = Number(getSeniorityMonths(a.joinDate) || 0) - Number(getSeniorityMonths(b.joinDate) || 0)
+            break
           case 'shift':
             cmp = formatShift(a.shiftStart, a.shiftEnd).localeCompare(formatShift(b.shiftStart, b.shiftEnd), 'vi')
             break
@@ -221,7 +252,7 @@ export function StaffList({
     }
 
     return filtered
-  }, [staffList, search, statusFilter, roleFilter, columnSort])
+  }, [staffList, deferredSearch, statusFilter, roleFilter, columnSort])
 
   const total = processedStaff.length
   const totalPages = Math.ceil(total / pageSize) || 1
@@ -351,7 +382,7 @@ export function StaffList({
         }
         extraActions={
           <div className="flex items-center gap-2">
-            {onImported ? (
+            {onImported && canImportExcel ? (
               <StaffImportExportDropdown
                 canImport={canImportExcel}
                 onImported={onImported}
@@ -439,6 +470,26 @@ export function StaffList({
         emptyText="Không tìm thấy nhân viên nào phù hợp."
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
+        footer={
+          <DataListPagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            total={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+            pageSizeOptions={[20, 50, 100]}
+            attachedToTable
+            totalItemText={
+              <p className="shrink-0 text-xs text-foreground-muted">
+                Tổng <strong className="text-foreground">{total}</strong> nhân viên
+                {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
+              </p>
+            }
+          />
+        }
         bulkBar={
           selectedRowIds.size > 0 ? (
             <DataListBulkBar
@@ -599,9 +650,14 @@ export function StaffList({
                       {formatDate(staff.joinDate)}
                     </td>
                   )
+                  case 'seniority': return (
+                    <td key={colId} className="px-3 py-2.5 w-32 text-sm font-medium text-foreground-secondary">
+                      {formatSeniority(staff.joinDate)}
+                    </td>
+                  )
                   case 'shift': return (
-                    <td key={colId} className="px-3 py-2.5 w-32 text-sm font-semibold text-foreground">
-                      {formatShift(staff.shiftStart, staff.shiftEnd)}
+                    <td key={colId} className="min-w-[150px] px-3 py-2.5 text-sm font-semibold text-foreground">
+                      <span className="whitespace-nowrap">{formatShift(staff.shiftStart, staff.shiftEnd)}</span>
                     </td>
                   )
                   case 'baseSalary': return (
@@ -629,29 +685,6 @@ export function StaffList({
           )
         })}
       </DataListTable>
-
-      <div className="-mt-1 border-t-0">
-        <div className="rounded-b-2xl border border-border bg-card/95">
-          <DataListPagination
-            page={page}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            total={total}
-            rangeStart={rangeStart}
-            rangeEnd={rangeEnd}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
-            pageSizeOptions={[20, 50, 100]}
-            totalItemText={
-              <p className="shrink-0 text-xs text-foreground-muted">
-                Tổng <strong className="text-foreground">{total}</strong> nhân viên
-                {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
-              </p>
-            }
-          />
-        </div>
-      </div>
-
       {bulkAction ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeBulkAction}>
           <div

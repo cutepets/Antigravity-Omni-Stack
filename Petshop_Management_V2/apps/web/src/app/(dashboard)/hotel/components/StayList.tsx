@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { hotelApi, HotelStay } from '@/lib/api/hotel.api'
@@ -23,6 +23,7 @@ import {
   toolbarSelectClass,
 } from '@petshop/ui/data-list'
 import { Pin, PinOff, Trash2 } from 'lucide-react'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type DisplayColumnId = 'code' | 'pet' | 'customer' | 'checkIn' | 'checkOut' | 'days' | 'status'
 type PinFilterId = 'status'
@@ -269,8 +270,8 @@ export default function StayList({
                 {isSuperAdmin() ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm(`Xoa ${selectedStayIds.length} luot luu tru da chon?`)) {
+                    onClick={async () => {
+                      if (await confirmDialog(`Xoa ${selectedStayIds.length} luot luu tru da chon?`)) {
                         bulkDeleteMutation.mutate(selectedStayIds)
                       }
                     }}

@@ -17,6 +17,7 @@ import {
   type EquipmentStatus,
 } from '@/lib/equipment'
 import { useEquipmentAccess } from './use-equipment-access'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type BranchOption = {
   id: string
@@ -466,8 +467,8 @@ export function EquipmentWorkspace({ initialDraftCode }: { initialDraftCode?: st
                       key={item.id}
                       item={item}
                       canArchive={canArchive}
-                      onArchive={() => {
-                        if (!window.confirm(`Lưu trữ thiết bị ${item.code}?`)) return
+                      onArchive={async () => {
+                        if (!(await confirmDialog(`Lưu trữ thiết bị ${item.code}?`))) return
                         archiveMutation.mutate(item.id)
                       }}
                     />

@@ -184,6 +184,68 @@ export type ReportsDebtSummary = {
   }
 }
 
+export type ReportsOverview = {
+  scope: {
+    requestedBranchId: string | null
+    scopedBranchIds: string[] | null
+    isAllBranches: boolean
+    role: string
+    canViewSensitive: boolean
+  }
+  range: {
+    dateFrom: string
+    dateTo: string
+  }
+  visibility: {
+    sales: boolean
+    customers: boolean
+    inventory: boolean
+    cashbook: boolean
+    debt: boolean
+    purchase: boolean
+  }
+  kpis: {
+    revenue: number
+    orderCount: number
+    avgOrderValue: number
+    newCustomers: number
+    serviceOpenCount: number
+    alertCount: number
+  }
+  revenueSeries: RevenuePoint[]
+  services: {
+    pendingGrooming: number
+    inProgressGrooming: number
+    activeHotelStays: number
+    bookedHotelStays: number
+    revenue: ServiceRevenueReport['summary'] | null
+  }
+  inventory: {
+    totalItems: number
+    outOfStockCount: number
+    totalShortage: number
+    affectedBranches: number
+    items: LowStockSuggestion[]
+  }
+  sales?: {
+    topProducts: TopProduct[]
+  }
+  customers: {
+    newCustomers: number
+    topCustomers: TopCustomer[]
+  }
+  cashbook?: ReportsCashbookSummary
+  debt?: ReportsDebtSummary['summary']
+  purchase?: SupplierAnalyticsSummary
+  workQueue: Array<{
+    id: string
+    label: string
+    value: number
+    href: string
+    tone: string
+  }>
+}
+
 type CashbookSummaryParams = {
   dateFrom?: string
   dateTo?: string
@@ -207,6 +269,17 @@ const branchScopedGet = async <T>(url: string, params?: Record<string, string | 
 }
 
 export const reportsApi = {
+  getOverview: (params: ReportRangeParams & { branchId?: string }) =>
+    api
+      .get('/reports/overview', {
+        params: {
+          dateFrom: params.dateFrom,
+          dateTo: params.dateTo,
+          branchId: params.branchId || undefined,
+        },
+      })
+      .then((response) => response.data.data as ReportsOverview),
+
   getDashboard: () => branchScopedGet<DashboardMetrics>('/reports/dashboard'),
 
   getRevenueChart: ({ days, dateFrom, dateTo }: ReportRangeParams & { days?: number }) =>

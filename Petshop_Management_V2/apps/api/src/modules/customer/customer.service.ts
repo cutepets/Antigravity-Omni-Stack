@@ -42,6 +42,27 @@ const endOfDay = (value: string) => {
   return date
 }
 
+const CUSTOMER_LIST_SORT_FIELDS: Record<string, string> = {
+  code: 'customerCode',
+  name: 'fullName',
+  tier: 'tier',
+  points: 'points',
+  spent: 'totalSpent',
+  debt: 'debt',
+  created: 'createdAt',
+  status: 'isActive',
+  customerCode: 'customerCode',
+  fullName: 'fullName',
+  totalSpent: 'totalSpent',
+  createdAt: 'createdAt',
+  isActive: 'isActive',
+}
+
+const resolveCustomerListOrderBy = (sortBy?: string, sortOrder?: 'asc' | 'desc') => {
+  const field = sortBy ? CUSTOMER_LIST_SORT_FIELDS[sortBy] : undefined
+  return { [field ?? 'createdAt']: sortOrder === 'asc' ? 'asc' : 'desc' }
+}
+
 export interface FindCustomersDto {
   search?: string
   page?: number
@@ -221,7 +242,6 @@ export class CustomerService {
       maxSpent,
       dateFrom,
       dateTo,
-      sortBy = 'createdAt',
       sortOrder = 'desc',
     } = query
 
@@ -265,7 +285,7 @@ export class CustomerService {
 
     const where = this.mergeCustomerScope(baseWhere, user, requestedBranchId)
 
-    const orderBy: any = { [sortBy]: sortOrder }
+    const orderBy = resolveCustomerListOrderBy(query.sortBy, sortOrder)
 
     // No search: use DB pagination directly
     if (!search) {

@@ -46,6 +46,7 @@ import {
 } from '@petshop/ui/data-list'
 import { ImageCell, NameCell } from './product-list.cells'
 import { getUniqueOptionValues } from './product-options'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type BranchStockRow = {
   stock?: number | null
@@ -718,7 +719,7 @@ export function ProductList() {
                     {canImportProducts ? (
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           setShowExcelMenu(false)
                           setIsExcelModalOpen(true)
                         }}
@@ -885,8 +886,8 @@ export function ProductList() {
               {canDeleteProduct && isSuperAdmin() ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm(`Xóa ${selectedProductIds.length} sản phẩm đã chọn?`)) {
+                  onClick={async () => {
+                    if (await confirmDialog(`Xóa ${selectedProductIds.length} sản phẩm đã chọn?`)) {
                       bulkDeleteMutation.mutate(selectedProductIds)
                     }
                   }}
@@ -1055,7 +1056,7 @@ function BulkEditProductsModal({
           </div>
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               resetState()
               onClose()
             }}
@@ -1281,7 +1282,7 @@ function BulkEditProductsModal({
         <div className="flex flex-col-reverse gap-3 border-t border-border bg-background-secondary/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               resetState()
               onClose()
             }}

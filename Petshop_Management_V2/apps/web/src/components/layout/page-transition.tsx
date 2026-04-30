@@ -1,3 +1,3 @@
 export function PageTransition({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+  return <div className="w-full min-w-0">{children}</div>
 }

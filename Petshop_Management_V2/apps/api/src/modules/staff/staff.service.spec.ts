@@ -15,6 +15,143 @@ describe('StaffService listing', () => {
       where: { username: { not: 'superadmin' } },
     }))
   })
+
+  it('includes profile and compensation fields used by the staff list', async () => {
+    const db = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    }
+    const service = new StaffService(db as any)
+
+    await service.findAll()
+
+    expect(db.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      select: expect.objectContaining({
+        dob: true,
+        identityCode: true,
+        emergencyContactTitle: true,
+        emergencyContactPhone: true,
+        joinDate: true,
+        spaCommissionRate: true,
+        salaryBankName: true,
+        salaryBankAccount: true,
+      }),
+    }))
+  })
+
+  it('includes branch and salary bank fields in staff details', async () => {
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+    }
+    const service = new StaffService(db as any)
+
+    await service.findById('staff-1')
+
+    expect(db.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      select: expect.objectContaining({
+        branch: { select: { id: true, name: true } },
+        salaryBankName: true,
+        salaryBankAccount: true,
+      }),
+    }))
+  })
+})
+
+describe('StaffService self update', () => {
+  it('only updates avatar, password, and salary bank fields for the current staff member', async () => {
+    const db = {
+      user: {
+        update: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+    }
+    const service = new StaffService(db as any)
+
+    await service.updateSelf('staff-1', {
+      avatar: 'storage/private/avatar.png',
+      password: 'secret123',
+      salaryBankName: 'VCB',
+      salaryBankAccount: '0123456789',
+      fullName: 'Should Not Update',
+      branchId: 'branch-2',
+      baseSalary: 999999999,
+    } as any)
+
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'staff-1' },
+      data: expect.objectContaining({
+        avatar: 'storage/private/avatar.png',
+        salaryBankName: 'VCB',
+        salaryBankAccount: '0123456789',
+      }),
+      select: expect.any(Object),
+    })
+    expect(db.user.update.mock.calls[0][0].data).not.toHaveProperty('fullName')
+    expect(db.user.update.mock.calls[0][0].data).not.toHaveProperty('branchId')
+    expect(db.user.update.mock.calls[0][0].data).not.toHaveProperty('baseSalary')
+    expect(db.user.update.mock.calls[0][0].data.passwordHash).toEqual(expect.any(String))
+  })
+})
+
+describe('StaffService role restrictions', () => {
+  it('rejects assigning the SUPER_ADMIN role to a regular staff account', async () => {
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(1),
+        create: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      role: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'role-super', code: 'SUPER_ADMIN' }),
+      },
+    }
+    const service = new StaffService(db as any)
+
+    await expect(service.create({
+      username: 'staff1',
+      fullName: 'Staff One',
+      role: 'role-super',
+    })).rejects.toThrow('Chủ cửa hàng chỉ dành cho tài khoản superadmin')
+  })
+})
+
+describe('StaffService phone uniqueness', () => {
+  it('rejects creating a staff member with a phone used by another staff member', async () => {
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'existing-staff', phone: '0901234567' }),
+        count: jest.fn(),
+        create: jest.fn(),
+      },
+    }
+    const service = new StaffService(db as any)
+
+    await expect(service.create({
+      username: 'newstaff',
+      fullName: 'New Staff',
+      phone: '0901234567',
+    })).rejects.toThrow('Số điện thoại đã được sử dụng bởi người khác')
+    expect(db.user.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects updating a staff member to a phone used by another staff member', async () => {
+    const db = {
+      user: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'staff-1', username: 'staff1' })
+          .mockResolvedValueOnce({ id: 'staff-2', phone: '0901234567' }),
+        update: jest.fn(),
+      },
+    }
+    const service = new StaffService(db as any)
+
+    await expect(service.update('staff-1', { phone: '0901234567' }))
+      .rejects.toThrow('Số điện thoại đã được sử dụng bởi người khác')
+    expect(db.user.update).not.toHaveBeenCalled()
+  })
 })
 
 describe('StaffService documents', () => {
@@ -46,6 +183,106 @@ describe('StaffService documents', () => {
         fileUrl: 'documents/user-1/stored.pdf',
       }),
     })
+  })
+})
+
+describe('StaffService activity logs', () => {
+  it('loads real staff activity logs ordered by newest first', async () => {
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'user-1' }),
+      },
+      activityLog: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'log-1',
+            userId: 'user-1',
+            action: 'STAFF_UPDATED',
+            target: 'staff',
+            targetId: 'user-1',
+            details: { fields: ['phone'] },
+            ipAddress: '127.0.0.1',
+            createdAt: new Date('2026-04-30T10:00:00.000Z'),
+            user: { id: 'admin-1', fullName: 'Admin', staffCode: 'NV00001' },
+          },
+        ]),
+      },
+    }
+    const service = new StaffService(db as any)
+
+    const result = await service.getActivityLogs('user-1')
+
+    expect(db.activityLog.findMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        userId: true,
+        action: true,
+        target: true,
+        targetId: true,
+        details: true,
+        ipAddress: true,
+        createdAt: true,
+        user: { select: { id: true, fullName: true, staffCode: true } },
+      },
+    })
+    expect(result).toHaveLength(1)
+    expect(result[0]).toEqual(expect.objectContaining({
+      id: 'log-1',
+      action: 'STAFF_UPDATED',
+      target: 'staff',
+      targetId: 'user-1',
+    }))
+  })
+
+  it('returns an empty activity log list when a staff member has no logs', async () => {
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'user-1' }),
+      },
+      activityLog: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    }
+    const service = new StaffService(db as any)
+
+    await expect(service.getActivityLogs('user-1')).resolves.toEqual([])
+  })
+})
+
+describe('StaffService performance metrics', () => {
+  it('returns a six month chart from batched aggregate queries', async () => {
+    const orderAggregate = jest
+      .fn()
+      .mockResolvedValueOnce({ _count: { id: 2 }, _sum: { total: 300000 } })
+      .mockResolvedValue({ _count: { id: 1 }, _sum: { total: 100000 } })
+    const groomingAggregate = jest
+      .fn()
+      .mockResolvedValueOnce({ _count: { id: 3 } })
+      .mockResolvedValue({ _count: { id: 1 } })
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'user-1' }),
+      },
+      order: {
+        aggregate: orderAggregate,
+      },
+      groomingSession: {
+        aggregate: groomingAggregate,
+      },
+    }
+    const service = new StaffService(db as any)
+
+    const result = await service.getPerformanceMetrics('user-1', 4, 2026)
+
+    expect(result.monthlyRevenue).toBe(300000)
+    expect(result.monthlySpaSessions).toBe(3)
+    expect(result.monthlyOrders).toBe(2)
+    expect(result.chartData).toHaveLength(6)
+    expect(orderAggregate).toHaveBeenCalledTimes(7)
+    expect(groomingAggregate).toHaveBeenCalledTimes(7)
   })
 })
 

@@ -18,6 +18,8 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { stockCountApi } from '@/lib/api/stock-count.api'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 
 function formatDate(value: string | Date) {
@@ -108,7 +110,7 @@ export default function ShiftCountingPage({ params }: { params: Promise<{ shiftI
   const completeMutation = useMutation({
     mutationFn: () => stockCountApi.completeShiftSession(shiftId),
     onSuccess: () => {
-      alert('Ca kiểm đã được gửi quản lý duyệt.')
+      toast.success('Ca kiểm đã được gửi quản lý duyệt.')
       router.push('/inventory/counting')
     },
   })
@@ -155,25 +157,25 @@ export default function ShiftCountingPage({ params }: { params: Promise<{ shiftI
       )
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Có lỗi khi lưu các thay đổi.'
-      alert(Array.isArray(msg) ? msg.join('\n') : msg)
+      toast.error(Array.isArray(msg) ? msg.join('\n') : msg)
     }
   }
 
   const handleComplete = async () => {
     if (!items.every((item: any) => variances[item.id] !== '')) {
-      alert('Vui lòng nhập chênh lệch cho toàn bộ sản phẩm trước khi hoàn thành ca.')
+      toast.error('Vui lòng nhập chênh lệch cho toàn bộ sản phẩm trước khi hoàn thành ca.')
       return
     }
     if (items.some((item: any) => variances[item.id] !== '' && variances[item.id] !== savedVariances[item.id])) {
-      alert('Bạn đang có dữ liệu chưa lưu! Vui lòng nhấn "Lưu tất cả" trước khi hoàn thành.')
+      toast.error('Bạn đang có dữ liệu chưa lưu! Vui lòng nhấn "Lưu tất cả" trước khi hoàn thành.')
       return
     }
-    if (!confirm('Xác nhận hoàn thành ca kiểm này?')) return
+    if (!(await confirmDialog('Xác nhận hoàn thành ca kiểm này?'))) return
     try {
       await completeMutation.mutateAsync()
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Không thể hoàn thành ca kiểm này.'
-      alert(Array.isArray(msg) ? msg.join('\n') : msg)
+      toast.error(Array.isArray(msg) ? msg.join('\n') : msg)
     }
   }
 

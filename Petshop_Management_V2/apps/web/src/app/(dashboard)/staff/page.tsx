@@ -9,11 +9,14 @@ import { useAuthorization } from '@/hooks/useAuthorization'
 import { rolesApi, settingsApi } from '@/lib/api'
 import { BulkUpdateStaffDto, CreateStaffDto, Staff, staffApi, UpdateStaffDto } from '@/lib/api/staff.api'
 import { cn } from '@/lib/utils'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 import { StaffFormModal } from './components/StaffFormModal'
 import { StaffList } from './components/StaffList'
 import { TabRolesPermissions } from './components/TabRolesPermissions'
 
 type StaffTab = 'staff' | 'roles'
+const STAFF_ASSIGNABLE_EXCLUDED_ROLE_CODES = new Set(['SUPER_ADMIN'])
 
 const STAFF_TABS: { id: StaffTab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
   { id: 'staff', label: 'Danh sách nhân viên', icon: Users },
@@ -81,40 +84,52 @@ export default function StaffManagementPage() {
   }
 
   const handleDeactivate = async (id: string, name: string) => {
-    const confirmed = confirm(
-      `Xóa vĩnh viễn nhân viên ${name} khỏi DB? Hành động này không thể hoàn tác.`,
-    )
+    const confirmed = await confirmDialog({
+      title: 'Xóa vĩnh viễn nhân viên?',
+      description: `Nhân viên "${name}" sẽ bị xóa khỏi DB. Hành động này không thể hoàn tác.`,
+      confirmText: 'Xóa vĩnh viễn',
+      variant: 'danger',
+    })
     if (!confirmed) return
 
     try {
       await staffApi.deactivate(id)
       await fetchStaff()
+      toast.success('Đã xóa nhân viên')
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Có lỗi xảy ra')
+      toast.error(err?.response?.data?.message || 'Có lỗi xảy ra')
     }
   }
 
   const handleBulkDeactivate = async (ids: string[]) => {
-    const confirmed = confirm(`Xóa vĩnh viễn ${ids.length} nhân viên đã chọn khỏi DB? Hành động này không thể hoàn tác.`)
+    const confirmed = await confirmDialog({
+      title: `Xóa vĩnh viễn ${ids.length} nhân viên đã chọn?`,
+      description: 'Các nhân viên đã chọn sẽ bị xóa khỏi DB. Hành động này không thể hoàn tác.',
+      confirmText: 'Xóa vĩnh viễn',
+      variant: 'danger',
+    })
     if (!confirmed) return
 
     try {
       const result = await staffApi.bulkDeactivate(ids)
       await fetchStaff()
+      if (result.deletedIds?.length > 0) {
+        toast.success(`Đã xóa ${result.deletedIds.length} nhân viên`)
+      }
       if (result.blocked.length > 0) {
-        alert(`${result.blocked.length} nhân viên không thể cập nhật`)
+        toast.warning(`${result.blocked.length} nhân viên không thể cập nhật`)
       }
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Co loi xay ra')
+      toast.error(err?.response?.data?.message || 'Có lỗi xảy ra')
     }
   }
-
   const handleBulkUpdate = async (ids: string[], updates: BulkUpdateStaffDto) => {
     try {
       await staffApi.bulkUpdate(ids, updates)
       await fetchStaff()
+      toast.success('Đã cập nhật nhân viên')
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Co loi xay ra')
+      toast.error(err?.response?.data?.message || 'Có lỗi xảy ra')
     }
   }
 
@@ -126,6 +141,11 @@ export default function StaffManagementPage() {
       return true
     })
   }, [canViewRoles])
+
+  const assignableStaffRoles = useMemo(
+    () => roles.filter((role) => !STAFF_ASSIGNABLE_EXCLUDED_ROLE_CODES.has(role.code)),
+    [roles],
+  )
 
   if (isAuthLoading) {
     return <div className="flex h-64 items-center justify-center text-gray-400">Đang kiểm tra quyền truy cập...</div>
@@ -177,6 +197,7 @@ export default function StaffManagementPage() {
       <AnimatePresence mode="popLayout">
         <motion.div
           key={activeTab}
+          className="min-h-0 flex-1 overflow-hidden"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
@@ -204,7 +225,7 @@ export default function StaffManagementPage() {
               ) : (
                 <StaffList
                   staffList={staff}
-                  roles={roles}
+                  roles={assignableStaffRoles}
                   branches={branches}
                   canEdit={canEditStaff}
                   canDeactivate={canDeactivateStaff}
@@ -236,7 +257,8 @@ export default function StaffManagementPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         initialData={selectedStaff}
-        roles={roles}
+        roles={assignableStaffRoles}
+        branches={branches}
         onSave={handleCreateOrUpdate}
       />
     </PageContainer>

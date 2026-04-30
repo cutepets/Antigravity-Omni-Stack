@@ -17,6 +17,9 @@ export interface CreateOrderPayload {
     discountItem?: number;
     vatRate?: number;
     type: 'product' | 'service' | 'hotel' | 'grooming';
+    isPromotionGift?: boolean;
+    promotionRedemptionId?: string;
+    promotionSnapshot?: Record<string, unknown>;
     groomingDetails?: {
       petId: string;
       performerId?: string;
@@ -64,6 +67,9 @@ export interface CreateOrderPayload {
   }[];
   payments?: { method: string; amount: number; note?: string; paymentAccountId?: string; paymentAccountLabel?: string }[];
   discount?: number;
+  manualDiscount?: number;
+  voucherCode?: string;
+  promotionPreviewToken?: string;
   shippingFee?: number;
   notes?: string;
 }

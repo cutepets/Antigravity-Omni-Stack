@@ -9,7 +9,7 @@ const output: NextConfig['output'] =
 const nextConfig: NextConfig = {
   output,
   outputFileTracingRoot: join(__dirname, '../..'),
-  transpilePackages: ['@petshop/shared', '@petshop/auth', '@petshop/config'],
+  transpilePackages: ['@petshop/shared', '@petshop/auth', '@petshop/config', '@petshop/ui'],
   images: {
     unoptimized: true,
     remotePatterns: [

@@ -6,6 +6,7 @@ import { customToast as toast } from '@/components/ui/toast-with-copy';
 import type { PaymentEntry } from '@petshop/shared';
 import type { CreateOrderPayload, OrderPaymentIntent } from '@/lib/api/order.api';
 import { orderApi } from '@/lib/api/order.api';
+import { promotionApi } from '@/lib/api/promotion.api';
 import { settingsApi } from '@/lib/api/settings.api';
 import {
   money,
@@ -19,6 +20,7 @@ import { usePaymentIntentSession } from '@/app/(dashboard)/_shared/payment/use-p
 import { resolveCartItemStockState } from '@/app/(dashboard)/_shared/cart/stock.utils';
 import { usePosStore, useActiveTab, useCartTotal } from '@/stores/pos.store';
 import { useCreateOrder } from './use-pos-mutations';
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 export function usePosPayment() {
   const queryClient = useQueryClient();
@@ -143,6 +145,39 @@ export function usePosPayment() {
         item.hotelDetails,
     ) || false;
   const quickCashSuggestions = useMemo(() => buildQuickCashSuggestions(cartTotal), [cartTotal]);
+  const promotionPreviewPayload = useMemo(() => {
+    if (!activeTab || activeTab.cart.length === 0) return null;
+    return {
+      branchId: activeTab.branchId,
+      customerId: activeTab.customerId === 'GUEST' ? undefined : activeTab.customerId,
+      voucherCode: activeTab.promotionVoucherCode || undefined,
+      manualDiscount: activeTab.manualDiscountTotal ?? 0,
+      items: activeTab.cart.map((item) => ({
+        lineId: item.id,
+        productId: item.productId,
+        productVariantId: item.productVariantId,
+        serviceId: item.serviceId,
+        serviceVariantId: item.serviceVariantId,
+        category: (item as any).category,
+        type: item.type,
+        quantity: Number(item.quantity) || 1,
+        unitPrice: Number(item.unitPrice) || 0,
+        discountItem: Number(item.discountItem) || 0,
+      })),
+    };
+  }, [
+    activeTab?.branchId,
+    activeTab?.cart,
+    activeTab?.customerId,
+    activeTab?.manualDiscountTotal,
+    activeTab?.promotionVoucherCode,
+  ]);
+  const { data: promotionPreview } = useQuery({
+    queryKey: ['promotions', 'preview', promotionPreviewPayload],
+    queryFn: () => promotionApi.preview(promotionPreviewPayload!),
+    enabled: Boolean(promotionPreviewPayload),
+    staleTime: 5_000,
+  });
 
   useEffect(() => {
     if (!activeTab || isMultiPaymentSummary || currentSinglePaymentType !== 'CASH') return;
@@ -157,6 +192,11 @@ export function usePosPayment() {
 
     autoCashSeedRef.current = cartTotal;
   }, [activeTab, cartTotal, currentSinglePaymentType, customerMoneyInput, isMultiPaymentSummary]);
+
+  useEffect(() => {
+    if (!activeTab) return;
+    store.setPromotionPreview(promotionPreview ?? null);
+  }, [activeTab?.id, promotionPreview, store]);
 
   useEffect(() => {
     if (!isPaymentMenuOpen) return;
@@ -230,6 +270,9 @@ export function usePosPayment() {
         items: activeTab.cart,
         payments: !activeTab.linkedOrderId && checkoutPayments ? checkoutPayments : undefined,
         discount: activeTab.discountTotal,
+        manualDiscount: activeTab.manualDiscountTotal ?? 0,
+        voucherCode: activeTab.promotionVoucherCode,
+        promotionPreviewToken: activeTab.promotionPreview?.previewToken,
         shippingFee: activeTab.shippingFee,
         notes: overrideNote || activeTab.notes,
         hotelCheckInNow: options?.hotelCheckInNow,
@@ -431,7 +474,7 @@ export function usePosPayment() {
               });
             } else if (checkoutPaymentTotal > outstanding) {
               const overpaid = checkoutPaymentTotal - outstanding;
-              const shouldRefund = window.confirm(
+              const shouldRefund = await confirmDialog(
                 `Đơn đang dư ${money(overpaid)} đ. Nhấn OK để hoàn tiền ngay, hoặc Cancel để giữ lại công nợ âm cho khách.`,
               );
               orderResult = await orderApi.complete(

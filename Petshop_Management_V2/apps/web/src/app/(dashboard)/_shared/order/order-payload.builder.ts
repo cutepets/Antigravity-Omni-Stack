@@ -13,6 +13,9 @@ type BuildOrderRequestPayloadParams = {
   branchId?: string
   items: CartItem[]
   discount?: number
+  manualDiscount?: number
+  voucherCode?: string
+  promotionPreviewToken?: string
   shippingFee?: number
   notes?: string
   payments?: OrderPaymentPayload[]
@@ -40,6 +43,9 @@ export function buildOrderRequestPayload(
       discountItem: Number(item.discountItem) || 0,
       vatRate: Number(item.vatRate) || 0,
       type: item.type,
+      isPromotionGift: item.isPromotionGift,
+      promotionRedemptionId: item.promotionRedemptionId,
+      promotionSnapshot: item.promotionSnapshot,
       isTemp: (item as any).isTemp ?? false,
       tempLabel: (item as any).tempLabel ?? undefined,
       groomingDetails: item.groomingDetails
@@ -85,6 +91,9 @@ export function buildOrderRequestPayload(
     })),
     payments: params.payments,
     discount: Number(params.discount) || 0,
+    manualDiscount: Number(params.manualDiscount ?? params.discount) || 0,
+    voucherCode: params.voucherCode?.trim() || undefined,
+    promotionPreviewToken: params.promotionPreviewToken || undefined,
     shippingFee: Number(params.shippingFee) || 0,
     notes: params.notes?.trim() || undefined,
   }

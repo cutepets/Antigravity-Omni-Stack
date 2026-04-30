@@ -52,7 +52,12 @@ const READ_SCOPE_GROUPS = new Set([
   'payroll',
   'rewards',
   'pos',
+  'promotions',
 ])
+
+export function supportsReadScopeGroup(scopeGroup: string): boolean {
+  return READ_SCOPE_GROUPS.has(scopeGroup)
+}
 
 export function getReadScopeCodes(scopeGroup: string): string[] {
   return READ_SCOPE_LEVELS.map((scope) => `${scopeGroup}.read.scope.${scope}`)
@@ -161,6 +166,17 @@ const ADDITIONAL_PERMISSION_GROUPS: PermissionGroup[] = [
       { code: 'rewards.create', label: 'Tạo thưởng phạt' },
       { code: 'rewards.update', label: 'Sửa thưởng phạt' },
       { code: 'rewards.approve', label: 'Duyệt thưởng phạt' },
+    ],
+  },
+  {
+    key: 'promotions',
+    label: 'Khuyến mãi',
+    permissions: [
+      { code: 'promotions.read', label: 'Xem khuyến mãi' },
+      { code: 'promotions.manage', label: 'Tạo và sửa khuyến mãi', kind: 'settings' },
+      { code: 'promotions.activate', label: 'Kích hoạt/tạm dừng khuyến mãi', kind: 'settings' },
+      { code: 'promotions.voucher.manage', label: 'Quản lý voucher', kind: 'settings' },
+      { code: 'promotions.report.read', label: 'Xem báo cáo khuyến mãi' },
     ],
   },
 ]

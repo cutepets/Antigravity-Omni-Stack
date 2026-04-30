@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js'
+import { getRolePermissions, resolvePermissions } from '@petshop/auth'
 import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js'
 import {
   normalizeBulkDeleteIds,
@@ -125,6 +126,11 @@ type TransactionCapability = {
   lockReason: string | null
 }
 
+type OverviewScope = {
+  scopedBranchIds: string[] | null
+  branchIdFilter: string | { in: string[] } | undefined
+}
+
 function startOfDay(value: string) {
   const date = new Date(value)
   date.setHours(0, 0, 0, 0)
@@ -135,6 +141,13 @@ function endOfDay(value: string) {
   const date = new Date(value)
   date.setHours(23, 59, 59, 999)
   return date
+}
+
+function toDateParam(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function toPositiveInt(value: number | string | undefined, fallback: number) {
@@ -191,6 +204,30 @@ export class ReportsService {
     const scopedBranchIds = getScopedBranchIds(user, requestedBranchId)
     if (!scopedBranchIds) return undefined
     return scopedBranchIds.length === 1 ? scopedBranchIds[0] : { in: scopedBranchIds }
+  }
+
+  private getOverviewScope(user?: BranchScopedUser, requestedBranchId?: string | null): OverviewScope {
+    const scopedBranchIds = getScopedBranchIds(user, requestedBranchId)
+    return {
+      scopedBranchIds,
+      branchIdFilter: scopedBranchIds
+        ? scopedBranchIds.length === 1
+          ? scopedBranchIds[0]
+          : { in: scopedBranchIds }
+        : undefined,
+    }
+  }
+
+  private hasPermission(user: BranchScopedUser | undefined, permission: string) {
+    if (!user) return true
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || user.permissions?.includes('FULL_BRANCH_ACCESS')) {
+      return true
+    }
+
+    return new Set(resolvePermissions([
+      ...(user.permissions ?? []),
+      ...getRolePermissions(user.role as any),
+    ])).has(permission)
   }
 
   private normalizeManualReferenceType(refType?: string | null): (typeof MANUAL_REFERENCE_TYPES)[number] {
@@ -604,6 +641,189 @@ export class ReportsService {
     }
   }
 
+  async getOverview(
+    user?: BranchScopedUser,
+    requestedBranchId?: string | null,
+    dateFrom?: string | null,
+    dateTo?: string | null,
+  ) {
+    const { from, to } = this.resolveDateRange(dateFrom, dateTo)
+    const today = new Date()
+    const fallbackFrom = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29)
+    const fallbackTo = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999)
+    const startDate = from ?? fallbackFrom
+    const endDate = to ?? fallbackTo
+    const { scopedBranchIds, branchIdFilter } = this.getOverviewScope(user, requestedBranchId)
+    const branchScope = branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}
+    const dateScope = { createdAt: { gte: startDate, lte: endDate } }
+    const role = user?.role ?? 'SYSTEM'
+    const isStaffRestricted = role === 'STAFF'
+    const canReadSales = this.hasPermission(user, 'report.sales')
+    const canReadCustomers = this.hasPermission(user, 'report.customer') || this.hasPermission(user, 'dashboard.read')
+    const canReadInventory = this.hasPermission(user, 'report.inventory') || this.hasPermission(user, 'dashboard.read')
+    const canReadCashbook = !isStaffRestricted && this.hasPermission(user, 'report.cashbook')
+    const canReadDebt = !isStaffRestricted && this.hasPermission(user, 'report.debt')
+    const canReadPurchase = !isStaffRestricted && (this.hasPermission(user, 'report.purchase') || this.hasPermission(user, 'report.debt'))
+    const startDateParam = toDateParam(startDate)
+    const endDateParam = toDateParam(endDate)
+
+    const [
+      orderAgg,
+      newCustomers,
+      pendingGrooming,
+      inProgressGrooming,
+      activeHotelStays,
+      bookedHotelStays,
+      revenueChartResult,
+      topCustomersResult,
+      topProductsResult,
+      serviceRevenueResult,
+      inventoryHealthResult,
+      cashbookResult,
+      debtResult,
+      purchaseResult,
+    ] = await Promise.all([
+      this.db.order.aggregate({
+        where: {
+          ...branchScope,
+          ...dateScope,
+          paymentStatus: { in: ['PAID', 'COMPLETED'] },
+        },
+        _sum: { total: true },
+        _count: true,
+      }),
+      canReadCustomers
+        ? this.db.customer.count({
+            where: {
+              ...(branchIdFilter !== undefined ? { branchId: branchIdFilter } : {}),
+              ...dateScope,
+            },
+          })
+        : Promise.resolve(0),
+      this.db.groomingSession.count({ where: { ...branchScope, status: 'PENDING' } }),
+      this.db.groomingSession.count({ where: { ...branchScope, status: 'IN_PROGRESS' } }),
+      this.db.hotelStay.count({ where: { ...branchScope, status: 'CHECKED_IN' } } as any),
+      this.db.hotelStay.count({ where: { ...branchScope, status: 'BOOKED' } } as any),
+      canReadSales ? this.getRevenueChart(30, user, requestedBranchId ?? undefined, startDateParam, endDateParam) : Promise.resolve({ data: [] }),
+      canReadCustomers ? this.getTopCustomers(5, user, requestedBranchId ?? undefined, startDateParam, endDateParam) : Promise.resolve({ data: [] }),
+      canReadSales ? this.getTopProducts(5, user, requestedBranchId ?? undefined, startDateParam, endDateParam) : Promise.resolve({ data: [] }),
+      canReadSales ? this.getServiceRevenue(user, requestedBranchId ?? undefined, startDateParam, endDateParam) : Promise.resolve({ data: null }),
+      canReadInventory ? this.getInventoryHealth(user, requestedBranchId ?? undefined) : Promise.resolve({ data: { items: [], summary: { totalItems: 0, outOfStockCount: 0, totalShortage: 0, affectedBranches: 0 } } }),
+      canReadCashbook
+        ? this.findTransactions(
+            {
+              dateFrom: startDateParam,
+              dateTo: endDateParam,
+              limit: 5,
+              includeMeta: false,
+            },
+            user,
+            requestedBranchId ?? undefined,
+          )
+        : Promise.resolve(null),
+      canReadDebt ? this.getDebtSummary(5, user, requestedBranchId ?? undefined, startDateParam, endDateParam) : Promise.resolve(null),
+      canReadPurchase ? this.getPurchaseSummary(user, requestedBranchId ?? undefined, startDateParam, endDateParam) : Promise.resolve(null),
+    ])
+
+    const revenue = toNumber(orderAgg._sum.total)
+    const orderCount = toInt(orderAgg._count)
+    const inventorySummary = inventoryHealthResult.data?.summary ?? {
+      totalItems: 0,
+      outOfStockCount: 0,
+      totalShortage: 0,
+      affectedBranches: 0,
+    }
+    const serviceOpenCount = toInt(pendingGrooming) + toInt(inProgressGrooming) + toInt(activeHotelStays)
+    const debtSummary = debtResult?.data?.summary
+    const purchaseSummary = purchaseResult?.data?.summary
+    const alertCount =
+      toInt(inventorySummary.totalItems) +
+      toInt(pendingGrooming) +
+      (canReadDebt ? toInt(debtSummary?.customersWithDebt) + toInt(debtSummary?.suppliersWithDebt) : 0)
+
+    const workQueue = [
+      ...(pendingGrooming
+        ? [{ id: 'pending-grooming', label: 'Spa đang chờ', value: toInt(pendingGrooming), href: '/grooming', tone: 'blue' }]
+        : []),
+      ...(activeHotelStays
+        ? [{ id: 'active-hotel', label: 'Pet Hotel đang lưu trú', value: toInt(activeHotelStays), href: '/hotel', tone: 'amber' }]
+        : []),
+      ...(inventorySummary.totalItems
+        ? [{ id: 'low-stock', label: 'Sản phẩm sắp thiếu', value: toInt(inventorySummary.totalItems), href: '/inventory/stock', tone: 'rose' }]
+        : []),
+      ...(canReadDebt && debtSummary?.highestDebt
+        ? [{ id: 'debt', label: 'Công nợ cần theo dõi', value: toInt(debtSummary.customersWithDebt + debtSummary.suppliersWithDebt), href: '/reports?tab=debt', tone: 'orange' }]
+        : []),
+    ]
+
+    return {
+      success: true,
+      data: {
+        scope: {
+          requestedBranchId: requestedBranchId || null,
+          scopedBranchIds,
+          isAllBranches: scopedBranchIds === null,
+          role,
+          canViewSensitive: !isStaffRestricted,
+        },
+        range: {
+          dateFrom: startDateParam,
+          dateTo: endDateParam,
+        },
+        visibility: {
+          sales: canReadSales,
+          customers: canReadCustomers,
+          inventory: canReadInventory,
+          cashbook: canReadCashbook,
+          debt: canReadDebt,
+          purchase: canReadPurchase,
+        },
+        kpis: {
+          revenue,
+          orderCount,
+          avgOrderValue: orderCount > 0 ? roundCurrency(revenue / orderCount) : 0,
+          newCustomers,
+          serviceOpenCount,
+          alertCount,
+        },
+        revenueSeries: revenueChartResult.data ?? [],
+        services: {
+          pendingGrooming: toInt(pendingGrooming),
+          inProgressGrooming: toInt(inProgressGrooming),
+          activeHotelStays: toInt(activeHotelStays),
+          bookedHotelStays: toInt(bookedHotelStays),
+          revenue: serviceRevenueResult.data?.summary ?? null,
+        },
+        inventory: {
+          ...inventorySummary,
+          items: inventoryHealthResult.data?.items?.slice(0, 6) ?? [],
+        },
+        sales: canReadSales
+          ? {
+              topProducts: topProductsResult.data ?? [],
+            }
+          : undefined,
+        customers: {
+          newCustomers,
+          topCustomers: topCustomersResult.data ?? [],
+        },
+        cashbook: canReadCashbook && cashbookResult
+          ? {
+              transactions: cashbookResult.data?.transactions ?? [],
+              total: cashbookResult.data?.total ?? 0,
+              openingBalance: cashbookResult.data?.openingBalance ?? 0,
+              totalIncome: cashbookResult.data?.totalIncome ?? 0,
+              totalExpense: cashbookResult.data?.totalExpense ?? 0,
+              closingBalance: cashbookResult.data?.closingBalance ?? 0,
+            }
+          : undefined,
+        debt: canReadDebt && debtSummary ? debtSummary : undefined,
+        purchase: canReadPurchase && purchaseSummary ? purchaseSummary : undefined,
+        workQueue,
+      },
+    }
+  }
+
   async getRevenueChart(
     days: number = 7,
     user?: BranchScopedUser,
@@ -637,7 +857,7 @@ export class ReportsService {
       })
 
       result.push({
-        date: start.toISOString().slice(0, 10),
+        date: toDateParam(start),
         revenue: agg._sum.total ?? 0,
       })
 
@@ -773,7 +993,15 @@ export class ReportsService {
           },
         },
       } as any,
-      include: {
+      select: {
+        id: true,
+        groomingSessionId: true,
+        hotelStayId: true,
+        quantity: true,
+        subtotal: true,
+        description: true,
+        pricingSnapshot: true,
+        createdAt: true,
         order: { select: { id: true, orderNumber: true, createdAt: true, branchId: true } },
         service: { select: { id: true, name: true, type: true } },
         groomingSession: {

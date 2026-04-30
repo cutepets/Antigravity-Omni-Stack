@@ -15,6 +15,7 @@ import { buildInventoryHistoryRows, isSingleProductVariantSet, mergeInventoryHis
 import { ProductFormModal } from '../../_components/product-form-modal'
 import { settingsApi } from '@/lib/api'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 
 type BranchStockRow = {
@@ -305,8 +306,8 @@ export function ProductDetailView({ productId }: { productId: string }) {
     return <div className="p-6 text-error text-center">Không tìm thấy sản phẩm</div>
   }
 
-  const handleDelete = () => {
-    if (window.confirm(`Xóa sản phẩm "${product.name}"?`)) {
+  const handleDelete = async () => {
+    if (await confirmDialog(`Xóa sản phẩm "${product.name}"?`)) {
       deleteMutation.mutate()
     }
   }
@@ -359,8 +360,8 @@ export function ProductDetailView({ productId }: { productId: string }) {
             <>
               {canUpdateProduct ? (
                 <button
-                  onClick={() => {
-                    if (window.confirm('Khôi phục sản phẩm này?')) {
+                  onClick={async () => {
+                    if (await confirmDialog('Khôi phục sản phẩm này?')) {
                       inventoryApi.restoreProduct(product.id).then(() => {
                         toast.success('Đã khôi phục sản phẩm')
                         queryClient.invalidateQueries({ queryKey: ['products'] })

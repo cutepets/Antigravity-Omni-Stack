@@ -10,6 +10,7 @@ import { PageContent, PageHeader } from '@/components/layout/PageLayout'
 import { settingsApi } from '@/lib/api'
 import { equipmentApi, type EquipmentStatus } from '@/lib/equipment'
 import { useEquipmentAccess } from './use-equipment-access'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type DetailForm = {
   name: string
@@ -237,8 +238,8 @@ export function EquipmentDetail({ code }: { code: string }) {
             {canArchive ? (
               <button
                 type="button"
-                onClick={() => {
-                  if (!window.confirm(`Lưu trữ thiết bị ${detailQuery.data?.code}?`)) return
+                onClick={async () => {
+                  if (!(await confirmDialog(`Lưu trữ thiết bị ${detailQuery.data?.code}?`))) return
                   archiveMutation.mutate()
                 }}
                 className="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 px-4 py-2 text-sm text-rose-300"

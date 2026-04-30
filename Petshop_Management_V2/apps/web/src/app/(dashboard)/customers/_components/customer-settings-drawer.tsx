@@ -9,6 +9,7 @@ import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { api } from '@/lib/api'
 import { customerApi } from '@/lib/api/customer.api'
 import { PRICE_BOOK_QUERY_KEY, extractPriceBooks, type PriceBookOption } from '@/lib/price-books'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 type LoyaltyTierRule = {
   tier: 'BRONZE' | 'SILVER' | 'GOLD' | 'DIAMOND'
@@ -319,7 +320,7 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       setEditGroupMode((v) => !v)
                       if (editGroupMode) setGroupForm(emptyGroupForm)
                     }}
@@ -491,8 +492,8 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      if (confirm(`Xóa nhóm "${group.name}"?`)) deleteGroupMutation.mutate(group.id)
+                                    onClick={async () => {
+                                      if (await confirmDialog(`Xóa nhóm "${group.name}"?`)) deleteGroupMutation.mutate(group.id)
                                     }}
                                     className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-foreground-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
                                   >
@@ -523,7 +524,7 @@ export function CustomerSettingsDrawer({ isOpen, onClose }: CustomerSettingsDraw
                       <>
                         <button
                           type="button"
-                          onClick={() => { setForm(parseLoyaltyConfig(configs)); setEditLoyaltyMode(false) }}
+                          onClick={async () => { setForm(parseLoyaltyConfig(configs)); setEditLoyaltyMode(false) }}
                           data-hotkey-esc
                           className="h-10 rounded-xl border border-border px-4 text-sm font-medium text-foreground-muted transition-colors hover:text-foreground"
                         >

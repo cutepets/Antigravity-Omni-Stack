@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -45,6 +45,7 @@ import {
   useDataListCore,
   useDataListSelection,
 } from '@petshop/ui/data-list'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 // ── Types & Constants ────────────────────────────────────────────────────────
 type DisplayColumnId = 'code' | 'customer' | 'customerPhone' | 'items' | 'discount' | 'shippingFee' | 'total' | 'customerPaid' | 'payment' | 'status' | 'orderStatus' | 'stockStatus' | 'linkedCodes' | 'note' | 'branch' | 'creator' | 'created' | 'updated'
@@ -477,8 +478,8 @@ export function OrderList() {
                   title="Xóa DB"
                   className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/30 bg-red-50 text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={bulkDeleteOrdersMutation.isPending}
-                  onClick={() => {
-                    if (window.confirm(`Xóa vĩnh viễn ${selectedOrderIds.length} đơn hàng đã chọn và toàn bộ chứng từ liên quan?`)) {
+                  onClick={async () => {
+                    if (await confirmDialog(`Xóa vĩnh viễn ${selectedOrderIds.length} đơn hàng đã chọn và toàn bộ chứng từ liên quan?`)) {
                       bulkDeleteOrdersMutation.mutate(selectedOrderIds)
                     }
                   }}

@@ -56,16 +56,16 @@ export function StockTransactionHistory({
   const currentStock = product ? getCurrentStock(product, productVariantId) : 0
   const displayName = product
     ? variant
-      ? resolveProductVariantLabels(product.name, variant).displayName || `${product.name} - ${variant.sku || 'Phien ban'}`
+      ? resolveProductVariantLabels(product.name, variant).displayName || `${product.name} - ${variant.sku || 'Phiên bản'}`
       : product.name
     : ''
 
   if (isLoadingProduct || isLoadingTransactions) {
-    return <div className="animate-pulse p-8 text-center text-foreground-muted">Dang tai lich su...</div>
+    return <div className="animate-pulse p-8 text-center text-foreground-muted">Đang tải lịch sử...</div>
   }
 
   if (!product) {
-    return <div className="rounded-xl border border-error/20 bg-error/5 p-8 text-center text-error">Khong tim thay mat hang nay.</div>
+    return <div className="rounded-xl border border-error/20 bg-error/5 p-8 text-center text-error">Không tìm thấy mặt hàng này.</div>
   }
 
   const getTransactionIcon = (type: string) => {
@@ -84,11 +84,11 @@ export function StockTransactionHistory({
   const getTransactionLabel = (type: string) => {
     switch (type) {
       case 'IN':
-        return <span className="font-semibold text-success">Nhap kho</span>
+        return <span className="font-semibold text-success">Nhập kho</span>
       case 'OUT':
-        return <span className="font-semibold text-error">Xuat / Ban hang</span>
+        return <span className="font-semibold text-error">Xuất / Bán hàng</span>
       case 'ADJUST':
-        return <span className="font-semibold text-warning">Dieu chinh kho</span>
+        return <span className="font-semibold text-warning">Điều chỉnh kho</span>
       default:
         return <span>{type}</span>
     }
@@ -118,9 +118,9 @@ export function StockTransactionHistory({
           <ArrowLeft size={18} />
         </button>
         <div>
-          <h1 className="text-xl font-bold text-foreground">Lich su kho</h1>
+          <h1 className="text-xl font-bold text-foreground">Lịch sử kho</h1>
           <p className="text-sm text-foreground-muted">
-            {displayName} (Ton hien tai: <strong className="text-primary-600">{currentStock}</strong>)
+            {displayName} (Tồn hiện tại: <strong className="text-primary-600">{currentStock}</strong>)
           </p>
         </div>
       </div>
@@ -130,18 +130,18 @@ export function StockTransactionHistory({
           <table className="data-table">
             <thead>
               <tr>
-                <th>Loai giao dich</th>
-                <th>So luong bien dong</th>
-                <th>Ma tham chieu</th>
-                <th>Ghi chu</th>
-                <th>Thoi gian</th>
+                <th>Loại giao dịch</th>
+                <th>Số lượng biến động</th>
+                <th>Mã tham chiếu</th>
+                <th>Ghi chú</th>
+                <th>Thời gian</th>
               </tr>
             </thead>
             <tbody>
               {transactions.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-16 text-center text-foreground-muted">
-                    Chua co lich su giao dich cho mat hang nay.
+                    Chưa có lịch sử giao dịch cho mặt hàng này.
                   </td>
                 </tr>
               ) : (

@@ -31,6 +31,8 @@ export interface CreateStaffDto {
   shiftEnd?: string
   baseSalary?: number
   spaCommissionRate?: number
+  salaryBankName?: string
+  salaryBankAccount?: string
   employmentType?: string
   joinDate?: string
 }
@@ -53,10 +55,19 @@ export interface UpdateStaffDto {
   shiftEnd?: string
   baseSalary?: number
   spaCommissionRate?: number
+  salaryBankName?: string
+  salaryBankAccount?: string
   employmentType?: string
   joinDate?: string
   password?: string
   avatar?: string
+}
+
+export interface UpdateSelfStaffDto {
+  avatar?: string
+  password?: string
+  salaryBankName?: string
+  salaryBankAccount?: string
 }
 
 export interface BulkUpdateStaffDto {
@@ -77,7 +88,9 @@ export class StaffService {
       select: {
         id: true, staffCode: true, username: true, fullName: true,
         role: true, status: true, phone: true, email: true, avatar: true, createdAt: true,
-        gender: true, employmentType: true, shiftStart: true, shiftEnd: true, baseSalary: true, branchId: true,
+        gender: true, dob: true, identityCode: true, emergencyContactTitle: true, emergencyContactPhone: true,
+        employmentType: true, joinDate: true, shiftStart: true, shiftEnd: true, baseSalary: true, spaCommissionRate: true,
+        salaryBankName: true, salaryBankAccount: true, branchId: true,
         branch: { select: { id: true, name: true } },
         authorizedBranches: { select: { id: true, name: true } },
       },
@@ -93,9 +106,10 @@ export class StaffService {
       select: {
         id: true, staffCode: true, username: true, fullName: true,
         role: true, status: true, phone: true, email: true, avatar: true,
-        branchId: true, joinDate: true, createdAt: true,
+        branchId: true, branch: { select: { id: true, name: true } }, joinDate: true, createdAt: true,
         gender: true, dob: true, identityCode: true, emergencyContactTitle: true, emergencyContactPhone: true,
-        shiftStart: true, shiftEnd: true, baseSalary: true, spaCommissionRate: true, employmentType: true,
+        shiftStart: true, shiftEnd: true, baseSalary: true, spaCommissionRate: true,
+        salaryBankName: true, salaryBankAccount: true, employmentType: true,
         authorizedBranches: { select: { id: true, name: true } },
       },
     })
@@ -112,7 +126,14 @@ export class StaffService {
         ],
       },
     })
-    if (exists) throw new ConflictException('Username hoặc số điện thoại đã tồn tại')
+    if (exists) {
+      if (dto.phone && exists.phone === dto.phone) {
+        throw new ConflictException('Số điện thoại đã được sử dụng bởi người khác')
+      }
+      throw new ConflictException('Username hoặc số điện thoại đã tồn tại')
+    }
+
+    await this.assertAssignableRole(dto.role, dto.username)
 
     const count = await this.db.user.count()
     const staffCode = `NV${String(count + 1).padStart(5, '0')}`
@@ -143,6 +164,8 @@ export class StaffService {
         shiftEnd: dto.shiftEnd || null,
         baseSalary: dto.baseSalary ? Number(dto.baseSalary) : null,
         spaCommissionRate: dto.spaCommissionRate ? Number(dto.spaCommissionRate) : null,
+        salaryBankName: dto.salaryBankName || null,
+        salaryBankAccount: dto.salaryBankAccount || null,
         employmentType: (dto.employmentType as EmploymentType) || EmploymentType.FULL_TIME,
         joinDate: dto.joinDate ? new Date(dto.joinDate) : null,
       },
@@ -162,6 +185,10 @@ export class StaffService {
         where: { phone: dto.phone, id: { not: id } },
       })
       if (exists) throw new ConflictException('Số điện thoại đã được sử dụng bởi người khác')
+    }
+
+    if ('role' in dto) {
+      await this.assertAssignableRole(dto.role, user.username)
     }
 
     let passwordHash
@@ -195,12 +222,38 @@ export class StaffService {
         ...('shiftEnd' in dto && { shiftEnd: dto.shiftEnd || null }),
         ...('baseSalary' in dto && { baseSalary: dto.baseSalary ? Number(dto.baseSalary) : null }),
         ...('spaCommissionRate' in dto && { spaCommissionRate: dto.spaCommissionRate ? Number(dto.spaCommissionRate) : null }),
+        ...('salaryBankName' in dto && { salaryBankName: dto.salaryBankName || null }),
+        ...('salaryBankAccount' in dto && { salaryBankAccount: dto.salaryBankAccount || null }),
         ...('employmentType' in dto && { employmentType: dto.employmentType as EmploymentType }),
         ...('joinDate' in dto && { joinDate: dto.joinDate ? new Date(dto.joinDate) : null }),
       },
       select: {
         id: true, staffCode: true, username: true, fullName: true,
         role: true, status: true, phone: true, email: true, branchId: true,
+        authorizedBranches: { select: { id: true, name: true } },
+      },
+    })
+  }
+
+  async updateSelf(id: string, dto: UpdateSelfStaffDto) {
+    let passwordHash
+    if (dto.password) {
+      passwordHash = await bcrypt.hash(dto.password, 12)
+    }
+
+    return this.db.user.update({
+      where: { id },
+      data: {
+        ...(passwordHash && { passwordHash }),
+        ...('avatar' in dto && { avatar: dto.avatar || null }),
+        ...('salaryBankName' in dto && { salaryBankName: dto.salaryBankName || null }),
+        ...('salaryBankAccount' in dto && { salaryBankAccount: dto.salaryBankAccount || null }),
+      },
+      select: {
+        id: true, staffCode: true, username: true, fullName: true,
+        role: true, status: true, phone: true, email: true, avatar: true,
+        branchId: true, branch: { select: { id: true, name: true } },
+        salaryBankName: true, salaryBankAccount: true,
         authorizedBranches: { select: { id: true, name: true } },
       },
     })
@@ -315,6 +368,15 @@ export class StaffService {
     return user
   }
 
+  private async assertAssignableRole(roleId: string | undefined, username: string) {
+    if (!roleId) return
+    const role = await this.db.role.findUnique({ where: { id: roleId }, select: { code: true } })
+    if (!role) throw new NotFoundException('Vai trò không tồn tại')
+    if (role.code === 'SUPER_ADMIN' && username !== ROOT_SYSTEM_USERNAME) {
+      throw new BadRequestException('Chủ cửa hàng chỉ dành cho tài khoản superadmin')
+    }
+  }
+
   // =========================================================================
   // Document Management
   // =========================================================================
@@ -386,6 +448,27 @@ export class StaffService {
     }
 
     return doc
+  }
+
+  async getActivityLogs(userId: string, limit = 50) {
+    await this.findById(userId)
+
+    return this.db.activityLog.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(Number(limit) || 50, 1), 100),
+      select: {
+        id: true,
+        userId: true,
+        action: true,
+        target: true,
+        targetId: true,
+        details: true,
+        ipAddress: true,
+        createdAt: true,
+        user: { select: { id: true, fullName: true, staffCode: true } },
+      },
+    })
   }
 
   // =========================================================================
@@ -634,8 +717,8 @@ export class StaffService {
     ])
 
     // Generate real 6-month chart data
-    const chartData = []
-    for (let i = 5; i >= 0; i--) {
+    const chartData = await Promise.all(Array.from({ length: 6 }, async (_, index) => {
+      const i = 5 - index
       // Create a date corresponding to i months ago (based on target year & month)
       // JS Date will automatically handle month underflows correctly (e.g., month -1 becomes previous year)
       const dStart = new Date(targetYear, targetMonth - 1 - i, 1)
@@ -655,14 +738,14 @@ export class StaffService {
         }),
       ])
 
-      chartData.push({
+      return {
         month: m,
         year: y,
         revenue: Math.round(mOrders._sum.total || 0),
         orders: mOrders._count.id || 0,
         spaSessions: mGrooming._count.id || 0,
-      })
-    }
+      }
+    }))
 
     return {
       monthlyRevenue: Math.round(orderStats._sum.total || 0),

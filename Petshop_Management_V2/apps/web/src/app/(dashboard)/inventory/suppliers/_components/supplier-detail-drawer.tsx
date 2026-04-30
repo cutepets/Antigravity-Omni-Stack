@@ -37,6 +37,7 @@ import {
   useDataListSelection,
 } from '@petshop/ui/data-list'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 
 interface SupplierDetailDrawerProps {
@@ -446,7 +447,7 @@ export function SupplierDetailDrawer({
   const handleDeleteDocument = async (index: number) => {
     const target = documents[index]
     if (!target) return
-    if (!window.confirm(`Xóa tài liệu "${target.name}" khỏi hồ sơ NCC?`)) return
+    if (!(await confirmDialog(`Xóa tài liệu "${target.name}" khỏi hồ sơ NCC?`))) return
 
     await persistDocuments(
       documents.filter((_, currentIndex) => currentIndex !== index),

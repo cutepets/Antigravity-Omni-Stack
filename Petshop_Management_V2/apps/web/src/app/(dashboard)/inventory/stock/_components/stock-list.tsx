@@ -62,14 +62,14 @@ type StockRow = {
 }
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
-  { id: 'code', label: 'Ma SP', sortable: true, width: 'w-28' },
-  { id: 'name', label: 'San pham / phien ban', sortable: true, minWidth: 'min-w-[260px]' },
-  { id: 'sellable', label: 'Co the ban', sortable: true, width: 'w-32' },
-  { id: 'monthlySellThrough', label: 'Hieu suat ban thang', sortable: true, width: 'w-40' },
-  { id: 'minStock', label: 'Dinh muc toi thieu', sortable: true, width: 'w-32' },
-  { id: 'stock', label: 'Ton kho hien tai', sortable: true, width: 'w-32' },
+  { id: 'code', label: 'Mã SP', sortable: true, width: 'w-28' },
+  { id: 'name', label: 'Sản phẩm / phiên bản', sortable: true, minWidth: 'min-w-[260px]' },
+  { id: 'sellable', label: 'Có thể bán', sortable: true, width: 'w-32' },
+  { id: 'monthlySellThrough', label: 'Hiệu suất bán tháng', sortable: true, width: 'w-40' },
+  { id: 'minStock', label: 'Định mức tối thiểu', sortable: true, width: 'w-32' },
+  { id: 'stock', label: 'Tồn kho hiện tại', sortable: true, width: 'w-32' },
   { id: 'countShift', label: 'Ca làm', sortable: false, width: 'w-32' },
-  { id: 'status', label: 'Trang thai', sortable: true, width: 'w-32' },
+  { id: 'status', label: 'Trạng thái', sortable: true, width: 'w-32' },
 ]
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(COLUMN_OPTIONS.filter((column) => column.sortable).map((column) => column.id))
@@ -78,7 +78,7 @@ function renderStatusBadge(status: StockRow['status']) {
   if (status === 'OUT_OF_STOCK') {
     return (
       <span className="badge badge-error">
-        <AlertCircle size={11} /> Het hang
+        <AlertCircle size={11} /> Hết hàng
       </span>
     )
   }
@@ -86,12 +86,12 @@ function renderStatusBadge(status: StockRow['status']) {
   if (status === 'LOW_STOCK') {
     return (
       <span className="badge badge-warning">
-        <AlertCircle size={11} /> Sap het
+        <AlertCircle size={11} /> Sắp hết
       </span>
     )
   }
 
-  return <span className="badge badge-success">Binh thuong</span>
+  return <span className="badge badge-success">Bình thường</span>
 }
 
 function buildStockDetailHref(row: StockRow) {
@@ -217,14 +217,14 @@ export function StockList() {
     <DataListShell>
       {reportSource === 'reports' ? (
         <div className="mx-4 mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-primary-500/15 bg-primary-500/5 px-4 py-3 text-sm text-foreground">
-          <span className="font-semibold text-primary-600">Dang mo tu bao cao</span>
-          {scopedBranchId ? <span className="rounded-full bg-background px-3 py-1 text-xs">Chi nhanh: {scopedBranchId}</span> : null}
+          <span className="font-semibold text-primary-600">Đang mở từ báo cáo</span>
+          {scopedBranchId ? <span className="rounded-full bg-background px-3 py-1 text-xs">Chi nhánh: {scopedBranchId}</span> : null}
           {scopedDateFrom && scopedDateTo ? (
             <span className="rounded-full bg-background px-3 py-1 text-xs">
-              Pham vi ngay: {scopedDateFrom} den {scopedDateTo}
+              Phạm vi ngày: {scopedDateFrom} đến {scopedDateTo}
             </span>
           ) : null}
-          <span className="rounded-full bg-background px-3 py-1 text-xs">Ton kho la snapshot hien tai</span>
+          <span className="rounded-full bg-background px-3 py-1 text-xs">Tồn kho là snapshot hiện tại</span>
         </div>
       ) : null}
 
@@ -234,7 +234,7 @@ export function StockList() {
           setSearch(value)
           setPage(1)
         }}
-        searchPlaceholder="Tim ten san pham, phien ban, SKU..."
+        searchPlaceholder="Tìm tên sản phẩm, phiên bản, SKU..."
         showColumnToggle={true}
         showFilterToggle={true}
         filterSlot={
@@ -247,8 +247,8 @@ export function StockList() {
               }}
               className={toolbarSelectClass}
             >
-              <option value="ALL">Tat ca mat hang</option>
-              <option value="LOW_STOCK">Sap het hang</option>
+              <option value="ALL">Tất cả mặt hàng</option>
+              <option value="LOW_STOCK">Sắp hết hang</option>
             </select>
           ) : null
         }
@@ -270,7 +270,7 @@ export function StockList() {
         extraActions={
           <div className="flex items-center gap-2">
             <button className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 text-sm font-medium text-foreground transition-colors hover:border-primary-500/60">
-              <Download size={15} /> Xuat kho
+              <Download size={15} /> Xuất kho
             </button>
           </div>
         }
@@ -280,7 +280,7 @@ export function StockList() {
         <label className="space-y-2">
           <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
             <span className="inline-flex items-center gap-2">
-              <PackageCheck size={14} className="text-primary-500" /> Loai ton kho
+              <PackageCheck size={14} className="text-primary-500" /> Loại tồn kho
             </span>
             <button
               type="button"
@@ -299,8 +299,8 @@ export function StockList() {
             }}
             className={filterSelectClass}
           >
-            <option value="ALL">Tat ca mat hang</option>
-            <option value="LOW_STOCK">Sap het hang</option>
+            <option value="ALL">Tất cả mặt hàng</option>
+            <option value="LOW_STOCK">Sắp hết hang</option>
           </select>
         </label>
       </DataListFilterPanel>
@@ -309,7 +309,7 @@ export function StockList() {
         columns={activeColumns}
         isLoading={isLoading}
         isEmpty={!isLoading && rows.length === 0}
-        emptyText="Khong co du lieu ton kho."
+        emptyText="Không có dữ liệu tồn kho."
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
         bulkBar={
@@ -391,10 +391,10 @@ export function StockList() {
                               {row.displayName}
                             </button>
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-foreground-muted">
-                              <span>{row.unit ?? 'cai'}</span>
-                              {row.variantName ? <span className="rounded-full bg-background-secondary px-2 py-0.5">Phien ban: {row.variantName}</span> : null}
-                              {row.unitLabel ? <span className="rounded-full bg-background-secondary px-2 py-0.5">Don vi: {row.unitLabel}</span> : null}
-                              <span>{row.completedBatchCount ? `${row.completedBatchCount} lo da ban het` : 'Chua du du lieu chu ky'}</span>
+                              <span>{row.unit ?? 'cái'}</span>
+                              {row.variantName ? <span className="rounded-full bg-background-secondary px-2 py-0.5">Phiên bản: {row.variantName}</span> : null}
+                              {row.unitLabel ? <span className="rounded-full bg-background-secondary px-2 py-0.5">Đơn vị: {row.unitLabel}</span> : null}
+                              <span>{row.completedBatchCount ? `${row.completedBatchCount} lô đã bán hết` : 'Chưa đủ dữ liệu chu kỳ'}</span>
                             </div>
                           </div>
                         </div>
@@ -414,7 +414,7 @@ export function StockList() {
                         {row.monthlySellThrough != null ? (
                           <span className="font-semibold text-foreground">{Math.round(row.monthlySellThrough).toLocaleString('vi-VN')}</span>
                         ) : (
-                          <span className="text-foreground-muted">Chua du du lieu</span>
+                          <span className="text-foreground-muted">Chưa đủ dữ liệu</span>
                         )}
                       </td>
                     )
@@ -476,7 +476,7 @@ export function StockList() {
             pageSizeOptions={[20, 50, 100]}
             totalItemText={
               <span className="text-xs">
-                Tong <strong className="text-foreground">{total}</strong> mat hang
+                Tổng <strong className="text-foreground">{total}</strong> mặt hàng
               </span>
             }
           />

@@ -290,14 +290,14 @@ export function LoginForm() {
               htmlFor="username"
               style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-foreground-secondary)', marginBottom: 8 }}
             >
-              Tên đăng nhập
+              Tên đăng nhập hoặc SĐT
             </label>
             <input
               id="username"
               type="text"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              placeholder="Nhập tên đăng nhập"
+              placeholder="Nhập tên đăng nhập hoặc SĐT"
               autoComplete="username"
               required
               disabled={loading}

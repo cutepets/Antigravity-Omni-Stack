@@ -42,6 +42,7 @@ import {
 import { findVietQrBank, VIETQR_BANKS, type VietQrBank } from '@/lib/constants/vietqr-banks'
 import { useAuthStore } from '@/stores/auth.store'
 import { toast as systemToast } from 'sonner'
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 
 type PaymentMethodFormData = {
@@ -306,7 +307,7 @@ function BankCombobox({
                   <button
                     key={bank.id}
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       onChange(bank)
                       setOpen(false)
                       setSearch('')
@@ -384,7 +385,7 @@ function TypeSelectDropdown({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   onChange(option.value as PaymentMethodType, autoColor)
                   setOpen(false)
                 }}
@@ -617,9 +618,9 @@ export function TabPayments() {
     createWebhookSecretMutation.mutate()
   }
 
-  const handleDeleteWebhookSecret = (secret: PaymentWebhookSecret) => {
+  const handleDeleteWebhookSecret = async (secret: PaymentWebhookSecret) => {
     if (!canManage || deleteWebhookSecretMutation.isPending) return
-    const confirmed = window.confirm(`Thu hồi key "${secret.name}" cho provider "${secret.provider}"?`)
+    const confirmed = await confirmDialog(`Thu hồi key "${secret.name}" cho provider "${secret.provider}"?`)
     if (!confirmed) return
     deleteWebhookSecretMutation.mutate(secret.id)
   }
@@ -1458,8 +1459,8 @@ export function TabPayments() {
                         {!method.isSystem ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              if (window.confirm(`Xóa phương thức "${method.name}"?`)) {
+                            onClick={async () => {
+                              if (await confirmDialog(`Xóa phương thức "${method.name}"?`)) {
                                 deleteMutation.mutate(method.id)
                               }
                             }}

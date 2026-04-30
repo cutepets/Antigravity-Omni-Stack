@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -22,6 +22,7 @@ import { Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
 import { moneyRaw } from '@/app/(dashboard)/_shared/payment/payment.utils';
+import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 const HotelCheckoutModal = dynamic(() =>
   import('./components/HotelCheckoutModal').then((mod) => mod.HotelCheckoutModal),
@@ -196,8 +197,8 @@ function PosPageContent() {
             <button
               className="lg:hidden p-1.5 hover:bg-white/20 rounded text-red-100 transition-colors shrink-0"
               title="Thoát"
-              onClick={() => {
-                if (window.confirm('Bạn có chắc chắn muốn thoát POS?')) {
+              onClick={async () => {
+                if (await confirmDialog('Bạn có chắc chắn muốn thoát POS?')) {
                   window.location.href = '/';
                 }
               }}
@@ -308,7 +309,7 @@ function PosPageContent() {
 
           {/* Action buttons: never shrink */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <button className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Toàn màn hình" onClick={() => {
+            <button className="p-1.5 hover:bg-white/20 rounded transition-colors" title="Toàn màn hình" onClick={async () => {
               if (!document.fullscreenElement) document.documentElement.requestFullscreen();
               else document.exitFullscreen();
             }}>
@@ -335,8 +336,8 @@ function PosPageContent() {
           <button
             className="flex items-center gap-2 bg-[#006E82] hover:bg-[#005767] text-white px-3 py-1.5 rounded text-sm font-bold transition-colors ml-1"
             title="Lưu nháp / Thoát"
-            onClick={() => {
-              if (window.confirm('Bạn có chắc chắn muốn thoát POS?')) {
+            onClick={async () => {
+              if (await confirmDialog('Bạn có chắc chắn muốn thoát POS?')) {
                 window.location.href = '/';
               }
             }}
@@ -402,22 +403,22 @@ function PosPageContent() {
             <div className="flex flex-wrap items-center gap-1.5 p-2 px-3 shadow-[0_-2px_10px_rgba(0,0,0,0.02)] z-10">
               <button
                 className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap"
-                onClick={() => {
-                  const check = window.confirm('Xác nhận làm mới Đơn hàng?');
+                onClick={async () => {
+                  const check = await confirmDialog('Xác nhận làm mới Đơn hàng?');
                   if (check) store.clearCart();
                 }}
               >Xoá tất cả</button>
               <button className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap">Khuyến mại</button>
               <button
                 className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap"
-                onClick={() => {
+                onClick={async () => {
                   const url = authUser?.id ? `/orders?staffId=${authUser.id}` : '/orders';
                   window.open(url, '_blank');
                 }}
               >Xem đơn hàng</button>
               <button
                 className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap"
-                onClick={() => {
+                onClick={async () => {
                   store.addItem({
                     id: `temp-${Date.now()}`,
                     type: 'product',
@@ -479,6 +480,7 @@ function PosPageContent() {
           quickCashSuggestions={quickCashSuggestions}
           isQrIntentPending={isQrIntentPending}
           onDiscountChange={(discount) => store.setDiscount(discount)}
+          onVoucherChange={(code) => store.setPromotionVoucherCode(code)}
           onSelectSinglePaymentMethod={handleSelectSinglePaymentMethod}
           onOpenMultiPayment={() => {
             setIsPaymentMenuOpen(false);
