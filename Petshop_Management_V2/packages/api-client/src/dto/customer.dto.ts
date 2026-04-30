@@ -51,13 +51,3 @@ export interface CreateCustomerDto {
 export interface UpdateCustomerDto extends Partial<CreateCustomerDto> {
   points?: number
 }
-
-export interface ImportCustomerRow {
-  fullName: string
-  phone?: string
-  email?: string
-  address?: string
-  notes?: string
-  tier?: string
-  taxCode?: string
-}

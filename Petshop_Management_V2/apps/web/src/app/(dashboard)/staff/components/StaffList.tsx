@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Clock, MapPin, Phone, Filter, ShieldAlert, Pin, PinOff, Plus, XCircle, Trash2 } from 'lucide-react'
 import dayjs from 'dayjs'
+import { StaffImportExportDropdown } from '@/components/staff/StaffImportExportDropdown'
 import { Staff } from '@/lib/api/staff.api'
 import {
 
@@ -29,13 +30,30 @@ interface StaffListProps {
   canDeactivate: boolean
   canBulkDeactivate: boolean
   canCreate?: boolean
+  canImportExcel?: boolean
   onCreate?: () => void
+  onImported?: () => void
   onEdit: (staff: Staff) => void
   onDeactivate: (id: string, name: string) => void
   onBulkDeactivate: (ids: string[]) => void
 }
 
-type DisplayColumnId = 'avatar' | 'code' | 'staff' | 'role' | 'contact' | 'branch' | 'status'
+type DisplayColumnId =
+  | 'avatar'
+  | 'code'
+  | 'staff'
+  | 'role'
+  | 'contact'
+  | 'dob'
+  | 'identity'
+  | 'emergency'
+  | 'branch'
+  | 'employmentType'
+  | 'joinDate'
+  | 'shift'
+  | 'baseSalary'
+  | 'spaCommission'
+  | 'status'
 type PinFilterId = 'role' | 'status'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
@@ -44,7 +62,15 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'staff', label: 'Nhân viên', sortable: true, minWidth: 'min-w-[180px]' },
   { id: 'role', label: 'Vai trò', sortable: true, width: 'w-32' },
   { id: 'contact', label: 'Liên hệ', minWidth: 'min-w-[140px]' },
+  { id: 'dob', label: 'Ngày sinh', sortable: true, width: 'w-28' },
+  { id: 'identity', label: 'CCCD', sortable: true, minWidth: 'min-w-[130px]' },
+  { id: 'emergency', label: 'Người thân', minWidth: 'min-w-[150px]' },
   { id: 'branch', label: 'Chi nhánh', minWidth: 'min-w-[120px]' },
+  { id: 'employmentType', label: 'Loại hình', sortable: true, width: 'w-28' },
+  { id: 'joinDate', label: 'Ngày vào làm', sortable: true, width: 'w-32' },
+  { id: 'shift', label: 'Ca làm', sortable: true, width: 'w-32' },
+  { id: 'baseSalary', label: 'Lương cơ bản', sortable: true, minWidth: 'min-w-[140px]' },
+  { id: 'spaCommission', label: '% Thưởng Spa', sortable: true, width: 'w-32' },
   { id: 'status', label: 'Trạng thái', sortable: true, width: 'w-32' },
 ]
 
@@ -61,6 +87,27 @@ const STATUS_CONFIG: Record<string, { label: string; badgeClass: string; icon: a
   QUIT: { label: 'Thôi việc', badgeClass: 'badge-error', icon: XCircle },
 }
 
+function formatDate(value?: string | null) {
+  return value ? dayjs(value).format('DD/MM/YYYY') : '--'
+}
+
+function formatCurrency(value?: number | null) {
+  if (!value) return '--'
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function formatEmploymentType(value?: string | null) {
+  return value === 'PART_TIME' ? 'PART-TIME' : 'FULL-TIME'
+}
+
+function formatShift(start?: string | null, end?: string | null) {
+  return `${start || '08:00'} → ${end || '17:00'}`
+}
+
 export function StaffList({
   staffList,
   roles,
@@ -68,7 +115,9 @@ export function StaffList({
   canDeactivate,
   canBulkDeactivate,
   canCreate = false,
+  canImportExcel = false,
   onCreate,
+  onImported,
   onEdit,
   onDeactivate,
   onBulkDeactivate,
@@ -84,9 +133,9 @@ export function StaffList({
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((c) => c.id),
-    initialVisibleColumns: ['avatar', 'code', 'staff', 'role', 'contact', 'branch', 'status'],
+    initialVisibleColumns: COLUMN_OPTIONS.map((c) => c.id),
     initialTopFilterVisibility: { role: true, status: true },
-    storageKey: 'staff-list-columns-v1',
+    storageKey: 'staff-list-columns-v2',
   })
 
   const { topFilterVisibility, columnSort, orderedVisibleColumns, visibleColumns, columnOrder, draggingColumnId } = dataListState
@@ -101,6 +150,9 @@ export function StaffList({
         member.fullName.toLowerCase().includes(normalizedQuery) ||
         member.staffCode.toLowerCase().includes(normalizedQuery) ||
         member.phone?.includes(search) ||
+        member.email?.toLowerCase().includes(normalizedQuery) ||
+        member.identityCode?.toLowerCase().includes(normalizedQuery) ||
+        member.emergencyContactPhone?.includes(search) ||
         member.username.toLowerCase().includes(normalizedQuery)
 
       const matchesStatus = statusFilter === 'ALL' || member.status === statusFilter
@@ -122,6 +174,27 @@ export function StaffList({
             break
           case 'role':
             cmp = (a.role?.name || '').localeCompare(b.role?.name || '', 'vi')
+            break
+          case 'dob':
+            cmp = dayjs(a.dob || 0).valueOf() - dayjs(b.dob || 0).valueOf()
+            break
+          case 'identity':
+            cmp = (a.identityCode || '').localeCompare(b.identityCode || '', 'vi')
+            break
+          case 'employmentType':
+            cmp = (a.employmentType || '').localeCompare(b.employmentType || '', 'vi')
+            break
+          case 'joinDate':
+            cmp = dayjs(a.joinDate || 0).valueOf() - dayjs(b.joinDate || 0).valueOf()
+            break
+          case 'shift':
+            cmp = formatShift(a.shiftStart, a.shiftEnd).localeCompare(formatShift(b.shiftStart, b.shiftEnd), 'vi')
+            break
+          case 'baseSalary':
+            cmp = Number(a.baseSalary || 0) - Number(b.baseSalary || 0)
+            break
+          case 'spaCommission':
+            cmp = Number(a.spaCommissionRate || 0) - Number(b.spaCommissionRate || 0)
             break
           case 'status':
             cmp = (a.status || '').localeCompare(b.status || '', 'vi')
@@ -225,7 +298,14 @@ export function StaffList({
           />
         }
         extraActions={
-          canCreate && onCreate ? (
+          <div className="flex items-center gap-2">
+            {onImported ? (
+              <StaffImportExportDropdown
+                canImport={canImportExcel}
+                onImported={onImported}
+              />
+            ) : null}
+            {canCreate && onCreate ? (
             <button
               type="button"
               onClick={onCreate}
@@ -234,7 +314,8 @@ export function StaffList({
               <Plus size={13} />
               Thêm nhân viên
             </button>
-          ) : undefined
+          ) : null}
+          </div>
         }
       />
 
@@ -394,12 +475,59 @@ export function StaffList({
                       {staff.email && <div className="text-xs text-foreground-muted mt-0.5 truncate">{staff.email}</div>}
                     </td>
                   )
+                  case 'dob': return (
+                    <td key={colId} className="px-3 py-2.5 w-28 text-sm text-foreground-secondary">
+                      {formatDate(staff.dob)}
+                    </td>
+                  )
+                  case 'identity': return (
+                    <td key={colId} className="px-3 py-2.5 min-w-[130px]">
+                      <span className="font-mono text-xs text-foreground-secondary">
+                        {staff.identityCode || '--'}
+                      </span>
+                    </td>
+                  )
+                  case 'emergency': return (
+                    <td key={colId} className="px-3 py-2.5 min-w-[150px]">
+                      <div className="text-sm text-foreground-secondary">{staff.emergencyContactPhone || '--'}</div>
+                      {staff.emergencyContactTitle && (
+                        <div className="mt-0.5 text-xs text-foreground-muted truncate">{staff.emergencyContactTitle}</div>
+                      )}
+                    </td>
+                  )
                   case 'branch': return (
                     <td key={colId} className="px-3 py-2.5 min-w-[120px]">
                       <div className="flex items-center gap-1">
                         <MapPin size={12} className="text-foreground-muted shrink-0" />
-                        <span className="text-xs text-foreground-muted line-clamp-1">{staff.branch?.name || 'Tất cả'}</span>
+                        <span className="text-xs text-foreground-muted line-clamp-1">{staff.branch?.name || 'Chưa gán'}</span>
                       </div>
+                    </td>
+                  )
+                  case 'employmentType': return (
+                    <td key={colId} className="px-3 py-2.5 w-28">
+                      <span className="rounded-md border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-xs font-bold uppercase text-indigo-400">
+                        {formatEmploymentType(staff.employmentType)}
+                      </span>
+                    </td>
+                  )
+                  case 'joinDate': return (
+                    <td key={colId} className="px-3 py-2.5 w-32 text-sm font-medium text-foreground-secondary">
+                      {formatDate(staff.joinDate)}
+                    </td>
+                  )
+                  case 'shift': return (
+                    <td key={colId} className="px-3 py-2.5 w-32 text-sm font-semibold text-foreground">
+                      {formatShift(staff.shiftStart, staff.shiftEnd)}
+                    </td>
+                  )
+                  case 'baseSalary': return (
+                    <td key={colId} className="px-3 py-2.5 min-w-[140px] text-sm font-semibold text-primary-500">
+                      {formatCurrency(staff.baseSalary)}
+                    </td>
+                  )
+                  case 'spaCommission': return (
+                    <td key={colId} className="px-3 py-2.5 w-32 text-sm font-semibold text-foreground">
+                      {staff.spaCommissionRate ? `${staff.spaCommissionRate}%` : '--%'}
                     </td>
                   )
                   case 'status': return (

@@ -16,12 +16,15 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'fs'
-import { join, relative, extname, basename } from 'path'
+import { join, relative, extname, basename, dirname, resolve } from 'path'
 import { execSync } from 'child_process'
+import { fileURLToPath } from 'url'
 
 // ── Config ─────────────────────────────────────────────────────────────────
-const ROOT = process.cwd()
 const STAGED_ONLY = process.argv.includes('--staged')
+const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const GIT_ROOT = getGitRoot(PROJECT_ROOT)
+const ROOT = STAGED_ONLY ? GIT_ROOT : PROJECT_ROOT
 
 const SCAN_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
@@ -76,6 +79,17 @@ const REPLACEMENT_CHAR = /\uFFFD/
 const NULL_BYTE = /\x00/
 
 // ── File collection ────────────────────────────────────────────────────────
+function getGitRoot(cwd) {
+  try {
+    return execSync('git rev-parse --show-toplevel', {
+      cwd,
+      encoding: 'utf8',
+    }).trim() || cwd
+  } catch {
+    return cwd
+  }
+}
+
 function getStagedFiles() {
   try {
     const out = execSync('git diff --cached --name-only --diff-filter=ACM', {

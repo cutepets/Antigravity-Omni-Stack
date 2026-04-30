@@ -4,12 +4,13 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pin, PinOff, PawPrint, Trash2 } from 'lucide-react'
+import { Pin, PinOff, PawPrint, Trash2 } from 'lucide-react'
 import { loadTempsFromDB, TemperEntry, getTemperStyle } from './pet-settings-modal'
 import { toast } from 'sonner'
 import { petApi } from '@/lib/api/pet.api'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { useRouter } from 'next/navigation'
+import { CrmImportExportDropdown } from '@/components/crm/CrmImportExportDropdown'
 import {
   DataListShell,
   DataListToolbar,
@@ -112,6 +113,7 @@ export function PetList() {
   const canReadPets = hasPermission('pet.read')
   const canCreatePet = hasPermission('pet.create')
   const canDeletePet = hasPermission('pet.delete')
+  const canImportCrm = hasPermission('customer.create') || hasPermission('customer.update') || hasPermission('pet.create') || hasPermission('pet.update')
 
   const [q, setQ] = useState('')
   const [species, setSpecies] = useState<SpeciesFilter>('')
@@ -294,6 +296,13 @@ export function PetList() {
         }
         extraActions={
           <div className="flex items-center gap-2">
+            <CrmImportExportDropdown
+              canImport={canImportCrm}
+              onImported={() => {
+                queryClient.invalidateQueries({ queryKey: ['customers'] })
+                queryClient.invalidateQueries({ queryKey: ['pets'] })
+              }}
+            />
             {/* Thêm thú cưng button has been removed and restricted to Customer detail page/POS flow */}
           </div>
         }

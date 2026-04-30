@@ -146,8 +146,7 @@ Phase 4 (Tuần 7-8): Production hardening + Deploy
 
 **Customers extras:**
 ```
-[ ] GET  /customers/export           (Excel)
-[ ] POST /customers/import
+[x] Removed customer import/export endpoints from product scope.
 ```
 
 **Pets extras:**
@@ -355,7 +354,7 @@ services:
 ```
 [ ] Seed data (staging): customers mẫu, products mẫu, staff mẫu
 [ ] Migration từ hệ thống cũ (nếu có):
-    - Export CSV → validate → import via /customers/import
+    - Use one-off migration scripts; do not rely on customer import/export endpoints.
 [ ] Backup strategy: daily backup DB 30 ngày retention
 ```
 

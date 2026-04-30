@@ -26,6 +26,7 @@ import { EquipmentModule } from './modules/equipment/equipment.module.js'
 import { HealthController } from './health.controller.js'
 import { QueueModule } from './modules/queue/queue.module.js'
 import { StorageModule } from './modules/storage/storage.module.js'
+import { CrmExcelModule } from './modules/crm/crm-excel.module.js'
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { StorageModule } from './modules/storage/storage.module.js'
     // Domain modules
     CustomerModule,
     PetModule,
+    CrmExcelModule,
     GroomingModule,
     HotelModule,
     OrdersModule,

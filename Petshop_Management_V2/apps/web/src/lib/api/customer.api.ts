@@ -64,16 +64,6 @@ export interface UpdateCustomerDto extends Partial<CreateCustomerDto> {
   points?: number
 }
 
-export interface ImportCustomerRow {
-  fullName: string
-  phone?: string
-  email?: string
-  address?: string
-  notes?: string
-  tier?: string
-  taxCode?: string
-}
-
 // ── API ───────────────────────────────────────────────────────────────────────
 export const customerApi = {
   /** Danh sách có phân trang + tìm kiếm không dấu */
@@ -114,18 +104,4 @@ export const customerApi = {
     return data
   },
 
-  /** Export toàn bộ */
-  exportCustomers: async (params?: { tier?: string; isActive?: boolean }) => {
-    const { data } = await api.get<ApiListResult<Customer>>('/customers/export', { params })
-    return data
-  },
-
-  /** Import batch từ JSON rows */
-  importCustomers: async (rows: ImportCustomerRow[]) => {
-    const { data } = await api.post<{
-      success: boolean
-      data: { created: number; updated: number; errors: string[] }
-    }>('/customers/import', { rows })
-    return data
-  },
 }

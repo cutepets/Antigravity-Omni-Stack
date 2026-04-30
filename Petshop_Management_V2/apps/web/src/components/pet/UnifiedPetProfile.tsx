@@ -378,7 +378,11 @@ export function UnifiedPetProfile({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 app-modal-overlay" onClick={onClose} />
+      <div
+        className="fixed inset-0 app-modal-overlay"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--color-background-base) 58%, transparent)' }}
+        onClick={onClose}
+      />
       <div className="relative flex h-full max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-background-tertiary shadow-2xl animate-in fade-in zoom-in duration-200">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2 text-foreground">

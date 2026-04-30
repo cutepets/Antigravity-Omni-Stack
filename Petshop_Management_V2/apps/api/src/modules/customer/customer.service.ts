@@ -79,17 +79,6 @@ export interface CreateCustomerDto {
 
 export interface UpdateCustomerDto extends Partial<CreateCustomerDto> { }
 
-export interface ImportCustomerRow {
-  fullName: string
-  phone?: string
-  email?: string
-  address?: string
-  notes?: string
-  tier?: string
-  groupId?: string
-  taxCode?: string
-}
-
 type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -499,102 +488,9 @@ export class CustomerService {
     return { success: true, message: `Đã xóa khách hàng "${customer.fullName}"` }
   }
 
-  // ── Export all (no pagination) ─────────────────────────────────────────────
   async bulkRemove(ids: unknown, user?: AccessUser) {
     const normalizedIds = normalizeBulkDeleteIds(ids)
     return runBulkDelete(normalizedIds, (id) => this.remove(id, user))
-  }
-
-  async exportAll(params?: { tier?: string; isActive?: boolean }, user?: AccessUser) {
-    const baseWhere: any = {}
-    if (params?.tier) baseWhere.tier = params.tier
-    if (params?.isActive !== undefined) baseWhere.isActive = params.isActive
-    const where = this.mergeCustomerScope(baseWhere, user)
-
-    const customers = await this.db.customer.findMany({
-      where,
-      include: {
-        group: { select: { id: true, name: true } },
-        _count: { select: { pets: true, orders: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
-
-    return { success: true, data: customers }
-  }
-
-  // ── Batch import ───────────────────────────────────────────────────────────
-  async importBatch(rows: ImportCustomerRow[], user?: AccessUser, requestedBranchId?: string) {
-    let created = 0
-    let updated = 0
-    const errors: string[] = []
-    const branchId = await this.resolveWriteBranchId(user, requestedBranchId)
-
-    const defaultGroup = await this.db.customerGroup.findFirst({
-      where: { isDefault: true, isActive: true },
-      select: { id: true }
-    })
-    const defaultGroupId = defaultGroup?.id || null
-
-    for (const row of rows) {
-      try {
-        if (!row.fullName) {
-          errors.push(`Dòng thiếu tên: ${JSON.stringify(row)}`)
-          continue
-        }
-
-        if (row.phone) {
-          const existing = await this.db.customer.findUnique({ where: { phone: row.phone } })
-          if (existing) {
-            const accessibleExisting = await this.db.customer.findFirst({
-              where: this.mergeCustomerScope({ id: existing.id }, user),
-              select: { id: true, branchId: true },
-            })
-
-            if (!accessibleExisting) {
-              errors.push(`Số điện thoại "${row.phone}" đã thuộc chi nhánh khác hoặc bạn không có quyền cập nhật`)
-              continue
-            }
-
-            await this.db.customer.update({
-              where: { phone: row.phone },
-              data: {
-                ...(accessibleExisting.branchId ? {} : { branchId }),
-                fullName: row.fullName,
-                email: row.email || existing.email,
-                address: row.address || existing.address,
-                notes: row.notes || existing.notes,
-                tier: (row.tier as any) || existing.tier,
-                groupId: row.groupId || existing.groupId || defaultGroupId,
-              },
-            })
-            updated++
-            continue
-          }
-        }
-
-        const customerCode = await this._nextCustomerCode()
-        await this.db.customer.create({
-          data: {
-            branchId,
-            customerCode,
-            fullName: row.fullName,
-            phone: row.phone || `NOPHONE-${Date.now()}`,
-            email: row.email || null,
-            address: row.address || null,
-            notes: row.notes || null,
-            tier: (row.tier as any) || 'BRONZE',
-            groupId: row.groupId || defaultGroupId,
-            taxCode: row.taxCode || null,
-          },
-        })
-        created++
-      } catch (e: any) {
-        errors.push(`Lỗi dòng "${row.fullName}": ${e.message}`)
-      }
-    }
-
-    return { success: true, data: { created, updated, errors } }
   }
 
   // ─── Private helpers ───────────────────────────────────────────────────────

@@ -2,21 +2,26 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Patch,
   Post,
   Put,
   Query,
+  Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
+import { getRolePermissions, hasAnyPermission, resolvePermissions } from '@petshop/auth'
+import type { JwtPayload } from '@petshop/shared'
+import type { Response } from 'express'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import {
-  createDiskUploadOptions,
   createMemoryUploadOptions,
   IMAGE_UPLOAD_EXTENSIONS,
   IMAGE_UPLOAD_MIME_TYPES,
@@ -36,6 +41,17 @@ import {
 import { PricingService } from './pricing.service.js'
 
 const MAX_SERVICE_IMAGE_SIZE = 5 * 1024 * 1024
+const MAX_PRICING_EXCEL_SIZE = 10 * 1024 * 1024
+
+const pricingExcelUploadOptions = {
+  allowedMimeTypes: new Set([
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+  ]),
+  allowedExtensions: new Set(['.xlsx', '.xls']),
+  maxFileSize: MAX_PRICING_EXCEL_SIZE,
+  errorMessage: 'Chỉ hỗ trợ file Excel (.xlsx). Kích thước tối đa 10MB.',
+}
 
 const serviceImageUploadOptions = {
   allowedMimeTypes: IMAGE_UPLOAD_MIME_TYPES,
@@ -51,6 +67,21 @@ export class PricingController {
     private readonly pricingService: PricingService,
     private readonly storageService: StorageService,
   ) { }
+
+  private assertModePermission(user: JwtPayload | undefined, mode: 'GROOMING' | 'HOTEL', action: 'read' | 'update') {
+    if (!user) throw new ForbiddenException('Không có quyền truy cập bảng giá')
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || user.permissions?.includes('FULL_BRANCH_ACCESS')) return
+    const userPermissions = resolvePermissions([
+      ...(user.permissions || []),
+      ...getRolePermissions(user.role as any),
+    ])
+    const required = mode === 'HOTEL'
+      ? [`hotel.${action}`, 'settings.pricing_policy.manage']
+      : [`grooming.${action}`, 'settings.pricing_policy.manage']
+    if (!hasAnyPermission(userPermissions, required)) {
+      throw new ForbiddenException('Không có quyền thao tác bảng giá này')
+    }
+  }
 
   @Get('weight-bands')
   @Permissions('hotel.read', 'grooming.read', 'settings.pricing_policy.manage')
@@ -291,51 +322,73 @@ export class PricingController {
     return this.pricingService.deactivateHoliday(id)
   }
 
-  // ─── Excel Export / Import ──────────────────────────────────────────────
-
-  @Get('export/xlsx')
-  @Permissions('settings.pricing_policy.manage')
-  async exportExcel(@Query('type') type: string, @Query() _query: any) {
-    const normalizedType = (type === 'grooming' || type === 'hotel') ? type : 'all' as const
-    const buffer = await this.pricingService.exportToExcel(normalizedType)
-    return {
-      buffer: buffer.toString('base64'),
-      filename: `bang-gia-${normalizedType}-${new Date().toISOString().slice(0, 10)}.xlsx`,
-    }
+  @Get('excel-export')
+  @Permissions('hotel.read', 'grooming.read', 'settings.pricing_policy.manage')
+  async exportPricingExcel(
+    @Query('mode') mode: string,
+    @Query('year') year: string,
+    @Req() req: { user?: JwtPayload },
+    @Res() res: Response,
+  ) {
+    const normalizedMode = String(mode ?? '').toUpperCase() === 'HOTEL' ? 'HOTEL' : 'GROOMING'
+    this.assertModePermission(req.user, normalizedMode, 'read')
+    const normalizedYear = Math.floor(Number(year ?? new Date().getFullYear()))
+    const buffer = await this.pricingService.exportPricingExcel({ mode: normalizedMode, year: normalizedYear })
+    const filename = `bang-gia-${normalizedMode.toLowerCase()}-${normalizedYear}-${new Date().toISOString().slice(0, 10)}.xlsx`
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(buffer)
   }
 
-  @Post('import/xlsx')
-  @Permissions('settings.pricing_policy.manage')
+  @Post('excel-import/preview')
+  @Permissions('hotel.update', 'grooming.update', 'settings.pricing_policy.manage')
   @UseInterceptors(
     FileInterceptor('file', {
-      ...createDiskUploadOptions({
-        destination: './uploads/temp',
-        allowedMimeTypes: new Set([
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'application/vnd.ms-excel',
-        ]),
-        allowedExtensions: new Set(['.xlsx', '.xls']),
-        maxFileSize: 10 * 1024 * 1024,
-        errorMessage: 'Chỉ hỗ trợ file Excel (.xlsx). Kích thước tối đa 10MB.',
+      ...createMemoryUploadOptions({
+        destination: 'uploads/pricing-excel',
+        ...pricingExcelUploadOptions,
       }),
     }),
   )
-  async importExcel(@UploadedFile() file: Express.Multer.File) {
-    validateUploadedFile(file, {
-      allowedMimeTypes: new Set([
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-excel',
-      ]),
-      allowedExtensions: new Set(['.xlsx', '.xls']),
-      maxFileSize: 10 * 1024 * 1024,
-      errorMessage: 'Chỉ hỗ trợ file Excel (.xlsx)',
-      requireStoredFilename: true,
+  previewPricingExcelImport(
+    @UploadedFile() file: Express.Multer.File,
+    @Query('mode') mode: string,
+    @Query('year') year: string,
+    @Req() req: { user?: JwtPayload },
+  ) {
+    validateUploadedFile(file, pricingExcelUploadOptions)
+    const normalizedMode = String(mode ?? '').toUpperCase() === 'HOTEL' ? 'HOTEL' : 'GROOMING'
+    this.assertModePermission(req.user, normalizedMode, 'update')
+    return this.pricingService.previewPricingExcelImport({
+      mode: normalizedMode,
+      year: Math.floor(Number(year ?? new Date().getFullYear())),
+      buffer: file.buffer,
     })
-    const fs = await import('fs/promises')
-    const buffer = await fs.readFile(file.path)
-    const result = await this.pricingService.importFromExcel(buffer)
-    // Clean up temp file
-    try { await fs.unlink(file.path) } catch { /* ignore */ }
-    return result
+  }
+
+  @Post('excel-import/apply')
+  @Permissions('hotel.update', 'grooming.update', 'settings.pricing_policy.manage')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      ...createMemoryUploadOptions({
+        destination: 'uploads/pricing-excel',
+        ...pricingExcelUploadOptions,
+      }),
+    }),
+  )
+  applyPricingExcelImport(
+    @UploadedFile() file: Express.Multer.File,
+    @Query('mode') mode: string,
+    @Query('year') year: string,
+    @Req() req: { user?: JwtPayload },
+  ) {
+    validateUploadedFile(file, pricingExcelUploadOptions)
+    const normalizedMode = String(mode ?? '').toUpperCase() === 'HOTEL' ? 'HOTEL' : 'GROOMING'
+    this.assertModePermission(req.user, normalizedMode, 'update')
+    return this.pricingService.applyPricingExcelImport({
+      mode: normalizedMode,
+      year: Math.floor(Number(year ?? new Date().getFullYear())),
+      buffer: file.buffer,
+    })
   }
 }

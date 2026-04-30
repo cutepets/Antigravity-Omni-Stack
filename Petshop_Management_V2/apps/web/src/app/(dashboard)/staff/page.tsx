@@ -29,6 +29,7 @@ export default function StaffManagementPage() {
   const canCreateStaff = hasPermission('staff.create') && canReadRoles
   const canEditStaff = hasPermission('staff.update') && canReadRoles
   const canDeactivateStaff = hasPermission('staff.deactivate')
+  const canImportStaffExcel = hasAnyPermission(['staff.create', 'staff.update'])
   const canViewRoles = hasAnyPermission(['role.read', 'staff.read'])
 
   const [activeTab, setActiveTab] = useState<StaffTab>('staff')
@@ -196,6 +197,8 @@ export default function StaffManagementPage() {
                   canDeactivate={canDeactivateStaff}
                   canBulkDeactivate={canDeactivateStaff && isSuperAdmin()}
                   canCreate={canCreateStaff}
+                  canImportExcel={canImportStaffExcel}
+                  onImported={fetchStaff}
                   onCreate={() => {
                     setSelectedStaff(null)
                     setIsModalOpen(true)

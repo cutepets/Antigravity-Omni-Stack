@@ -1,6 +1,6 @@
 import { PricingService } from './pricing.service'
 
-describe('PricingService Excel grooming pricing', () => {
+describe('PricingService pricing configuration', () => {
   let service: PricingService
   let db: any
 
@@ -78,33 +78,6 @@ describe('PricingService Excel grooming pricing', () => {
     const rules = await service.listSpaRules({ species: 'Chó', isActive: 'true' })
 
     expect(rules).toEqual([namedRule, standaloneLegacyRule])
-  })
-
-  it('backs up all pricing datasets before destructive pricing changes', async () => {
-    db.serviceWeightBand.findMany.mockResolvedValue([{ id: 'band-1' }])
-    db.spaPriceRule.findMany.mockResolvedValue([{ id: 'spa-1' }])
-    db.hotelPriceRule.findMany.mockResolvedValue([{ id: 'hotel-1' }])
-    db.holidayCalendarDate.findMany.mockResolvedValue([{ id: 'holiday-1' }])
-    db.systemConfig.findFirst.mockResolvedValue({
-      id: 'config-1',
-      hotelExtraServices: '[{"name":"Đưa đón","price":10000}]',
-      spaServiceImages: '[{"species":"Chó","packageCode":"Tắm","imageUrl":"/uploads/dog.jpg"}]',
-      hotelServiceImages: '[{"species":"Chó","packageCode":"HOTEL","imageUrl":"/uploads/hotel-dog.jpg"}]',
-    })
-
-    const snapshot = await service.createPricingBackupSnapshot()
-
-    expect(snapshot).toEqual(expect.objectContaining({
-      weightBands: [{ id: 'band-1' }],
-      spaRules: [{ id: 'spa-1' }],
-      hotelRules: [{ id: 'hotel-1' }],
-      holidays: [{ id: 'holiday-1' }],
-      systemConfig: expect.objectContaining({
-        hotelExtraServices: '[{"name":"Đưa đón","price":10000}]',
-        spaServiceImages: '[{"species":"Chó","packageCode":"Tắm","imageUrl":"/uploads/dog.jpg"}]',
-        hotelServiceImages: '[{"species":"Chó","packageCode":"HOTEL","imageUrl":"/uploads/hotel-dog.jpg"}]',
-      }),
-    }))
   })
 
   it('updates spa service images by species and keeps the other species image', async () => {
@@ -211,159 +184,121 @@ describe('PricingService Excel grooming pricing', () => {
     expect(db.systemConfig.findFirst).not.toHaveBeenCalled()
   })
 
-  it('exports the full pricing workbook shape used for roundtrip backup', async () => {
+  it('exports Grooming workbook with dog, cat, other, and decode sheets', async () => {
     const ExcelJS = await import('exceljs')
-    db.serviceWeightBand.findMany
-      .mockResolvedValueOnce([{ id: 'g-dog-small', serviceType: 'GROOMING', species: 'Chó', label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0, isActive: true }])
-      .mockResolvedValueOnce([{ id: 'h-small', serviceType: 'HOTEL', species: null, label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0, isActive: true }])
-      .mockResolvedValueOnce([{ id: 'g-dog-small', serviceType: 'GROOMING', species: 'Chó', label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0, isActive: true }])
+    db.serviceWeightBand.findMany.mockResolvedValue([
+      { id: 'dog-small', serviceType: 'GROOMING', species: 'Chó', label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0, isActive: true },
+      { id: 'cat-small', serviceType: 'GROOMING', species: 'Mèo', label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0, isActive: true },
+    ])
     db.spaPriceRule.findMany.mockResolvedValue([
-      { id: 'spa-1', species: 'Chó', packageCode: 'Tắm', label: 'Tắm', weightBandId: 'g-dog-small', minWeight: null, maxWeight: null, sku: 'CT03', price: 50000, durationMinutes: 30, isActive: true, weightBand: { id: 'g-dog-small' } },
-      { id: 'spa-flat-1', species: null, packageCode: 'Vệ sinh tai', label: 'Vệ sinh tai', weightBandId: null, minWeight: 0, maxWeight: null, sku: 'VST', price: 30000, durationMinutes: 10, isActive: true, weightBand: null },
+      { id: 'dog-bath', species: 'Chó', packageCode: 'Tắm', label: 'Tắm', weightBandId: 'dog-small', sku: 'CT03', price: 50000, durationMinutes: 30, isActive: true, weightBand: { id: 'dog-small', species: 'Chó', label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0 } },
+      { id: 'cat-bath', species: 'Mèo', packageCode: 'Tắm', label: 'Tắm', weightBandId: 'cat-small', sku: 'MT03', price: 60000, durationMinutes: 35, isActive: true, weightBand: { id: 'cat-small', species: 'Mèo', label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0 } },
+      { id: 'other-ear', species: null, packageCode: 'Vệ sinh tai', label: 'Vệ sinh tai', weightBandId: null, minWeight: 0, maxWeight: null, sku: 'VST', price: 30000, durationMinutes: 10, isActive: true, weightBand: null },
+    ])
+    db.systemConfig.findFirst.mockResolvedValue({
+      spaServiceImages: JSON.stringify([{ species: null, packageCode: 'Vệ sinh tai', imageUrl: '/uploads/ear.jpg' }]),
+    })
+
+    const buffer = await service.exportPricingExcel({ mode: 'GROOMING', year: 2026 })
+    const workbook = new ExcelJS.default.Workbook()
+    await workbook.xlsx.load(buffer as any)
+
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Grooming Chó', 'Grooming Mèo', 'Grooming Khác', 'Giải mã'])
+    expect(workbook.getWorksheet('Grooming Chó')!.getRow(1).values).toEqual(expect.arrayContaining(['Số tiền - Tắm', 'SKU - Tắm', 'Thời gian - Tắm']))
+    expect(workbook.getWorksheet('Grooming Chó')!.getRow(2).getCell(5).value).toBe(50000)
+    expect(workbook.getWorksheet('Grooming Khác')!.getRow(2).getCell(3).value).toBe('/uploads/ear.jpg')
+    expect(workbook.getWorksheet('Giải mã')!.getRow(2).getCell(2).value).toBe('PRICING_EXCEL_V1')
+  })
+
+  it('exports Hotel workbook for the selected year with dog and cat pricing columns', async () => {
+    const ExcelJS = await import('exceljs')
+    db.serviceWeightBand.findMany.mockResolvedValue([
+      { id: 'hotel-small', serviceType: 'HOTEL', species: null, label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0, isActive: true },
     ])
     db.hotelPriceRule.findMany.mockResolvedValue([
-      { id: 'hotel-1', year: 2026, species: 'Chó', dayType: 'REGULAR', weightBandId: 'h-small', sku: 'CHT03', fullDayPrice: 120000, halfDayPrice: 60000, isActive: true, weightBand: { id: 'h-small' } },
+      { id: 'hotel-dog-regular', year: 2026, species: 'Chó', dayType: 'REGULAR', weightBandId: 'hotel-small', sku: 'CHT03', fullDayPrice: 120000, halfDayPrice: 60000, isActive: true, weightBand: { id: 'hotel-small' } },
+      { id: 'hotel-dog-holiday', year: 2026, species: 'Chó', dayType: 'HOLIDAY', weightBandId: 'hotel-small', sku: 'CHT03', fullDayPrice: 150000, halfDayPrice: 75000, isActive: true, weightBand: { id: 'hotel-small' } },
     ])
-    db.holidayCalendarDate.findMany.mockResolvedValue([{ id: 'holiday-1', date: new Date(Date.UTC(2026, 0, 1)), endDate: null, name: 'Tết', isRecurring: true, isActive: true }])
-    db.systemConfig.findFirst.mockResolvedValue({
-      hotelExtraServices: JSON.stringify([{ sku: 'HE001', name: 'Đưa đón', minWeight: 0, maxWeight: null, price: 100000, imageUrl: '/uploads/hotel-extra.jpg' }]),
-      spaServiceImages: JSON.stringify([{ species: 'Chó', packageCode: 'Tắm', imageUrl: '/uploads/dog-bath.jpg' }]),
-      hotelServiceImages: JSON.stringify([{ species: 'Chó', packageCode: 'HOTEL', label: 'Hotel Chó', imageUrl: '/uploads/hotel-dog.jpg' }]),
-    })
     db.$queryRawUnsafe.mockResolvedValue([
-      { id: 'config-1', hotelServiceImages: JSON.stringify([{ species: 'Chó', packageCode: 'HOTEL', label: 'Hotel Chó', imageUrl: '/uploads/hotel-dog.jpg' }]) },
+      { id: 'config-1', hotelServiceImages: JSON.stringify([{ species: 'Chó', packageCode: 'HOTEL', imageUrl: '/uploads/hotel-dog.jpg' }]) },
     ])
 
-    const buffer = await service.exportToExcel('all')
+    const buffer = await service.exportPricingExcel({ mode: 'HOTEL', year: 2026 })
     const workbook = new ExcelJS.default.Workbook()
     await workbook.xlsx.load(buffer as any)
 
-    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(expect.arrayContaining([
-      'Grooming Matrix',
-      'Grooming Other',
-      'Hotel Matrix',
-      'Hotel Extra',
-      'Weight Bands',
-      'Holidays',
-      'Service Images',
-    ]))
-    expect(workbook.getWorksheet('Hotel Matrix')!.getRow(1).values).toEqual(expect.arrayContaining(['imageUrl']))
-    expect(workbook.getWorksheet('Hotel Matrix')!.getRow(2).getCell('K').value).toBe('/uploads/hotel-dog.jpg')
-    expect(workbook.getWorksheet('Service Images')!.getRow(1).values).toEqual([
-      undefined,
-      'serviceType',
-      'species',
-      'packageCode',
-      'label',
-      'imageUrl',
-    ])
-    expect(workbook.getWorksheet('Grooming Matrix')!.getRow(1).values).toEqual([
-      undefined,
-      'id',
-      'species',
-      'packageCode',
-      'label',
-      'weightBandId',
-      'weightBandLabel',
-      'minWeight',
-      'maxWeight',
-      'sku',
-      'price',
-      'durationMinutes',
-      'imageUrl',
-      'isActive',
-    ])
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Hotel', 'Giải mã'])
+    expect(workbook.getWorksheet('Hotel')!.getRow(1).values).toEqual(expect.arrayContaining(['Chó - SKU', 'Chó - Ngày thường', 'Chó - Ngày lễ', 'Mèo - Ngày thường']))
+    expect(workbook.getWorksheet('Hotel')!.getRow(2).getCell(6).value).toBe(120000)
+    expect(workbook.getWorksheet('Hotel')!.getRow(2).getCell(7).value).toBe(150000)
+    expect(workbook.getWorksheet('Giải mã')!.getRow(2).getCell(2).value).toBe('PRICING_EXCEL_V1')
+    expect(workbook.getWorksheet('Giải mã')!.getRow(6).getCell(2).value).toBe('/uploads/hotel-dog.jpg')
   })
 
-  it('exports only the backup workbook sheets and includes README guidance', async () => {
+  it('previews invalid Grooming workbook with structured missing sheet errors', async () => {
     const ExcelJS = await import('exceljs')
-    db.serviceWeightBand.findMany.mockResolvedValue([])
-    db.spaPriceRule.findMany.mockResolvedValue([])
-    db.hotelPriceRule.findMany.mockResolvedValue([])
-    db.holidayCalendarDate.findMany.mockResolvedValue([])
-    db.systemConfig.findFirst.mockResolvedValue(null)
-    db.$queryRawUnsafe.mockResolvedValue([])
-
-    const buffer = await service.exportToExcel('all')
     const workbook = new ExcelJS.default.Workbook()
-    await workbook.xlsx.load(buffer as any)
+    workbook.addWorksheet('Grooming Chó').addRow(['Tên hạng cân', 'Từ kg'])
 
-    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([
-      'README',
-      'Grooming Matrix',
-      'Grooming Other',
-      'Hotel Matrix',
-      'Hotel Extra',
-      'Weight Bands',
-      'Holidays',
-      'Service Images',
-    ])
-    expect(workbook.getWorksheet('Grooming')).toBeUndefined()
-    expect(workbook.getWorksheet('Hotel')).toBeUndefined()
-    expect(String(workbook.getWorksheet('README')!.getRow(2).getCell(1).value)).toContain('backup')
-  })
-
-  it('imports backup workbook rows by stable signatures when ids are blank', async () => {
-    const ExcelJS = await import('exceljs')
-    const existingBand = {
-      id: 'band-existing',
-      serviceType: 'GROOMING',
-      species: 'Cho',
-      label: 'Duoi 3kg',
-      minWeight: 0,
-      maxWeight: 3,
-      sortOrder: 0,
-      isActive: true,
-    }
-    db.serviceWeightBand.findMany.mockResolvedValue([existingBand])
-    jest.spyOn(service, 'upsertWeightBand').mockResolvedValue(existingBand as any)
-    const bulkUpsertSpaRules = jest.spyOn(service, 'bulkUpsertSpaRules').mockResolvedValue([] as any)
-    jest.spyOn(service, 'bulkUpdateSpaServiceImages').mockResolvedValue([] as any)
-    jest.spyOn(service, 'bulkUpdateHotelServiceImages').mockResolvedValue([] as any)
-    jest.spyOn(service, 'createHoliday').mockResolvedValue({} as any)
-    jest.spyOn(service, 'createPricingBackupSnapshot').mockResolvedValue({ createdAt: 'backup' } as any)
-
-    const workbook = new ExcelJS.default.Workbook()
-    const bands = workbook.addWorksheet('Weight Bands')
-    bands.addRow(['id', 'serviceType', 'species', 'label', 'minWeight', 'maxWeight', 'sortOrder', 'isActive'])
-    bands.addRow(['', 'GROOMING', 'Cho', 'Duoi 3kg', 0, 3, 0, true])
-    const grooming = workbook.addWorksheet('Grooming Matrix')
-    grooming.addRow(['id', 'species', 'packageCode', 'label', 'weightBandId', 'weightBandLabel', 'minWeight', 'maxWeight', 'sku', 'price', 'durationMinutes', 'imageUrl', 'isActive'])
-    grooming.addRow(['', 'Cho', 'Tam', 'Tam', '', 'Duoi 3kg', 0, 3, 'SPA001', 120000, 45, '/uploads/tam.jpg', true])
-
-    const result = await service.importFromExcel(Buffer.from(await workbook.xlsx.writeBuffer()))
-
-    expect(result.errors).toEqual([])
-    expect((result as any).details).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sheet: 'Weight Bands', imported: 1 }),
-      expect.objectContaining({ sheet: 'Grooming Matrix', imported: 1 }),
-    ]))
-    expect((result as any).summary).toEqual(expect.objectContaining({ imported: expect.any(Number), errors: 0 }))
-    expect(bulkUpsertSpaRules).toHaveBeenCalledWith({
-      rules: [expect.objectContaining({ weightBandId: 'band-existing', sku: 'SPA001', price: 120000, durationMinutes: 45 })],
+    const result = await service.previewPricingExcelImport({
+      mode: 'GROOMING',
+      year: 2026,
+      buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
     })
+
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sheet: 'Grooming Mèo', message: expect.stringContaining('Thiếu sheet') }),
+      expect.objectContaining({ sheet: 'Grooming Chó', message: expect.stringContaining('Mã hạng cân') }),
+    ]))
+    expect(result.summary.errorCount).toBeGreaterThan(0)
+    expect(result.normalizedPayload).toBeNull()
   })
 
-  it('reports structured row errors when a price row cannot resolve its weight band', async () => {
+  it('applies Grooming import in a transaction and deactivates pricing rows missing from the snapshot', async () => {
     const ExcelJS = await import('exceljs')
-    db.serviceWeightBand.findMany.mockResolvedValue([])
+    const existingBand = { id: 'dog-small', serviceType: 'GROOMING', species: 'Chó', label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0, isActive: true }
+    db.$transaction = jest.fn(async (callback) => callback(db))
+    db.serviceWeightBand.findMany.mockResolvedValue([existingBand])
+    db.serviceWeightBand.update = jest.fn().mockResolvedValue(existingBand)
+    db.serviceWeightBand.create = jest.fn()
+    db.serviceWeightBand.updateMany = jest.fn()
+    db.spaPriceRule.findMany.mockResolvedValue([
+      { id: 'old-dog-bath', species: 'Chó', packageCode: 'Tắm', weightBandId: 'dog-small', minWeight: null, maxWeight: null, isActive: true },
+      { id: 'old-remove', species: 'Chó', packageCode: 'Cạo', weightBandId: 'dog-small', minWeight: null, maxWeight: null, isActive: true },
+    ])
+    db.spaPriceRule.update = jest.fn().mockResolvedValue({ id: 'old-dog-bath' })
+    db.spaPriceRule.create = jest.fn()
+    db.spaPriceRule.updateMany = jest.fn()
     jest.spyOn(service, 'createPricingBackupSnapshot').mockResolvedValue({ createdAt: 'backup' } as any)
 
     const workbook = new ExcelJS.default.Workbook()
-    const grooming = workbook.addWorksheet('Grooming Matrix')
-    grooming.addRow(['id', 'species', 'packageCode', 'label', 'weightBandId', 'weightBandLabel', 'minWeight', 'maxWeight', 'sku', 'price', 'durationMinutes', 'imageUrl', 'isActive'])
-    grooming.addRow(['', 'Cho', 'Tam', 'Tam', '', 'Khong co', 0, 3, 'SPA001', 120000, 45, '', true])
+    const dog = workbook.addWorksheet('Grooming Chó')
+    dog.addRow(['Mã hạng cân', 'Tên hạng cân', 'Từ kg', 'Đến kg', 'Số tiền - Tắm', 'SKU - Tắm', 'Thời gian - Tắm'])
+    dog.addRow(['dog-small', 'Dưới 3kg', 0, 3, 55000, 'CT03', 30])
+    const cat = workbook.addWorksheet('Grooming Mèo')
+    cat.addRow(['Mã hạng cân', 'Tên hạng cân', 'Từ kg', 'Đến kg'])
+    const other = workbook.addWorksheet('Grooming Khác')
+    other.addRow(['Mã rule', 'SKU', 'Link ảnh', 'Tên dịch vụ', 'Từ kg', 'Đến kg', 'Giá', 'Phút'])
+    const decode = workbook.addWorksheet('Giải mã')
+    decode.addRow(['Khóa', 'Giá trị', 'Ghi chú'])
+    decode.addRow(['version', 'PRICING_EXCEL_V1', ''])
 
-    const result = await service.importFromExcel(Buffer.from(await workbook.xlsx.writeBuffer()))
+    const result = await service.applyPricingExcelImport({
+      mode: 'GROOMING',
+      year: 2026,
+      buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
+    })
 
-    expect(result.imported).toBe(0)
-    expect(result.errors).toHaveLength(1)
-    expect((result as any).details).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        sheet: 'Grooming Matrix',
-        row: 2,
-        message: expect.stringContaining('Khong tim thay hang can'),
-      }),
-    ]))
+    expect(result.summary.ruleCount).toBe(1)
+    expect(db.$transaction).toHaveBeenCalled()
+    expect(db.spaPriceRule.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'old-dog-bath' },
+      data: expect.objectContaining({ price: 55000, sku: 'CT03', isActive: true }),
+    }))
+    expect(db.spaPriceRule.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: { notIn: ['old-dog-bath'] }, isActive: true }),
+      data: { isActive: false },
+    }))
   })
+
 })

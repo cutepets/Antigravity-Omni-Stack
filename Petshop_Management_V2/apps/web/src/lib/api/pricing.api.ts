@@ -109,22 +109,45 @@ export interface HotelExtraServicePayload {
   price: number
 }
 
-export interface PricingImportDetail {
+export interface PricingExcelIssue {
   sheet: string
   row?: number
-  imported?: number
-  errors?: number
-  message?: string
+  column?: string
+  message: string
 }
 
-export interface PricingImportResult {
-  imported: number
-  errors: string[]
-  summary?: {
-    imported: number
-    errors: number
+export interface PricingExcelPreviewResult {
+  errors: PricingExcelIssue[]
+  warnings: PricingExcelIssue[]
+  summary: {
+    mode: PricingServiceType
+    year: number
+    sheetCount: number
+    bandCount: number
+    ruleCount: number
+    imageCount: number
+    errorCount: number
+    warningCount: number
   }
-  details?: PricingImportDetail[]
+  normalizedPayload: unknown | null
+  checksum: string
+  applied?: boolean
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
+  URL.revokeObjectURL(url)
+}
+
+function getFilenameFromDisposition(disposition?: string) {
+  const match = /filename="?([^";]+)"?/i.exec(disposition ?? '')
+  return match?.[1] ?? null
 }
 
 export const pricingApi = {
@@ -218,32 +241,34 @@ export const pricingApi = {
   bulkUpdateHotelServiceImages: (images: Array<{ species?: string | null; packageCode?: string | null; imageUrl: string; label?: string | null }>) =>
     api.put<Array<{ species: string; packageCode: string; imageUrl: string; label?: string }>>('/pricing/hotel-service-images', { images }).then((res) => res.data),
 
-  // ─── Excel Export / Import ──────────────────────────────────────────────
-
-  exportExcel: async (type: 'grooming' | 'hotel' | 'all' = 'all') => {
-    const res = await api.get<{ buffer: string; filename: string }>('/pricing/export/xlsx', { params: { type } })
-    const { buffer, filename } = res.data
-    // Convert base64 to blob and trigger download
-    const bytes = atob(buffer)
-    const byteArray = new Uint8Array(bytes.length)
-    for (let i = 0; i < bytes.length; i++) byteArray[i] = bytes.charCodeAt(i)
-    const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  exportPricingExcel: async (params: { mode: PricingServiceType; year: number }) => {
+    const res = await api.get<Blob>('/pricing/excel-export', {
+      params,
+      responseType: 'blob',
+    })
+    const filename = getFilenameFromDisposition(res.headers['content-disposition'])
+      ?? `bang-gia-${params.mode.toLowerCase()}-${params.year}.xlsx`
+    downloadBlob(res.data, filename)
     return { filename }
   },
 
-  importExcel: async (file: File) => {
+  previewPricingExcelImport: (params: { mode: PricingServiceType; year: number; file: File }) => {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', params.file)
     return api
-      .post<PricingImportResult>('/pricing/import/xlsx', formData, {
+      .post<PricingExcelPreviewResult>('/pricing/excel-import/preview', formData, {
+        params: { mode: params.mode, year: params.year },
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((res) => res.data)
+  },
+
+  applyPricingExcelImport: (params: { mode: PricingServiceType; year: number; file: File }) => {
+    const formData = new FormData()
+    formData.append('file', params.file)
+    return api
+      .post<PricingExcelPreviewResult>('/pricing/excel-import/apply', formData, {
+        params: { mode: params.mode, year: params.year },
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       .then((res) => res.data)

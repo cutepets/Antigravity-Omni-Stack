@@ -22,7 +22,6 @@ import {
   CreateCustomerDto,
   CustomerService,
   FindCustomersDto,
-  ImportCustomerRow,
   UpdateCustomerDto,
 } from './customer.service.js'
 
@@ -55,30 +54,6 @@ export class CustomerController {
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
   findAll(@Query() query: FindCustomersDto, @Req() req: AuthenticatedRequest) {
     return this.customerService.findAll(query, req.user, query.branchId ?? getRequestedBranchId(req))
-  }
-
-  @Get('export')
-  @Permissions('customer.read.all', 'customer.read.assigned')
-  @ApiOperation({ summary: 'Export toàn bộ khách hàng' })
-  @ApiQuery({ name: 'tier', required: false })
-  @ApiQuery({ name: 'isActive', required: false })
-  exportAll(
-    @Query('tier') tier?: string,
-    @Query('isActive') isActive?: string,
-    @Req() req?: AuthenticatedRequest,
-  ) {
-    const isActiveBool = isActive !== undefined ? isActive === 'true' : undefined
-    return this.customerService.exportAll({
-      ...(tier !== undefined && { tier }),
-      ...(isActiveBool !== undefined && { isActive: isActiveBool }),
-    }, req?.user)
-  }
-
-  @Post('import')
-  @Permissions('customer.create')
-  @ApiOperation({ summary: 'Import batch khách hàng từ JSON rows' })
-  importBatch(@Body() body: { rows: ImportCustomerRow[] }, @Req() req: AuthenticatedRequest) {
-    return this.customerService.importBatch(body.rows || [], req.user, getRequestedBranchId(req))
   }
 
   @Post('bulk-delete')

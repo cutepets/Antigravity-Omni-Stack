@@ -1,18 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import {
   AlertCircle,
   BadgeCheck,
-  Download,
   ExternalLink,
   Pencil,
   Plus,
   Trash2,
-  Upload,
   Pin,
   PinOff,
   MapPin,
@@ -20,9 +18,10 @@ import {
   Users,
 } from 'lucide-react'
 import { useAuthorization } from '@/hooks/useAuthorization'
-import { customerApi, type ImportCustomerRow } from '@/lib/api/customer.api'
+import { customerApi } from '@/lib/api/customer.api'
 import { CustomerFormModal } from './customer-form-modal'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
+import { CrmImportExportDropdown } from '@/components/crm/CrmImportExportDropdown'
 import type { Customer } from '@petshop/shared'
 import {
   DataListShell,
@@ -90,35 +89,18 @@ function compareText(left?: string | null, right?: string | null) {
   return `${left ?? ''}`.localeCompare(`${right ?? ''}`, 'vi', { sensitivity: 'base' })
 }
 
-// ── Export helper ────────────────────────────────────────────────────────────
-function downloadCSV(data: any[], filename: string) {
-  const headers = ['Mã KH', 'Họ tên', 'SĐT', 'Email', 'Địa chỉ', 'Hạng', 'Điểm', 'Tổng chi tiêu', 'Số đơn', 'Ngày tạo']
-  const rows = data.map(c => [
-    c.customerCode, c.fullName, c.phone, c.email ?? '',
-    c.address ?? '', c.tier, c.points ?? 0, c.totalSpent ?? 0,
-    c.totalOrders ?? 0,
-    c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '',
-  ])
-  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
-}
-
 // ── Main component ─────────────────────────────────────────────────────────────
 export function CustomerList() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const { hasAnyPermission, hasPermission, isLoading: isAuthLoading, isSuperAdmin } = useAuthorization()
 
   const canReadCustomers = hasAnyPermission(['customer.read.all', 'customer.read.assigned'])
   const canCreateCustomer = hasPermission('customer.create')
   const canUpdateCustomer = hasPermission('customer.update')
   const canDeleteCustomer = hasPermission('customer.delete')
+  const canImportCrm = hasAnyPermission(['customer.create', 'customer.update', 'pet.create', 'pet.update'])
 
   const [search, setSearch] = useState('')
   const [tier, setTier] = useState('')
@@ -128,8 +110,6 @@ export function CustomerList() {
   const [pageSize, setPageSize] = useState(15)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
-  const [isExporting, setIsExporting] = useState(false)
-  const [isImporting, setIsImporting] = useState(false)
   const reportSource = searchParams.get('from')
   const reportTab = searchParams.get('tab')
   const scopedBranchId = searchParams.get('branchId')?.trim() || undefined
@@ -279,50 +259,6 @@ export function CustomerList() {
     [selectedRowIds],
   )
 
-  // ── Export ───────────────────────────────────────────────────────────────────
-  const handleExport = async () => {
-    setIsExporting(true)
-    try {
-      const res = await customerApi.exportCustomers({
-        tier: tier || undefined,
-        isActive: isActiveFilter === '' ? undefined : isActiveFilter === 'true',
-      })
-      downloadCSV(res.data, `khach-hang-${new Date().toISOString().slice(0, 10)}.csv`)
-      toast.success(`Đã export ${res.data.length} khách hàng`)
-    } catch {
-      toast.error('Lỗi export dữ liệu')
-    } finally {
-      setIsExporting(false)
-    }
-  }
-
-  // ── Import ───────────────────────────────────────────────────────────────────
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setIsImporting(true)
-    try {
-      const text = await file.text()
-      const lines = text.replace(/\r/g, '').split('\n').filter(Boolean)
-      const rows: ImportCustomerRow[] = lines.slice(1).map(line => {
-        const cols = line.match(/(".*?"|[^,]+)/g)?.map(c => c.replace(/^"|"$/g, '').trim()) ?? []
-        return { customerCode: cols[0] || '', fullName: cols[1] || '', phone: cols[2] || '', email: cols[3] || '', address: cols[4] || '', tier: cols[5] || 'BRONZE' }
-      }).filter(r => r.fullName)
-
-      if (!rows.length) { toast.error('File không có dữ liệu hợp lệ'); return }
-      const res = await customerApi.importCustomers(rows)
-      const { created, updated, errors } = res.data
-      toast.success(`Import xong: ${created} tạo mới, ${updated} cập nhật${errors.length ? ` (${errors.length} lỗi)` : ''}`)
-      if (errors.length) console.warn('Import errors:', errors)
-      queryClient.invalidateQueries({ queryKey: ['customers'] })
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Lỗi khi import file')
-    } finally {
-      setIsImporting(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-  }
-
   const handleDelete = (c: Customer) => {
     if (window.confirm(`Xoá khách hàng "${c.fullName}"?\n\nHệ thống sẽ kiểm tra trước khi xoá.`)) {
       deleteMutation.mutate(c.id)
@@ -444,28 +380,21 @@ export function CustomerList() {
         }
         extraActions={
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={isExporting}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 text-sm font-medium text-foreground transition-colors hover:border-primary-500/60 disabled:opacity-50"
-            >
-              <Download size={15} /> Export
-            </button>
+            <CrmImportExportDropdown
+              canImport={canImportCrm}
+              onImported={() => {
+                queryClient.invalidateQueries({ queryKey: ['customers'] })
+                queryClient.invalidateQueries({ queryKey: ['pets'] })
+              }}
+            />
             {canCreateCustomer ? (
-              <>
-                <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 text-sm font-medium text-foreground transition-colors hover:border-primary-500/60">
-                  <Upload size={15} /> Import
-                  <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImportFile} disabled={isImporting} />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => { setEditingCustomer(null); setIsModalOpen(true) }}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                >
-                  <Plus size={15} /> Thêm khách hàng
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => { setEditingCustomer(null); setIsModalOpen(true) }}
+                className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              >
+                <Plus size={15} /> Thêm khách hàng
+              </button>
             ) : null}
           </div>
         }

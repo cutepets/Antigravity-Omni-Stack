@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { DatabaseService } from '../../database/database.service.js'
 import {
   BulkUpsertHotelExtraServicesDto,
@@ -113,33 +113,79 @@ type HotelExtraServiceConfig = {
   price: number
 }
 
-const PRICING_EXCEL_SHEETS = {
-  readme: 'README',
-  groomingMatrix: 'Grooming Matrix',
-  groomingOther: 'Grooming Other',
-  hotelMatrix: 'Hotel Matrix',
-  hotelExtra: 'Hotel Extra',
-  weightBands: 'Weight Bands',
-  holidays: 'Holidays',
-  serviceImages: 'Service Images',
+const PRICING_EXCEL_VERSION = 'PRICING_EXCEL_V1'
+const PRICING_EXCEL_SPECIES = ['Chó', 'Mèo'] as const
+const GROOMING_SHEETS = {
+  dog: 'Grooming Chó',
+  cat: 'Grooming Mèo',
+  other: 'Grooming Khác',
+  decode: 'Giải mã',
+} as const
+const HOTEL_SHEETS = {
+  hotel: 'Hotel',
+  decode: 'Giải mã',
 } as const
 
-type PricingImportDetail = {
+type PricingExcelMode = 'GROOMING' | 'HOTEL'
+type PricingExcelIssue = {
   sheet: string
   row?: number
-  imported?: number
-  errors?: number
-  message?: string
+  column?: string
+  message: string
 }
-
-type PricingImportResult = {
-  imported: number
-  errors: string[]
+type PricingExcelBand = {
+  sourceId: string | null
+  species: string | null
+  label: string
+  minWeight: number
+  maxWeight: number | null
+  sortOrder: number
+}
+type PricingExcelSpaRule = {
+  sourceId: string | null
+  species: string | null
+  packageCode: string
+  weightBandSourceId: string | null
+  bandSignature: string
+  minWeight: number | null
+  maxWeight: number | null
+  sku: string | null
+  price: number
+  durationMinutes: number | null
+}
+type PricingExcelHotelRule = {
+  sourceId: string | null
+  species: string
+  dayType: PricingDayType
+  weightBandSourceId: string | null
+  bandSignature: string
+  sku: string | null
+  fullDayPrice: number
+}
+type PricingExcelPayload = {
+  mode: PricingExcelMode
+  year: number
+  bands: PricingExcelBand[]
+  spaRules: PricingExcelSpaRule[]
+  spaImages: Array<{ species: string | null; packageCode: string; imageUrl: string }>
+  hotelRules: PricingExcelHotelRule[]
+  hotelImages: Array<{ species: string; packageCode: string; imageUrl: string; label?: string | null }>
+}
+type PricingExcelPreviewResult = {
+  errors: PricingExcelIssue[]
+  warnings: PricingExcelIssue[]
   summary: {
-    imported: number
-    errors: number
+    mode: PricingExcelMode
+    year: number
+    sheetCount: number
+    bandCount: number
+    ruleCount: number
+    imageCount: number
+    errorCount: number
+    warningCount: number
   }
-  details: PricingImportDetail[]
+  normalizedPayload: PricingExcelPayload | null
+  checksum: string
 }
 
 function getPrismaErrorCode(error: unknown) {
@@ -229,35 +275,97 @@ export class PricingService implements OnModuleInit {
     return this.normalizeNumber(value, label, min)
   }
 
-  private excelText(row: any, key: string) {
-    const value = row?.[key]
+  private normalizeExcelMode(value?: string | null): PricingExcelMode {
+    const normalized = String(value ?? '').trim().toUpperCase()
+    if (normalized === 'GROOMING' || normalized === 'HOTEL') return normalized
+    throw new BadRequestException('Loại file Excel không hợp lệ')
+  }
+
+  private excelCellText(cell: any) {
+    const value = cell?.value ?? cell
     if (value === null || value === undefined) return ''
-    if (typeof value === 'object' && 'text' in value) return String(value.text ?? '').trim()
+    if (typeof value === 'object') {
+      if ('text' in value) return String(value.text ?? '').trim()
+      if ('result' in value) return String(value.result ?? '').trim()
+      if ('richText' in value && Array.isArray(value.richText)) {
+        return value.richText.map((part: any) => part?.text ?? '').join('').trim()
+      }
+    }
     return String(value).trim()
   }
 
-  private excelNumber(row: any, key: string) {
-    const raw = row?.[key]
+  private excelCellNumber(cell: any) {
+    const raw = cell?.value ?? cell
     if (raw === null || raw === undefined || raw === '') return null
-    const normalized = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^\d.-]/g, ''))
-    return Number.isFinite(normalized) ? normalized : null
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
+    const normalized = String(raw).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.')
+    if (!normalized) return null
+    const value = Number(normalized)
+    return Number.isFinite(value) ? value : null
   }
 
-  private excelBoolean(row: any, key: string, defaultValue = true) {
-    const raw = row?.[key]
-    if (raw === null || raw === undefined || raw === '') return defaultValue
-    if (typeof raw === 'boolean') return raw
-    const normalized = String(raw).trim().toLowerCase()
-    if (['true', '1', 'yes', 'y', 'active', 'x'].includes(normalized)) return true
-    if (['false', '0', 'no', 'n', 'inactive'].includes(normalized)) return false
-    return defaultValue
+  private getWorksheetHeaders(sheet: any) {
+    const headers: string[] = []
+    sheet?.getRow(1).eachCell((cell: any, colNumber: number) => {
+      headers[colNumber] = this.excelCellText(cell)
+    })
+    return headers
   }
 
-  private dateToExcelInput(value?: Date | string | null) {
-    if (!value) return ''
-    const date = value instanceof Date ? value : new Date(value)
-    if (Number.isNaN(date.getTime())) return ''
-    return date.toISOString().slice(0, 10)
+  private getExcelCell(row: any, headers: string[], header: string) {
+    const index = headers.indexOf(header)
+    return index > 0 ? row.getCell(index) : { value: '' }
+  }
+
+  private getExcelChecksum(buffer: Buffer) {
+    return createHash('sha256').update(buffer).digest('hex')
+  }
+
+  private makeBandSignature(serviceType: PricingServiceType, species: string | null, label: string, minWeight: number, maxWeight: number | null) {
+    return `${serviceType}:${species ?? 'NULL'}:${label.trim().toLocaleLowerCase()}:${minWeight}:${maxWeight ?? 'INF'}`
+  }
+
+  private assertExcelHeaders(sheet: any, sheetName: string, requiredHeaders: string[], errors: PricingExcelIssue[]) {
+    if (!sheet) {
+      errors.push({ sheet: sheetName, message: `Thiếu sheet ${sheetName}` })
+      return []
+    }
+    const headers = this.getWorksheetHeaders(sheet)
+    const available = new Set(headers.filter(Boolean))
+    for (const header of requiredHeaders) {
+      if (!available.has(header)) {
+        errors.push({ sheet: sheetName, column: header, message: `Thiếu cột ${header}` })
+      }
+    }
+    return headers
+  }
+
+  private addExcelHeaderStyle(sheet: any) {
+    const row = sheet.getRow(1)
+    row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } }
+    row.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+    row.alignment = { horizontal: 'center', vertical: 'middle' }
+    row.commit()
+  }
+
+  private addExcelSheet(workbook: any, name: string, columns: Array<{ header: string; key: string; width?: number }>) {
+    const sheet = workbook.addWorksheet(name)
+    sheet.columns = columns
+    this.addExcelHeaderStyle(sheet)
+    return sheet
+  }
+
+  private readDecodeRows(sheet: any, headers: string[]) {
+    const rows: Array<{ key: string; value: string; note: string }> = []
+    if (!sheet) return rows
+    sheet.eachRow((row: any, rowNumber: number) => {
+      if (rowNumber === 1) return
+      const key = this.excelCellText(this.getExcelCell(row, headers, 'Khóa'))
+      const value = this.excelCellText(this.getExcelCell(row, headers, 'Giá trị'))
+      const note = this.excelCellText(this.getExcelCell(row, headers, 'Ghi chú'))
+      if (key || value || note) rows.push({ key, value, note })
+    })
+    return rows
   }
 
   private parseHolidayDate(value: string, label = 'Ngày lễ') {
@@ -423,35 +531,6 @@ export class PricingService implements OnModuleInit {
     })
 
     return this.parseHotelExtraServicesConfig(config?.hotelExtraServices)
-  }
-
-  async createPricingBackupSnapshot() {
-    const [weightBands, spaRules, hotelRules, holidays, systemConfig] = await Promise.all([
-      this.db.serviceWeightBand.findMany({
-        orderBy: [{ serviceType: 'asc' }, { species: 'asc' }, { sortOrder: 'asc' }, { minWeight: 'asc' }],
-      } as any),
-      this.db.spaPriceRule.findMany({
-        orderBy: [{ species: 'asc' }, { packageCode: 'asc' }, { createdAt: 'asc' }],
-      } as any),
-      this.db.hotelPriceRule.findMany({
-        orderBy: [{ year: 'asc' }, { species: 'asc' }, { dayType: 'asc' }, { createdAt: 'asc' }],
-      } as any),
-      this.db.holidayCalendarDate.findMany({
-        orderBy: [{ date: 'asc' }, { endDate: 'asc' }],
-      } as any),
-      (this.db as any).systemConfig.findFirst({
-        select: { id: true, hotelExtraServices: true, spaServiceImages: true, hotelServiceImages: true, updatedAt: true },
-      }),
-    ])
-
-    return {
-      createdAt: new Date().toISOString(),
-      weightBands,
-      spaRules,
-      hotelRules,
-      holidays,
-      systemConfig,
-    }
   }
 
   async listWeightBands(query: { serviceType?: string; species?: string; isActive?: string }) {
@@ -1049,9 +1128,6 @@ export class PricingService implements OnModuleInit {
       })
     }
   }
-
-  // ─── Excel Export / Import ────────────────────────────────────────────────
-
   // Hotel Service Images
 
   private parseHotelServiceImages(rawValue: string | null | undefined): HotelServiceImageEntry[] {
@@ -1140,270 +1216,33 @@ export class PricingService implements OnModuleInit {
     return rows[0] ?? null
   }
 
-  private addPricingSheet(workbook: any, name: string, columns: Array<{ header: string; key: string; width?: number }>) {
-    const sheet = workbook.addWorksheet(name)
-    sheet.columns = columns
-    const row = sheet.getRow(1)
-    row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }
-    row.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-    row.alignment = { horizontal: 'center' }
-    row.commit()
-    return sheet
-  }
-
-  private addPricingReadmeSheet(workbook: any) {
-    const sheet = workbook.addWorksheet(PRICING_EXCEL_SHEETS.readme)
-    sheet.columns = [
-      { header: 'Huong dan', key: 'guide', width: 42 },
-      { header: 'Chi tiet', key: 'detail', width: 92 },
-    ]
-    const row = sheet.getRow(1)
-    row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } }
-    row.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-    row.alignment = { horizontal: 'center' }
-    row.commit()
-    sheet.addRow({
-      guide: 'File backup bang gia',
-      detail: 'Day la file backup co the sua nhanh roi import lai de cap nhat hoac khoi phuc bang gia Grooming/Hotel.',
-    })
-    sheet.addRow({
-      guide: 'Cot id',
-      detail: 'Nen giu nguyen id khi sua gia. Neu id trong, he thong se match bang serviceType/species/label/minWeight/maxWeight hoac rule key.',
-    })
-    sheet.addRow({
-      guide: 'Gia tri hop le',
-      detail: 'serviceType: GROOMING/HOTEL. dayType: REGULAR/HOLIDAY. isActive: true/false, 1/0, yes/no.',
-    })
-    sheet.addRow({
-      guide: 'Xoa/mat hieu luc',
-      detail: 'Dat isActive=false cho dong can tat. Import khong xoa cac dong khong co trong file.',
-    })
-    sheet.addRow({
-      guide: 'Hang can',
-      detail: 'Weight Bands la nguon that cho hang can. Cac sheet gia can weightBandId hoac weightBandLabel + minWeight + maxWeight de tim hang can.',
-    })
-    return sheet
-  }
-
-  private worksheetRecords(sheet: any) {
-    if (!sheet) return []
-    const headers: string[] = []
-    sheet.getRow(1).eachCell((cell: any, colNumber: number) => {
-      headers[colNumber] = String(cell.value ?? '').trim()
-    })
-    const rows: Record<string, unknown>[] = []
-    sheet.eachRow((row: any, rowNumber: number) => {
-      if (rowNumber <= 1) return
-      const record: Record<string, unknown> = {}
-      let hasValue = false
-      headers.forEach((header, colNumber) => {
-        if (!header) return
-        const cell = row.getCell(colNumber)
-        const value = cell.value && typeof cell.value === 'object' && 'text' in cell.value
-          ? (cell.value as any).text
-          : cell.value
-        if (value !== null && value !== undefined && String(value).trim() !== '') hasValue = true
-        record[header] = value
-      })
-      if (hasValue) rows.push({ ...record, __rowNumber: rowNumber })
-    })
-    return rows
-  }
-
-  private async exportToExcelRoundtrip(type: 'grooming' | 'hotel' | 'all') {
-    const ExcelJS = await import('exceljs')
-    const workbook = new ExcelJS.default.Workbook()
-    this.addPricingReadmeSheet(workbook)
-    const serviceImages = await this.listSpaServiceImages()
-    const hotelServiceImages = await this.listHotelServiceImages()
-    const imageByKey = new Map(serviceImages.map((image) => [`${image.species ?? 'NULL'}:${image.packageCode}`, image.imageUrl]))
-    const hotelImageBySpecies = new Map(hotelServiceImages.map((image) => [image.species, image.imageUrl]))
-
-    if (type === 'grooming' || type === 'all') {
-      const spaRules: any[] = await this.db.spaPriceRule.findMany({
-        where: { isActive: true },
-        include: { weightBand: true },
-        orderBy: [{ species: 'asc' }, { packageCode: 'asc' }, { weightBand: { sortOrder: 'asc' } }, { minWeight: 'asc' }],
-      } as any)
-      const matrixSheet = this.addPricingSheet(workbook, PRICING_EXCEL_SHEETS.groomingMatrix, [
-        { header: 'id', key: 'id', width: 28 },
-        { header: 'species', key: 'species', width: 14 },
-        { header: 'packageCode', key: 'packageCode', width: 24 },
-        { header: 'label', key: 'label', width: 24 },
-        { header: 'weightBandId', key: 'weightBandId', width: 28 },
-        { header: 'weightBandLabel', key: 'weightBandLabel', width: 18 },
-        { header: 'minWeight', key: 'minWeight', width: 12 },
-        { header: 'maxWeight', key: 'maxWeight', width: 12 },
-        { header: 'sku', key: 'sku', width: 16 },
-        { header: 'price', key: 'price', width: 14 },
-        { header: 'durationMinutes', key: 'durationMinutes', width: 18 },
-        { header: 'imageUrl', key: 'imageUrl', width: 36 },
-        { header: 'isActive', key: 'isActive', width: 10 },
-      ])
-      const otherSheet = this.addPricingSheet(workbook, PRICING_EXCEL_SHEETS.groomingOther, [
-        { header: 'id', key: 'id', width: 28 },
-        { header: 'sku', key: 'sku', width: 16 },
-        { header: 'name', key: 'name', width: 28 },
-        { header: 'minWeight', key: 'minWeight', width: 12 },
-        { header: 'maxWeight', key: 'maxWeight', width: 12 },
-        { header: 'price', key: 'price', width: 14 },
-        { header: 'durationMinutes', key: 'durationMinutes', width: 18 },
-        { header: 'imageUrl', key: 'imageUrl', width: 36 },
-        { header: 'isActive', key: 'isActive', width: 10 },
-      ])
-      for (const rule of spaRules) {
-        if (rule.weightBandId) {
-          const species = rule.species ?? rule.weightBand?.species ?? null
-          matrixSheet.addRow({
-            id: rule.id,
-            species: species ?? '',
-            packageCode: rule.packageCode,
-            label: rule.label ?? '',
-            weightBandId: rule.weightBandId,
-            weightBandLabel: rule.weightBand?.label ?? '',
-            minWeight: rule.weightBand?.minWeight ?? '',
-            maxWeight: rule.weightBand?.maxWeight ?? '',
-            sku: rule.sku ?? '',
-            price: rule.price,
-            durationMinutes: rule.durationMinutes ?? '',
-            imageUrl: imageByKey.get(`${species ?? 'NULL'}:${rule.packageCode}`) ?? imageByKey.get(`NULL:${rule.packageCode}`) ?? '',
-            isActive: rule.isActive,
-          })
-        } else {
-          otherSheet.addRow({
-            id: rule.id,
-            sku: rule.sku ?? '',
-            name: rule.label ?? rule.packageCode,
-            minWeight: rule.minWeight ?? '',
-            maxWeight: rule.maxWeight ?? '',
-            price: rule.price,
-            durationMinutes: rule.durationMinutes ?? '',
-            imageUrl: imageByKey.get(`NULL:${rule.packageCode}`) ?? '',
-            isActive: rule.isActive,
-          })
-        }
-      }
-    }
-
-    if (type === 'hotel' || type === 'all') {
-      const year = new Date().getFullYear()
-      const hotelRules: any[] = await this.db.hotelPriceRule.findMany({
-        where: { year, isActive: true },
-        include: { weightBand: true },
-        orderBy: [{ species: 'asc' }, { dayType: 'asc' }, { weightBand: { sortOrder: 'asc' } }],
-      } as any)
-      const hotelSheet = this.addPricingSheet(workbook, PRICING_EXCEL_SHEETS.hotelMatrix, [
-        { header: 'id', key: 'id', width: 28 },
-        { header: 'year', key: 'year', width: 10 },
-        { header: 'species', key: 'species', width: 14 },
-        { header: 'dayType', key: 'dayType', width: 14 },
-        { header: 'weightBandId', key: 'weightBandId', width: 28 },
-        { header: 'weightBandLabel', key: 'weightBandLabel', width: 18 },
-        { header: 'minWeight', key: 'minWeight', width: 12 },
-        { header: 'maxWeight', key: 'maxWeight', width: 12 },
-        { header: 'sku', key: 'sku', width: 16 },
-        { header: 'fullDayPrice', key: 'fullDayPrice', width: 16 },
-        { header: 'imageUrl', key: 'imageUrl', width: 36 },
-        { header: 'isActive', key: 'isActive', width: 10 },
-      ])
-      for (const rule of hotelRules) {
-        hotelSheet.addRow({
-          id: rule.id,
-          year: rule.year,
-          species: rule.species ?? '',
-          dayType: rule.dayType,
-          weightBandId: rule.weightBandId,
-          weightBandLabel: rule.weightBand?.label ?? '',
-          minWeight: rule.weightBand?.minWeight ?? '',
-          maxWeight: rule.weightBand?.maxWeight ?? '',
-          sku: rule.sku ?? '',
-          fullDayPrice: rule.fullDayPrice,
-          imageUrl: rule.species ? hotelImageBySpecies.get(rule.species) ?? '' : '',
-          isActive: rule.isActive,
-        })
-      }
-
-      const hotelExtraSheet = this.addPricingSheet(workbook, PRICING_EXCEL_SHEETS.hotelExtra, [
-        { header: 'sku', key: 'sku', width: 16 },
-        { header: 'name', key: 'name', width: 28 },
-        { header: 'minWeight', key: 'minWeight', width: 12 },
-        { header: 'maxWeight', key: 'maxWeight', width: 12 },
-        { header: 'price', key: 'price', width: 14 },
-        { header: 'imageUrl', key: 'imageUrl', width: 36 },
-      ])
-      for (const service of await this.listHotelExtraServices()) hotelExtraSheet.addRow(service)
-    }
-
-    const bandsSheet = this.addPricingSheet(workbook, PRICING_EXCEL_SHEETS.weightBands, [
-      { header: 'id', key: 'id', width: 28 },
-      { header: 'serviceType', key: 'serviceType', width: 14 },
-      { header: 'species', key: 'species', width: 14 },
-      { header: 'label', key: 'label', width: 18 },
-      { header: 'minWeight', key: 'minWeight', width: 12 },
-      { header: 'maxWeight', key: 'maxWeight', width: 12 },
-      { header: 'sortOrder', key: 'sortOrder', width: 12 },
-      { header: 'isActive', key: 'isActive', width: 10 },
+  async createPricingBackupSnapshot() {
+    const [weightBands, spaRules, hotelRules, holidays, systemConfig] = await Promise.all([
+      this.db.serviceWeightBand.findMany({
+        orderBy: [{ serviceType: 'asc' }, { species: 'asc' }, { sortOrder: 'asc' }, { minWeight: 'asc' }],
+      } as any),
+      this.db.spaPriceRule.findMany({
+        orderBy: [{ species: 'asc' }, { packageCode: 'asc' }, { createdAt: 'asc' }],
+      } as any),
+      this.db.hotelPriceRule.findMany({
+        orderBy: [{ year: 'asc' }, { species: 'asc' }, { dayType: 'asc' }, { createdAt: 'asc' }],
+      } as any),
+      this.db.holidayCalendarDate.findMany({
+        orderBy: [{ date: 'asc' }, { endDate: 'asc' }],
+      } as any),
+      (this.db as any).systemConfig.findFirst({
+        select: { id: true, hotelExtraServices: true, spaServiceImages: true, hotelServiceImages: true, updatedAt: true },
+      }),
     ])
-    for (const band of await this.db.serviceWeightBand.findMany({ where: { isActive: true }, orderBy: [{ serviceType: 'asc' }, { species: 'asc' }, { sortOrder: 'asc' }] } as any)) {
-      bandsSheet.addRow({
-        id: band.id,
-        serviceType: String(band.serviceType),
-        species: band.species ?? '',
-        label: band.label,
-        minWeight: band.minWeight,
-        maxWeight: band.maxWeight ?? '',
-        sortOrder: band.sortOrder ?? 0,
-        isActive: band.isActive,
-      })
-    }
 
-    const holidaysSheet = this.addPricingSheet(workbook, PRICING_EXCEL_SHEETS.holidays, [
-      { header: 'id', key: 'id', width: 28 },
-      { header: 'startDate', key: 'startDate', width: 14 },
-      { header: 'endDate', key: 'endDate', width: 14 },
-      { header: 'name', key: 'name', width: 24 },
-      { header: 'isRecurring', key: 'isRecurring', width: 14 },
-      { header: 'isActive', key: 'isActive', width: 10 },
-    ])
-    for (const holiday of await this.db.holidayCalendarDate.findMany({ orderBy: [{ date: 'asc' }, { endDate: 'asc' }] } as any)) {
-      holidaysSheet.addRow({
-        id: holiday.id,
-        startDate: this.dateToExcelInput(holiday.date),
-        endDate: this.dateToExcelInput(holiday.endDate ?? holiday.date),
-        name: holiday.name,
-        isRecurring: holiday.isRecurring,
-        isActive: holiday.isActive,
-      })
+    return {
+      createdAt: new Date().toISOString(),
+      weightBands,
+      spaRules,
+      hotelRules,
+      holidays,
+      systemConfig,
     }
-
-    const imagesSheet = this.addPricingSheet(workbook, PRICING_EXCEL_SHEETS.serviceImages, [
-      { header: 'serviceType', key: 'serviceType', width: 14 },
-      { header: 'species', key: 'species', width: 14 },
-      { header: 'packageCode', key: 'packageCode', width: 28 },
-      { header: 'label', key: 'label', width: 28 },
-      { header: 'imageUrl', key: 'imageUrl', width: 36 },
-    ])
-    for (const image of serviceImages) {
-      imagesSheet.addRow({
-        serviceType: 'GROOMING',
-        species: image.species ?? '',
-        packageCode: image.packageCode,
-        label: image.label ?? '',
-        imageUrl: image.imageUrl,
-      })
-    }
-    for (const image of hotelServiceImages) {
-      imagesSheet.addRow({
-        serviceType: 'HOTEL',
-        species: image.species,
-        packageCode: image.packageCode,
-        label: image.label ?? '',
-        imageUrl: image.imageUrl,
-      })
-    }
-
-    const buffer = await workbook.xlsx.writeBuffer()
-    return Buffer.from(buffer)
   }
 
   private async writePricingBackupFile() {
@@ -1422,426 +1261,555 @@ export class PricingService implements OnModuleInit {
     }
   }
 
-  async exportToExcel(type: 'grooming' | 'hotel' | 'all' = 'all'): Promise<Buffer> {
-    if (process.env['PRICING_EXCEL_LEGACY_EXPORT'] !== '1') {
-      return this.exportToExcelRoundtrip(type)
-    }
-
+  async exportPricingExcel(input: { mode: PricingExcelMode | string; year?: number }): Promise<Buffer> {
+    const mode = this.normalizeExcelMode(input.mode)
+    const year = Math.floor(Number(input.year ?? new Date().getFullYear()))
     const ExcelJS = await import('exceljs')
     const workbook = new ExcelJS.default.Workbook()
+    workbook.creator = 'Petshop Management'
+    workbook.created = new Date()
 
-    // Helper: style header row
-    const styleHeader = (sheet: any) => {
-      const row = sheet.getRow(1)
-      row.font = { bold: true, size: 12 }
-      row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }
-      row.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-      row.alignment = { horizontal: 'center' }
-      row.commit()
-    }
-
-    if (type === 'grooming' || type === 'all') {
-      // Weight Bands (Grooming)
-      const groomingBands = await this.db.serviceWeightBand.findMany({
-        where: { serviceType: 'GROOMING', isActive: true },
-        orderBy: [{ sortOrder: 'asc' }, { minWeight: 'asc' }],
-      })
-
-      const spaRules = await this.db.spaPriceRule.findMany({
-        where: { isActive: true },
-        include: { weightBand: true },
-        orderBy: [{ packageCode: 'asc' }, { weightBand: { sortOrder: 'asc' } }],
-      })
-
-      // Get unique package codes
-      const packageCodes = Array.from(new Set(spaRules.map((r) => r.packageCode)))
-
-      const groomingSheet = workbook.addWorksheet('Grooming')
-      // Column: Gói dịch vụ | Band1 | Band2 | ...
-      groomingSheet.columns = [
-        { header: 'Gói dịch vụ', key: 'packageCode', width: 20 },
-        { header: 'Tên hiển thị', key: 'label', width: 20 },
-        ...groomingBands.flatMap((b) => [
-          { header: b.label, key: `band_${b.id}`, width: 15 },
-          { header: `${b.label} - Thời lượng (phút)`, key: `band_${b.id}_duration`, width: 24 },
-        ]),
-      ]
-      styleHeader(groomingSheet)
-
-      for (const pkg of packageCodes) {
-        const pkgRules = spaRules.filter((r) => r.packageCode === pkg)
-        const row: any = {
-          packageCode: pkg,
-          label: pkgRules[0]?.label ?? '',
-        }
-        for (const band of groomingBands) {
-          const rule = pkgRules.find((r) => r.weightBandId === band.id)
-          row[`band_${band.id}`] = rule?.price ?? ''
-          row[`band_${band.id}_duration`] = rule?.durationMinutes ?? ''
-        }
-        groomingSheet.addRow(row)
-      }
-    }
-
-    if (type === 'hotel' || type === 'all') {
-      const hotelBands = await this.db.serviceWeightBand.findMany({
-        where: { serviceType: 'HOTEL', isActive: true },
-        orderBy: [{ sortOrder: 'asc' }, { minWeight: 'asc' }],
-      })
-
-      const year = new Date().getFullYear()
-      const hotelRules = await this.db.hotelPriceRule.findMany({
-        where: { year, isActive: true },
-        include: { weightBand: true },
-        orderBy: [{ dayType: 'asc' }, { weightBand: { sortOrder: 'asc' } }],
-      })
-
-      const hotelSheet = workbook.addWorksheet('Hotel')
-      hotelSheet.columns = [
-        { header: 'Loại ngày', key: 'dayType', width: 18 },
-        { header: 'Loại thú cưng', key: 'species', width: 18 },
-        ...hotelBands.map((b) => ({ header: b.label, key: `band_${b.id}`, width: 15 })),
-      ]
-      styleHeader(hotelSheet)
-
-      // Group by dayType + species
-      const groups = new Map<string, typeof hotelRules>()
-      for (const rule of hotelRules) {
-        const key = `${rule.dayType}:${rule.species ?? 'Chó'}`
-        if (!groups.has(key)) groups.set(key, [])
-        groups.get(key)!.push(rule)
-      }
-
-      for (const [key, rules] of groups) {
-        const [dayType, species] = key.split(':')
-        const row: any = {
-          dayType: dayType === 'REGULAR' ? 'Thường' : 'Lễ',
-          species,
-        }
-        for (const band of hotelBands) {
-          const rule = rules.find((r) => r.weightBandId === band.id)
-          row[`band_${band.id}`] = rule?.fullDayPrice ?? ''
-        }
-        hotelSheet.addRow(row)
-      }
-
-    }
-
-    // Weight Bands reference sheet
-    const allBands = await this.db.serviceWeightBand.findMany({
-      where: { isActive: true },
-      orderBy: [{ serviceType: 'asc' }, { sortOrder: 'asc' }],
-    })
-    const bandsSheet = workbook.addWorksheet('Hạng cân')
-    bandsSheet.columns = [
-      { header: 'ID', key: 'id', width: 30 },
-      { header: 'Loại dịch vụ', key: 'serviceType', width: 15 },
-      { header: 'Nhãn', key: 'label', width: 15 },
-      { header: 'Min (kg)', key: 'minWeight', width: 12 },
-      { header: 'Max (kg)', key: 'maxWeight', width: 12 },
-    ]
-    styleHeader(bandsSheet)
-    for (const band of allBands) {
-      bandsSheet.addRow({
-        id: band.id,
-        serviceType: band.serviceType,
-        label: band.label,
-        minWeight: band.minWeight,
-        maxWeight: band.maxWeight ?? '∞',
-      })
+    if (mode === 'GROOMING') {
+      await this.exportGroomingPricingWorkbook(workbook)
+    } else {
+      await this.exportHotelPricingWorkbook(workbook, year)
     }
 
     const buffer = await workbook.xlsx.writeBuffer()
     return Buffer.from(buffer)
   }
 
-  private emptyImportResult(): PricingImportResult {
-    return {
-      imported: 0,
-      errors: [],
-      summary: { imported: 0, errors: 0 },
-      details: [],
-    }
-  }
+  private async exportGroomingPricingWorkbook(workbook: any) {
+    const [bands, spaRules, serviceImages] = await Promise.all([
+      this.db.serviceWeightBand.findMany({
+        where: { serviceType: 'GROOMING', isActive: true },
+        orderBy: [{ species: 'asc' }, { sortOrder: 'asc' }, { minWeight: 'asc' }, { createdAt: 'asc' }],
+      } as any),
+      this.db.spaPriceRule.findMany({
+        where: { isActive: true },
+        include: { weightBand: true },
+        orderBy: [{ species: 'asc' }, { packageCode: 'asc' }, { weightBand: { sortOrder: 'asc' } }, { minWeight: 'asc' }],
+      } as any),
+      this.listSpaServiceImages(),
+    ])
+    const imageByKey = new Map(serviceImages.map((image) => [`${image.species ?? 'NULL'}:${image.packageCode}`, image.imageUrl]))
 
-  private finishImportResult(result: PricingImportResult): PricingImportResult {
-    result.summary = { imported: result.imported, errors: result.errors.length }
-    return result
-  }
-
-  private addImportSheetDetail(result: PricingImportResult, sheet: string, imported: number) {
-    if (imported > 0) result.details.push({ sheet, imported })
-  }
-
-  private addImportRowError(result: PricingImportResult, sheet: string, row: Record<string, unknown>, message: string) {
-    const rowNumber = Number(row['__rowNumber'] ?? 0) || undefined
-    const detail = { sheet, row: rowNumber, message }
-    result.details.push(detail)
-    result.errors.push(rowNumber ? `${sheet} dong ${rowNumber}: ${message}` : `${sheet}: ${message}`)
-  }
-
-  private bandSignature(serviceType: PricingServiceType, species: string | null, label: string, minWeight: number, maxWeight: number | null) {
-    return `${serviceType}:${species ?? 'NULL'}:${label}:${minWeight}:${maxWeight ?? 'INF'}`
-  }
-
-  private async importFromExcelBackup(workbook: any): Promise<PricingImportResult> {
-    await this.writePricingBackupFile()
-    const result = this.emptyImportResult()
-    const existingBands = await this.db.serviceWeightBand.findMany({ where: { isActive: true } } as any)
-    const bandById = new Map(existingBands.map((band: any) => [band.id, band]))
-    const bandBySignature = new Map(existingBands.map((band: any) => [
-      this.bandSignature(band.serviceType, band.species ?? null, band.label, band.minWeight, band.maxWeight ?? null),
-      band,
-    ]))
-
-    let importedBands = 0
-    for (const row of this.worksheetRecords(workbook.getWorksheet(PRICING_EXCEL_SHEETS.weightBands))) {
-      const serviceTypeText = this.excelText(row, 'serviceType')
-      const label = this.excelText(row, 'label')
-      const minWeight = this.excelNumber(row, 'minWeight')
-      if (!serviceTypeText && !label && minWeight === null) continue
-      if (!serviceTypeText || !label || minWeight === null) {
-        this.addImportRowError(result, PRICING_EXCEL_SHEETS.weightBands, row, 'Thieu serviceType, label hoac minWeight')
-        continue
-      }
-      try {
-        const serviceType = this.normalizeServiceType(serviceTypeText)
-        const species = this.excelText(row, 'species') || null
-        const maxWeight = this.excelNumber(row, 'maxWeight')
-        const id = this.excelText(row, 'id')
-        const signature = this.bandSignature(serviceType, species, label, minWeight, maxWeight)
-        const existing = id ? bandById.get(id) : bandBySignature.get(signature)
-        const saved = await this.upsertWeightBand({
-          id: existing?.id ?? (id || undefined),
-          serviceType,
-          species,
-          label,
-          minWeight,
-          maxWeight,
-          sortOrder: this.excelNumber(row, 'sortOrder') ?? 0,
-          isActive: this.excelBoolean(row, 'isActive', true),
-        })
-        bandById.set(saved.id, saved)
-        bandBySignature.set(this.bandSignature(saved.serviceType as PricingServiceType, saved.species ?? null, saved.label, saved.minWeight, saved.maxWeight ?? null), saved)
-        importedBands += 1
-      } catch (error: any) {
-        this.addImportRowError(result, PRICING_EXCEL_SHEETS.weightBands, row, error.message)
-      }
-    }
-    this.addImportSheetDetail(result, PRICING_EXCEL_SHEETS.weightBands, importedBands)
-    result.imported += importedBands
-
-    const resolveBandId = (row: Record<string, unknown>, serviceType: PricingServiceType, species?: string | null) => {
-      const id = this.excelText(row, 'weightBandId')
-      if (id && bandById.has(id)) return id
-      const label = this.excelText(row, 'weightBandLabel')
-      const minWeight = this.excelNumber(row, 'minWeight')
-      const maxWeight = this.excelNumber(row, 'maxWeight')
-      if (!label || minWeight === null) return undefined
-      return bandBySignature.get(this.bandSignature(serviceType, species ?? null, label, minWeight, maxWeight))?.id
-    }
-
-    const spaRules: Array<any> = []
-    for (const row of this.worksheetRecords(workbook.getWorksheet(PRICING_EXCEL_SHEETS.groomingMatrix))) {
-      const packageCode = this.excelText(row, 'packageCode')
-      const species = this.excelText(row, 'species') || null
-      const price = this.excelNumber(row, 'price')
-      if (!packageCode && price === null) continue
-      const weightBandId = resolveBandId(row, 'GROOMING', species)
-      if (!packageCode || price === null) {
-        this.addImportRowError(result, PRICING_EXCEL_SHEETS.groomingMatrix, row, 'Thieu packageCode hoac price')
-        continue
-      }
-      if (!weightBandId) {
-        this.addImportRowError(result, PRICING_EXCEL_SHEETS.groomingMatrix, row, `Khong tim thay hang can cho ${packageCode}`)
-        continue
-      }
-      spaRules.push({
-        id: this.excelText(row, 'id') || undefined,
-        species,
-        packageCode,
-        label: this.excelText(row, 'label') || packageCode,
-        weightBandId,
-        sku: this.excelText(row, 'sku') || null,
-        price,
-        durationMinutes: this.excelNumber(row, 'durationMinutes'),
-        isActive: this.excelBoolean(row, 'isActive', true),
-      })
-    }
-
-    for (const row of this.worksheetRecords(workbook.getWorksheet(PRICING_EXCEL_SHEETS.groomingOther))) {
-      const name = this.excelText(row, 'name')
-      const price = this.excelNumber(row, 'price')
-      if (!name && price === null) continue
-      if (!name || price === null) {
-        this.addImportRowError(result, PRICING_EXCEL_SHEETS.groomingOther, row, 'Thieu name hoac price')
-        continue
-      }
-      spaRules.push({
-        id: this.excelText(row, 'id') || undefined,
-        species: null,
-        packageCode: name,
-        label: name,
-        weightBandId: null,
-        minWeight: this.excelNumber(row, 'minWeight'),
-        maxWeight: this.excelNumber(row, 'maxWeight'),
-        sku: this.excelText(row, 'sku') || null,
-        price,
-        durationMinutes: this.excelNumber(row, 'durationMinutes'),
-        isActive: this.excelBoolean(row, 'isActive', true),
-      })
-    }
-    if (spaRules.length > 0) {
-      try {
-        await this.bulkUpsertSpaRules({ rules: spaRules } as any)
-        result.imported += spaRules.length
-        this.addImportSheetDetail(result, PRICING_EXCEL_SHEETS.groomingMatrix, spaRules.length)
-      } catch (error: any) {
-        result.errors.push(`Grooming: ${error.message}`)
-        result.details.push({ sheet: PRICING_EXCEL_SHEETS.groomingMatrix, message: error.message, errors: 1 })
+    for (const species of PRICING_EXCEL_SPECIES) {
+      const sheetName = species === 'Chó' ? GROOMING_SHEETS.dog : GROOMING_SHEETS.cat
+      const speciesBands = bands.filter((band: any) => band.species === species)
+      const speciesRules = spaRules.filter((rule: any) => rule.weightBandId && (rule.species ?? rule.weightBand?.species) === species)
+      const services = Array.from(new Set(speciesRules.map((rule: any) => rule.packageCode))).sort((left, right) => left.localeCompare(right))
+      const sheet = this.addExcelSheet(workbook, sheetName, [
+        { header: 'Mã hạng cân', key: 'bandId', width: 28 },
+        { header: 'Tên hạng cân', key: 'label', width: 20 },
+        { header: 'Từ kg', key: 'minWeight', width: 12 },
+        { header: 'Đến kg', key: 'maxWeight', width: 12 },
+        ...services.flatMap((service) => [
+          { header: `Số tiền - ${service}`, key: `price:${service}`, width: 16 },
+          { header: `SKU - ${service}`, key: `sku:${service}`, width: 16 },
+          { header: `Thời gian - ${service}`, key: `duration:${service}`, width: 18 },
+        ]),
+      ])
+      const ruleByBandAndService = new Map(speciesRules.map((rule: any) => [`${rule.weightBandId}:${rule.packageCode}`, rule]))
+      for (const band of speciesBands) {
+        const row: Record<string, unknown> = {
+          bandId: band.id,
+          label: band.label,
+          minWeight: band.minWeight,
+          maxWeight: band.maxWeight ?? '',
+        }
+        for (const service of services) {
+          const rule = ruleByBandAndService.get(`${band.id}:${service}`)
+          row[`price:${service}`] = rule?.price ?? ''
+          row[`sku:${service}`] = rule?.sku ?? ''
+          row[`duration:${service}`] = rule?.durationMinutes ?? ''
+        }
+        sheet.addRow(row)
       }
     }
 
-    const hotelRules: Array<any> = []
-    for (const row of this.worksheetRecords(workbook.getWorksheet(PRICING_EXCEL_SHEETS.hotelMatrix))) {
-      const species = this.excelText(row, 'species') || null
-      const fullDayPrice = this.excelNumber(row, 'fullDayPrice')
-      if (!species && fullDayPrice === null) continue
-      const weightBandId = resolveBandId(row, 'HOTEL', null)
-      if (!species || fullDayPrice === null) {
-        this.addImportRowError(result, PRICING_EXCEL_SHEETS.hotelMatrix, row, 'Thieu species hoac fullDayPrice')
-        continue
-      }
-      if (!weightBandId) {
-        this.addImportRowError(result, PRICING_EXCEL_SHEETS.hotelMatrix, row, `Khong tim thay hang can cho Hotel ${species}`)
-        continue
-      }
-      hotelRules.push({
-        id: this.excelText(row, 'id') || undefined,
-        year: this.excelNumber(row, 'year') ?? new Date().getFullYear(),
-        species,
-        weightBandId,
-        dayType: (this.excelText(row, 'dayType') || 'REGULAR') as PricingDayType,
-        sku: this.excelText(row, 'sku') || null,
-        fullDayPrice,
-        isActive: this.excelBoolean(row, 'isActive', true),
-      })
-    }
-    if (hotelRules.length > 0) {
-      try {
-        await this.bulkUpsertHotelRules({ rules: hotelRules } as any)
-        result.imported += hotelRules.length
-        this.addImportSheetDetail(result, PRICING_EXCEL_SHEETS.hotelMatrix, hotelRules.length)
-      } catch (error: any) {
-        result.errors.push(`Hotel: ${error.message}`)
-        result.details.push({ sheet: PRICING_EXCEL_SHEETS.hotelMatrix, message: error.message, errors: 1 })
-      }
-    }
-
-    const hotelExtra = this.worksheetRecords(workbook.getWorksheet(PRICING_EXCEL_SHEETS.hotelExtra)).flatMap((row) => {
-      const name = this.excelText(row, 'name')
-      const price = this.excelNumber(row, 'price')
-      if (!name || price === null) return []
-      return [{
-        sku: this.excelText(row, 'sku') || null,
+    const otherSheet = this.addExcelSheet(workbook, GROOMING_SHEETS.other, [
+      { header: 'Mã rule', key: 'id', width: 28 },
+      { header: 'SKU', key: 'sku', width: 16 },
+      { header: 'Link ảnh', key: 'imageUrl', width: 38 },
+      { header: 'Tên dịch vụ', key: 'name', width: 28 },
+      { header: 'Từ kg', key: 'minWeight', width: 12 },
+      { header: 'Đến kg', key: 'maxWeight', width: 12 },
+      { header: 'Giá', key: 'price', width: 16 },
+      { header: 'Phút', key: 'durationMinutes', width: 12 },
+    ])
+    for (const rule of spaRules.filter((item: any) => !item.weightBandId)) {
+      const name = rule.label ?? rule.packageCode
+      otherSheet.addRow({
+        id: rule.id,
+        sku: rule.sku ?? '',
+        imageUrl: imageByKey.get(`NULL:${rule.packageCode}`) ?? '',
         name,
-        minWeight: this.excelNumber(row, 'minWeight'),
-        maxWeight: this.excelNumber(row, 'maxWeight'),
-        price,
-        imageUrl: this.excelText(row, 'imageUrl') || null,
-      }]
-    })
-    if (hotelExtra.length > 0) {
-      try {
-        await this.bulkUpsertHotelExtraServices({ services: hotelExtra } as any)
-        result.imported += hotelExtra.length
-        this.addImportSheetDetail(result, PRICING_EXCEL_SHEETS.hotelExtra, hotelExtra.length)
-      } catch (error: any) {
-        result.errors.push(`${PRICING_EXCEL_SHEETS.hotelExtra}: ${error.message}`)
-        result.details.push({ sheet: PRICING_EXCEL_SHEETS.hotelExtra, message: error.message, errors: 1 })
-      }
-    }
-
-    const serviceImageRows = this.worksheetRecords(workbook.getWorksheet(PRICING_EXCEL_SHEETS.serviceImages))
-    const serviceImages = serviceImageRows.flatMap((row) => {
-      const serviceType = this.excelText(row, 'serviceType') || 'GROOMING'
-      if (serviceType.toUpperCase() === 'HOTEL') return []
-      const packageCode = this.excelText(row, 'packageCode')
-      const imageUrl = this.excelText(row, 'imageUrl')
-      if (!packageCode || !imageUrl) return []
-      return [{ species: this.excelText(row, 'species') || null, packageCode, imageUrl }]
-    })
-    if (serviceImages.length > 0) {
-      await this.bulkUpdateSpaServiceImages(serviceImages)
-      result.imported += serviceImages.length
-      this.addImportSheetDetail(result, PRICING_EXCEL_SHEETS.serviceImages, serviceImages.length)
-    }
-
-    const hotelServiceImagesBySpecies = new Map<string, { species: string; packageCode: string; imageUrl: string; label?: string | null }>()
-    for (const row of serviceImageRows) {
-      const serviceType = this.excelText(row, 'serviceType').toUpperCase()
-      if (serviceType !== 'HOTEL') continue
-      const species = this.excelText(row, 'species')
-      const imageUrl = this.excelText(row, 'imageUrl')
-      if (!species || !imageUrl) continue
-      hotelServiceImagesBySpecies.set(species, {
-        species,
-        packageCode: this.excelText(row, 'packageCode') || 'HOTEL',
-        label: this.excelText(row, 'label') || null,
-        imageUrl,
+        minWeight: rule.minWeight ?? '',
+        maxWeight: rule.maxWeight ?? '',
+        price: rule.price,
+        durationMinutes: rule.durationMinutes ?? '',
       })
     }
-    for (const row of this.worksheetRecords(workbook.getWorksheet(PRICING_EXCEL_SHEETS.hotelMatrix))) {
-      const species = this.excelText(row, 'species')
-      const imageUrl = this.excelText(row, 'imageUrl')
-      if (!species || !imageUrl || hotelServiceImagesBySpecies.has(species)) continue
-      hotelServiceImagesBySpecies.set(species, { species, packageCode: 'HOTEL', imageUrl })
-    }
-    const hotelServiceImages = Array.from(hotelServiceImagesBySpecies.values())
-    if (hotelServiceImages.length > 0) {
-      await this.bulkUpdateHotelServiceImages(hotelServiceImages)
-      result.imported += hotelServiceImages.length
-    }
 
-    let importedHolidays = 0
-    for (const row of this.worksheetRecords(workbook.getWorksheet(PRICING_EXCEL_SHEETS.holidays))) {
-      const startDate = this.excelText(row, 'startDate')
-      const name = this.excelText(row, 'name')
-      if (!startDate && !name) continue
-      if (!startDate || !name) {
-        this.addImportRowError(result, PRICING_EXCEL_SHEETS.holidays, row, 'Thieu startDate hoac name')
-        continue
-      }
-      try {
-        await this.createHoliday({
-          startDate,
-          endDate: this.excelText(row, 'endDate') || startDate,
-          name,
-          isRecurring: this.excelBoolean(row, 'isRecurring', true),
-          isActive: this.excelBoolean(row, 'isActive', true),
-        })
-        importedHolidays += 1
-      } catch (error: any) {
-        this.addImportRowError(result, PRICING_EXCEL_SHEETS.holidays, row, error.message)
-      }
+    const decodeSheet = this.addExcelSheet(workbook, GROOMING_SHEETS.decode, [
+      { header: 'Khóa', key: 'key', width: 28 },
+      { header: 'Giá trị', key: 'value', width: 48 },
+      { header: 'Ghi chú', key: 'note', width: 64 },
+    ])
+    decodeSheet.addRow({ key: 'version', value: PRICING_EXCEL_VERSION, note: 'Không sửa giá trị này' })
+    decodeSheet.addRow({ key: 'exportedAt', value: new Date().toISOString(), note: 'Thời điểm xuất file' })
+    for (const species of PRICING_EXCEL_SPECIES) {
+      decodeSheet.addRow({ key: 'species', value: species, note: `Sheet Grooming ${species}` })
     }
-    result.imported += importedHolidays
-    this.addImportSheetDetail(result, PRICING_EXCEL_SHEETS.holidays, importedHolidays)
-
-    if (!workbook.getWorksheet(PRICING_EXCEL_SHEETS.weightBands)
-      && !workbook.getWorksheet(PRICING_EXCEL_SHEETS.groomingMatrix)
-      && !workbook.getWorksheet(PRICING_EXCEL_SHEETS.hotelMatrix)) {
-      result.errors.push('File Excel khong dung mau backup bang gia moi')
-      result.details.push({ sheet: PRICING_EXCEL_SHEETS.readme, message: 'File Excel khong dung mau backup bang gia moi', errors: 1 })
+    for (const image of serviceImages) {
+      decodeSheet.addRow({ key: `image:${image.species ?? 'NULL'}:${image.packageCode}`, value: image.imageUrl, note: image.label ?? '' })
     }
-
-    return this.finishImportResult(result)
   }
 
-  async importFromExcel(buffer: Buffer): Promise<PricingImportResult> {
+  private async exportHotelPricingWorkbook(workbook: any, year: number) {
+    const [bands, hotelRules, hotelImages] = await Promise.all([
+      this.db.serviceWeightBand.findMany({
+        where: { serviceType: 'HOTEL', isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { minWeight: 'asc' }, { createdAt: 'asc' }],
+      } as any),
+      this.db.hotelPriceRule.findMany({
+        where: { year, isActive: true },
+        include: { weightBand: true },
+        orderBy: [{ weightBand: { sortOrder: 'asc' } }, { species: 'asc' }, { dayType: 'asc' }],
+      } as any),
+      this.listHotelServiceImages(),
+    ])
+    const sheet = this.addExcelSheet(workbook, HOTEL_SHEETS.hotel, [
+      { header: 'Mã hạng cân', key: 'bandId', width: 28 },
+      { header: 'Hạng cân', key: 'label', width: 20 },
+      { header: 'Từ kg', key: 'minWeight', width: 12 },
+      { header: 'Đến kg', key: 'maxWeight', width: 12 },
+      { header: 'Chó - SKU', key: 'dogSku', width: 16 },
+      { header: 'Chó - Ngày thường', key: 'dogRegular', width: 18 },
+      { header: 'Chó - Ngày lễ', key: 'dogHoliday', width: 18 },
+      { header: 'Mèo - SKU', key: 'catSku', width: 16 },
+      { header: 'Mèo - Ngày thường', key: 'catRegular', width: 18 },
+      { header: 'Mèo - Ngày lễ', key: 'catHoliday', width: 18 },
+    ])
+    const ruleByKey = new Map(hotelRules.map((rule: any) => [`${rule.weightBandId}:${rule.species}:${rule.dayType}`, rule]))
+    for (const band of bands) {
+      const dogRegular = ruleByKey.get(`${band.id}:Chó:REGULAR`)
+      const dogHoliday = ruleByKey.get(`${band.id}:Chó:HOLIDAY`)
+      const catRegular = ruleByKey.get(`${band.id}:Mèo:REGULAR`)
+      const catHoliday = ruleByKey.get(`${band.id}:Mèo:HOLIDAY`)
+      sheet.addRow({
+        bandId: band.id,
+        label: band.label,
+        minWeight: band.minWeight,
+        maxWeight: band.maxWeight ?? '',
+        dogSku: dogRegular?.sku ?? dogHoliday?.sku ?? '',
+        dogRegular: dogRegular?.fullDayPrice ?? '',
+        dogHoliday: dogHoliday?.fullDayPrice ?? '',
+        catSku: catRegular?.sku ?? catHoliday?.sku ?? '',
+        catRegular: catRegular?.fullDayPrice ?? '',
+        catHoliday: catHoliday?.fullDayPrice ?? '',
+      })
+    }
+
+    const decodeSheet = this.addExcelSheet(workbook, HOTEL_SHEETS.decode, [
+      { header: 'Khóa', key: 'key', width: 28 },
+      { header: 'Giá trị', key: 'value', width: 48 },
+      { header: 'Ghi chú', key: 'note', width: 64 },
+    ])
+    decodeSheet.addRow({ key: 'version', value: PRICING_EXCEL_VERSION, note: 'Không sửa giá trị này' })
+    decodeSheet.addRow({ key: 'year', value: year, note: 'Năm áp dụng bảng giá Hotel' })
+    decodeSheet.addRow({ key: 'dayType', value: 'REGULAR', note: 'Ngày thường' })
+    decodeSheet.addRow({ key: 'dayType', value: 'HOLIDAY', note: 'Ngày lễ' })
+    for (const image of hotelImages) {
+      decodeSheet.addRow({ key: `hotelImage:${image.species}`, value: image.imageUrl, note: image.label ?? '' })
+    }
+  }
+
+  async previewPricingExcelImport(input: { mode: PricingExcelMode | string; year?: number; buffer: Buffer }): Promise<PricingExcelPreviewResult> {
+    const mode = this.normalizeExcelMode(input.mode)
+    const year = Math.floor(Number(input.year ?? new Date().getFullYear()))
     const ExcelJS = await import('exceljs')
     const workbook = new ExcelJS.default.Workbook()
-    await workbook.xlsx.load(buffer as any)
-    return this.importFromExcelBackup(workbook)
+    await workbook.xlsx.load(input.buffer as any)
+    const errors: PricingExcelIssue[] = []
+    const warnings: PricingExcelIssue[] = []
+    const payload = mode === 'GROOMING'
+      ? this.parseGroomingPricingWorkbook(workbook, year, errors, warnings)
+      : this.parseHotelPricingWorkbook(workbook, year, errors, warnings)
+    const normalizedPayload = errors.length > 0 ? null : payload
+    const imageCount = normalizedPayload ? normalizedPayload.spaImages.length + normalizedPayload.hotelImages.length : 0
+    const ruleCount = normalizedPayload ? normalizedPayload.spaRules.length + normalizedPayload.hotelRules.length : 0
+    return {
+      errors,
+      warnings,
+      summary: {
+        mode,
+        year,
+        sheetCount: workbook.worksheets.length,
+        bandCount: normalizedPayload?.bands.length ?? 0,
+        ruleCount,
+        imageCount,
+        errorCount: errors.length,
+        warningCount: warnings.length,
+      },
+      normalizedPayload,
+      checksum: this.getExcelChecksum(input.buffer),
+    }
   }
+
+  private parseGroomingPricingWorkbook(workbook: any, year: number, errors: PricingExcelIssue[], warnings: PricingExcelIssue[]): PricingExcelPayload {
+    const bands: PricingExcelBand[] = []
+    const spaRules: PricingExcelSpaRule[] = []
+    const spaImages: Array<{ species: string | null; packageCode: string; imageUrl: string }> = []
+    const seenBandSignatures = new Set<string>()
+    const seenOtherSignatures = new Set<string>()
+
+    for (const species of PRICING_EXCEL_SPECIES) {
+      const sheetName = species === 'Chó' ? GROOMING_SHEETS.dog : GROOMING_SHEETS.cat
+      const sheet = workbook.getWorksheet(sheetName)
+      const headers = this.assertExcelHeaders(sheet, sheetName, ['Mã hạng cân', 'Tên hạng cân', 'Từ kg', 'Đến kg'], errors)
+      if (!sheet) continue
+      const serviceNames = headers
+        .filter((header) => header.startsWith('Số tiền - '))
+        .map((header) => header.replace('Số tiền - ', '').trim())
+        .filter(Boolean)
+      for (const serviceName of serviceNames) {
+        if (!headers.includes(`SKU - ${serviceName}`)) errors.push({ sheet: sheetName, column: `SKU - ${serviceName}`, message: `Thiếu cột SKU - ${serviceName}` })
+        if (!headers.includes(`Thời gian - ${serviceName}`)) errors.push({ sheet: sheetName, column: `Thời gian - ${serviceName}`, message: `Thiếu cột Thời gian - ${serviceName}` })
+      }
+      sheet.eachRow((row: any, rowNumber: number) => {
+        if (rowNumber === 1) return
+        const label = this.excelCellText(this.getExcelCell(row, headers, 'Tên hạng cân'))
+        const minWeight = this.excelCellNumber(this.getExcelCell(row, headers, 'Từ kg'))
+        if (!label && minWeight === null) return
+        const sourceId = this.excelCellText(this.getExcelCell(row, headers, 'Mã hạng cân')) || null
+        const maxWeight = this.excelCellNumber(this.getExcelCell(row, headers, 'Đến kg'))
+        if (!label) errors.push({ sheet: sheetName, row: rowNumber, column: 'Tên hạng cân', message: 'Tên hạng cân không được trống' })
+        if (minWeight === null) errors.push({ sheet: sheetName, row: rowNumber, column: 'Từ kg', message: 'Từ kg không hợp lệ' })
+        if (minWeight !== null && maxWeight !== null && maxWeight <= minWeight) {
+          errors.push({ sheet: sheetName, row: rowNumber, column: 'Đến kg', message: 'Đến kg phải lớn hơn Từ kg' })
+        }
+        if (!label || minWeight === null) return
+        const bandSignature = this.makeBandSignature('GROOMING', species, label, minWeight, maxWeight)
+        if (seenBandSignatures.has(bandSignature)) {
+          errors.push({ sheet: sheetName, row: rowNumber, message: 'Trùng hạng cân trong cùng loài' })
+        }
+        seenBandSignatures.add(bandSignature)
+        bands.push({ sourceId, species, label, minWeight, maxWeight, sortOrder: bands.filter((band) => band.species === species).length })
+        for (const serviceName of serviceNames) {
+          const price = this.excelCellNumber(this.getExcelCell(row, headers, `Số tiền - ${serviceName}`))
+          if (price === null) continue
+          if (price < 0) {
+            errors.push({ sheet: sheetName, row: rowNumber, column: `Số tiền - ${serviceName}`, message: 'Giá phải lớn hơn hoặc bằng 0' })
+            continue
+          }
+          spaRules.push({
+            sourceId: null,
+            species,
+            packageCode: serviceName,
+            weightBandSourceId: sourceId,
+            bandSignature,
+            minWeight: null,
+            maxWeight: null,
+            sku: this.excelCellText(this.getExcelCell(row, headers, `SKU - ${serviceName}`)) || null,
+            price,
+            durationMinutes: this.excelCellNumber(this.getExcelCell(row, headers, `Thời gian - ${serviceName}`)),
+          })
+        }
+      })
+    }
+
+    const otherSheet = workbook.getWorksheet(GROOMING_SHEETS.other)
+    const otherHeaders = this.assertExcelHeaders(otherSheet, GROOMING_SHEETS.other, ['Mã rule', 'SKU', 'Link ảnh', 'Tên dịch vụ', 'Từ kg', 'Đến kg', 'Giá', 'Phút'], errors)
+    if (otherSheet) {
+      otherSheet.eachRow((row: any, rowNumber: number) => {
+        if (rowNumber === 1) return
+        const name = this.excelCellText(this.getExcelCell(row, otherHeaders, 'Tên dịch vụ'))
+        const price = this.excelCellNumber(this.getExcelCell(row, otherHeaders, 'Giá'))
+        if (!name && price === null) return
+        const minWeight = this.excelCellNumber(this.getExcelCell(row, otherHeaders, 'Từ kg'))
+        const maxWeight = this.excelCellNumber(this.getExcelCell(row, otherHeaders, 'Đến kg'))
+        if (!name) errors.push({ sheet: GROOMING_SHEETS.other, row: rowNumber, column: 'Tên dịch vụ', message: 'Tên dịch vụ không được trống' })
+        if (price === null || price < 0) errors.push({ sheet: GROOMING_SHEETS.other, row: rowNumber, column: 'Giá', message: 'Giá không hợp lệ' })
+        if (minWeight !== null && maxWeight !== null && maxWeight <= minWeight) {
+          errors.push({ sheet: GROOMING_SHEETS.other, row: rowNumber, column: 'Đến kg', message: 'Đến kg phải lớn hơn Từ kg' })
+        }
+        if (!name || price === null || price < 0) return
+        const signature = `${name.trim().toLocaleLowerCase()}:${minWeight ?? 'NULL'}:${maxWeight ?? 'INF'}`
+        if (seenOtherSignatures.has(signature)) errors.push({ sheet: GROOMING_SHEETS.other, row: rowNumber, message: 'Trùng dịch vụ khác cùng khoảng cân' })
+        seenOtherSignatures.add(signature)
+        spaRules.push({
+          sourceId: this.excelCellText(this.getExcelCell(row, otherHeaders, 'Mã rule')) || null,
+          species: null,
+          packageCode: name,
+          weightBandSourceId: null,
+          bandSignature: '',
+          minWeight,
+          maxWeight,
+          sku: this.excelCellText(this.getExcelCell(row, otherHeaders, 'SKU')) || null,
+          price,
+          durationMinutes: this.excelCellNumber(this.getExcelCell(row, otherHeaders, 'Phút')),
+        })
+        const imageUrl = this.excelCellText(this.getExcelCell(row, otherHeaders, 'Link ảnh'))
+        if (imageUrl) spaImages.push({ species: null, packageCode: name, imageUrl })
+      })
+    }
+
+    if (spaRules.length === 0) warnings.push({ sheet: GROOMING_SHEETS.decode, message: 'File không có dòng giá Grooming nào' })
+    const decodeSheet = workbook.getWorksheet(GROOMING_SHEETS.decode)
+    const decodeHeaders = this.assertExcelHeaders(decodeSheet, GROOMING_SHEETS.decode, ['Khóa', 'Giá trị', 'Ghi chú'], errors)
+    const imageByKey = new Map(spaImages.map((image) => [`${image.species ?? 'NULL'}:${image.packageCode}`, image]))
+    for (const row of this.readDecodeRows(decodeSheet, decodeHeaders)) {
+      if (!row.key.startsWith('image:') || !row.value) continue
+      const [, speciesToken, ...packageParts] = row.key.split(':')
+      const packageCode = packageParts.join(':').trim()
+      if (!packageCode) continue
+      const species: string | null = !speciesToken || speciesToken === 'NULL' ? null : speciesToken
+      imageByKey.set(`${species ?? 'NULL'}:${packageCode}`, { species, packageCode, imageUrl: row.value })
+    }
+    return { mode: 'GROOMING', year, bands, spaRules, spaImages: Array.from(imageByKey.values()), hotelRules: [], hotelImages: [] }
+  }
+
+  private parseHotelPricingWorkbook(workbook: any, year: number, errors: PricingExcelIssue[], warnings: PricingExcelIssue[]): PricingExcelPayload {
+    const bands: PricingExcelBand[] = []
+    const hotelRules: PricingExcelHotelRule[] = []
+    const seenBandSignatures = new Set<string>()
+    const sheet = workbook.getWorksheet(HOTEL_SHEETS.hotel)
+    const headers = this.assertExcelHeaders(sheet, HOTEL_SHEETS.hotel, ['Mã hạng cân', 'Hạng cân', 'Từ kg', 'Đến kg', 'Chó - SKU', 'Chó - Ngày thường', 'Chó - Ngày lễ', 'Mèo - SKU', 'Mèo - Ngày thường', 'Mèo - Ngày lễ'], errors)
+    if (sheet) {
+      sheet.eachRow((row: any, rowNumber: number) => {
+        if (rowNumber === 1) return
+        const label = this.excelCellText(this.getExcelCell(row, headers, 'Hạng cân'))
+        const minWeight = this.excelCellNumber(this.getExcelCell(row, headers, 'Từ kg'))
+        if (!label && minWeight === null) return
+        const sourceId = this.excelCellText(this.getExcelCell(row, headers, 'Mã hạng cân')) || null
+        const maxWeight = this.excelCellNumber(this.getExcelCell(row, headers, 'Đến kg'))
+        if (!label) errors.push({ sheet: HOTEL_SHEETS.hotel, row: rowNumber, column: 'Hạng cân', message: 'Hạng cân không được trống' })
+        if (minWeight === null) errors.push({ sheet: HOTEL_SHEETS.hotel, row: rowNumber, column: 'Từ kg', message: 'Từ kg không hợp lệ' })
+        if (minWeight !== null && maxWeight !== null && maxWeight <= minWeight) errors.push({ sheet: HOTEL_SHEETS.hotel, row: rowNumber, column: 'Đến kg', message: 'Đến kg phải lớn hơn Từ kg' })
+        if (!label || minWeight === null) return
+        const bandSignature = this.makeBandSignature('HOTEL', null, label, minWeight, maxWeight)
+        if (seenBandSignatures.has(bandSignature)) errors.push({ sheet: HOTEL_SHEETS.hotel, row: rowNumber, message: 'Trùng hạng cân Hotel' })
+        seenBandSignatures.add(bandSignature)
+        bands.push({ sourceId, species: null, label, minWeight, maxWeight, sortOrder: bands.length })
+        for (const species of PRICING_EXCEL_SPECIES) {
+          const sku = this.excelCellText(this.getExcelCell(row, headers, `${species} - SKU`)) || null
+          for (const [dayType, header] of [['REGULAR', `${species} - Ngày thường`], ['HOLIDAY', `${species} - Ngày lễ`]] as const) {
+            const fullDayPrice = this.excelCellNumber(this.getExcelCell(row, headers, header))
+            if (fullDayPrice === null) continue
+            if (fullDayPrice < 0) {
+              errors.push({ sheet: HOTEL_SHEETS.hotel, row: rowNumber, column: header, message: 'Giá phải lớn hơn hoặc bằng 0' })
+              continue
+            }
+            hotelRules.push({ sourceId: null, species, dayType, weightBandSourceId: sourceId, bandSignature, sku, fullDayPrice })
+          }
+        }
+      })
+    }
+    const decodeSheet = workbook.getWorksheet(HOTEL_SHEETS.decode)
+    const decodeHeaders = this.assertExcelHeaders(decodeSheet, HOTEL_SHEETS.decode, ['Khóa', 'Giá trị', 'Ghi chú'], errors)
+    const hotelImages = this.readDecodeRows(decodeSheet, decodeHeaders).flatMap((row) => {
+      if (!row.key.startsWith('hotelImage:') || !row.value) return []
+      const species = row.key.replace('hotelImage:', '').trim()
+      if (!species) return []
+      return [{ species, packageCode: 'HOTEL', imageUrl: row.value, label: row.note || null }]
+    })
+    if (hotelRules.length === 0) warnings.push({ sheet: HOTEL_SHEETS.hotel, message: 'File không có dòng giá Hotel nào' })
+    return { mode: 'HOTEL', year, bands, spaRules: [], spaImages: [], hotelRules, hotelImages }
+  }
+
+  async applyPricingExcelImport(input: { mode: PricingExcelMode | string; year?: number; buffer: Buffer }): Promise<PricingExcelPreviewResult & { applied: boolean }> {
+    const preview = await this.previewPricingExcelImport(input)
+    if (!preview.normalizedPayload || preview.errors.length > 0) {
+      throw new BadRequestException('File Excel còn lỗi, cần preview thành công trước khi áp dụng')
+    }
+
+    await this.writePricingBackupFile()
+    const run = async (tx: any) => {
+      if (preview.normalizedPayload!.mode === 'GROOMING') {
+        await this.replaceGroomingPricingFromExcel(tx, preview.normalizedPayload!)
+      } else {
+        await this.replaceHotelPricingFromExcel(tx, preview.normalizedPayload!)
+      }
+    }
+
+    if (typeof (this.db as any).$transaction === 'function') {
+      await (this.db as any).$transaction(run)
+    } else {
+      await run(this.db)
+    }
+
+    return { ...preview, applied: true }
+  }
+
+  private async replaceGroomingPricingFromExcel(tx: any, payload: PricingExcelPayload) {
+    const bandIdBySource = await this.replacePricingBandsFromExcel(tx, 'GROOMING', payload.bands)
+    const existingRules = await tx.spaPriceRule.findMany({ where: { isActive: true } } as any)
+    const existingById = new Map(existingRules.map((rule: any) => [rule.id, rule]))
+    const existingByCombo = new Map(existingRules.map((rule: any) => [this.getExcelSpaRuleComboKey(rule), rule]))
+    const savedRuleIds: string[] = []
+
+    for (const rule of payload.spaRules) {
+      const weightBandId = rule.weightBandSourceId
+        ? bandIdBySource.get(rule.weightBandSourceId) ?? null
+        : rule.bandSignature
+          ? bandIdBySource.get(rule.bandSignature) ?? null
+          : null
+      const data = {
+        species: rule.species,
+        packageCode: rule.packageCode,
+        label: rule.packageCode,
+        weightBandId,
+        minWeight: weightBandId ? null : rule.minWeight,
+        maxWeight: weightBandId ? null : rule.maxWeight,
+        sku: rule.sku,
+        price: rule.price,
+        durationMinutes: rule.durationMinutes,
+        isActive: rule.price > 0,
+      }
+      const comboKey = this.getExcelSpaRuleComboKey(data)
+      const current = ((rule.sourceId ? existingById.get(rule.sourceId) : null) ?? existingByCombo.get(comboKey)) as any
+      if (rule.price <= 0 && !current) continue
+      const saved = current
+        ? await tx.spaPriceRule.update({ where: { id: current.id }, data })
+        : await tx.spaPriceRule.create({ data })
+      if (saved?.id && rule.price > 0) savedRuleIds.push(saved.id)
+    }
+
+    await tx.spaPriceRule.updateMany({
+      where: { id: { notIn: savedRuleIds }, isActive: true },
+      data: { isActive: false },
+    })
+
+    if (payload.spaImages.length > 0) {
+      await this.saveSpaServiceImagesWithTx(tx, payload.spaImages)
+    }
+  }
+
+  private async replaceHotelPricingFromExcel(tx: any, payload: PricingExcelPayload) {
+    const bandIdBySource = await this.replacePricingBandsFromExcel(tx, 'HOTEL', payload.bands)
+    const existingRules = await tx.hotelPriceRule.findMany({ where: { year: payload.year, isActive: true } } as any)
+    const existingByCombo = new Map(existingRules.map((rule: any) => [`${rule.year}:${rule.species}:${rule.dayType}:${rule.weightBandId}`, rule]))
+    const savedRuleIds: string[] = []
+
+    for (const rule of payload.hotelRules) {
+      const weightBandId = (rule.weightBandSourceId ? bandIdBySource.get(rule.weightBandSourceId) : null)
+        ?? bandIdBySource.get(rule.bandSignature)
+      if (!weightBandId) continue
+      const data = {
+        year: payload.year,
+        species: rule.species,
+        branchId: null,
+        weightBandId,
+        dayType: rule.dayType,
+        sku: rule.sku,
+        halfDayPrice: this.deriveHalfDayPrice(rule.fullDayPrice),
+        fullDayPrice: rule.fullDayPrice,
+        isActive: rule.fullDayPrice > 0,
+      }
+      const current = existingByCombo.get(`${payload.year}:${rule.species}:${rule.dayType}:${weightBandId}`) as any
+      if (rule.fullDayPrice <= 0 && !current) continue
+      const saved = current
+        ? await tx.hotelPriceRule.update({ where: { id: current.id }, data })
+        : await tx.hotelPriceRule.create({ data })
+      if (saved?.id && rule.fullDayPrice > 0) savedRuleIds.push(saved.id)
+    }
+
+    await tx.hotelPriceRule.updateMany({
+      where: { year: payload.year, id: { notIn: savedRuleIds }, isActive: true },
+      data: { isActive: false },
+    })
+
+    if (payload.hotelImages.length > 0) {
+      await this.saveHotelServiceImagesWithTx(tx, payload.hotelImages)
+    }
+  }
+
+  private async replacePricingBandsFromExcel(tx: any, serviceType: PricingServiceType, bands: PricingExcelBand[]) {
+    const existingBands = await tx.serviceWeightBand.findMany({ where: { serviceType, isActive: true } } as any)
+    const existingById = new Map(existingBands.map((band: any) => [band.id, band]))
+    const existingBySignature = new Map(existingBands.map((band: any) => [
+      this.makeBandSignature(serviceType, band.species ?? null, band.label, band.minWeight, band.maxWeight ?? null),
+      band,
+    ]))
+    const idBySource = new Map<string, string>()
+    const savedIds: string[] = []
+
+    for (const band of bands) {
+      const signature = this.makeBandSignature(serviceType, band.species, band.label, band.minWeight, band.maxWeight)
+      const current = ((band.sourceId ? existingById.get(band.sourceId) : null) ?? existingBySignature.get(signature)) as any
+      const data = {
+        serviceType,
+        species: band.species,
+        label: band.label,
+        minWeight: band.minWeight,
+        maxWeight: band.maxWeight,
+        sortOrder: band.sortOrder,
+        isActive: true,
+      }
+      const saved = current
+        ? await tx.serviceWeightBand.update({ where: { id: current.id }, data })
+        : await tx.serviceWeightBand.create({ data })
+      savedIds.push(saved.id)
+      if (band.sourceId) idBySource.set(band.sourceId, saved.id)
+      idBySource.set(signature, saved.id)
+    }
+
+    await tx.serviceWeightBand.updateMany({
+      where: { serviceType, id: { notIn: savedIds }, isActive: true },
+      data: { isActive: false },
+    })
+    return idBySource
+  }
+
+  private getExcelSpaRuleComboKey(rule: { species?: string | null; packageCode: string; weightBandId?: string | null; minWeight?: number | null; maxWeight?: number | null }) {
+    if (rule.weightBandId) return `${rule.species ?? 'NULL'}:${rule.packageCode}:${rule.weightBandId}`
+    return `${rule.species ?? 'NULL'}:${rule.packageCode}:${rule.minWeight ?? 'NULL'}:${rule.maxWeight ?? 'INF'}`
+  }
+
+  private async saveSpaServiceImagesWithTx(tx: any, images: Array<{ species: string | null; packageCode: string; imageUrl: string }>) {
+    const payload = JSON.stringify(images)
+    const existing = await tx.systemConfig.findFirst({ select: { id: true } })
+    if (existing) {
+      await tx.systemConfig.update({ where: { id: existing.id }, data: { spaServiceImages: payload } })
+    } else {
+      await tx.systemConfig.create({ data: { spaServiceImages: payload } })
+    }
+  }
+
+  private async saveHotelServiceImagesWithTx(tx: any, images: Array<{ species: string; packageCode: string; imageUrl: string; label?: string | null }>) {
+    const payload = JSON.stringify(images.map((image) => ({
+      species: image.species,
+      packageCode: image.packageCode || 'HOTEL',
+      imageUrl: image.imageUrl,
+      ...(image.label ? { label: image.label } : {}),
+    })))
+    if (typeof tx.$executeRawUnsafe === 'function' && typeof tx.$queryRawUnsafe === 'function') {
+      await tx.$executeRawUnsafe(`ALTER TABLE system_configs ADD COLUMN IF NOT EXISTS "hotelServiceImages" TEXT`)
+      const rows = await tx.$queryRawUnsafe(`SELECT id FROM system_configs ORDER BY "updatedAt" DESC LIMIT 1`) as Array<{ id: string }>
+      const existing = rows[0]
+      if (existing) {
+        await tx.$executeRawUnsafe(
+          `UPDATE system_configs SET "hotelServiceImages" = $1, "updatedAt" = NOW() WHERE id = $2`,
+          payload,
+          existing.id,
+        )
+      } else {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO system_configs (id, "hotelServiceImages", "updatedAt") VALUES ($1, $2, NOW())`,
+          randomUUID(),
+          payload,
+        )
+      }
+      return
+    }
+    const existing = await tx.systemConfig.findFirst({ select: { id: true } })
+    if (existing) {
+      await tx.systemConfig.update({ where: { id: existing.id }, data: { hotelServiceImages: payload } })
+    } else {
+      await tx.systemConfig.create({ data: { hotelServiceImages: payload } })
+    }
+  }
+
 }

@@ -3,6 +3,7 @@ import Image from 'next/image';
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
   Activity,
   ArrowLeft,
@@ -16,7 +17,6 @@ import {
   Key,
   MapPin,
   Shield,
-  TrendingUp,
   UserCheck,
   X,
 } from 'lucide-react'
@@ -162,15 +162,49 @@ export default function StaffDetailPage() {
   const canShowActions = canUpdateStaff || canDeactivateStaff
 
   return (
-    <div className="min-h-screen pb-12">
-      <div className="mx-auto max-w-[1400px] px-6 py-6 md:px-8 md:py-8 space-y-6">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-foreground-muted transition-colors hover:text-foreground"
-        >
-          <ArrowLeft size={16} />
-          <span className="text-sm font-medium">Quay lại</span>
-        </button>
+    <div className="min-h-screen w-full">
+      <div className="mx-auto flex w-full max-w-[852px] flex-col gap-[15px] p-[10px]">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-sm text-foreground-muted">
+            <Link href="/staff" className="hover:text-primary-500 flex items-center gap-1 transition-colors">
+              <ArrowLeft size={16} /> Nhân viên
+            </Link>
+            <span className="text-border">/</span>
+            <span className="font-semibold text-foreground">{staff.fullName}</span>
+          </div>
+
+          {canShowActions && (
+            <div className="flex items-center gap-2">
+              {canUpdateStaff && (
+                <>
+                  <button
+                    onClick={() => setShowPasswordModal(true)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background-secondary text-foreground-muted transition-colors hover:bg-background-tertiary"
+                    title="Đổi mật khẩu"
+                  >
+                    <Key size={16} />
+                  </button>
+                  <button
+                    onClick={() => setShowUpdateModal(true)}
+                    className="flex h-9 items-center gap-2 rounded-lg bg-primary-500 px-4 text-white transition-colors hover:bg-primary-600"
+                  >
+                    <Edit size={15} />
+                    <span className="text-sm font-medium">Sửa thông tin</span>
+                  </button>
+                </>
+              )}
+              {canDeactivateStaff && (
+                <button
+                  onClick={() => setShowStatusModal(true)}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 transition-colors hover:bg-amber-500/20"
+                  title="Cập nhật trạng thái"
+                >
+                  <Shield size={16} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Header Card */}
         <div className="rounded-xl border border-border bg-background-secondary overflow-hidden">
@@ -223,38 +257,6 @@ export default function StaffDetailPage() {
                     <span className="text-foreground">{staff.role?.name || 'Nhân viên'}</span>
                   </p>
 
-                  {canShowActions && (
-                    <div className="flex flex-wrap gap-2">
-                      {canUpdateStaff && (
-                        <>
-                          <button
-                            onClick={() => setShowUpdateModal(true)}
-                            className="btn-outline inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
-                          >
-                            <Edit size={14} />
-                            Sửa thông tin
-                          </button>
-                          <button
-                            onClick={() => setShowPasswordModal(true)}
-                            className="btn-outline inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
-                          >
-                            <Key size={14} />
-                            Đổi pass
-                          </button>
-                        </>
-                      )}
-                      {canDeactivateStaff && (
-                        <button
-                          onClick={() => setShowStatusModal(true)}
-                          className="btn-outline inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                        >
-                          <Shield size={14} />
-                          Cập nhật trạng thái
-                        </button>
-                      )}
-
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -312,11 +314,9 @@ export default function StaffDetailPage() {
         </div>
 
         {/* Content Area */}
-        <div className="mt-6">
+        <div>
           {activeTab === 'OVERVIEW' ? (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              {/* Left Column */}
-              <div className="space-y-6 lg:col-span-2">
+            <div className="grid grid-cols-1 gap-[15px] lg:grid-cols-2">
                 {/* Card: Thông tin cơ bản */}
                 <div className="rounded-xl border border-border bg-background-secondary p-6">
                   <h3 className="mb-5 flex items-center gap-2 text-base font-bold text-foreground">
@@ -327,6 +327,7 @@ export default function StaffDetailPage() {
                   <div className="space-y-4 text-sm">
                     {[
                       { label: 'Vai trò chính', value: staff.role?.name || 'Nhân viên' },
+                      { label: 'Chi nhánh chính', value: staff.branch?.name || 'Chưa gán' },
                       { label: 'Ngày sinh', value: formatDate(staff.dob) },
                       { label: 'Email', value: staff.email || '--' },
                       { label: 'SĐT người thân', value: staff.emergencyContactPhone || '--' },
@@ -381,37 +382,10 @@ export default function StaffDetailPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Right Column */}
-              <div className="space-y-6">
-
-
-                {/* Card: Hiệu suất (tháng này) */}
-                <div className="rounded-xl border border-border bg-background-secondary p-6">
-                  <h3 className="mb-5 flex items-center gap-2 text-base font-bold text-foreground">
-                    <TrendingUp size={16} className="text-primary-500" />
-                    Hiệu suất (tháng này)
-                  </h3>
-
-                  <div className="space-y-4 text-sm">
-                    {[
-                      { label: 'Đơn hàng', value: `${performance.monthlyOrders} đơn` },
-                      { label: 'Doanh số', value: formatCurrency(performance.monthlyRevenue), primary: true },
-                      { label: 'Ca Spa', value: `${performance.monthlySpaSessions} ca` },
-                    ].map((item) => (
-                      <div key={item.label} className="flex items-center justify-between">
-                        <span className="text-foreground-muted">{item.label}:</span>
-                        <span className={`font-bold ${item.primary ? 'text-primary-500' : 'text-foreground'}`}>{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
 
               {/* Performance Chart */}
               {performanceChartData.length > 0 && (
-                <div className="lg:col-span-3">
+                <div className="lg:col-span-2">
                   <PerformanceChart data={performanceChartData} />
                 </div>
               )}

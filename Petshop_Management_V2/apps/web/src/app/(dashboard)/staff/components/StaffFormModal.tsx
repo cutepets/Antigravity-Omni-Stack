@@ -83,8 +83,25 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
 
   useEffect(() => {
     // Fetch branches once
-    settingsApi.getBranches().then(res => setBranches(res)).catch(err => console.error(err))
-  }, [])
+    settingsApi.getBranches()
+      .then(res => {
+        setBranches(res)
+        if (!isEditing && isOpen && res.length > 0) {
+          const firstBranchId = res[0].id
+          setFormData(prev => {
+            if (prev.branchId) return prev
+            return {
+              ...prev,
+              branchId: firstBranchId,
+              authorizedBranchIds: prev.authorizedBranchIds.includes(firstBranchId)
+                ? prev.authorizedBranchIds
+                : [...prev.authorizedBranchIds, firstBranchId],
+            }
+          })
+        }
+      })
+      .catch(err => console.error(err))
+  }, [isEditing, isOpen])
 
   const handleFullNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawVal = e.target.value;
@@ -136,7 +153,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         emergencyContactTitle: initialData.emergencyContactTitle || '',
         emergencyContactPhone: initialData.emergencyContactPhone || '',
 
-        branchId: (initialData as any).branchId || '',
+        branchId: (initialData as any).branchId || initialData.branch?.id || '',
         authorizedBranchIds: initialData.authorizedBranches?.map(b => b.id) || [],
         joinDate: initialData.joinDate ? initialData.joinDate.substring(0, 10) : '',
         baseSalary: initialData.baseSalary ? String(initialData.baseSalary) : '',
@@ -193,6 +210,16 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
         : [...current, branchId]
       return { ...prev, authorizedBranchIds: next }
     })
+  }
+
+  const selectPrimaryBranch = (branchId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      branchId,
+      authorizedBranchIds: branchId && !prev.authorizedBranchIds.includes(branchId)
+        ? [...prev.authorizedBranchIds, branchId]
+        : prev.authorizedBranchIds,
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -486,7 +513,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
               <div className="rounded-2xl border border-border/50 bg-background-secondary p-5 shadow-sm">
                 <div className="mb-4 flex items-center gap-2">
                   <Shield size={16} className="text-orange-400" />
-                  <span className="text-sm font-bold text-foreground uppercase tracking-wider">Phân quyền & Chi nhánh thao tác</span>
+                  <span className="text-sm font-bold text-foreground uppercase tracking-wider">Phân quyền & Chi nhánh</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-5">
@@ -533,6 +560,23 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles }: 
                         )}
                       </div>
                     )}
+                  </div>
+                  <div>
+                    <label className={labelStyle}>Chi nhánh chính</label>
+                    <select
+                      value={formData.branchId}
+                      onChange={e => selectPrimaryBranch(e.target.value)}
+                      className={inputStyle}
+                      disabled={branches.length === 0}
+                    >
+                      <option value="">Chọn chi nhánh chính</option>
+                      {branches.map(branch => (
+                        <option key={branch.id} value={branch.id}>{branch.name}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1.5 text-[11px] text-foreground-muted">
+                      Chi nhánh này dùng để hiển thị ở thông tin nhân viên.
+                    </p>
                   </div>
                 </div>
 

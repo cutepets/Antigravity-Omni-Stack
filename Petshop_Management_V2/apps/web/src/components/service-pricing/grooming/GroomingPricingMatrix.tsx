@@ -1,8 +1,8 @@
 'use client'
 /* eslint-disable react/no-unescaped-entities */
 
-import { ArrowLeft, Camera, Copy, Download, Pencil, Plus, RefreshCw, Save, Upload, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Camera, Copy, Pencil, Plus, RefreshCw, Save, X } from 'lucide-react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { PriceInput } from '../shared/PriceInput'
 import { SPECIES_OPTIONS } from '../shared/pricing-constants'
@@ -59,9 +59,8 @@ export function GroomingPricingMatrix({
   onDraftChange,
   onSave,
   onFillEmptySkus,
-  onExportExcel,
-  onImportExcel,
   onServiceImageUpload,
+  importExportControl,
   isSaving,
   canManagePricing,
   species,
@@ -82,9 +81,8 @@ export function GroomingPricingMatrix({
   onDraftChange: (bandKey: string, serviceKey: string, patch: Partial<SpaDraft>) => void
   onSave: () => Promise<boolean | undefined> | boolean | undefined
   onFillEmptySkus: () => void
-  onExportExcel: () => void
-  onImportExcel: (file: File) => void
   onServiceImageUpload?: (column: SpaServiceColumn, file: File) => void
+  importExportControl?: ReactNode
   isSaving: boolean
   canManagePricing: boolean
   species: string
@@ -213,29 +211,7 @@ export function GroomingPricingMatrix({
 
           {canManagePricing ? (
             <>
-              <button
-                type="button"
-                onClick={onExportExcel}
-                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-background-base px-3 text-xs font-semibold text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground"
-              >
-                <Download size={14} />
-                <span>Backup Excel</span>
-              </button>
-              <label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/10">
-                <Upload size={14} />
-                <span>Cap nhat tu Excel</span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    e.target.value = ''
-                    onImportExcel(file)
-                  }}
-                />
-              </label>
+              {importExportControl}
               {isEditMode ? (
                 <button
                   type="button"
