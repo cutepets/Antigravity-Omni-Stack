@@ -7,7 +7,7 @@ const ProductList = dynamic(() =>
 )
 
 export const metadata: Metadata = {
-  title: '📦 Sản phẩm',
+  title: 'Sản phẩm',
   description: 'Quản lý sản phẩm',
 }
 

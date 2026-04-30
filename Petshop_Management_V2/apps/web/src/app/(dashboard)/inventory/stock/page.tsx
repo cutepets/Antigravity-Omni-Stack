@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import { StockList } from './_components/stock-list'
 
 export const metadata: Metadata = {
-  title: '📊 Tồn kho',
+  title: 'Tồn kho',
   description: 'Quản lý số lượng tồn kho',
 }
 

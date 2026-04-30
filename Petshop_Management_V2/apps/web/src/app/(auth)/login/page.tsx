@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { LoginForm } from './_components/login-form'
 
 export const metadata: Metadata = {
-  title: '🔐 Đăng nhập',
+  title: 'Đăng nhập',
 }
 
 export default function LoginPage() {

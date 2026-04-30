@@ -4,7 +4,7 @@ import { CustomerList } from './_components/customer-list'
 import { PageContainer } from '@/components/layout/PageLayout'
 
 export const metadata: Metadata = {
-  title: '👥 Khách hàng',
+  title: 'Khách hàng',
   description: 'Quản lý khách hàng hội viên',
 }
 

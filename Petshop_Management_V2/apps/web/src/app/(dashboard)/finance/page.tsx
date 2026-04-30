@@ -3,7 +3,7 @@ import { PageContainer } from '@/components/layout/PageLayout'
 import { FinanceWorkspace } from './_components/finance-workspace'
 
 export const metadata: Metadata = {
-  title: '💵 Sổ quỹ',
+  title: 'Sổ quỹ',
   description: 'Theo dõi thu chi và dòng tiền tại quầy',
 }
 

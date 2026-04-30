@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import { PageContainer } from '@/components/layout/PageLayout'
 
 export const metadata: Metadata = {
-    title: '💰 Bảng lương',
+    title: 'Bảng lương',
     description: 'Quản lý bảng lương nhân viên',
 }
 

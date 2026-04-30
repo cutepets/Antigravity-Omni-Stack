@@ -4,7 +4,7 @@ import { PageContainer } from '@/components/layout/PageLayout'
 import { GroomingBoard } from "./_components/grooming-board";
 
 export const metadata: Metadata = {
-  title: "✂️ Grooming",
+  title: 'Grooming',
   description: "Bảng điều phối SPA & grooming",
 };
 

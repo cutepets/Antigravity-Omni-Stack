@@ -4,7 +4,7 @@ import { PageContainer } from '@/components/layout/PageLayout'
 import { FinanceWorkspace } from '../_components/finance-workspace'
 
 export const metadata: Metadata = {
-  title: '💵 Chi tiết phiếu',
+  title: 'Chi tiết phiếu',
   description: 'Mở trực tiếp phiếu thu chi theo mã chứng từ',
 }
 

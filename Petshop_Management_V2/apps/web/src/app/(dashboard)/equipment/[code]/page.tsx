@@ -3,7 +3,7 @@ import { PageContainer } from '@/components/layout/PageLayout'
 import { EquipmentDetail } from '../_components/equipment-detail'
 
 export const metadata: Metadata = {
-  title: '🔧 Chi tiết thiết bị',
+  title: 'Chi tiết thiết bị',
 }
 
 export default async function EquipmentDetailPage({

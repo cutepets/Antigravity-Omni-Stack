@@ -4,7 +4,7 @@ import { OrderList } from './_components/order-list'
 import { PageContainer } from '@/components/layout/PageLayout'
 
 export const metadata: Metadata = {
-  title: '🧾 Đơn hàng',
+  title: 'Đơn hàng',
   description: 'Danh sách và trạng thái đơn hàng',
 }
 

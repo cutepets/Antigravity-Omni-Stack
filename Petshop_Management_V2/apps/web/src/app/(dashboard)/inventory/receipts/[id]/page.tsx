@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { ReceiptDetail } from './_components/receipt-detail'
 
 export const metadata: Metadata = {
-  title: '📥 Cập nhật phiếu nhập',
+  title: 'Cập nhật phiếu nhập',
 }
 
 type ReceiptDetailPageProps = {

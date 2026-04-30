@@ -4,7 +4,7 @@ import { PageContainer } from '@/components/layout/PageLayout'
 import HotelWorkspace from './components/HotelWorkspace'
 
 export const metadata: Metadata = {
-  title: '🏨 Pet Hotel',
+  title: 'Pet Hotel',
   description: 'Điều phối lưu trú, check-in, checkout và bảng giá hotel',
 }
 

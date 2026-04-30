@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { OrderWorkspace } from '../_components/order-workspace'
 
 export const metadata: Metadata = {
-  title: '🧾 Chi tiết đơn hàng',
+  title: 'Chi tiết đơn hàng',
   description: 'Xem và cập nhật đơn hàng trong workspace Orders',
 }
 

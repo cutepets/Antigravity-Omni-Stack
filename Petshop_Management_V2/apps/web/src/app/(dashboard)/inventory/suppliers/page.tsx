@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import { SupplierList } from './_components/supplier-list'
 
 export const metadata: Metadata = {
-  title: '🏭 Nhà cung cấp',
+  title: 'Nhà cung cấp',
   description: 'Quản lý đối tác và nhà cung cấp hàng hóa',
 }
 

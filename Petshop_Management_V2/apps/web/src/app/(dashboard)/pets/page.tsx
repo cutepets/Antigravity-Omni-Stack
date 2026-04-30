@@ -3,7 +3,7 @@ import { PetList } from './_components/pet-list'
 import { PageContainer } from '@/components/layout/PageLayout'
 
 export const metadata: Metadata = {
-  title: '🐾 Thú cưng',
+  title: 'Thú cưng',
   description: 'Quản lý thông tin thú cưng và liên kết với chủ sở hữu',
 }
 

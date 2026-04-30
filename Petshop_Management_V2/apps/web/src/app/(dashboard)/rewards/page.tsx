@@ -3,7 +3,7 @@ import { PageContainer, PageHeader } from '@/components/layout/PageLayout'
 import { Gift, Star, AlertCircle } from 'lucide-react'
 
 export const metadata: Metadata = {
-    title: '🎁 Thưởng phạt',
+    title: 'Thưởng phạt',
     description: 'Quản lý bảng thưởng phạt nhân viên',
 }
 
