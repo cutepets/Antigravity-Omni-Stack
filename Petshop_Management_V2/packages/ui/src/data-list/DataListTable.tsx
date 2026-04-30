@@ -59,43 +59,37 @@ export function DataListTable({
                 : 'sticky top-0 z-20 bg-background-secondary'
             }
           >
-            {bulkBar && (
-              <tr className="absolute inset-0 z-30">
-                <th colSpan={colSpan} className="p-0">
-                  <div
-                    className={`flex h-full w-full items-center ${
-                      isPageVariant ? 'bg-background-tertiary' : 'bg-background-secondary'
-                    }`}
-                  >
-                    {bulkBar}
-                  </div>
+            {bulkBar ? (
+              <tr className={`border-b border-border ${isPageVariant ? 'h-[50px]' : ''}`}>
+                <th colSpan={colSpan} className="border-b border-border p-0 text-left">
+                  {bulkBar}
                 </th>
               </tr>
-            )}
-
-            <tr className={`relative z-10 border-b border-border ${isPageVariant ? 'h-[50px]' : ''}`}>
-              <th className={`${isPageVariant ? 'w-10 border-b border-border py-0' : 'w-12 py-3'} px-4 text-left`}>
-                {onSelectAll && (
-                  <TableCheckbox
-                    checked={allSelected}
-                    onCheckedChange={onSelectAll}
-                  />
-                )}
-              </th>
-
-              {columns.map((col) => (
-                <th
-                  key={col.id}
-                  className={`px-3 ${
-                    isPageVariant
-                      ? 'border-b border-border py-0 text-xs font-bold uppercase tracking-[0.12em] text-foreground-secondary'
-                      : 'py-3 text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted'
-                  } ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.width ?? ''} ${col.minWidth ?? ''}`}
-                >
-                  {col.label}
+            ) : (
+              <tr className={`border-b border-border ${isPageVariant ? 'h-[50px]' : ''}`}>
+                <th className={`${isPageVariant ? 'w-10 border-b border-border py-0' : 'w-12 py-3'} px-4 text-left`}>
+                  {onSelectAll && (
+                    <TableCheckbox
+                      checked={allSelected}
+                      onCheckedChange={onSelectAll}
+                    />
+                  )}
                 </th>
-              ))}
-            </tr>
+
+                {columns.map((col) => (
+                  <th
+                    key={col.id}
+                    className={`px-3 ${
+                      isPageVariant
+                        ? 'border-b border-border py-0 text-xs font-bold uppercase tracking-[0.12em] text-foreground-secondary'
+                        : 'py-3 text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted'
+                    } ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.width ?? ''} ${col.minWidth ?? ''}`}
+                  >
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            )}
           </thead>
 
           <tbody className={isPageVariant ? 'divide-y divide-border bg-background-secondary' : undefined}>

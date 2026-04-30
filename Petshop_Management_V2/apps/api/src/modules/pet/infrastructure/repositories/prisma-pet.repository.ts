@@ -103,7 +103,40 @@ export class PrismaPetRepository implements IPetRepository {
     }
 
     async delete(id: string): Promise<void> {
-        await this.db.pet.delete({ where: { id } })
+        await this.db.$transaction(async (tx) => {
+            const [groomingSessions, hotelStays] = await Promise.all([
+                (tx as any).groomingSession.findMany({ where: { petId: id }, select: { id: true } }),
+                (tx as any).hotelStay.findMany({ where: { petId: id }, select: { id: true } }),
+            ])
+            const groomingIds = groomingSessions.map((session: any) => session.id)
+            const stayIds = hotelStays.map((stay: any) => stay.id)
+
+            if (groomingIds.length > 0) {
+                await (tx as any).groomingTimeline.deleteMany({ where: { groomingSessionId: { in: groomingIds } } })
+            }
+            if (stayIds.length > 0) {
+                await (tx as any).hotelStayHealthLog.deleteMany({ where: { hotelStayId: { in: stayIds } } })
+                await (tx as any).hotelStayTimeline.deleteMany({ where: { hotelStayId: { in: stayIds } } })
+                await (tx as any).hotelStayChargeLine.deleteMany({ where: { hotelStayId: { in: stayIds } } })
+                await (tx as any).hotelStayAdjustment.deleteMany({ where: { hotelStayId: { in: stayIds } } })
+            }
+            await (tx as any).orderItem.deleteMany({
+                where: {
+                    OR: [
+                        { petId: id },
+                        ...(groomingIds.length > 0 ? [{ groomingSessionId: { in: groomingIds } }] : []),
+                        ...(stayIds.length > 0 ? [{ hotelStayId: { in: stayIds } }] : []),
+                    ],
+                },
+            })
+            await (tx as any).groomingSession.deleteMany({ where: { petId: id } })
+            await (tx as any).hotelStay.deleteMany({ where: { petId: id } })
+            await (tx as any).petWeightLog.deleteMany({ where: { petId: id } })
+            await (tx as any).petVaccination.deleteMany({ where: { petId: id } })
+            await (tx as any).petHealthNote.deleteMany({ where: { petId: id } })
+            await (tx as any).petTimeline.deleteMany({ where: { petId: id } })
+            await (tx as any).pet.delete({ where: { id } })
+        })
     }
 
     async nextCode(): Promise<string> {

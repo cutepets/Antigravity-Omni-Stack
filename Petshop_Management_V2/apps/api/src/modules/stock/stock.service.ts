@@ -11,6 +11,12 @@ import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher
 import { DatabaseService } from '../../database/database.service.js'
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js'
 import { resolveInventoryLedgerMovement } from '../../common/utils/inventory-ledger.util.js'
+import {
+  normalizeBulkDeleteIds,
+  normalizeBulkUpdateIds,
+  runBulkDelete,
+  sanitizeBulkUpdatePayload,
+} from '../../common/utils/bulk-delete.util.js'
 import { aggregateBranchStocks, scaleBranchStocks } from './mappers/branch-stock.mapper.js'
 import { buildReceiptSnapshot as buildStockReceiptSnapshot, type ReceiptSnapshot } from './mappers/receipt-snapshot.mapper.js'
 import { assertSufficientBranchStock } from './policies/stock-movement.policy.js'
@@ -32,6 +38,20 @@ export interface FindStockProductsDto {
   limit?: number
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
+}
+
+export type BulkUpdateReceiptDto = Partial<Pick<CreateReceiptDto, 'supplierId' | 'branchId'>> & {
+  status?: string
+  receiptStatus?: string
+  paymentStatus?: PaymentStatus
+}
+
+export type BulkUpdateSupplierDto = Partial<Pick<UpdateSupplierDto, 'isActive' | 'monthTarget' | 'yearTarget'>>
+
+export interface BulkUpdateStockProductDto extends Record<string, unknown> {
+  branchId?: string | null
+  minStock?: number
+  lastCountShift?: string | null
 }
 
 export interface ReceiptItemDto {
@@ -129,6 +149,10 @@ export interface RefundSupplierReturnDto {
   notes?: string
   receivedAt?: string
   branchId?: string
+}
+
+type ReceiptResponseOptions = {
+  includeCosts?: boolean
 }
 
 type SupplierDocument = {
@@ -922,9 +946,61 @@ export class StockService {
     }
   }
 
-  private mapReceiptResponse(receipt: any) {
-    const snapshot = this.buildReceiptSnapshot(receipt)
+  private stripReceiptCostFields(receipt: any) {
+    const stripAmountFields = (item: any) => ({
+      ...item,
+      unitPrice: null,
+      unitCost: null,
+      totalPrice: null,
+      amount: null,
+    })
+
     return {
+      ...receipt,
+      totalAmount: null,
+      totalReceivedAmount: null,
+      totalReturnedAmount: null,
+      paidAmount: null,
+      debtAmount: null,
+      payableAmount: null,
+      overpaidAmount: null,
+      paymentSummary: null,
+      items: Array.isArray(receipt.items)
+        ? receipt.items.map((item: any) => ({
+          ...stripAmountFields(item),
+          receiveItems: Array.isArray(item.receiveItems) ? item.receiveItems.map(stripAmountFields) : item.receiveItems,
+          returnItems: Array.isArray(item.returnItems) ? item.returnItems.map(stripAmountFields) : item.returnItems,
+        }))
+        : receipt.items,
+      receiveEvents: Array.isArray(receipt.receiveEvents)
+        ? receipt.receiveEvents.map((event: any) => ({
+          ...event,
+          items: Array.isArray(event.items) ? event.items.map(stripAmountFields) : event.items,
+        }))
+        : receipt.receiveEvents,
+      paymentAllocations: Array.isArray(receipt.paymentAllocations)
+        ? receipt.paymentAllocations.map((allocation: any) => ({
+          ...allocation,
+          amount: null,
+          payment: allocation.payment ? stripAmountFields(allocation.payment) : allocation.payment,
+        }))
+        : receipt.paymentAllocations,
+      supplierReturns: Array.isArray(receipt.supplierReturns)
+        ? receipt.supplierReturns.map((supplierReturn: any) => ({
+          ...supplierReturn,
+          totalAmount: null,
+          creditedAmount: null,
+          refundedAmount: null,
+          items: Array.isArray(supplierReturn.items) ? supplierReturn.items.map(stripAmountFields) : supplierReturn.items,
+          refunds: Array.isArray(supplierReturn.refunds) ? supplierReturn.refunds.map(stripAmountFields) : supplierReturn.refunds,
+        }))
+        : receipt.supplierReturns,
+    }
+  }
+
+  private mapReceiptResponse(receipt: any, options: ReceiptResponseOptions = {}) {
+    const snapshot = this.buildReceiptSnapshot(receipt)
+    const mapped = {
       ...receipt,
       totalAmount: snapshot.orderedAmount,
       totalReceivedAmount: snapshot.receivedAmount,
@@ -945,6 +1021,7 @@ export class StockService {
       receivedAt: snapshot.receivedAt,
       completedAt: snapshot.completedAt,
     }
+    return options.includeCosts === false ? this.stripReceiptCostFields(mapped) : mapped
   }
 
   private async attachPaymentTransactionVouchers(receipt: any) {
@@ -1028,7 +1105,7 @@ export class StockService {
     }
   }
 
-  async findAllReceipts(query: FindReceiptsDto) {
+  async findAllReceipts(query: FindReceiptsDto, options: ReceiptResponseOptions = {}) {
     const { page = 1, limit = 20, status, supplierId, search, productId } = query
     const skip = (Number(page) - 1) * Number(limit)
     const where: Record<string, unknown> = {}
@@ -1064,7 +1141,7 @@ export class StockService {
     ])
 
     const mappedRows = await this.attachPaymentTransactionVouchersToMany(
-      rows.map((receipt) => this.mapReceiptResponse(receipt)),
+      rows.map((receipt) => this.mapReceiptResponse(receipt, options)),
     )
 
     return {
@@ -1077,7 +1154,7 @@ export class StockService {
     }
   }
 
-  async findReceiptById(id: string) {
+  async findReceiptById(id: string, options: ReceiptResponseOptions = {}) {
     const receipt = await this.db.stockReceipt.findFirst({
       where: {
         OR: [{ id }, { receiptNumber: id }],
@@ -1085,7 +1162,7 @@ export class StockService {
       include: SUPPLIER_RECEIPT_INCLUDE,
     })
     if (!receipt) throw new NotFoundException('Không tìm thấy phiếu nhập')
-    const mappedReceipt = this.mapReceiptResponse(receipt)
+    const mappedReceipt = this.mapReceiptResponse(receipt, options)
     const summarizedReceipt = await this.attachReceiptPaymentSummary(mappedReceipt)
     const receiptWithPaymentVouchers = await this.attachPaymentTransactionVouchers(summarizedReceipt)
     return {
@@ -1266,6 +1343,73 @@ export class StockService {
     })
 
     return { success: true, data: await this.attachPaymentTransactionVouchers(this.mapReceiptResponse(updated)) }
+  }
+
+  async bulkUpdateReceipts(ids: unknown, updates: BulkUpdateReceiptDto) {
+    const normalizedIds = normalizeBulkUpdateIds(ids)
+    const payload = sanitizeBulkUpdatePayload<BulkUpdateReceiptDto>(updates, [
+      'supplierId',
+      'branchId',
+      'status',
+      'receiptStatus',
+      'paymentStatus',
+    ])
+    const result = await this.db.stockReceipt.updateMany({
+      where: { id: { in: normalizedIds } },
+      data: payload as any,
+    })
+    return { success: true, updatedIds: normalizedIds, updatedCount: result.count }
+  }
+
+  async hardDeleteReceipt(id: string) {
+    const receipt = await this.db.stockReceipt.findUnique({
+      where: { id },
+      select: { id: true, supplierId: true },
+    })
+    if (!receipt) throw new NotFoundException('Khong tim thay phieu nhap')
+
+    await this.db.$transaction(async (tx) => {
+      const returns = await (tx as any).supplierReturn.findMany({
+        where: { receiptId: id },
+        select: { id: true },
+      })
+      const returnIds = returns.map((item: any) => item.id)
+      const payments = await (tx as any).supplierPayment.findMany({
+        where: { targetReceiptId: id },
+        select: { id: true, transactionId: true },
+      })
+      const paymentIds = payments.map((item: any) => item.id)
+      const transactionIds = payments.map((item: any) => item.transactionId).filter(Boolean)
+
+      if (returnIds.length > 0) {
+        await (tx as any).supplierReturnRefund.deleteMany({ where: { supplierReturnId: { in: returnIds } } })
+        await (tx as any).supplierReturnItem.deleteMany({ where: { returnId: { in: returnIds } } })
+        await (tx as any).supplierReturn.deleteMany({ where: { id: { in: returnIds } } })
+      }
+      await (tx as any).supplierPaymentAllocation.deleteMany({
+        where: { OR: [{ receiptId: id }, ...(paymentIds.length > 0 ? [{ paymentId: { in: paymentIds } }] : [])] },
+      })
+      if (paymentIds.length > 0) {
+        await (tx as any).supplierPayment.deleteMany({ where: { id: { in: paymentIds } } })
+      }
+      if (transactionIds.length > 0) {
+        await (tx as any).transaction.deleteMany({ where: { id: { in: transactionIds } } })
+      }
+      await (tx as any).stockReceiptReceiveItem.deleteMany({ where: { receive: { receiptId: id } } })
+      await (tx as any).stockReceiptReceive.deleteMany({ where: { receiptId: id } })
+      await (tx as any).stockReceiptItem.deleteMany({ where: { receiptId: id } })
+      await (tx as any).stockReceipt.delete({ where: { id } })
+    })
+
+    if (receipt.supplierId) {
+      await this.recalculateSupplierBalance(this.db, receipt.supplierId)
+    }
+    return { success: true, deletedIds: [id] }
+  }
+
+  async bulkDeleteReceipts(ids: unknown) {
+    const normalizedIds = normalizeBulkDeleteIds(ids)
+    return runBulkDelete(normalizedIds, (id) => this.hardDeleteReceipt(id))
   }
 
   async cancelReceipt(id: string) {
@@ -2657,5 +2801,89 @@ export class StockService {
     })
 
     return { success: true, data: updated }
+  }
+
+  async bulkUpdateSuppliers(ids: unknown, updates: BulkUpdateSupplierDto): Promise<any> {
+    const normalizedIds = normalizeBulkUpdateIds(ids)
+    const payload = sanitizeBulkUpdatePayload<BulkUpdateSupplierDto>(updates, ['isActive', 'monthTarget', 'yearTarget'])
+    const result = await this.db.supplier.updateMany({
+      where: { id: { in: normalizedIds } },
+      data: payload as any,
+    })
+    return { success: true, updatedIds: normalizedIds, updatedCount: result.count }
+  }
+
+  async hardDeleteSupplier(id: string): Promise<any> {
+    const supplier = await this.db.supplier.findUnique({ where: { id }, select: { id: true } })
+    if (!supplier) throw new NotFoundException('Khong tim thay nha cung cap')
+
+    const receipts = await this.db.stockReceipt.findMany({ where: { supplierId: id }, select: { id: true } })
+    for (const receipt of receipts) {
+      await this.hardDeleteReceipt(receipt.id)
+    }
+
+    await this.db.$transaction(async (tx) => {
+      const payments = await (tx as any).supplierPayment.findMany({
+        where: { supplierId: id },
+        select: { id: true, transactionId: true },
+      })
+      const paymentIds = payments.map((item: any) => item.id)
+      const transactionIds = payments.map((item: any) => item.transactionId).filter(Boolean)
+      if (paymentIds.length > 0) {
+        await (tx as any).supplierPaymentAllocation.deleteMany({ where: { paymentId: { in: paymentIds } } })
+        await (tx as any).supplierPayment.deleteMany({ where: { id: { in: paymentIds } } })
+      }
+      if (transactionIds.length > 0) {
+        await (tx as any).transaction.deleteMany({ where: { id: { in: transactionIds } } })
+      }
+      await (tx as any).product.updateMany({ where: { supplierId: id }, data: { supplierId: null } })
+      await (tx as any).supplier.delete({ where: { id } })
+    })
+
+    return { success: true, deletedIds: [id] }
+  }
+
+  async bulkDeleteSuppliers(ids: unknown): Promise<any> {
+    const normalizedIds = normalizeBulkDeleteIds(ids)
+    return runBulkDelete(normalizedIds, (id) => this.hardDeleteSupplier(id))
+  }
+
+  async bulkUpdateStockProducts(ids: unknown, updates: BulkUpdateStockProductDto): Promise<any> {
+    const normalizedIds = normalizeBulkUpdateIds(ids)
+    const payload = sanitizeBulkUpdatePayload<BulkUpdateStockProductDto>(updates, ['branchId', 'minStock', 'lastCountShift'])
+    const branchId = typeof payload.branchId === 'string' ? payload.branchId.trim() : ''
+    const hasMinStock = Object.prototype.hasOwnProperty.call(payload, 'minStock')
+    const hasLastCountShift = Object.prototype.hasOwnProperty.call(payload, 'lastCountShift')
+
+    if (!hasMinStock && !hasLastCountShift) {
+      throw new BadRequestException('Vui long chon truong ton kho can cap nhat')
+    }
+
+    await this.db.$transaction(async (tx) => {
+      for (const id of normalizedIds) {
+        const variant = await (tx as any).productVariant.findUnique({ where: { id }, select: { id: true, productId: true } })
+        const productId = variant?.productId ?? id
+        const productVariantId = variant?.id ?? null
+        if (hasLastCountShift) {
+          await (tx as any).product.update({ where: { id: productId }, data: { lastCountShift: payload.lastCountShift ?? null } })
+        }
+        if (hasMinStock) {
+          if (branchId) {
+            await (tx as any).branchStock.upsert({
+              where: { branchId_productId_productVariantId: { branchId, productId: productVariantId ? null : productId, productVariantId } },
+              create: { branchId, productId: productVariantId ? null : productId, productVariantId, minStock: Number(payload.minStock ?? 0) },
+              update: { minStock: Number(payload.minStock ?? 0) },
+            })
+          } else if (productVariantId) {
+            await (tx as any).branchStock.updateMany({ where: { productVariantId }, data: { minStock: Number(payload.minStock ?? 0) } })
+          } else {
+            await (tx as any).product.update({ where: { id: productId }, data: { minStock: Number(payload.minStock ?? 0) } })
+            await (tx as any).branchStock.updateMany({ where: { productId }, data: { minStock: Number(payload.minStock ?? 0) } })
+          }
+        }
+      }
+    })
+
+    return { success: true, updatedIds: normalizedIds, updatedCount: normalizedIds.length }
   }
 }

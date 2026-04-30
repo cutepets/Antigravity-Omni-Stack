@@ -20,7 +20,7 @@ import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { RequireModule } from '../../common/decorators/require-module.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
-import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
+import { normalizeBulkDeleteIds, normalizeBulkUpdateIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import {
   createMemoryUploadOptions,
@@ -107,6 +107,15 @@ export class PetController {
   bulkRemove(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest) {
     const ids = normalizeBulkDeleteIds(body.ids)
     return runBulkDelete(ids, (id) => this.commandBus.execute(new DeletePetCommand(id, req.user!)))
+  }
+
+  @Put('bulk-update')
+  @Permissions('pet.update')
+  bulkUpdate(@Body() body: { ids?: string[]; updates?: UpdatePetDto }, @Req() req: AuthenticatedRequest) {
+    const ids = normalizeBulkUpdateIds(body.ids)
+    return runBulkDelete(ids, (id) =>
+      this.commandBus.execute(new UpdatePetCommand(id, body.updates ?? {}, req.user!, getRequestedBranchId(req))),
+    )
   }
 
   @Get(':id')

@@ -18,7 +18,7 @@ import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { RequireModule } from '../../common/decorators/require-module.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
-import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
+import { normalizeBulkDeleteIds, normalizeBulkUpdateIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CreateCageDto, CreateHotelRateTableDto, CreateHotelStayDto, CreateHotelStayHealthLogDto, CreateHotelStayNoteDto } from './dto/create-hotel.dto.js'
@@ -144,6 +144,15 @@ export class HotelController {
   bulkDeleteStays(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest) {
     const ids = normalizeBulkDeleteIds(body.ids)
     return runBulkDelete(ids, (id) => this.commandBus.execute(new DeleteStayCommand(id, req.user)))
+  }
+
+  @Patch('stays/bulk-update')
+  @Permissions('hotel.update')
+  bulkUpdateStays(@Body() body: { ids?: string[]; updates?: UpdateHotelStayDto }, @Req() req: AuthenticatedRequest) {
+    const ids = normalizeBulkUpdateIds(body.ids)
+    return runBulkDelete(ids, (id) =>
+      this.commandBus.execute(new UpdateStayCommand(id, body.updates ?? {}, req.user, getRequestedBranchId(req))),
+    )
   }
 
   @Get('stays/code/:code')

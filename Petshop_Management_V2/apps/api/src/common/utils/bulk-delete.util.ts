@@ -7,6 +7,7 @@ export interface BulkDeleteResult {
 }
 
 const MAX_BULK_DELETE_IDS = 100
+const MAX_BULK_UPDATE_IDS = 100
 
 export function normalizeBulkDeleteIds(ids: unknown): string[] {
   if (!Array.isArray(ids)) {
@@ -48,4 +49,36 @@ export async function runBulkDelete(
   }
 
   return { success: true, deletedIds, blocked }
+}
+
+export function normalizeBulkUpdateIds(ids: unknown): string[] {
+  const normalized = normalizeBulkDeleteIds(ids)
+
+  if (normalized.length > MAX_BULK_UPDATE_IDS) {
+    throw new BadRequestException(`Chi duoc cap nhat toi da ${MAX_BULK_UPDATE_IDS} ban ghi moi lan`)
+  }
+
+  return normalized
+}
+
+export function sanitizeBulkUpdatePayload<T extends Record<string, unknown>>(
+  updates: unknown,
+  allowedKeys: readonly string[],
+): Partial<T> {
+  if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
+    throw new BadRequestException('updates phai la object')
+  }
+
+  const payload: Record<string, unknown> = {}
+  for (const key of allowedKeys) {
+    if (Object.prototype.hasOwnProperty.call(updates, key)) {
+      payload[key] = (updates as Record<string, unknown>)[key]
+    }
+  }
+
+  if (Object.keys(payload).length === 0) {
+    throw new BadRequestException('Vui long chon it nhat mot truong can cap nhat')
+  }
+
+  return payload as Partial<T>
 }

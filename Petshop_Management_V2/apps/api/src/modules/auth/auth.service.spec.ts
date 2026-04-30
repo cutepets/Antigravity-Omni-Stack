@@ -73,6 +73,51 @@ describe('AuthService', () => {
     expect(result.refreshToken).toBe('refresh-token-1')
   })
 
+  it('runs bootstrap before login so a zero-user database can recreate superadmin', async () => {
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'root-1',
+          username: 'superadmin',
+          fullName: 'Super Admin',
+          staffCode: 'NV00001',
+          branchId: 'branch-1',
+          avatar: null,
+          passwordHash: bcrypt.hashSync('secret', 4),
+          status: 'WORKING',
+          branch: { id: 'branch-1', name: 'Main', address: null, isActive: true },
+          authorizedBranches: [],
+          role: { code: 'SUPER_ADMIN', permissions: ['FULL_BRANCH_ACCESS'] },
+        }),
+      },
+      branch: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'branch-1', name: 'Main', address: null, isActive: true },
+        ]),
+      },
+      refreshToken: {
+        create: jest.fn(),
+      },
+    } as any
+    const jwt = {
+      sign: jest
+        .fn()
+        .mockReturnValueOnce('access-token')
+        .mockReturnValueOnce('refresh-token'),
+      decode: jest.fn().mockReturnValue({ exp: 1_900_000_000 }),
+    } as any
+    const bootstrap = {
+      ensureDefaultSuperAdmin: jest.fn().mockResolvedValue(undefined),
+    }
+    const service = new AuthService(db, jwt, bootstrap as any)
+
+    await service.login({ username: 'superadmin', password: 'secret' })
+
+    expect(bootstrap.ensureDefaultSuperAdmin).toHaveBeenCalled()
+    expect(db.user.findFirst).toHaveBeenCalled()
+  })
+
+
   it('accepts legacy raw refresh tokens and rotates to hashed storage', async () => {
     const db = {
       refreshToken: {

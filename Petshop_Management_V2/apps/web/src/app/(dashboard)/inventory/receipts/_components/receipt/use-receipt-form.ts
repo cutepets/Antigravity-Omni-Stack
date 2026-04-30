@@ -165,6 +165,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
   const canReceiveReceipt = hasPermission('stock_receipt.receive')
   const canCancelReceipt = hasPermission('stock_receipt.cancel')
   const canReturnReceipt = hasPermission('stock_receipt.return')
+  const canViewImportCost = hasPermission('stock_receipt.cost.read') || hasPermission('inventory.cost.read')
 
   const isCreateMode = mode === 'create'
   const isEditMode = mode === 'edit'
@@ -1764,6 +1765,7 @@ export function useReceiptForm({ mode = 'create', receiptId }: UseReceiptFormOpt
     canReceiveReceipt,
     canCancelReceipt,
     canReturnReceipt,
+    canViewImportCost,
     isCreateMode,
     isEditMode,
     isExistingReceipt,

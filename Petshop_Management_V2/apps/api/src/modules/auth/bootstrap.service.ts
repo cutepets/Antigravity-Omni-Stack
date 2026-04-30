@@ -1,8 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import * as bcrypt from 'bcryptjs'
+import { ALL_PERMISSION_CODES } from '@petshop/auth'
 import { DatabaseService } from '../../database/database.service.js'
 
 const SUPER_ADMIN_PERMISSIONS = [
+    ...ALL_PERMISSION_CODES,
     'MANAGE_STAFF', 'MANAGE_USERS', 'MANAGE_ROLES', 'MANAGE_BRANCHES',
     'MANAGE_SETTINGS', 'MANAGE_PRODUCTS', 'MANAGE_SERVICES', 'MANAGE_PETS',
     'MANAGE_CUSTOMERS', 'MANAGE_ORDERS', 'VIEW_FINANCIAL_REPORTS',
@@ -44,12 +46,14 @@ export class BootstrapService implements OnModuleInit {
         await this.ensureDefaultPricing()
     }
 
-    private async ensureDefaultSuperAdmin() {
-        const userCount = await this.db.user.count()
-        if (userCount > 0) return
+    async ensureDefaultSuperAdmin() {
+        const existingRoot = await this.db.user.findFirst({
+            where: { username: 'superadmin' },
+            select: { id: true },
+        })
+        if (existingRoot) return
 
-        this.logger.warn('⚠️  Không tìm thấy user nào trong DB — kích hoạt bootstrap SuperAdmin...')
-
+        this.logger.warn('Khong tim thay tai khoan superadmin goc - kich hoat bootstrap SuperAdmin...')
         const configuredPassword = process.env['BOOTSTRAP_ADMIN_PASSWORD']?.trim()
         if (process.env['NODE_ENV'] === 'production' && !configuredPassword) {
             throw new Error('Missing required environment variable: BOOTSTRAP_ADMIN_PASSWORD')
@@ -90,10 +94,17 @@ export class BootstrapService implements OnModuleInit {
 
             // 3. Tạo user superadmin
             const passwordHash = await bcrypt.hash(defaultPassword, 12)
+            let nextStaffNumber = await tx.user.count() + 1
+            let staffCode = `NV${String(nextStaffNumber).padStart(5, '0')}`
+            while (await tx.user.findUnique({ where: { staffCode }, select: { id: true } })) {
+                nextStaffNumber += 1
+                staffCode = `NV${String(nextStaffNumber).padStart(5, '0')}`
+            }
+
             await tx.user.create({
                 data: {
                     username: 'superadmin',
-                    staffCode: 'NV00001',
+                    staffCode,
                     passwordHash,
                     fullName: 'Super Admin',
                     legacyRole: 'STAFF',

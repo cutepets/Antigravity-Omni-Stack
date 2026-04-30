@@ -531,9 +531,9 @@ export const settingsApi = {
     return data.data
   },
 
-  purgeData: async (modules: string[], confirmPhrase: string) => {
+  purgeData: async (superAdminPassword: string) => {
     const { data } = await api.delete('/settings/purge', {
-      data: { modules, confirmPhrase },
+      data: { superAdminPassword },
     })
     return data.data as { purgedModules: string[] }
   },

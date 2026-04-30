@@ -17,7 +17,7 @@ import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { RequireModule } from '../../common/decorators/require-module.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
 import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
-import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
+import { normalizeBulkDeleteIds, normalizeBulkUpdateIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CalculateSpaPriceDto, CreateGroomingDto, UpdateGroomingDto } from './dto/grooming.dto.js'
@@ -76,6 +76,15 @@ export class GroomingController {
   bulkRemove(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest) {
     const ids = normalizeBulkDeleteIds(body.ids)
     return runBulkDelete(ids, (id) => this.commandBus.execute(new DeleteGroomingCommand(id, req.user)))
+  }
+
+  @Patch('bulk-update')
+  @Permissions('grooming.update', 'grooming.start', 'grooming.complete', 'grooming.cancel')
+  bulkUpdate(@Body() body: { ids?: string[]; updates?: UpdateGroomingDto }, @Req() req: AuthenticatedRequest) {
+    const ids = normalizeBulkUpdateIds(body.ids)
+    return runBulkDelete(ids, (id) =>
+      this.commandBus.execute(new UpdateGroomingCommand(id, body.updates ?? {}, req.user, getRequestedBranchId(req))),
+    )
   }
 
   @Get('code/:code')

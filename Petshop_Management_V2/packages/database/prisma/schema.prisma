@@ -460,7 +460,7 @@ model Order {
   orderNumber      String            @unique
   customerId       String?
   customerName     String
-  staffId          String
+  staffId          String?
   branchId         String?
   status           OrderStatus       @default(PENDING)
   paymentStatus    PaymentStatus     @default(UNPAID)
@@ -498,7 +498,7 @@ model Order {
   returnRequests   OrderReturnRequest[]
   branch           Branch?           @relation(fields: [branchId], references: [id])
   customer         Customer?         @relation(fields: [customerId], references: [id])
-  staff            User              @relation(fields: [staffId], references: [id])
+  staff            User?             @relation(fields: [staffId], references: [id], onDelete: SetNull)
   transactions     Transaction[]
   approvedByUser   User?             @relation("OrderApprover", fields: [approvedBy], references: [id])
   stockExportUser  User?             @relation("OrderStockExporter", fields: [stockExportedBy], references: [id])
@@ -542,12 +542,12 @@ model OrderTimeline {
   fromStatus    String?
   toStatus      String?
   note          String?
-  performedBy   String
+  performedBy   String?
   metadata      Json?
   createdAt     DateTime    @default(now())
 
   order         Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  performedByUser User      @relation(fields: [performedBy], references: [id])
+  performedByUser User?     @relation(fields: [performedBy], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([performedBy])
@@ -563,12 +563,12 @@ model GroomingTimeline {
   fromStatus    String?
   toStatus      String?
   note          String?
-  performedBy   String
+  performedBy   String?
   metadata      Json?
   createdAt     DateTime    @default(now())
 
   session       GroomingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  performedByUser User      @relation(fields: [performedBy], references: [id])
+  performedByUser User?     @relation(fields: [performedBy], references: [id], onDelete: SetNull)
 
   @@index([sessionId])
   @@index([performedBy])
@@ -583,12 +583,12 @@ model HotelStayTimeline {
   fromStatus    String?
   toStatus      String?
   note          String?
-  performedBy   String
+  performedBy   String?
   metadata      Json?
   createdAt     DateTime    @default(now())
 
   stay          HotelStay   @relation(fields: [stayId], references: [id], onDelete: Cascade)
-  performedByUser User      @relation(fields: [performedBy], references: [id])
+  performedByUser User?     @relation(fields: [performedBy], references: [id], onDelete: SetNull)
 
   @@index([stayId])
   @@index([performedBy])
@@ -606,12 +606,12 @@ model HotelStayHealthLog {
   weight      Float?
   appetite    String?
   stool       String?
-  performedBy String
+  performedBy String?
   createdAt   DateTime  @default(now())
 
   stay            HotelStay @relation(fields: [hotelStayId], references: [id], onDelete: Cascade)
   pet             Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
-  performedByUser User      @relation(fields: [performedBy], references: [id])
+  performedByUser User?     @relation(fields: [performedBy], references: [id], onDelete: SetNull)
 
   @@index([hotelStayId, createdAt])
   @@index([petId, createdAt])
@@ -1590,7 +1590,7 @@ model PaymentWebhookSecret {
 model ShiftSession {
   id                   String    @id @default(cuid())
   branchId             String
-  staffId              String
+  staffId              String?
   openAmount           Float     @default(0)
   closeAmount          Float?
   expectedCloseAmount  Float?
@@ -1625,7 +1625,7 @@ model ShiftSession {
   notes                String?
   status               String    @default("OPEN")
   branch               Branch    @relation(fields: [branchId], references: [id])
-  staff                User      @relation(fields: [staffId], references: [id])
+  staff                User?     @relation(fields: [staffId], references: [id], onDelete: SetNull)
   cashVaultEntry       CashVaultEntry?
 
   @@index([status])
@@ -2121,13 +2121,13 @@ model StockCountSession {
   countedProducts Int                     @default(0)
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
-  createdBy       String
+  createdBy       String?
   approvedBy      String?
   approvedAt      DateTime?
   rejectionReason String?
 
   branch          Branch                  @relation(fields: [branchId], references: [id])
-  creator         User                    @relation("StockCountSessionCreatedBy", fields: [createdBy], references: [id])
+  creator         User?                   @relation("StockCountSessionCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
   approver        User?                   @relation("StockCountSessionApprovedBy", fields: [approvedBy], references: [id])
   shifts          StockCountShiftSession[]
 

@@ -1,7 +1,12 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { assertBranchAccess, getScopedBranchIds, resolveWritableBranchId, type BranchScopedUser } from '../../common/utils/branch-scope.util.js'
 import { generateFinanceVoucherNumber } from '../../common/utils/finance-voucher.util.js'
-import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
+import {
+  normalizeBulkDeleteIds,
+  normalizeBulkUpdateIds,
+  runBulkDelete,
+  sanitizeBulkUpdatePayload,
+} from '../../common/utils/bulk-delete.util.js'
 import { DatabaseService } from '../../database/database.service.js'
 import {
   buildFinanceTransactionWhere,
@@ -90,6 +95,7 @@ export interface CreateTransactionDto {
 }
 
 export interface UpdateTransactionDto {
+  type?: FinanceTransactionType
   amount?: number
   description?: string
   category?: string
@@ -108,6 +114,10 @@ export interface UpdateTransactionDto {
   date?: string
   attachmentUrl?: string
 }
+
+export type BulkUpdateTransactionDto = Partial<Pick<UpdateTransactionDto,
+  'type' | 'category' | 'paymentMethod' | 'paymentAccountId' | 'paymentAccountLabel' | 'branchId' | 'branchName' | 'date'
+>>
 
 type TransactionCapability = {
   editScope: TransactionEditScope
@@ -1097,6 +1107,42 @@ export class ReportsService {
   async bulkRemoveTransactions(ids: unknown, user?: BranchScopedUser) {
     const normalizedIds = normalizeBulkDeleteIds(ids)
     return runBulkDelete(normalizedIds, (id) => this.removeTransaction(id, user))
+  }
+
+  async bulkUpdateTransactions(ids: unknown, updates: BulkUpdateTransactionDto, user?: BranchScopedUser) {
+    const normalizedIds = normalizeBulkUpdateIds(ids)
+    const payload = sanitizeBulkUpdatePayload<BulkUpdateTransactionDto>(updates, [
+      'type',
+      'category',
+      'paymentMethod',
+      'paymentAccountId',
+      'paymentAccountLabel',
+      'branchId',
+      'branchName',
+      'date',
+    ])
+
+    if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') {
+      const transactions = await this.db.transaction.findMany({
+        where: { id: { in: normalizedIds } },
+        select: { branchId: true },
+      })
+      for (const transaction of transactions) {
+        assertBranchAccess(transaction.branchId, user)
+      }
+    }
+
+    const data: Record<string, unknown> = { ...payload }
+    if (typeof payload.date === 'string') {
+      data.date = new Date(payload.date)
+    }
+
+    const result = await this.db.transaction.updateMany({
+      where: { id: { in: normalizedIds } },
+      data: data as any,
+    })
+
+    return { success: true, updatedIds: normalizedIds, updatedCount: result.count }
   }
 
   async findTransactionByVoucher(voucherNumber: string, user?: BranchScopedUser) {

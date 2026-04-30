@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Clock, Download, Filter, Plus, X, XCircle } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CheckCircle2, Clock, Filter, Plus, Trash2, X, XCircle } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useRouter } from 'next/navigation'
 import { stockApi } from '@/lib/api/stock.api'
@@ -24,11 +24,11 @@ type DisplayColumnId = 'code' | 'date' | 'supplier' | 'total' | 'status'
 type PinFilterId = never
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
-  { id: 'code', label: 'Mã phiếu', sortable: true, width: 'w-44' },
-  { id: 'date', label: 'Ngày', sortable: true, width: 'w-44' },
-  { id: 'supplier', label: 'Nhà cung cấp', sortable: true, minWidth: 'min-w-[220px]' },
-  { id: 'total', label: 'Giá trị', sortable: true, width: 'w-40' },
-  { id: 'status', label: 'Trạng thái', width: 'w-44' },
+  { id: 'code', label: 'MÃ£ phiáº¿u', sortable: true, width: 'w-44' },
+  { id: 'date', label: 'NgÃ y', sortable: true, width: 'w-44' },
+  { id: 'supplier', label: 'NhÃ  cung cáº¥p', sortable: true, minWidth: 'min-w-[220px]' },
+  { id: 'total', label: 'GiÃ¡ trá»‹', sortable: true, width: 'w-40' },
+  { id: 'status', label: 'Tráº¡ng thÃ¡i', width: 'w-44' },
 ]
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(COLUMN_OPTIONS.filter((column) => column.sortable).map((column) => column.id))
@@ -36,15 +36,15 @@ const SORTABLE_COLUMNS = new Set<DisplayColumnId>(COLUMN_OPTIONS.filter((column)
 function getReceiptStatusBadge(status?: string | null) {
   switch (status) {
     case 'FULL_RECEIVED':
-      return <span className="badge badge-success"><CheckCircle2 size={11} /> Đã nhập đủ</span>
+      return <span className="badge badge-success"><CheckCircle2 size={11} /> ÄÃ£ nháº­p Ä‘á»§</span>
     case 'PARTIAL_RECEIVED':
-      return <span className="badge badge-info"><Clock size={11} /> Nhập dở</span>
+      return <span className="badge badge-info"><Clock size={11} /> Nháº­p dá»Ÿ</span>
     case 'SHORT_CLOSED':
-      return <span className="badge badge-warning"><Clock size={11} /> Chốt thiếu</span>
+      return <span className="badge badge-warning"><Clock size={11} /> Chá»‘t thiáº¿u</span>
     case 'CANCELLED':
-      return <span className="badge badge-error"><XCircle size={11} /> Đã hủy</span>
+      return <span className="badge badge-error"><XCircle size={11} /> ÄÃ£ há»§y</span>
     default:
-      return <span className="badge badge-warning"><Clock size={11} /> Nháp</span>
+      return <span className="badge badge-warning"><Clock size={11} /> NhÃ¡p</span>
   }
 }
 
@@ -53,16 +53,18 @@ export function ReceiptList() {
   const searchParams = useSearchParams()
   const urlProductId = searchParams.get('productId') ?? ''
 
-  const { hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const queryClient = useQueryClient()
+  const { hasPermission, isLoading: isAuthLoading, isSuperAdmin } = useAuthorization()
   const canReadReceipts = hasPermission('stock_receipt.read')
   const canCreateReceipt = hasPermission('stock_receipt.create')
+  const canViewImportCost = hasPermission('stock_receipt.cost.read') || hasPermission('inventory.cost.read')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(15)
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((column) => column.id),
-    initialVisibleColumns: ['code', 'date', 'supplier', 'total', 'status'],
+    initialVisibleColumns: canViewImportCost ? ['code', 'date', 'supplier', 'total', 'status'] : ['code', 'date', 'supplier', 'status'],
     initialTopFilterVisibility: {},
     storageKey: 'receipt-list-columns-v1',
   })
@@ -95,10 +97,34 @@ export function ReceiptList() {
 
   const { selectedRowIds, toggleRowSelection, toggleSelectAllVisible, clearSelection, allVisibleSelected } =
     useDataListSelection(visibleRowIds)
+  const selectedReceiptIds = useMemo(() => Array.from(selectedRowIds).map((rowId) => rowId.replace(/^receipt:/, '')), [selectedRowIds])
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => stockApi.bulkDeleteReceipts(ids),
+    onSuccess: () => {
+      clearSelection()
+      queryClient.invalidateQueries({ queryKey: ['receipts'] })
+    },
+  })
+
+  const bulkUpdateMutation = useMutation({
+    mutationFn: (payload: { ids: string[]; updates: any }) => stockApi.bulkUpdateReceipts(payload.ids, payload.updates),
+    onSuccess: () => {
+      clearSelection()
+      queryClient.invalidateQueries({ queryKey: ['receipts'] })
+    },
+  })
 
   const activeColumns = useMemo(
-    () => orderedVisibleColumns.map((id) => ({ ...COLUMN_OPTIONS.find((column) => column.id === id)!, id })),
-    [orderedVisibleColumns],
+    () =>
+      orderedVisibleColumns
+        .filter((id) => canViewImportCost || id !== 'total')
+        .map((id) => ({ ...COLUMN_OPTIONS.find((column) => column.id === id)!, id })),
+    [canViewImportCost, orderedVisibleColumns],
+  )
+  const availableColumnOptions = useMemo(
+    () => COLUMN_OPTIONS.filter((column) => canViewImportCost || column.id !== 'total'),
+    [canViewImportCost],
   )
 
   useEffect(() => {
@@ -122,11 +148,11 @@ export function ReceiptList() {
           setSearch(value)
           setPage(1)
         }}
-        searchPlaceholder="Tìm theo mã phiếu hoặc NCC..."
+        searchPlaceholder="TÃ¬m theo mÃ£ phiáº¿u hoáº·c NCC..."
         showColumnToggle={true}
         columnPanelContent={
           <DataListColumnPanel
-            columns={COLUMN_OPTIONS}
+            columns={availableColumnOptions}
             columnOrder={columnOrder}
             visibleColumns={visibleColumns}
             sortInfo={columnSort}
@@ -142,7 +168,7 @@ export function ReceiptList() {
         extraActions={
           canCreateReceipt ? (
             <button onClick={() => router.push('/inventory/receipts/new')} className="btn-primary liquid-button h-11 rounded-xl px-4 text-sm">
-              <Plus size={15} /> Tạo phiếu nhập
+              <Plus size={15} /> Táº¡o phiáº¿u nháº­p
             </button>
           ) : null
         }
@@ -151,12 +177,12 @@ export function ReceiptList() {
       {urlProductId && (
         <div className="mx-1 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400">
           <Filter size={14} className="shrink-0" />
-          <span className="flex-1">Đang lọc phiếu nhập theo sản phẩm</span>
+          <span className="flex-1">Äang lá»c phiáº¿u nháº­p theo sáº£n pháº©m</span>
           <button
             onClick={() => router.push('/inventory/receipts')}
             className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium hover:bg-amber-500/20 transition-colors"
           >
-            <X size={12} /> Xóa bộ lọc
+            <X size={12} /> XÃ³a bá»™ lá»c
           </button>
         </div>
       )}
@@ -165,7 +191,7 @@ export function ReceiptList() {
         columns={activeColumns}
         isLoading={isLoading}
         isEmpty={!isLoading && receipts.length === 0}
-        emptyText="Không có phiếu nhập nào."
+        emptyText="KhÃ´ng cÃ³ phiáº¿u nháº­p nÃ o."
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
         footer={
@@ -182,7 +208,7 @@ export function ReceiptList() {
             attachedToTable
             totalItemText={
               <span className="text-xs">
-                Tổng <strong className="text-foreground">{total}</strong> phiếu
+                Tá»•ng <strong className="text-foreground">{total}</strong> phiáº¿u
               </span>
             }
           />
@@ -190,12 +216,39 @@ export function ReceiptList() {
         bulkBar={
           selectedRowIds.size > 0 ? (
             <DataListBulkBar selectedCount={selectedRowIds.size} onClear={clearSelection}>
-              <button
-                type="button"
-                className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
+              <select
+                className="h-8 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground"
+                defaultValue=""
+                disabled={bulkUpdateMutation.isPending}
+                onChange={(event) => {
+                  const value = event.target.value
+                  event.target.value = ''
+                  if (value) bulkUpdateMutation.mutate({ ids: selectedReceiptIds, updates: { receiptStatus: value, status: value } })
+                }}
               >
-                <Download size={13} /> Khác
-              </button>
+                <option value="" disabled>Tr?ng thái</option>
+                <option value="DRAFT">Nháp</option>
+                <option value="FULL_RECEIVED">Ðã nh?p d?</option>
+                <option value="PARTIAL_RECEIVED">Nh?p d?</option>
+                <option value="SHORT_CLOSED">Ch?t thi?u</option>
+                <option value="CANCELLED">Ðã h?y</option>
+              </select>
+              {isSuperAdmin() ? (
+                <button
+                  type="button"
+                  aria-label="Xóa DB"
+                  title="Xóa DB"
+                  onClick={() => {
+                    if (window.confirm(`Xóa vinh vi?n ${selectedReceiptIds.length} phi?u nh?p dã ch?n?`)) {
+                      bulkDeleteMutation.mutate(selectedReceiptIds)
+                    }
+                  }}
+                  disabled={bulkDeleteMutation.isPending}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-error/20 bg-error/10 text-error transition-colors hover:bg-error/15 disabled:opacity-50"
+                >
+                  <Trash2 size={14} />
+                </button>
+              ) : null}
             </DataListBulkBar>
           ) : undefined
         }
@@ -212,7 +265,7 @@ export function ReceiptList() {
               <td className="w-10 px-3 py-3" onClick={(event) => event.stopPropagation()}>
                 <TableCheckbox checked={isSelected} onCheckedChange={(_checked, shiftKey) => toggleRowSelection(rowId, shiftKey)} />
               </td>
-              {orderedVisibleColumns.map((columnId) => {
+              {activeColumns.map(({ id: columnId }) => {
                 switch (columnId) {
                   case 'code':
                     return (
@@ -231,17 +284,21 @@ export function ReceiptList() {
                   case 'supplier':
                     return (
                       <td key={columnId} className="min-w-[220px] px-3 py-3">
-                        <div className="font-medium text-foreground">{receipt.supplier?.name || 'Chưa chọn NCC'}</div>
-                        <div className="mt-1 text-xs text-foreground-muted">{receipt.branch?.name || 'Tổng công ty'}</div>
+                        <div className="font-medium text-foreground">{receipt.supplier?.name || 'ChÆ°a chá»n NCC'}</div>
+                        <div className="mt-1 text-xs text-foreground-muted">{receipt.branch?.name || 'Tá»•ng cÃ´ng ty'}</div>
                       </td>
                     )
                   case 'total':
                     return (
                       <td key={columnId} className="w-40 px-3 py-3 text-right">
                         <div className="font-bold text-foreground">
-                          {Number(receipt.totalReceivedAmount || receipt.totalAmount || 0).toLocaleString('vi-VN')}₫
+                          {canViewImportCost
+                            ? `${Number(receipt.totalReceivedAmount || receipt.totalAmount || 0).toLocaleString('vi-VN')}đ`
+                            : '--'}
                         </div>
-                        <div className="mt-1 text-xs text-foreground-muted">Nợ {Number(receipt.debtAmount || 0).toLocaleString('vi-VN')}₫</div>
+                        {canViewImportCost ? (
+                          <div className="mt-1 text-xs text-foreground-muted">Nợ {Number(receipt.debtAmount || 0).toLocaleString('vi-VN')}đ</div>
+                        ) : null}
                       </td>
                     )
                   case 'status':

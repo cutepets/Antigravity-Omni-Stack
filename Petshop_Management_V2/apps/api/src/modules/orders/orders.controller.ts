@@ -34,7 +34,7 @@ import { ExportStockDto } from './dto/export-stock.dto.js'
 import { SettleOrderDto } from './dto/settle-order.dto.js'
 import { SwapGroomingServiceDto } from './dto/swap-grooming-service.dto.js'
 import { SwapTempItemDto } from './dto/swap-temp-item.dto.js'
-import { OrdersService } from './orders.service.js'
+import { BulkUpdateOrderDto, OrdersService } from './orders.service.js'
 
 interface AuthenticatedRequest extends Request {
   user?: JwtPayload
@@ -64,6 +64,12 @@ export class OrdersController {
   bulkDeleteOrders(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest): Promise<any> {
     const ids = normalizeBulkDeleteIds(body?.ids)
     return this.ordersService.bulkDeleteOrders(ids, this.getStaffId(req), req.user)
+  }
+
+  @Patch('bulk-update')
+  @Permissions('order.update')
+  bulkUpdateOrders(@Body() body: { ids?: string[]; updates?: BulkUpdateOrderDto }): Promise<any> {
+    return this.ordersService.bulkUpdateOrders(body.ids, body.updates ?? {})
   }
 
   @Post()

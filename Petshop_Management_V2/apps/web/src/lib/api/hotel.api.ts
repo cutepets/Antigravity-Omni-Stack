@@ -403,6 +403,8 @@ export const hotelApi = {
     api.post<HotelStayTimeline['activities'][number]>(`/hotel/stays/${id}/notes`, data).then((res) => res.data),
   createStay: (data: CreateHotelStayDto) => api.post<HotelStay>('/hotel/stays', data).then((res) => res.data),
   updateStay: (id: string, data: UpdateHotelStayDto) => api.patch<HotelStay>(`/hotel/stays/${id}`, data).then((res) => res.data),
+  bulkUpdateStays: (ids: string[], updates: UpdateHotelStayDto) =>
+    api.patch<BulkDeleteResult>('/hotel/stays/bulk-update', { ids, updates }).then((res) => res.data),
   updateStayPayment: (id: string, paymentStatus: HotelPaymentStatus) =>
     api.patch<HotelStay>(`/hotel/stays/${id}/payment`, { paymentStatus }).then((res) => res.data),
   checkoutStay: (id: string, data: CheckoutHotelStayDto) =>

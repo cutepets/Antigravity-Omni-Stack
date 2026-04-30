@@ -866,20 +866,14 @@ export class SettingsController {
   @Delete('settings/purge')
   @UseGuards(RolesGuard)
   @Roles('SUPER_ADMIN')
-  @ApiOperation({ summary: 'Xoa du lieu demo theo module (chi SUPER_ADMIN)' })
+  @ApiOperation({ summary: 'Xoa toan bo du lieu he thong sau khi xac thuc mat khau SUPER_ADMIN' })
   async purgeData(
-    @Body() dto: { modules: string[]; confirmPhrase: string },
+    @Body() dto: { superAdminPassword: string },
+    @Req() req: Request & { user?: { userId?: string } },
   ) {
-    if (dto.confirmPhrase !== 'XOA DU LIEU') {
-      throw new BadRequestException('Cum xac nhan khong chinh xac. Nhap "XOA DU LIEU" de xac nhan.')
-    }
-
-    if (!dto.modules?.length) {
-      throw new BadRequestException('Can chon it nhat 1 module de xoa du lieu')
-    }
-
-    const result = await this.backupService.purgeModules(
-      this.parseBackupModules(dto.modules),
+    const result = await this.backupService.purgeAllDataWithSuperAdminPassword(
+      req.user?.userId ?? null,
+      dto.superAdminPassword,
     )
 
     return { success: true, data: result }

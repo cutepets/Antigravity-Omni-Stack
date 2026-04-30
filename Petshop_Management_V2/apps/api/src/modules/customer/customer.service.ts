@@ -10,7 +10,12 @@ import type { JwtPayload } from '@petshop/shared'
 import { DatabaseService } from '../../database/database.service.js'
 import { getNextSequentialCode } from '../../common/utils/sequential-code.util.js'
 import { resolveBranchIdentity } from '../../common/utils/branch-identity.util.js'
-import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
+import {
+  normalizeBulkDeleteIds,
+  normalizeBulkUpdateIds,
+  runBulkDelete,
+  sanitizeBulkUpdatePayload,
+} from '../../common/utils/bulk-delete.util.js'
 
 // ─── Accent-insensitive search (ported from Petshop_Service_Management) ───────
 const removeAccents = (str: string): string => {
@@ -62,6 +67,7 @@ export interface CreateCustomerDto {
   points?: number
   debt?: number
   groupId?: string
+  branchId?: string
   notes?: string
   // Extended fields
   taxCode?: string
@@ -78,6 +84,7 @@ export interface CreateCustomerDto {
 }
 
 export interface UpdateCustomerDto extends Partial<CreateCustomerDto> { }
+export type BulkUpdateCustomerDto = Partial<Pick<UpdateCustomerDto, 'branchId' | 'groupId' | 'tier' | 'isActive'>>
 
 type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>
 
@@ -467,6 +474,73 @@ export class CustomerService {
     const customer = await this.db.customer.findUnique({ where: { id } })
     if (!customer) throw new NotFoundException('Không tìm thấy khách hàng')
 
+    if (user?.role === 'SUPER_ADMIN') {
+      await this.db.$transaction(async (tx) => {
+        const [pets, orders, groomingSessions, hotelStays] = await Promise.all([
+          (tx as any).pet.findMany({ where: { customerId: id }, select: { id: true } }),
+          (tx as any).order.findMany({ where: { customerId: id }, select: { id: true } }),
+          (tx as any).groomingSession.findMany({ where: { customerId: id }, select: { id: true } }),
+          (tx as any).hotelStay.findMany({ where: { customerId: id }, select: { id: true } }),
+        ])
+        const petIds = pets.map((pet: any) => pet.id)
+        const orderIds = orders.map((order: any) => order.id)
+        const groomingIds = groomingSessions.map((session: any) => session.id)
+        const stayIds = hotelStays.map((stay: any) => stay.id)
+
+        if (orderIds.length > 0) {
+          const paymentIntents = await (tx as any).paymentIntent.findMany({
+            where: { orderId: { in: orderIds } },
+            select: { id: true },
+          })
+          const paymentIntentIds = paymentIntents.map((intent: any) => intent.id)
+          await (tx as any).paymentWebhookEvent.deleteMany({
+            where: { OR: [{ matchedOrderId: { in: orderIds } }, ...(paymentIntentIds.length > 0 ? [{ matchedPaymentIntentId: { in: paymentIntentIds } }] : [])] },
+          })
+          await (tx as any).bankTransaction.deleteMany({
+            where: { OR: [{ matchedOrderId: { in: orderIds } }, ...(paymentIntentIds.length > 0 ? [{ matchedPaymentIntentId: { in: paymentIntentIds } }] : [])] },
+          })
+          await (tx as any).paymentIntent.deleteMany({ where: { orderId: { in: orderIds } } })
+          await (tx as any).transaction.deleteMany({
+            where: { OR: [{ orderId: { in: orderIds } }, { refType: 'ORDER', refId: { in: orderIds } }] },
+          })
+          await (tx as any).orderPayment.deleteMany({ where: { orderId: { in: orderIds } } })
+          await (tx as any).orderReturnItem.deleteMany({ where: { returnRequest: { orderId: { in: orderIds } } } })
+          await (tx as any).orderReturnRequest.deleteMany({ where: { orderId: { in: orderIds } } })
+          await (tx as any).orderTimeline.deleteMany({ where: { orderId: { in: orderIds } } })
+        }
+
+        if (stayIds.length > 0) {
+          await (tx as any).hotelStayHealthLog.deleteMany({ where: { hotelStayId: { in: stayIds } } })
+          await (tx as any).hotelStayTimeline.deleteMany({ where: { hotelStayId: { in: stayIds } } })
+          await (tx as any).hotelStayChargeLine.deleteMany({ where: { hotelStayId: { in: stayIds } } })
+          await (tx as any).hotelStayAdjustment.deleteMany({ where: { hotelStayId: { in: stayIds } } })
+        }
+        if (groomingIds.length > 0) {
+          await (tx as any).groomingTimeline.deleteMany({ where: { groomingSessionId: { in: groomingIds } } })
+        }
+        await (tx as any).orderItem.deleteMany({
+          where: {
+            OR: [
+              ...(orderIds.length > 0 ? [{ orderId: { in: orderIds } }] : []),
+              ...(stayIds.length > 0 ? [{ hotelStayId: { in: stayIds } }] : []),
+              ...(groomingIds.length > 0 ? [{ groomingSessionId: { in: groomingIds } }] : []),
+            ],
+          },
+        })
+        await (tx as any).groomingSession.deleteMany({
+          where: { OR: [{ customerId: id }, ...(petIds.length > 0 ? [{ petId: { in: petIds } }] : []), ...(orderIds.length > 0 ? [{ orderId: { in: orderIds } }] : [])] },
+        })
+        await (tx as any).hotelStay.deleteMany({
+          where: { OR: [{ customerId: id }, ...(petIds.length > 0 ? [{ petId: { in: petIds } }] : []), ...(orderIds.length > 0 ? [{ orderId: { in: orderIds } }] : [])] },
+        })
+        await (tx as any).pet.deleteMany({ where: { customerId: id } })
+        await (tx as any).order.deleteMany({ where: { customerId: id } })
+        await (tx as any).customer.delete({ where: { id } })
+      })
+
+      return { success: true, message: `Da xoa vinh vien khach hang "${customer.fullName}"` }
+    }
+
     // GroomingSession & HotelStay gắn với Pet, không phải Customer trực tiếp
     const [pets, orders] = await Promise.all([
       this.db.pet.count({ where: { customerId: id } }),
@@ -491,6 +565,24 @@ export class CustomerService {
   async bulkRemove(ids: unknown, user?: AccessUser) {
     const normalizedIds = normalizeBulkDeleteIds(ids)
     return runBulkDelete(normalizedIds, (id) => this.remove(id, user))
+  }
+
+  async bulkUpdate(ids: unknown, updates: BulkUpdateCustomerDto, user?: AccessUser) {
+    const normalizedIds = normalizeBulkUpdateIds(ids)
+    const payload = sanitizeBulkUpdatePayload<BulkUpdateCustomerDto>(updates, ['branchId', 'groupId', 'tier', 'isActive'])
+
+    if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') {
+      for (const id of normalizedIds) {
+        await this.assertCustomerScope(id, user)
+      }
+    }
+
+    const result = await this.db.customer.updateMany({
+      where: { id: { in: normalizedIds } },
+      data: payload as any,
+    })
+
+    return { success: true, updatedIds: normalizedIds, updatedCount: result.count }
   }
 
   // ─── Private helpers ───────────────────────────────────────────────────────

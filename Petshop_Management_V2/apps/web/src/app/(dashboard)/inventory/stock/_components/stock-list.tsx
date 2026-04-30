@@ -2,10 +2,11 @@
 import Image from 'next/image';
 
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Download, PackageCheck, Pin, PinOff } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { stockApi } from '@/lib/api/stock.api'
+import { useAuthorization } from '@/hooks/useAuthorization'
 import {
 
   DataListShell,
@@ -100,6 +101,8 @@ function buildStockDetailHref(row: StockRow) {
 
 export function StockList() {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const { hasPermission } = useAuthorization()
   const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('ALL')
@@ -177,6 +180,15 @@ export function StockList() {
 
   const visibleRowIds = useMemo(() => rows.map((row) => `stock:${row.id}`), [rows])
   const { selectedRowIds, toggleRowSelection, toggleSelectAllVisible, clearSelection, allVisibleSelected } = useDataListSelection(visibleRowIds)
+  const selectedStockIds = useMemo(() => Array.from(selectedRowIds).map((rowId) => rowId.replace(/^stock:/, '')), [selectedRowIds])
+  const canUpdateStock = hasPermission('stock_receipt.update')
+  const bulkUpdateMutation = useMutation({
+    mutationFn: (payload: { ids: string[]; updates: any }) => stockApi.bulkUpdateProducts(payload.ids, payload.updates),
+    onSuccess: () => {
+      clearSelection()
+      queryClient.invalidateQueries({ queryKey: ['inventory-stock-products'] })
+    },
+  })
 
   const activeColumns = useMemo(
     () =>
@@ -303,12 +315,23 @@ export function StockList() {
         bulkBar={
           selectedRowIds.size > 0 ? (
             <DataListBulkBar selectedCount={selectedRowIds.size} onClear={clearSelection}>
-              <button
-                type="button"
-                className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
-              >
-                <Download size={13} /> Khac
-              </button>
+              {canUpdateStock ? (
+                <select
+                  className="h-8 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground"
+                  defaultValue=""
+                  disabled={bulkUpdateMutation.isPending}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    event.target.value = ''
+                    if (value) bulkUpdateMutation.mutate({ ids: selectedStockIds, updates: { lastCountShift: value } })
+                  }}
+                >
+                  <option value="" disabled>Ca kiểm</option>
+                  {Object.keys(SHIFT_LABELS).map((shift) => (
+                    <option key={shift} value={shift}>{formatShiftLabel(shift)}</option>
+                  ))}
+                </select>
+              ) : null}
             </DataListBulkBar>
           ) : undefined
         }

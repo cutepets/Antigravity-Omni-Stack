@@ -276,7 +276,7 @@ export function TabBackup() {
     return (
       <div className="flex h-40 items-center justify-center gap-3 text-foreground-muted">
         <AlertCircle size={18} />
-        Tính năng backup chỉ dành cho SUPER_ADMIN.
+        Tính năng backup chỉ dành cho SUP.
       </div>
     )
   }
@@ -288,16 +288,9 @@ export function TabBackup() {
           <div>
             <h2 className="flex items-center gap-3 text-lg font-bold text-foreground-base">
               <Database className="text-primary-500" size={24} />
-              Backup và khôi phục một-file
+              Backup và khôi phục
             </h2>
-            <p className="mt-1 text-sm text-foreground-muted">
-              Tạo file `.appbak` đã nén + mã hóa. Không bao gồm ảnh hoặc tài liệu nhị phân.
-            </p>
           </div>
-
-          <span className="rounded-full border border-border/60 bg-background-elevated px-3 py-1 text-xs font-semibold text-foreground-muted">
-            SUPER_ADMIN
-          </span>
         </div>
       </div>
 
@@ -306,9 +299,6 @@ export function TabBackup() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h3 className="text-sm font-bold text-foreground-base">Tạo backup</h3>
-              <p className="mt-1 text-xs text-foreground-muted">
-                Chọn module cần đóng gói. Hệ thống tự động kèm module tiền đề bắt buộc.
-              </p>
             </div>
 
             <button
@@ -317,7 +307,7 @@ export function TabBackup() {
               className="inline-flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 text-sm font-semibold text-foreground-base transition-colors hover:bg-background-secondary"
             >
               <RefreshCw size={16} className={catalogQuery.isFetching ? 'animate-spin' : ''} />
-              Làm mới danh mục
+              Làm mới
             </button>
           </div>
 
@@ -434,10 +424,6 @@ export function TabBackup() {
             </Field>
           </div>
 
-          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100">
-            File backup chỉ giữ dữ liệu và tham chiếu URL/path. Ảnh, tài liệu upload, và nội dung file trên Google Drive không nằm trong `.appbak`.
-          </div>
-
           <div className="flex justify-end">
             <button
               type="button"
@@ -458,9 +444,6 @@ export function TabBackup() {
         <section className="space-y-6 rounded-2xl border border-border/50 bg-background-elevated/60 p-6">
           <div>
             <h3 className="text-sm font-bold text-foreground-base">Khôi phục từ file `.appbak`</h3>
-            <p className="mt-1 text-xs text-foreground-muted">
-              Kiểm tra manifest trước, sau đó chọn module cần replace.
-            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -470,9 +453,6 @@ export function TabBackup() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-foreground-base">
                     {backupFile?.name || 'Bấm để chọn file .appbak'}
-                  </div>
-                  <div className="mt-1 text-xs text-foreground-muted">
-                    Chỉ đọc file backup một-file đã mã hóa.
                   </div>
                 </div>
                 <input
@@ -650,8 +630,8 @@ export function TabBackup() {
           ) : null}
         </section>
 
-        {/* ─── Purge Section ─── */}
-        <PurgeSection catalog={catalogQuery.data ?? []} />
+        {/* ─── Full Data Delete Section ─── */}
+        <PurgeSection />
       </div>
     </div>
   )
@@ -689,30 +669,15 @@ function InfoTile({
   )
 }
 
-function PurgeSection({ catalog }: { catalog: BackupCatalogEntry[] }) {
-  const [purgeModules, setPurgeModules] = useState<string[]>([])
-  const [confirmPhrase, setConfirmPhrase] = useState('')
+function PurgeSection() {
+  const [superAdminPassword, setSuperAdminPassword] = useState('')
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
-  const purgeModulePreview = useMemo(
-    () => expandModules(purgeModules, catalog),
-    [catalog, purgeModules],
-  )
-
-  const togglePurgeModule = (moduleId: string) => {
-    setPurgeModules((current) =>
-      current.includes(moduleId)
-        ? current.filter((entry) => entry !== moduleId)
-        : [...current, moduleId],
-    )
-  }
-
   const purgeMutation = useMutation({
-    mutationFn: () => settingsApi.purgeData(purgeModules, confirmPhrase),
+    mutationFn: () => settingsApi.purgeData(superAdminPassword),
     onSuccess: (result) => {
-      toast.success(`Đã xóa dữ liệu ${result.purgedModules.length} module`)
-      setPurgeModules([])
-      setConfirmPhrase('')
+      toast.success(`Đã xóa toàn bộ dữ liệu (${result.purgedModules.length} module)`)
+      setSuperAdminPassword('')
       setShowConfirmDialog(false)
     },
     onError: (error: any) => {
@@ -721,96 +686,27 @@ function PurgeSection({ catalog }: { catalog: BackupCatalogEntry[] }) {
   })
 
   const handlePurge = () => {
-    if (purgeModules.length === 0) {
-      toast.error('Cần chọn ít nhất 1 module để xóa dữ liệu')
-      return
-    }
-    setShowConfirmDialog(true)
-  }
-
-  const handleConfirmPurge = () => {
-    if (confirmPhrase !== 'XOA DU LIEU') {
-      toast.error('Cụm xác nhận không chính xác. Nhập "XOA DU LIEU" để xác nhận.')
+    if (!superAdminPassword.trim()) {
+      toast.error('Cần nhập mật khẩu để xóa toàn bộ dữ liệu')
       return
     }
     purgeMutation.mutate()
   }
 
   return (
-    <section className="space-y-6 rounded-2xl border border-rose-500/30 bg-rose-500/5 p-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h3 className="flex items-center gap-2 text-sm font-bold text-rose-400">
-            <Trash2 size={16} />
-            Xóa dữ liệu demo
-          </h3>
-          <p className="mt-1 text-xs text-foreground-muted">
-            Xóa toàn bộ dữ liệu của module được chọn. Hành động không thể hoàn tác.
-          </p>
-        </div>
-        <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-400">
-          SUPER_ADMIN
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        {catalog.map((entry) => {
-          const checked = purgeModules.includes(entry.moduleId)
-          return (
-            <label
-              key={entry.moduleId}
-              className={`flex items-start gap-3 rounded-2xl border px-4 py-4 transition-colors ${checked
-                  ? 'border-rose-500/40 bg-rose-500/10'
-                  : 'border-border/40 bg-background-base'
-                }`}
-            >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => togglePurgeModule(entry.moduleId)}
-                className="mt-1 h-4 w-4 rounded border-border/50 accent-rose-500"
-              />
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-foreground-base">
-                  {entry.label}
-                </div>
-                <div className="mt-1 text-xs text-foreground-muted">
-                  {entry.moduleId} • Phụ thuộc:{' '}
-                  {entry.dependencies.length > 0
-                    ? entry.dependencies.join(', ')
-                    : 'Không có'}
-                </div>
-              </div>
-            </label>
-          )
-        })}
-      </div>
-
-      {purgeModulePreview.length > 0 ? (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100">
-          <div className="flex items-start gap-2">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-300" />
-            <div>
-              <span className="font-bold">Sẽ xóa dữ liệu các module (bao gồm dependency):</span>{' '}
-              {purgeModulePreview.join(', ')}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
+    <section>
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={handlePurge}
-          disabled={purgeModules.length === 0 || purgeMutation.isPending}
+          onClick={() => setShowConfirmDialog(true)}
+          disabled={purgeMutation.isPending}
           className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Trash2 size={16} />
-          Xóa dữ liệu
+          Xóa toàn bộ dữ liệu
         </button>
       </div>
 
-      {/* Confirmation Dialog */}
       {showConfirmDialog ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay">
           <div className="w-full max-w-md space-y-5 rounded-3xl border border-rose-500/30 bg-background-secondary p-6 shadow-xl">
@@ -820,43 +716,36 @@ function PurgeSection({ catalog }: { catalog: BackupCatalogEntry[] }) {
               </div>
               <div>
                 <h3 className="text-base font-bold text-foreground-base">
-                  Xác nhận xóa dữ liệu
+                  Xác nhận xóa toàn bộ dữ liệu
                 </h3>
                 <p className="mt-1 text-xs text-foreground-muted">
-                  Hành động không thể hoàn tác
+                  Hành động này không thể hoàn tác.
                 </p>
               </div>
             </div>
 
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm text-foreground-secondary">
-              Sẽ xóa toàn bộ dữ liệu của{' '}
-              <span className="font-bold text-rose-400">
-                {purgeModulePreview.length} module
-              </span>
-              : {purgeModulePreview.join(', ')}
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100">
+              Dữ liệu vận hành trong hệ thống sẽ bị xóa sau khi mật khẩu được xác thực.
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground-base">
-                Nhập <span className="font-bold text-rose-400">XOA DU LIEU</span> để
-                xác nhận
-              </label>
+            <Field label="Mật khẩu xác nhận">
               <input
-                type="text"
-                value={confirmPhrase}
-                onChange={(e) => setConfirmPhrase(e.target.value)}
+                type="password"
+                value={superAdminPassword}
+                onChange={(event) => setSuperAdminPassword(event.target.value)}
                 className={inputClassName}
-                placeholder="XOA DU LIEU"
+                placeholder="Nhập mật khẩu"
+                autoComplete="current-password"
                 autoFocus
               />
-            </div>
+            </Field>
 
             <div className="flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => {
                   setShowConfirmDialog(false)
-                  setConfirmPhrase('')
+                  setSuperAdminPassword('')
                 }}
                 className="rounded-xl border border-border/60 px-4 py-2 text-sm font-semibold text-foreground-base transition-colors hover:bg-background-secondary"
               >
@@ -864,10 +753,8 @@ function PurgeSection({ catalog }: { catalog: BackupCatalogEntry[] }) {
               </button>
               <button
                 type="button"
-                onClick={handleConfirmPurge}
-                disabled={
-                  confirmPhrase !== 'XOA DU LIEU' || purgeMutation.isPending
-                }
+                onClick={handlePurge}
+                disabled={!superAdminPassword.trim() || purgeMutation.isPending}
                 className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {purgeMutation.isPending ? (
@@ -875,7 +762,7 @@ function PurgeSection({ catalog }: { catalog: BackupCatalogEntry[] }) {
                 ) : (
                   <Trash2 size={16} />
                 )}
-                Xóa dữ liệu
+                Xóa toàn bộ dữ liệu
               </button>
             </div>
           </div>
@@ -884,4 +771,3 @@ function PurgeSection({ catalog }: { catalog: BackupCatalogEntry[] }) {
     </section>
   )
 }
-

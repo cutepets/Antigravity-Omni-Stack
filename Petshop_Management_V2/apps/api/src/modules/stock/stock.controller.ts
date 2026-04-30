@@ -12,13 +12,18 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { getRolePermissions, hasAnyPermission, resolvePermissions } from '@petshop/auth'
 import type { Request } from 'express'
 import type { JwtPayload } from '@petshop/shared'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js'
+import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import {
   CloseReceiptDto,
+  BulkUpdateReceiptDto,
+  BulkUpdateStockProductDto,
+  BulkUpdateSupplierDto,
   CreateReceiptDto,
   CreateReturnReceiptDto,
   CreateSupplierDto,
@@ -48,18 +53,32 @@ export class StockController {
     return staffId
   }
 
+  private canViewImportCost(req: AuthenticatedRequest): boolean {
+    const user = req.user
+    if (!user) return false
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || user.permissions?.includes('FULL_BRANCH_ACCESS')) {
+      return true
+    }
+
+    const permissions = resolvePermissions([
+      ...(user.permissions ?? []),
+      ...getRolePermissions(user.role as any),
+    ])
+    return hasAnyPermission(permissions, ['stock_receipt.cost.read', 'inventory.cost.read'])
+  }
+
   @Get('receipts')
   @Permissions('stock_receipt.read')
   @ApiOperation({ summary: 'Danh sách phiếu nhập' })
-  findAllReceipts(@Query() query: FindReceiptsDto) {
-    return this.stockService.findAllReceipts(query)
+  findAllReceipts(@Query() query: FindReceiptsDto, @Req() req: AuthenticatedRequest) {
+    return this.stockService.findAllReceipts(query, { includeCosts: this.canViewImportCost(req) })
   }
 
   @Get('receipts/:id')
   @Permissions('stock_receipt.read')
   @ApiOperation({ summary: 'Chi tiết phiếu nhập' })
-  findReceiptById(@Param('id') id: string) {
-    return this.stockService.findReceiptById(id)
+  findReceiptById(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.stockService.findReceiptById(id, { includeCosts: this.canViewImportCost(req) })
   }
 
   @Post('receipts')
@@ -74,6 +93,21 @@ export class StockController {
   @ApiOperation({ summary: 'Cập nhật phiếu nhập nháp' })
   updateReceipt(@Param('id') id: string, @Body() dto: Partial<CreateReceiptDto>) {
     return this.stockService.updateReceipt(id, dto)
+  }
+
+  @Patch('receipts/bulk-update')
+  @Permissions('stock_receipt.update')
+  @ApiOperation({ summary: 'Cap nhat hang loat phieu nhap' })
+  bulkUpdateReceipts(@Body() body: { ids?: string[]; updates?: BulkUpdateReceiptDto }) {
+    return this.stockService.bulkUpdateReceipts(body.ids, body.updates ?? {})
+  }
+
+  @Post('receipts/bulk-delete')
+  @UseGuards(SuperAdminGuard)
+  @Permissions('stock_receipt.cancel')
+  @ApiOperation({ summary: 'Xoa hang loat phieu nhap (chi SUPER_ADMIN)' })
+  bulkDeleteReceipts(@Body() body: { ids?: string[] }) {
+    return this.stockService.bulkDeleteReceipts(body.ids)
   }
 
   @Patch('receipts/:id/pay')
@@ -165,6 +199,13 @@ export class StockController {
     return this.stockService.findInventoryProducts(query)
   }
 
+  @Patch('products/bulk-update')
+  @Permissions('stock_receipt.update')
+  @ApiOperation({ summary: 'Cap nhat hang loat ton kho' })
+  bulkUpdateStockProducts(@Body() body: { ids?: string[]; updates?: BulkUpdateStockProductDto }) {
+    return this.stockService.bulkUpdateStockProducts(body.ids, body.updates ?? {})
+  }
+
   @Get('suppliers')
   @Permissions('supplier.read')
   @ApiOperation({ summary: 'Danh sách nhà cung cấp' })
@@ -191,5 +232,20 @@ export class StockController {
   @ApiOperation({ summary: 'Cập nhật nhà cung cấp' })
   updateSupplier(@Param('id') id: string, @Body() dto: UpdateSupplierDto): Promise<any> {
     return this.stockService.updateSupplier(id, dto)
+  }
+
+  @Patch('suppliers/bulk-update')
+  @Permissions('supplier.update')
+  @ApiOperation({ summary: 'Cap nhat hang loat nha cung cap' })
+  bulkUpdateSuppliers(@Body() body: { ids?: string[]; updates?: BulkUpdateSupplierDto }): Promise<any> {
+    return this.stockService.bulkUpdateSuppliers(body.ids, body.updates ?? {})
+  }
+
+  @Post('suppliers/bulk-delete')
+  @UseGuards(SuperAdminGuard)
+  @Permissions('supplier.delete')
+  @ApiOperation({ summary: 'Xoa hang loat nha cung cap (chi SUPER_ADMIN)' })
+  bulkDeleteSuppliers(@Body() body: { ids?: string[] }): Promise<any> {
+    return this.stockService.bulkDeleteSuppliers(body.ids)
   }
 }

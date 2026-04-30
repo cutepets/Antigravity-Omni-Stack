@@ -357,7 +357,7 @@ export function OrderList() {
             <button
               type="button"
               onClick={() => router.push('/orders/new')}
-              className="flex h-8 items-center gap-1.5 rounded-lg bg-primary-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-600 shadow-sm"
+              className="flex h-8 w-8 items-center justify-center text-xs font-semibold text-white transition-colors hover:bg-primary-600 shadow-sm"
             >
               + Tạo đơn
             </button>
@@ -473,7 +473,9 @@ export function OrderList() {
               {canDeleteOrders ? (
                 <button
                   type="button"
-                  className="flex h-8 items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-50 px-3 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-label="Xóa DB"
+                  title="Xóa DB"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/30 bg-red-50 text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={bulkDeleteOrdersMutation.isPending}
                   onClick={() => {
                     if (window.confirm(`Xóa vĩnh viễn ${selectedOrderIds.length} đơn hàng đã chọn và toàn bộ chứng từ liên quan?`)) {
@@ -481,7 +483,7 @@ export function OrderList() {
                     }
                   }}
                 >
-                  <Trash2 size={13} /> Xóa {selectedOrderIds.length} đơn
+                  <Trash2 size={13} />
                 </button>
               ) : null}
             </DataListBulkBar>
@@ -697,3 +699,4 @@ export function OrderList() {
     </DataListShell>
   )
 }
+

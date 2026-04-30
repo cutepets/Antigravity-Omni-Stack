@@ -186,6 +186,12 @@ export interface BulkDeleteResult {
   blocked: Array<{ id: string; reason: string }>;
 }
 
+export type BulkUpdateOrderPayload = Partial<Pick<UpdateOrderPayload, 'branchId'>> & {
+  status?: string;
+  paymentStatus?: string;
+  staffId?: string | null;
+};
+
 export const orderApi = {
   getCatalog: () => api.get('/orders/catalog').then((r) => r.data),
 
@@ -230,6 +236,9 @@ export const orderApi = {
 
   bulkDelete: (ids: string[]): Promise<BulkDeleteResult> =>
     api.post('/orders/bulk-delete', { ids }).then((r) => r.data),
+
+  bulkUpdate: (ids: string[], updates: BulkUpdateOrderPayload) =>
+    api.patch('/orders/bulk-update', { ids, updates }).then((r) => r.data),
 
   approve: (id: string, data?: ApproveOrderPayload) =>
     api.post(`/orders/${id}/approve`, data ?? {}).then((r) => r.data),

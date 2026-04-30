@@ -71,7 +71,7 @@ export function CreateReceiptForm({
     searchInputRef, searchPanelRef, supplierPanelRef, exportMenuRef,
     // auth
     user, allowedBranches, isAuthLoading, canAccessScreen, canSubmitReceipt,
-    canPayReceipt, canReceiveReceipt, canCancelReceipt, canReturnReceipt,
+    canPayReceipt, canReceiveReceipt, canCancelReceipt, canReturnReceipt, canViewImportCost,
     canUpdateReceipt,
     isCreateMode, isEditMode, isExistingReceipt,
     // queries
@@ -232,6 +232,21 @@ export function CreateReceiptForm({
     const branchName = currentBranch?.name ?? '—'
     const statusLabel = statusView.label
 
+    const amountHeaderHtml = canViewImportCost
+      ? `
+        <th>Đơn giá</th>
+        <th>Giảm giá</th>
+        <th>Thành tiền</th>`
+      : ''
+    const totalsHtml = canViewImportCost
+      ? `
+    <tr><td>Tổng hàng hóa</td><td>${merchandiseTotal.toLocaleString('vi-VN')} đ</td></tr>
+    ${receiptDiscount > 0 ? `<tr><td>Giảm giá</td><td>-${discountAmount.toLocaleString('vi-VN')} đ</td></tr>` : ''}
+    ${receiptTax > 0 ? `<tr><td>Thuế</td><td>+${taxAmount.toLocaleString('vi-VN')} đ</td></tr>` : ''}
+    <tr class="grand"><td>Cần trả NCC</td><td>${grandTotal.toLocaleString('vi-VN')} đ</td></tr>
+    ${currentDebt > 0 ? `<tr><td>Còn nợ</td><td style="color:#e11d48">${currentDebt.toLocaleString('vi-VN')} đ</td></tr>` : ''}`
+      : ''
+
     const rowsHtml = items
       .map(
         (item, idx) => `
@@ -240,9 +255,9 @@ export function CreateReceiptForm({
           <td style="padding:4px 6px;border-bottom:1px solid #eee;">${item.name}${(item.variantLabel ?? item.variantName) ? ` (${item.variantLabel ?? item.variantName})` : ''}${item.sku ? `<br><small style="color:#999">${item.sku}</small>` : ''}</td>
           <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.unitLabel ?? item.baseUnit ?? item.unit ?? '—'}</td>
           <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.quantity}</td>
-          <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.unitCost.toLocaleString('vi-VN')}</td>
-          ${item.discount > 0 ? `<td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.discount.toLocaleString('vi-VN')}</td>` : `<td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">—</td>`}
-          <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">${(item.quantity * item.unitCost).toLocaleString('vi-VN')}</td>
+          ${canViewImportCost ? `<td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.unitCost.toLocaleString('vi-VN')}</td>` : ''}
+          ${canViewImportCost ? (item.discount > 0 ? `<td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">${item.discount.toLocaleString('vi-VN')}</td>` : `<td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;">—</td>`) : ''}
+          ${canViewImportCost ? `<td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">${(item.quantity * item.unitCost).toLocaleString('vi-VN')}</td>` : ''}
         </tr>`,
       )
       .join('')
@@ -297,19 +312,13 @@ export function CreateReceiptForm({
         <th>Sản phẩm</th>
         <th>ĐVT</th>
         <th>SL</th>
-        <th>Đơn giá</th>
-        <th>Giảm giá</th>
-        <th>Thành tiền</th>
+        ${amountHeaderHtml}
       </tr>
     </thead>
     <tbody>${rowsHtml}</tbody>
   </table>
   <table class="totals">
-    <tr><td>Tổng hàng hóa</td><td>${merchandiseTotal.toLocaleString('vi-VN')} đ</td></tr>
-    ${receiptDiscount > 0 ? `<tr><td>Giảm giá</td><td>-${discountAmount.toLocaleString('vi-VN')} đ</td></tr>` : ''}
-    ${receiptTax > 0 ? `<tr><td>Thuế</td><td>+${taxAmount.toLocaleString('vi-VN')} đ</td></tr>` : ''}
-    <tr class="grand"><td>Cần trả NCC</td><td>${grandTotal.toLocaleString('vi-VN')} đ</td></tr>
-    ${currentDebt > 0 ? `<tr><td>Còn nợ</td><td style="color:#e11d48">${currentDebt.toLocaleString('vi-VN')} đ</td></tr>` : ''}
+    ${totalsHtml}
   </table>
   ${notes ? `<div style="margin-top:8px;font-size:${isK80 ? '9px' : '11px'};color:#555;">Ghi chú: ${notes}</div>` : ''}
   <div class="footer">In lúc ${dayjs().format('DD/MM/YYYY HH:mm')} • Phần mềm Petshop</div>
@@ -345,6 +354,7 @@ export function CreateReceiptForm({
       taxAmount,
       grandTotal,
       currentDebt,
+      includeCosts: canViewImportCost,
     })
     toast.success(`Đã xuất file ${fileName}`)
   }
@@ -1074,8 +1084,8 @@ export function CreateReceiptForm({
                 <div className="text-center">Tồn kho</div>
                 <div className="text-center">{'Hi\u1ec7u xu\u1ea5t b\u00e1n'}</div>
                 <div className="text-center">Số lượng</div>
-                <div className="pr-3 text-right">Đơn giá</div>
-                <div className="pr-5 text-right">Thành tiền</div>
+                <div className="pr-3 text-right">{canViewImportCost ? 'Đơn giá' : ''}</div>
+                <div className="pr-5 text-right">{canViewImportCost ? 'Thành tiền' : ''}</div>
               </div>
             </div>
 
@@ -1427,7 +1437,7 @@ export function CreateReceiptForm({
                           {/* Đơn giá */}
                           <div className="relative pr-4">
                             {
-                              discountEditingReceiptId === item.lineId ? (
+                              canViewImportCost && discountEditingReceiptId === item.lineId ? (
                                 <>
                                   <div className="fixed inset-0 z-40 cursor-default" onClick={() => setDiscountEditingReceiptId(null)} />
                                   <div className="absolute right-0 z-50 mt-1 w-72 rounded-xl border border-border bg-background p-4 shadow-2xl shadow-black/20 animate-in fade-in zoom-in-95 duration-150">
@@ -1495,12 +1505,12 @@ export function CreateReceiptForm({
                             }
                             <div
                               className="group/price relative cursor-pointer flex flex-col items-end"
-                              onClick={() => !isReadOnly && setDiscountEditingReceiptId(item.lineId)}
+                              onClick={() => canViewImportCost && !isReadOnly && setDiscountEditingReceiptId(item.lineId)}
                             >
                               <div className={`text-sm font-medium text-foreground border-b border-dashed transition-colors pb-0.5 text-right ${isReadOnly ? 'border-transparent cursor-default' : 'border-border hover:border-primary-500 group-hover/price:border-primary-500'}`}>
-                                {(item.unitCost).toLocaleString('vi-VN')}
+                                {canViewImportCost ? (item.unitCost).toLocaleString('vi-VN') : '--'}
                               </div>
-                              {(item.discount ?? 0) > 0 && (
+                              {canViewImportCost && (item.discount ?? 0) > 0 && (
                                 <div className="flex items-center gap-1 mt-0.5 text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded">
                                   <span>-{Math.round((item.discount / item.unitCost) * 100)}%</span>
                                   <span className="opacity-70">(-{item.discount.toLocaleString('vi-VN')}đ)</span>
@@ -1512,7 +1522,7 @@ export function CreateReceiptForm({
                           {/* Thành tiền */}
                           <div className="pl-3 pr-5 text-right">
                             <span className="text-sm font-semibold text-foreground tabular-nums">
-                              {fmt(lineAmount)}
+                              {canViewImportCost ? fmt(lineAmount) : '--'}
                             </span>
                           </div>
                         </div>
@@ -1542,66 +1552,70 @@ export function CreateReceiptForm({
                   )}
                 </span>
                 <span className="text-sm font-semibold text-foreground tabular-nums">
-                  {fmt(merchandiseTotal)}
+                  {canViewImportCost ? fmt(merchandiseTotal) : '--'}
                 </span>
               </div>
 
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-foreground-muted shrink-0">Giảm giá</span>
-                <NumericFormat
-                  thousandSeparator="."
-                  decimalSeparator=","
-                  allowNegative={false}
-                  className="h-7 w-28 rounded-lg border border-border bg-background-secondary px-2 text-right text-sm text-foreground outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
-                  value={receiptDiscount || ''}
-                  placeholder="0"
-                  onValueChange={(values) => setReceiptDiscount(Math.max(0, values.floatValue || 0))}
-                  disabled={isReadOnly}
-                />
-              </div>
+              {canViewImportCost ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-foreground-muted shrink-0">Giảm giá</span>
+                  <NumericFormat
+                    thousandSeparator="."
+                    decimalSeparator=","
+                    allowNegative={false}
+                    className="h-7 w-28 rounded-lg border border-border bg-background-secondary px-2 text-right text-sm text-foreground outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                    value={receiptDiscount || ''}
+                    placeholder="0"
+                    onValueChange={(values) => setReceiptDiscount(Math.max(0, values.floatValue || 0))}
+                    disabled={isReadOnly}
+                  />
+                </div>
+              ) : null}
 
               {/* Extra costs – hidden from UI but still computed for legacy data */}
 
               <div className="flex items-center justify-between rounded-xl border border-border bg-background-secondary px-3 py-2.5">
                 <span className="text-sm font-semibold text-foreground">Cần trả NCC</span>
                 <span className="text-base font-black text-primary-500 tabular-nums">
-                  {fmt(grandTotal)}
+                  {canViewImportCost ? fmt(grandTotal) : '--'}
                 </span>
               </div>
             </div>
 
             {/* Payment info */}
             <div className="border-b border-border px-3 py-2.5 space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-foreground-muted shrink-0">Chi phí phát sinh</span>
-                <NumericFormat
-                  thousandSeparator="."
-                  decimalSeparator=","
-                  allowNegative={false}
-                  className="h-6 w-24 rounded-lg border border-border bg-background-secondary px-2 text-right text-xs text-foreground outline-none focus:border-primary-500"
-                  value={taxAmount || ''}
-                  placeholder="0"
-                  onValueChange={(values) => setReceiptTax(Math.max(0, values.floatValue || 0))}
-                  disabled={isReadOnly}
-                />
-              </div>
+              {canViewImportCost ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-foreground-muted shrink-0">Chi phí phát sinh</span>
+                  <NumericFormat
+                    thousandSeparator="."
+                    decimalSeparator=","
+                    allowNegative={false}
+                    className="h-6 w-24 rounded-lg border border-border bg-background-secondary px-2 text-right text-xs text-foreground outline-none focus:border-primary-500"
+                    value={taxAmount || ''}
+                    placeholder="0"
+                    onValueChange={(values) => setReceiptTax(Math.max(0, values.floatValue || 0))}
+                    disabled={isReadOnly}
+                  />
+                </div>
+              ) : null}
               <div className="rounded-xl border border-border bg-background-secondary px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-xs text-foreground-muted">
                     Đã Thanh toán: <span className="font-semibold text-foreground">{latestPaymentMethodLabel}</span>
                   </span>
                   <span className="text-xs font-semibold text-foreground tabular-nums">
-                    {fmt(totalAppliedPaymentAmount)}
+                    {canViewImportCost ? fmt(totalAppliedPaymentAmount) : '--'}
                   </span>
                 </div>
                 <div className="mt-2 space-y-1.5 pl-3">
                   <div className="flex items-center justify-between gap-3 text-xs">
                     <span className="text-foreground-muted">Tiền hàng</span>
-                    <span className="font-medium text-foreground tabular-nums">{fmt(orderPaymentAmount)}</span>
+                    <span className="font-medium text-foreground tabular-nums">{canViewImportCost ? fmt(orderPaymentAmount) : '--'}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 text-xs">
                     <span className="text-foreground-muted">Nợ cũ</span>
-                    <span className="font-medium text-foreground tabular-nums">{fmt(debtSettlementAmount)}</span>
+                    <span className="font-medium text-foreground tabular-nums">{canViewImportCost ? fmt(debtSettlementAmount) : '--'}</span>
                   </div>
                 </div>
               </div>

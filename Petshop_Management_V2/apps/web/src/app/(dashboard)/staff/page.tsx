@@ -6,8 +6,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ShieldAlert, Users } from 'lucide-react'
 import { PageContainer } from '@/components/layout/PageLayout'
 import { useAuthorization } from '@/hooks/useAuthorization'
-import { rolesApi } from '@/lib/api'
-import { CreateStaffDto, Staff, staffApi, UpdateStaffDto } from '@/lib/api/staff.api'
+import { rolesApi, settingsApi } from '@/lib/api'
+import { BulkUpdateStaffDto, CreateStaffDto, Staff, staffApi, UpdateStaffDto } from '@/lib/api/staff.api'
 import { cn } from '@/lib/utils'
 import { StaffFormModal } from './components/StaffFormModal'
 import { StaffList } from './components/StaffList'
@@ -35,6 +35,7 @@ export default function StaffManagementPage() {
   const [activeTab, setActiveTab] = useState<StaffTab>('staff')
   const [staff, setStaff] = useState<Staff[]>([])
   const [roles, setRoles] = useState<any[]>([])
+  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -43,12 +44,14 @@ export default function StaffManagementPage() {
   const fetchStaff = useCallback(async () => {
     try {
       setLoading(true)
-      const [staffData, rolesData] = await Promise.all([
+      const [staffData, rolesData, branchData] = await Promise.all([
         staffApi.getAll(),
         canReadRoles ? rolesApi.list() : Promise.resolve([]),
+        settingsApi.getBranches().catch(() => []),
       ])
       setStaff(staffData)
       setRoles(Array.isArray(rolesData) ? rolesData : [])
+      setBranches(Array.isArray(branchData) ? branchData : [])
       setError(null)
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Không thể tải danh sách nhân viên')
@@ -79,7 +82,7 @@ export default function StaffManagementPage() {
 
   const handleDeactivate = async (id: string, name: string) => {
     const confirmed = confirm(
-      `Bạn có chắc muốn chuyển nhân viên ${name} sang trạng thái nghỉ việc? Hành động này không xóa dữ liệu cũ của nhân viên.`,
+      `Xóa vĩnh viễn nhân viên ${name} khỏi DB? Hành động này không thể hoàn tác.`,
     )
     if (!confirmed) return
 
@@ -92,15 +95,24 @@ export default function StaffManagementPage() {
   }
 
   const handleBulkDeactivate = async (ids: string[]) => {
-    const confirmed = confirm(`Chuyen ${ids.length} nhan vien da chon sang trang thai nghi viec?`)
+    const confirmed = confirm(`Xóa vĩnh viễn ${ids.length} nhân viên đã chọn khỏi DB? Hành động này không thể hoàn tác.`)
     if (!confirmed) return
 
     try {
       const result = await staffApi.bulkDeactivate(ids)
       await fetchStaff()
       if (result.blocked.length > 0) {
-        alert(`${result.blocked.length} nhan vien khong the cap nhat`)
+        alert(`${result.blocked.length} nhân viên không thể cập nhật`)
       }
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Co loi xay ra')
+    }
+  }
+
+  const handleBulkUpdate = async (ids: string[], updates: BulkUpdateStaffDto) => {
+    try {
+      await staffApi.bulkUpdate(ids, updates)
+      await fetchStaff()
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Co loi xay ra')
     }
@@ -193,6 +205,7 @@ export default function StaffManagementPage() {
                 <StaffList
                   staffList={staff}
                   roles={roles}
+                  branches={branches}
                   canEdit={canEditStaff}
                   canDeactivate={canDeactivateStaff}
                   canBulkDeactivate={canDeactivateStaff && isSuperAdmin()}
@@ -209,6 +222,7 @@ export default function StaffManagementPage() {
                   }}
                   onDeactivate={handleDeactivate}
                   onBulkDeactivate={handleBulkDeactivate}
+                  onBulkUpdate={handleBulkUpdate}
                 />
               )}
             </>

@@ -2,6 +2,9 @@ export type PermissionDefinition = {
   code: string
   label: string
   description?: string
+  kind?: 'read' | 'action' | 'settings' | 'sensitive'
+  scopeGroup?: string | undefined
+  defaultScope?: ReadScopeLevel | undefined
 }
 
 export type PermissionGroup = {
@@ -11,7 +14,158 @@ export type PermissionGroup = {
   permissions: PermissionDefinition[]
 }
 
-export const PERMISSION_GROUPS: PermissionGroup[] = [
+export type ReadScopeLevel = 'user' | 'branch' | 'active_branch' | 'all'
+
+export const READ_SCOPE_LEVELS: ReadScopeLevel[] = ['user', 'branch', 'active_branch', 'all']
+
+export const READ_SCOPE_LABELS: Record<ReadScopeLevel, string> = {
+  user: 'User',
+  branch: 'Chi nhánh',
+  active_branch: 'Chi nhánh thao tác',
+  all: 'All',
+}
+
+const READ_SCOPE_GROUPS = new Set([
+  'product',
+  'service',
+  'supplier',
+  'stock_receipt',
+  'stock_transfer',
+  'stock_audit',
+  'stock_count',
+  'cost_adjustment',
+  'customer',
+  'pet',
+  'medical_record',
+  'grooming',
+  'hotel',
+  'order',
+  'order_return',
+  'shipping_reconciliation',
+  'shipping_partner',
+  'receipt',
+  'payment',
+  'report',
+  'equipment',
+  'staff',
+  'attendance',
+  'payroll',
+  'rewards',
+  'pos',
+])
+
+export function getReadScopeCodes(scopeGroup: string): string[] {
+  return READ_SCOPE_LEVELS.map((scope) => `${scopeGroup}.read.scope.${scope}`)
+}
+
+export function getSelectedReadScope(permissions: string[], scopeGroup: string): ReadScopeLevel | null {
+  for (const scope of READ_SCOPE_LEVELS) {
+    if (permissions.includes(`${scopeGroup}.read.scope.${scope}`)) return scope
+  }
+  return null
+}
+
+function withCatalogMetadata(groups: PermissionGroup[]): PermissionGroup[] {
+  return groups.map((group) => {
+    const hasScopedRead = READ_SCOPE_GROUPS.has(group.key)
+    const permissions: PermissionDefinition[] = group.permissions.map((permission) => {
+      const isSettings =
+        permission.code.startsWith('settings.') ||
+        permission.code.endsWith('.config') ||
+        permission.code.endsWith('.manage') ||
+        group.key.startsWith('settings_')
+      const isSensitive = permission.code === 'stock_receipt.cost.read' || permission.code === 'inventory.cost.read'
+      const isRead = permission.code === `${group.key}.read` || permission.code.endsWith('.read')
+
+      return {
+        ...permission,
+        kind: permission.kind ?? (isSensitive ? 'sensitive' : isSettings ? 'settings' : isRead ? 'read' : 'action'),
+        scopeGroup: permission.scopeGroup ?? (hasScopedRead && isRead ? group.key : undefined),
+        defaultScope: permission.defaultScope ?? (hasScopedRead && isRead ? 'all' : undefined),
+      }
+    })
+
+    if (hasScopedRead) {
+      if (!permissions.some((permission) => permission.code === `${group.key}.read`)) {
+        permissions.unshift({
+          code: `${group.key}.read`,
+          label: `Xem ${group.label.toLowerCase()}`,
+          kind: 'read',
+          scopeGroup: group.key,
+          defaultScope: 'all',
+        })
+      }
+
+      for (const scope of READ_SCOPE_LEVELS) {
+        permissions.push({
+          code: `${group.key}.read.scope.${scope}`,
+          label: `Phạm vi xem: ${READ_SCOPE_LABELS[scope]}`,
+          kind: 'read',
+          scopeGroup: group.key,
+        })
+      }
+    }
+
+    if (group.key === 'stock_receipt') {
+      permissions.push(
+        { code: 'stock_receipt.cost.read', label: 'Xem giá nhập đơn nhập', kind: 'sensitive' },
+        { code: 'inventory.cost.read', label: 'Xem giá vốn / giá nhập tồn kho', kind: 'sensitive' },
+      )
+    }
+
+    const deduped = Array.from(new Map(permissions.map((permission) => [permission.code, permission])).values())
+    return { ...group, permissions: deduped }
+  })
+}
+
+const ADDITIONAL_PERMISSION_GROUPS: PermissionGroup[] = [
+  {
+    key: 'pos',
+    label: 'POS',
+    permissions: [
+      { code: 'pos.read', label: 'Xem màn bán hàng' },
+      { code: 'pos.sell', label: 'Tạo đơn POS' },
+      { code: 'pos.discount', label: 'Chiết khấu POS' },
+      { code: 'pos.shift.close', label: 'Chốt ca POS' },
+      { code: 'pos.settings.manage', label: 'Cài đặt POS', kind: 'settings' },
+    ],
+  },
+  {
+    key: 'attendance',
+    label: 'Chấm công',
+    permissions: [
+      { code: 'attendance.read', label: 'Xem chấm công' },
+      { code: 'attendance.create', label: 'Tạo chấm công' },
+      { code: 'attendance.update', label: 'Sửa chấm công' },
+      { code: 'attendance.approve', label: 'Duyệt chấm công' },
+      { code: 'attendance.settings.manage', label: 'Cài đặt chấm công', kind: 'settings' },
+    ],
+  },
+  {
+    key: 'payroll',
+    label: 'Bảng lương',
+    permissions: [
+      { code: 'payroll.read', label: 'Xem bảng lương' },
+      { code: 'payroll.create', label: 'Tạo kỳ lương' },
+      { code: 'payroll.update', label: 'Sửa kỳ lương' },
+      { code: 'payroll.approve', label: 'Duyệt bảng lương' },
+      { code: 'payroll.export', label: 'Xuất file lương' },
+      { code: 'payroll.settings.manage', label: 'Cài đặt lương', kind: 'settings' },
+    ],
+  },
+  {
+    key: 'rewards',
+    label: 'Thưởng phạt',
+    permissions: [
+      { code: 'rewards.read', label: 'Xem thưởng phạt' },
+      { code: 'rewards.create', label: 'Tạo thưởng phạt' },
+      { code: 'rewards.update', label: 'Sửa thưởng phạt' },
+      { code: 'rewards.approve', label: 'Duyệt thưởng phạt' },
+    ],
+  },
+]
+
+const BASE_PERMISSION_GROUPS: PermissionGroup[] = [
   {
     key: 'dashboard',
     label: 'Dashboard',
@@ -461,7 +615,16 @@ export const LEGACY_PERMISSION_ALIASES: Record<string, string[]> = {
   MANAGE_EQUIPMENT: ['equipment.read', 'equipment.create', 'equipment.update', 'equipment.archive', 'equipment.scan', 'equipment.config'],
   VIEW_FINANCIAL_REPORTS: ['report.sales', 'report.inventory', 'report.purchase', 'report.profit', 'report.customer', 'report.debt', 'report.cashbook'],
   FULL_BRANCH_ACCESS: ['branch.access.all'],
+  'customer.read.assigned': ['customer.read', 'customer.read.scope.user'],
+  'customer.read.all': ['customer.read', 'customer.read.scope.all'],
+  'order.read.assigned': ['order.read', 'order.read.scope.user'],
+  'order.read.all': ['order.read', 'order.read.scope.all'],
 }
+
+export const PERMISSION_GROUPS: PermissionGroup[] = withCatalogMetadata([
+  ...BASE_PERMISSION_GROUPS,
+  ...ADDITIONAL_PERMISSION_GROUPS,
+])
 
 export const ALL_PERMISSION_CODES = PERMISSION_GROUPS.flatMap((group) =>
   group.permissions.map((permission) => permission.code),

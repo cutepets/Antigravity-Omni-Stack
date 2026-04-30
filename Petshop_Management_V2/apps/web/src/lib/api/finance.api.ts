@@ -102,6 +102,9 @@ export interface CreateFinanceTransactionInput {
   date?: string
   attachmentUrl?: string | null
 }
+export type BulkUpdateFinanceTransactionInput = Partial<Pick<CreateFinanceTransactionInput,
+  'type' | 'category' | 'paymentMethod' | 'paymentAccountId' | 'paymentAccountLabel' | 'branchId' | 'branchName' | 'date'
+>>
 
 export const financeApi = {
   list: (params: FinanceListParams) =>
@@ -126,6 +129,9 @@ export const financeApi = {
   remove: (id: string) => api.delete(`/reports/transactions/${id}`).then((r) => r.data),
 
   bulkRemove: (ids: string[]) => api.post<BulkDeleteResult>('/reports/transactions/bulk-delete', { ids }).then((r) => r.data),
+
+  bulkUpdate: (ids: string[], updates: BulkUpdateFinanceTransactionInput) =>
+    api.patch<{ success: boolean; updatedIds: string[]; updatedCount: number }>('/reports/transactions/bulk-update', { ids, updates }).then((r) => r.data),
 
   getByVoucher: (voucherNumber: string) =>
     api.get(`/reports/transactions/by-voucher/${voucherNumber}`).then((r) => r.data.data as FinanceTransaction),

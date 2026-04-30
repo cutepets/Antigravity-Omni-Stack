@@ -10,12 +10,14 @@ import { getRolePermissions, resolvePermissions } from '@petshop/auth'
 import { DatabaseService } from '../../database/database.service.js'
 import type { LoginResponse, AuthUser, JwtPayload } from '@petshop/shared'
 import { LoginDto } from './dto/login.dto.js'
+import { BootstrapService } from './bootstrap.service.js'
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly db: DatabaseService,
     private readonly jwt: JwtService,
+    private readonly bootstrapService?: BootstrapService,
   ) { }
 
   private getRefreshSecret(): string {
@@ -177,6 +179,8 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<LoginResponse> {
+    await this.bootstrapService?.ensureDefaultSuperAdmin()
+
     const user = await this.db.user.findFirst({
       where: { username: dto.username },
       select: {

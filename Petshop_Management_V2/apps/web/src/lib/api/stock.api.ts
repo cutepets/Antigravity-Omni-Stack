@@ -2,12 +2,15 @@ import { api } from '@/lib/api'
 
 export const stockApi = {
   getProducts: (params?: any) => api.get('/stock/products', { params }).then(res => res.data),
+  bulkUpdateProducts: (ids: string[], updates: any) => api.patch('/stock/products/bulk-update', { ids, updates }).then(res => res.data),
 
   // Receipts
   getReceipts: (params?: any) => api.get('/stock/receipts', { params }),
   getReceipt: (id: string) => api.get(`/stock/receipts/${id}`),
   createReceipt: (data: any) => api.post('/stock/receipts', data),
   updateReceipt: (id: string, data: any) => api.put(`/stock/receipts/${id}`, data),
+  bulkUpdateReceipts: (ids: string[], updates: any) => api.patch('/stock/receipts/bulk-update', { ids, updates }).then(res => res.data),
+  bulkDeleteReceipts: (ids: string[]) => api.post('/stock/receipts/bulk-delete', { ids }).then(res => res.data),
   payReceipt: (id: string, data?: any) => api.patch(`/stock/receipts/${id}/pay`, data),
   createReceiptPayment: (id: string, data: any) => api.post(`/stock/receipts/${id}/payments`, data),
   createSupplierPayment: (supplierId: string, data: any) => api.post(`/stock/suppliers/${supplierId}/payments`, data),
@@ -27,4 +30,6 @@ export const stockApi = {
   getSupplier: (id: string) => api.get(`/stock/suppliers/${id}`),
   createSupplier: (data: any) => api.post('/stock/suppliers', data),
   updateSupplier: (id: string, data: any) => api.put(`/stock/suppliers/${id}`, data),
+  bulkUpdateSuppliers: (ids: string[], updates: any) => api.patch('/stock/suppliers/bulk-update', { ids, updates }).then(res => res.data),
+  bulkDeleteSuppliers: (ids: string[]) => api.post('/stock/suppliers/bulk-delete', { ids }).then(res => res.data),
 }

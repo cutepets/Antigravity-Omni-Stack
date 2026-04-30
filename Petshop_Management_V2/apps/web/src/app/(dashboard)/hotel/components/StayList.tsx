@@ -275,9 +275,11 @@ export default function StayList({
                       }
                     }}
                     disabled={bulkDeleteMutation.isPending}
-                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-error/20 bg-error/10 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/20 disabled:opacity-50"
+                    aria-label="Xóa DB"
+                    title="Xóa DB"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-error/20 bg-error/10 text-error transition-colors hover:bg-error/20 disabled:opacity-50"
                   >
-                    <Trash2 size={13} /> Xoa
+                    <Trash2 size={13} />
                   </button>
                 ) : (
                   <span className="text-sm text-foreground-muted">Chon thao tac hang loat</span>
@@ -392,3 +394,4 @@ export default function StayList({
     </>
   )
 }
+

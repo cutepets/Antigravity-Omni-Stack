@@ -1042,11 +1042,16 @@ function BulkEditProductsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay px-4 py-6">
-      <div className="max-h-[86vh] w-full max-w-[760px] overflow-hidden rounded-[28px] border border-border/90 bg-[#0f1726] shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">Chỉnh sửa hàng loạt</h2>
-            <div className="mt-1 text-base font-medium text-cyan-400">{selectedCount} sản phẩm</div>
+      <div className="flex max-h-[88vh] w-full max-w-[820px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border bg-background-secondary/70 px-6 py-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary-500/20 bg-primary-500/10 text-primary-500">
+              <Pencil size={18} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Chỉnh sửa hàng loạt</h2>
+              <div className="mt-1 text-sm font-medium text-foreground-muted">Áp dụng cho <span className="font-semibold text-primary-500">{selectedCount} sản phẩm</span> đã chọn</div>
+            </div>
           </div>
           <button
             type="button"
@@ -1054,20 +1059,20 @@ function BulkEditProductsModal({
               resetState()
               onClose()
             }}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background hover:text-foreground"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="max-h-[calc(86vh-132px)] overflow-y-auto px-6 py-5">
-          <div className="space-y-4">
+        <div className="overflow-y-auto px-6 py-5">
+          <div className="space-y-3">
             <BulkEditField
               checked={enabledFields.image}
               label="Ảnh"
               onToggle={() => setEnabledFields((current) => ({ ...current, image: !current.image }))}
             >
-              <label className={`inline-flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-dashed px-4 text-sm font-medium transition-colors ${enabledFields.image ? 'border-primary-500/60 text-foreground' : 'border-border text-foreground-muted'
+              <label className={`inline-flex h-10 cursor-pointer items-center gap-2.5 rounded-xl border border-dashed px-4 text-sm font-semibold transition-colors ${enabledFields.image ? 'border-primary-500/60 bg-primary-500/5 text-primary-500' : 'border-border bg-background text-foreground-muted hover:border-primary-500/50 hover:text-foreground'
                 }`}>
                 <ImagePlus size={18} />
                 <span>{formData.image ? 'Đổi ảnh' : 'Chọn ảnh'}</span>
@@ -1107,7 +1112,7 @@ function BulkEditProductsModal({
                 value={formData.category}
                 onChange={(event) => setFormData((current) => ({ ...current, category: event.target.value }))}
                 disabled={!enabledFields.category}
-                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:bg-background-secondary disabled:opacity-60 focus:border-primary-500"
               >
                 <option value="">Chọn hoặc gõ tìm...</option>
                 {categoryOptions.map((value) => (
@@ -1127,7 +1132,7 @@ function BulkEditProductsModal({
                 value={formData.unit}
                 onChange={(event) => setFormData((current) => ({ ...current, unit: event.target.value }))}
                 disabled={!enabledFields.unit}
-                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:bg-background-secondary disabled:opacity-60 focus:border-primary-500"
               >
                 <option value="">Chọn hoặc gõ tìm...</option>
                 {unitOptions.map((item: any) => {
@@ -1151,7 +1156,7 @@ function BulkEditProductsModal({
                 value={formData.brand}
                 onChange={(event) => setFormData((current) => ({ ...current, brand: event.target.value }))}
                 disabled={!enabledFields.brand}
-                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:bg-background-secondary disabled:opacity-60 focus:border-primary-500"
               >
                 <option value="">Chọn hoặc gõ tìm...</option>
                 {brandOptions.map((item: any) => {
@@ -1178,7 +1183,7 @@ function BulkEditProductsModal({
                   value={formData.price}
                   onChange={(event) => setFormData((current) => ({ ...current, price: event.target.value }))}
                   disabled={!enabledFields.price}
-                  className="h-11 w-full rounded-xl border border-border bg-background-secondary px-4 pr-10 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                  className="h-10 w-full rounded-xl border border-border bg-background px-3 pr-10 text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:bg-background-secondary disabled:opacity-60 focus:border-primary-500"
                   placeholder="0"
                 />
                 <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-foreground-muted">₫</span>
@@ -1197,7 +1202,7 @@ function BulkEditProductsModal({
                   value={formData.costPrice}
                   onChange={(event) => setFormData((current) => ({ ...current, costPrice: event.target.value }))}
                   disabled={!enabledFields.costPrice}
-                  className="h-11 w-full rounded-xl border border-border bg-background-secondary px-4 pr-10 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                  className="h-10 w-full rounded-xl border border-border bg-background px-3 pr-10 text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:bg-background-secondary disabled:opacity-60 focus:border-primary-500"
                   placeholder="0"
                 />
                 <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-foreground-muted">₫</span>
@@ -1215,7 +1220,7 @@ function BulkEditProductsModal({
                 value={formData.minStock}
                 onChange={(event) => setFormData((current) => ({ ...current, minStock: event.target.value }))}
                 disabled={!enabledFields.minStock}
-                className="h-11 w-full rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:bg-background-secondary disabled:opacity-60 focus:border-primary-500"
                 placeholder="0"
               />
             </BulkEditField>
@@ -1238,7 +1243,7 @@ function BulkEditProductsModal({
                     }
                   }}
                   disabled={!enabledFields.lastCountShift}
-                  className="h-11 w-1/2 rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                  className="h-10 w-1/2 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:bg-background-secondary disabled:opacity-60 focus:border-primary-500"
                 >
                   <option value="">Ngày</option>
                   <option value="MON">Thứ 2</option>
@@ -1260,7 +1265,7 @@ function BulkEditProductsModal({
                     }
                   }}
                   disabled={!enabledFields.lastCountShift || !formData.lastCountShift?.split('_')[0]}
-                  className="h-11 w-1/2 rounded-xl border border-border bg-background-secondary px-4 text-sm text-foreground outline-none transition-colors disabled:opacity-40 focus:border-primary-500"
+                  className="h-10 w-1/2 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors disabled:cursor-not-allowed disabled:bg-background-secondary disabled:opacity-60 focus:border-primary-500"
                 >
                   <option value="">Ca</option>
                   <option value="A">Ca A</option>
@@ -1273,14 +1278,14 @@ function BulkEditProductsModal({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 border-t border-border px-6 py-4">
+        <div className="flex flex-col-reverse gap-3 border-t border-border bg-background-secondary/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
           <button
             type="button"
             onClick={() => {
               resetState()
               onClose()
             }}
-            className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-background-secondary text-sm font-semibold text-foreground transition-opacity hover:opacity-90"
+            className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-border bg-card px-5 text-sm font-semibold text-foreground-muted transition-colors hover:bg-background hover:text-foreground disabled:opacity-60 sm:w-auto sm:min-w-[120px]"
           >
             Hủy
           </button>
@@ -1288,7 +1293,7 @@ function BulkEditProductsModal({
             type="button"
             onClick={() => bulkUpdateMutation.mutate()}
             disabled={!Object.values(enabledFields).some(Boolean) || bulkUpdateMutation.isPending}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-5 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-[150px]"
           >
             <Pencil size={16} />
             Áp dụng
@@ -1311,13 +1316,18 @@ function BulkEditField({
   children: ReactNode
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-background/60 px-4 py-4">
-      <div className="grid items-center gap-4 md:grid-cols-[170px_minmax(0,1fr)]">
-        <label className="inline-flex items-center gap-3 text-lg font-semibold text-foreground">
+    <div className={`rounded-xl border px-4 py-3 transition-colors ${checked ? 'border-primary-500/40 bg-primary-500/5' : 'border-border bg-background-secondary/60'}`}>
+      <div className="grid items-center gap-3 md:grid-cols-[210px_minmax(0,1fr)]">
+        <label className="inline-flex min-w-0 items-center gap-3 text-sm font-semibold text-foreground">
           <TableCheckbox checked={checked} onCheckedChange={onToggle} size="md" />
-          <span>{label}</span>
+          <span className="truncate">{label}</span>
         </label>
-        <div>{children}</div>
+        <div className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div>{children}</div>
+          <span className={`inline-flex h-7 items-center justify-center rounded-lg px-2.5 text-xs font-semibold ${checked ? 'bg-primary-500/10 text-primary-500' : 'bg-background text-foreground-muted'}`}>
+            {checked ? 'Cập nhật' : 'Không đổi'}
+          </span>
+        </div>
       </div>
     </div>
   )

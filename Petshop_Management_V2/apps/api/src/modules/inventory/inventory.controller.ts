@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -18,6 +19,7 @@ import {
   CreateProductDto,
   CreateServiceDto,
   CreateVariantDto,
+  BulkUpdateProductDto,
   FindProductsDto,
   FindServicesDto,
   InventoryService,
@@ -81,6 +83,13 @@ export class InventoryController {
   @ApiOperation({ summary: 'Xoa hang loat san pham (chi SUPER_ADMIN)' })
   bulkRemoveProducts(@Body() body: { ids?: string[] }) {
     return this.inventoryService.bulkRemoveProducts(body.ids)
+  }
+
+  @Patch('products/bulk-update')
+  @Permissions('product.update')
+  @ApiOperation({ summary: 'Cap nhat hang loat san pham' })
+  bulkUpdateProducts(@Body() body: { ids?: string[]; updates?: BulkUpdateProductDto }) {
+    return this.inventoryService.bulkUpdateProducts(body.ids, body.updates ?? {})
   }
 
   @Get('products/:id')

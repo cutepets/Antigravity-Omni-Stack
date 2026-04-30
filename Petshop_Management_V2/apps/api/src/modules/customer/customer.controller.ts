@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -20,6 +21,7 @@ import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import {
   CreateCustomerDto,
+  BulkUpdateCustomerDto,
   CustomerService,
   FindCustomersDto,
   UpdateCustomerDto,
@@ -62,6 +64,13 @@ export class CustomerController {
   @ApiOperation({ summary: 'Xoa hang loat khach hang (chi SUPER_ADMIN)' })
   bulkRemove(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest) {
     return this.customerService.bulkRemove(body.ids, req.user)
+  }
+
+  @Patch('bulk-update')
+  @Permissions('customer.update')
+  @ApiOperation({ summary: 'Cap nhat hang loat khach hang' })
+  bulkUpdate(@Body() body: { ids?: string[]; updates?: BulkUpdateCustomerDto }, @Req() req: AuthenticatedRequest) {
+    return this.customerService.bulkUpdate(body.ids, body.updates ?? {}, req.user)
   }
 
   @Get(':id')

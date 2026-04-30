@@ -10,7 +10,7 @@ interface DataListBulkBarProps {
 
 export function DataListBulkBar({ selectedCount, onClear, children }: DataListBulkBarProps) {
   return (
-    <div className="flex h-full w-full shrink-0 items-center gap-3 overflow-x-auto border-b border-border bg-background-secondary px-4 whitespace-nowrap">
+    <div className="flex h-[50px] w-full shrink-0 items-center gap-3 overflow-x-auto bg-background-tertiary px-4 whitespace-nowrap">
       <div className="inline-flex items-center gap-4 text-primary-500">
         <TableCheckbox checked onCheckedChange={onClear} />
         <span className="text-sm font-semibold">Đã chọn {selectedCount}</span>

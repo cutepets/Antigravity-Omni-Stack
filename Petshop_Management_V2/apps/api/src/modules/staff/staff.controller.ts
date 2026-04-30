@@ -28,7 +28,7 @@ import {
 import { resolvePrivateStorageKey } from '../../common/utils/private-storage.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { StorageService } from '../storage/storage.service.js'
-import { CreateStaffDto, StaffService, UpdateStaffDto } from './staff.service.js'
+import { BulkUpdateStaffDto, CreateStaffDto, StaffService, UpdateStaffDto } from './staff.service.js'
 import { UploadDocumentDto } from './dto/document.dto.js'
 import type { DocumentType } from '@petshop/database'
 import type { AuthUser } from '@petshop/shared'
@@ -64,9 +64,17 @@ export class StaffController {
   @Post('bulk-delete')
   @UseGuards(SuperAdminGuard)
   @Permissions('staff.deactivate')
-  @ApiOperation({ summary: 'Dinh chi hang loat nhan vien (chi SUPER_ADMIN)' })
-  bulkDeactivate(@Body() body: { ids?: string[] }) {
-    return this.staffService.bulkDeactivate(body.ids)
+  @ApiOperation({ summary: 'Xoa vinh vien hang loat nhan vien (chi SUPER_ADMIN)' })
+  bulkHardDelete(@Body() body: { ids?: string[] }) {
+    return this.staffService.bulkHardDelete(body.ids)
+  }
+
+  @Patch('bulk-update')
+  @UseGuards(SuperAdminGuard)
+  @Permissions('staff.update')
+  @ApiOperation({ summary: 'Cap nhat hang loat chi nhanh, gio lam, luong va loai hinh' })
+  bulkUpdate(@Body() body: { ids?: string[]; updates?: BulkUpdateStaffDto }) {
+    return this.staffService.bulkUpdate(body.ids, body.updates ?? {})
   }
 
   // =========================================================================
@@ -265,9 +273,10 @@ export class StaffController {
   }
 
   @Delete(':id')
+  @UseGuards(SuperAdminGuard)
   @Permissions('staff.deactivate')
-  @ApiOperation({ summary: 'Đình chỉ nhân viên' })
+  @ApiOperation({ summary: 'Xoa vinh vien nhan vien (chi SUPER_ADMIN)' })
   deactivate(@Param('id') id: string) {
-    return this.staffService.deactivate(id)
+    return this.staffService.hardDelete(id)
   }
 }

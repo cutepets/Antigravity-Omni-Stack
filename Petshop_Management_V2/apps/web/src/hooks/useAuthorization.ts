@@ -1,4 +1,4 @@
-import { getRolePermissions, resolvePermissions } from '@petshop/auth'
+import { getRolePermissions, getSelectedReadScope, resolvePermissions, type ReadScopeLevel } from '@petshop/auth'
 import { useCallback, useMemo } from 'react'
 import { useAuthStore } from '@/stores/auth.store'
 
@@ -58,6 +58,10 @@ export const useAuthorization = () => {
     return allowedBranchIds.includes(branchId)
   }, [allowedBranchIds, hasPermission])
 
+  const getReadScope = useCallback((scopeGroup: string): ReadScopeLevel | null => {
+    return getSelectedReadScope(permissions, scopeGroup)
+  }, [permissions])
+
   const isSuperAdmin = useCallback(() => hasRole(['SUPER_ADMIN']), [hasRole])
   const isAdminOrManager = useCallback(() => hasRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), [hasRole])
 
@@ -74,6 +78,7 @@ export const useAuthorization = () => {
     hasAnyPermission,
     hasAllPermissions,
     hasBranchAccess,
+    getReadScope,
     isSuperAdmin,
     isAdminOrManager,
   }

@@ -35,6 +35,17 @@ async function workbookBuffer(build: (workbook: any) => void) {
 }
 
 describe('StaffExcelService', () => {
+  it('excludes the root superadmin from staff Excel exports', async () => {
+    const db = makeDb()
+    db.user.findMany.mockResolvedValue([])
+
+    await new StaffExcelService(db).exportWorkbook()
+
+    expect(db.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { username: { not: 'superadmin' } },
+    }))
+  })
+
   it('marks required staff import columns with an asterisk in the template', async () => {
     const ExcelJS = await import('exceljs')
     const buffer = await new StaffExcelService(makeDb()).templateWorkbook()

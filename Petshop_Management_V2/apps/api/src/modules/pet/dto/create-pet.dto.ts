@@ -44,6 +44,10 @@ export class CreatePetDto {
 
   @IsString()
   @IsOptional()
+  branchId?: string
+
+  @IsString()
+  @IsOptional()
   allergies?: string
 
   @IsString()

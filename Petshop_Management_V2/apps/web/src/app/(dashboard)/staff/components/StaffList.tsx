@@ -3,10 +3,10 @@ import Image from 'next/image';
 
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Clock, MapPin, Phone, Filter, ShieldAlert, Pin, PinOff, Plus, XCircle, Trash2 } from 'lucide-react'
+import { BriefcaseBusiness, Building2, CheckCircle2, Clock, DollarSign, MapPin, Phone, Filter, ShieldAlert, Pin, PinOff, Plus, XCircle, Trash2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { StaffImportExportDropdown } from '@/components/staff/StaffImportExportDropdown'
-import { Staff } from '@/lib/api/staff.api'
+import { BulkUpdateStaffDto, Staff } from '@/lib/api/staff.api'
 import {
 
   DataListShell,
@@ -26,6 +26,7 @@ import {
 interface StaffListProps {
   staffList: Staff[]
   roles: any[]
+  branches: Array<{ id: string; name: string }>
   canEdit: boolean
   canDeactivate: boolean
   canBulkDeactivate: boolean
@@ -36,6 +37,7 @@ interface StaffListProps {
   onEdit: (staff: Staff) => void
   onDeactivate: (id: string, name: string) => void
   onBulkDeactivate: (ids: string[]) => void
+  onBulkUpdate: (ids: string[], updates: BulkUpdateStaffDto) => Promise<void> | void
 }
 
 type DisplayColumnId =
@@ -55,6 +57,7 @@ type DisplayColumnId =
   | 'spaCommission'
   | 'status'
 type PinFilterId = 'role' | 'status'
+type BulkAction = 'branch' | 'shift' | 'salary' | 'employmentType'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
   { id: 'avatar', label: 'Ảnh', width: 'w-14' },
@@ -111,6 +114,7 @@ function formatShift(start?: string | null, end?: string | null) {
 export function StaffList({
   staffList,
   roles,
+  branches,
   canEdit,
   canDeactivate,
   canBulkDeactivate,
@@ -121,6 +125,7 @@ export function StaffList({
   onEdit,
   onDeactivate,
   onBulkDeactivate,
+  onBulkUpdate,
 }: StaffListProps) {
   const router = useRouter()
 
@@ -130,6 +135,15 @@ export function StaffList({
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [bulkAction, setBulkAction] = useState<BulkAction | null>(null)
+  const [bulkDraft, setBulkDraft] = useState({
+    branchId: '',
+    shiftStart: '08:00',
+    shiftEnd: '17:00',
+    baseSalary: '',
+    employmentType: 'FULL_TIME',
+  })
+  const [isBulkSaving, setIsBulkSaving] = useState(false)
 
   const dataListState = useDataListCore<DisplayColumnId, PinFilterId>({
     initialColumnOrder: COLUMN_OPTIONS.map((c) => c.id),
@@ -241,6 +255,44 @@ export function StaffList({
 
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd = total === 0 ? 0 : Math.min(total, page * pageSize)
+
+  const openBulkAction = (action: BulkAction) => {
+    setBulkAction(action)
+  }
+
+  const closeBulkAction = () => {
+    if (isBulkSaving) return
+    setBulkAction(null)
+  }
+
+  const submitBulkAction = async () => {
+    if (!bulkAction || selectedStaffIds.length === 0) return
+
+    const updates: BulkUpdateStaffDto = {}
+    if (bulkAction === 'branch') updates.branchId = bulkDraft.branchId || null
+    if (bulkAction === 'shift') {
+      updates.shiftStart = bulkDraft.shiftStart || null
+      updates.shiftEnd = bulkDraft.shiftEnd || null
+    }
+    if (bulkAction === 'salary') updates.baseSalary = bulkDraft.baseSalary ? Number(bulkDraft.baseSalary) : null
+    if (bulkAction === 'employmentType') updates.employmentType = bulkDraft.employmentType
+
+    setIsBulkSaving(true)
+    try {
+      await onBulkUpdate(selectedStaffIds, updates)
+      clearSelection()
+      setBulkAction(null)
+    } finally {
+      setIsBulkSaving(false)
+    }
+  }
+
+  const bulkTitle =
+    bulkAction === 'branch' ? 'Đổi chi nhánh'
+      : bulkAction === 'shift' ? 'Đổi giờ làm'
+        : bulkAction === 'salary' ? 'Đổi lương'
+          : bulkAction === 'employmentType' ? 'Đổi loại hình'
+            : ''
 
   return (
     <DataListShell>
@@ -394,16 +446,48 @@ export function StaffList({
               onClear={clearSelection}
             >
               {canBulkDeactivate ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onBulkDeactivate(selectedStaffIds)
-                    clearSelection()
-                  }}
-                  className="inline-flex h-8 items-center gap-2 rounded-lg border border-error/20 bg-error/10 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/20"
-                >
-                  <Trash2 size={13} /> Dinh chi
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => openBulkAction('branch')}
+                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
+                  >
+                    <Building2 size={13} /> Chi nhánh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openBulkAction('shift')}
+                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
+                  >
+                    <Clock size={13} /> Giờ làm
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openBulkAction('salary')}
+                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
+                  >
+                    <DollarSign size={13} /> Lương
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openBulkAction('employmentType')}
+                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:bg-background-tertiary"
+                  >
+                    <BriefcaseBusiness size={13} /> Loại hình
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onBulkDeactivate(selectedStaffIds)
+                      clearSelection()
+                    }}
+                    aria-label="Xóa khỏi DB"
+                    title="Xóa khỏi DB"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-error/20 bg-error/10 text-error transition-colors hover:bg-error/20"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </>
               ) : (
                 <span className="text-sm text-foreground-muted">Chon thao tac hang loat</span>
               )}
@@ -567,6 +651,119 @@ export function StaffList({
           />
         </div>
       </div>
+
+      {bulkAction ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeBulkAction}>
+          <div
+            className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-foreground">{bulkTitle}</h3>
+                <p className="mt-1 text-xs text-foreground-muted">Áp dụng cho {selectedStaffIds.length} nhân viên đã chọn.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeBulkAction}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-secondary hover:text-foreground"
+              >
+                <XCircle size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {bulkAction === 'branch' ? (
+                <label className="space-y-2">
+                  <span className="text-xs font-semibold uppercase text-foreground-muted">Chi nhánh</span>
+                  <select
+                    value={bulkDraft.branchId}
+                    onChange={(event) => setBulkDraft((draft) => ({ ...draft, branchId: event.target.value }))}
+                    className={filterSelectClass}
+                  >
+                    <option value="">Chua gan</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              {bulkAction === 'shift' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="space-y-2">
+                    <span className="text-xs font-semibold uppercase text-foreground-muted">Bắt đầu</span>
+                    <input
+                      type="time"
+                      value={bulkDraft.shiftStart}
+                      onChange={(event) => setBulkDraft((draft) => ({ ...draft, shiftStart: event.target.value }))}
+                      className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary-500"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs font-semibold uppercase text-foreground-muted">Kết thúc</span>
+                    <input
+                      type="time"
+                      value={bulkDraft.shiftEnd}
+                      onChange={(event) => setBulkDraft((draft) => ({ ...draft, shiftEnd: event.target.value }))}
+                      className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary-500"
+                    />
+                  </label>
+                </div>
+              ) : null}
+
+              {bulkAction === 'salary' ? (
+                <label className="space-y-2">
+                  <span className="text-xs font-semibold uppercase text-foreground-muted">Lương cơ bản</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={bulkDraft.baseSalary}
+                    onChange={(event) => setBulkDraft((draft) => ({ ...draft, baseSalary: event.target.value }))}
+                    placeholder="12000000"
+                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary-500"
+                  />
+                </label>
+              ) : null}
+
+              {bulkAction === 'employmentType' ? (
+                <label className="space-y-2">
+                  <span className="text-xs font-semibold uppercase text-foreground-muted">Loại hình</span>
+                  <select
+                    value={bulkDraft.employmentType}
+                    onChange={(event) => setBulkDraft((draft) => ({ ...draft, employmentType: event.target.value }))}
+                    className={filterSelectClass}
+                  >
+                    <option value="FULL_TIME">FULL-TIME</option>
+                    <option value="PART_TIME">PART-TIME</option>
+                    <option value="CONTRACT">CONTRACT</option>
+                    <option value="INTERN">INTERN</option>
+                  </select>
+                </label>
+              ) : null}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeBulkAction}
+                disabled={isBulkSaving}
+                className="h-9 rounded-lg border border-border px-4 text-sm font-semibold text-foreground-muted transition-colors hover:bg-background-secondary disabled:opacity-60"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitBulkAction()}
+                disabled={isBulkSaving || selectedStaffIds.length === 0}
+                className="h-9 rounded-lg bg-primary-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-60"
+              >
+                {isBulkSaving ? 'Đang lưu...' : 'Áp dụng'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </DataListShell>
   )
 }

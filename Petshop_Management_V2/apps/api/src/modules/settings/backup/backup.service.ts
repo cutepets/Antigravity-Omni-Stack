@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common'
 import { StorageProviderKind } from '@prisma/client'
 import { createHash } from 'crypto'
 import { existsSync, readFileSync } from 'fs'
 import { resolve } from 'path'
+import * as bcrypt from 'bcryptjs'
 import { DatabaseService } from '../../../database/database.service.js'
 import { StorageService } from '../../storage/storage.service.js'
 import { decodeBackupArchive, encodeBackupArchive } from './backup.format.js'
@@ -266,6 +267,41 @@ export class BackupService {
     return {
       purgedModules: clearOrder,
     }
+  }
+
+  async purgeAllDataWithSuperAdminPassword(userId: string | null, superAdminPassword: string) {
+    const password = String(superAdminPassword ?? '')
+    if (!userId) {
+      throw new ForbiddenException('Chi SUPER_ADMIN moi duoc xoa toan bo du lieu')
+    }
+    if (!password) {
+      throw new BadRequestException('Can nhap mat khau Super Admin')
+    }
+
+    const user = await this.db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        passwordHash: true,
+        legacyRole: true,
+        role: {
+          select: {
+            code: true,
+          },
+        },
+      },
+    })
+    const roleCode = user?.role?.code ?? user?.legacyRole
+    if (!user || roleCode !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Chi SUPER_ADMIN moi duoc xoa toan bo du lieu')
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash)
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Mat khau Super Admin khong chinh xac')
+    }
+
+    return this.purgeModules(getBackupCatalogEntries().map((entry) => entry.moduleId))
   }
 
   private requireDefinition(moduleId: string) {

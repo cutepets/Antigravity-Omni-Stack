@@ -48,6 +48,7 @@ export interface CreateCustomerDto {
   notes?: string
   tier?: string
   groupId?: string
+  branchId?: string
   debt?: number
   taxCode?: string
   description?: string
@@ -63,6 +64,7 @@ export interface CreateCustomerDto {
 export interface UpdateCustomerDto extends Partial<CreateCustomerDto> {
   points?: number
 }
+export type BulkUpdateCustomerDto = Partial<Pick<UpdateCustomerDto, 'branchId' | 'groupId' | 'tier' | 'isActive'>>
 
 // ── API ───────────────────────────────────────────────────────────────────────
 export const customerApi = {
@@ -101,6 +103,11 @@ export const customerApi = {
 
   bulkDeleteCustomers: async (ids: string[]) => {
     const { data } = await api.post<BulkDeleteResult>('/customers/bulk-delete', { ids })
+    return data
+  },
+
+  bulkUpdateCustomers: async (ids: string[], updates: BulkUpdateCustomerDto) => {
+    const { data } = await api.patch<{ success: boolean; updatedIds: string[]; updatedCount: number }>('/customers/bulk-update', { ids, updates })
     return data
   },
 

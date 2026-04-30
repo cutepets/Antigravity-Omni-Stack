@@ -2,7 +2,12 @@
 import { Prisma } from '@petshop/database'
 import { buildProductVariantName, resolveProductVariantLabels } from '@petshop/shared'
 import { DatabaseService } from '../../database/database.service.js'
-import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
+import {
+  normalizeBulkDeleteIds,
+  normalizeBulkUpdateIds,
+  runBulkDelete,
+  sanitizeBulkUpdatePayload,
+} from '../../common/utils/bulk-delete.util.js'
 import {
   analyzeProductExcelRows,
   buildAttributesFromRows,
@@ -121,6 +126,10 @@ export interface CreateProductDto {
 }
 
 export interface UpdateProductDto extends Partial<CreateProductDto> { }
+
+export type BulkUpdateProductDto = Partial<Pick<UpdateProductDto,
+  'category' | 'brand' | 'unit' | 'price' | 'costPrice' | 'minStock' | 'lastCountShift' | 'isActive'
+>>
 
 export interface CreateVariantDto {
   name: string
@@ -1061,43 +1070,50 @@ export class InventoryService {
     const product = await this.db.product.findUnique({
       where: { id },
       include: {
-        orderItems: { take: 1 },
-        receiptItems: { take: 1 },
-        stockTransactions: { take: 1 }
+        variants: { select: { id: true } },
       }
     })
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
 
-    const hasTransactions = product.orderItems.length > 0 || product.receiptItems.length > 0 || product.stockTransactions.length > 0
-
-    if (hasTransactions) {
-      const suffix = `_deleted_${Date.now()}`
-      await this.db.product.update({
-        where: { id },
-        data: {
-          deletedAt: new Date(),
-          groupCode: product.groupCode ? `${product.groupCode}${suffix}` : null,
-          sku: product.sku ? `${product.sku}${suffix}` : null,
-          barcode: product.barcode ? `${product.barcode}${suffix}` : null
-        }
-      })
-      // Cập nhật các variants nếu có
-      const variants = await this.db.productVariant.findMany({ where: { productId: id } })
-      for (const variant of variants) {
-        await this.db.productVariant.update({
-          where: { id: variant.id },
-          data: {
-            deletedAt: new Date(),
-            sku: variant.sku ? `${variant.sku}${suffix}` : null,
-            barcode: variant.barcode ? `${variant.barcode}${suffix}` : null
-          }
-        })
-      }
-      return { success: true, message: 'Đã ẩn sản phẩm vào danh sách đã xóa (vì đã phát sinh giao dịch)' }
-    } else {
-      await this.db.product.delete({ where: { id } })
-      return { success: true, message: 'Xóa vĩnh viễn sản phẩm thành công' }
+    const variantIds = product.variants.map((variant) => variant.id)
+    const productOrVariantWhere: any = {
+      OR: [
+        { productId: id },
+        ...(variantIds.length > 0 ? [{ productVariantId: { in: variantIds } }] : []),
+      ],
     }
+
+    await this.db.$transaction(async (tx) => {
+      await (tx as any).orderReturnItem.deleteMany({
+        where: { orderItem: productOrVariantWhere },
+      })
+      await (tx as any).orderItem.deleteMany({ where: productOrVariantWhere })
+      await (tx as any).stockReceiptReceiveItem.deleteMany({ where: productOrVariantWhere })
+      await (tx as any).supplierReturnItem.deleteMany({ where: productOrVariantWhere })
+      await (tx as any).stockReceiptItem.deleteMany({ where: productOrVariantWhere })
+      await (tx as any).stockCountItem.deleteMany({ where: productOrVariantWhere })
+      await (tx as any).productSalesDaily.deleteMany({ where: { productId: id } })
+      await (tx as any).stockTransaction.deleteMany({
+        where: {
+          OR: [
+            { productId: id },
+            ...(variantIds.length > 0
+              ? [
+                  { productVariantId: { in: variantIds } },
+                  { sourceProductVariantId: { in: variantIds } },
+                ]
+              : []),
+          ],
+        },
+      })
+      await (tx as any).branchStock.deleteMany({ where: productOrVariantWhere })
+      if (variantIds.length > 0) {
+        await (tx as any).productVariant.deleteMany({ where: { id: { in: variantIds } } })
+      }
+      await (tx as any).product.delete({ where: { id } })
+    })
+
+    return { success: true, message: 'Xóa vĩnh viễn sản phẩm thành công' }
   }
 
   async restoreProduct(id: string) {
@@ -1162,6 +1178,25 @@ export class InventoryService {
   async bulkRemoveProducts(ids: unknown) {
     const normalizedIds = normalizeBulkDeleteIds(ids)
     return runBulkDelete(normalizedIds, (id) => this.removeProduct(id))
+  }
+
+  async bulkUpdateProducts(ids: unknown, updates: BulkUpdateProductDto) {
+    const normalizedIds = normalizeBulkUpdateIds(ids)
+    const payload = sanitizeBulkUpdatePayload<BulkUpdateProductDto>(updates, [
+      'category',
+      'brand',
+      'unit',
+      'price',
+      'costPrice',
+      'minStock',
+      'lastCountShift',
+      'isActive',
+    ])
+    const result = await this.db.product.updateMany({
+      where: { id: { in: normalizedIds } },
+      data: payload as any,
+    })
+    return { success: true, updatedIds: normalizedIds, updatedCount: result.count }
   }
 
   async batchCreateVariants(productId: string, variants: CreateVariantDto[]) {

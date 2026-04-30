@@ -35,6 +35,7 @@ import {
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import {
   CreateTransactionDto,
+  BulkUpdateTransactionDto,
   FindTransactionsDto,
   ReportsService,
   UpdateTransactionDto,
@@ -220,6 +221,13 @@ export class ReportsController {
   @ApiOperation({ summary: 'Xoa hang loat phieu thu chi (chi SUPER_ADMIN)' })
   bulkRemoveTransactions(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest) {
     return this.reportsService.bulkRemoveTransactions(body.ids, req.user)
+  }
+
+  @Patch('transactions/bulk-update')
+  @Permissions('report.cashbook')
+  @ApiOperation({ summary: 'Cap nhat hang loat phieu thu chi' })
+  bulkUpdateTransactions(@Body() body: { ids?: string[]; updates?: BulkUpdateTransactionDto }, @Req() req: AuthenticatedRequest) {
+    return this.reportsService.bulkUpdateTransactions(body.ids, body.updates ?? {}, req.user)
   }
 
   @Delete('transactions/:id')

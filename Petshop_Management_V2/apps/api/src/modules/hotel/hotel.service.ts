@@ -1957,6 +1957,17 @@ export class HotelService {
     if (!stay) throw new NotFoundException('Không tìm thấy kỳ lưu trú');
     id = stay.id; // Resolve to internal UUID
     assertBranchAccess(stay.branchId, user);
+    if (user?.role === 'SUPER_ADMIN') {
+      await this.prisma.$transaction(async (tx) => {
+        await (tx as any).hotelStayHealthLog.deleteMany({ where: { hotelStayId: id } });
+        await (tx as any).hotelStayTimeline.deleteMany({ where: { hotelStayId: id } });
+        await (tx as any).hotelStayChargeLine.deleteMany({ where: { hotelStayId: id } });
+        await (tx as any).hotelStayAdjustment.deleteMany({ where: { hotelStayId: id } });
+        await (tx as any).orderItem.deleteMany({ where: { hotelStayId: id } });
+        await (tx as any).hotelStay.delete({ where: { id } });
+      });
+      return { success: true, deletedIds: [id] };
+    }
     if (stay.orderId && stay.status !== 'CANCELLED') {
       throw new BadRequestException('Không thể xóa kỳ lưu trú đang gắn với đơn hàng, hãy hủy trước');
     }

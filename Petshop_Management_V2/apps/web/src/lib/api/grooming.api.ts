@@ -224,6 +224,11 @@ export const groomingApi = {
     return res.data.data;
   },
 
+  bulkUpdateSessions: async (ids: string[], updates: Partial<UpdateGroomingPayload>) => {
+    const res = await api.patch<BulkDeleteResult>("/grooming/bulk-update", { ids, updates });
+    return res.data;
+  },
+
   getPackages: async (species?: string) => {
     const params = species ? { species } : {};
     const res = await api.get<ApiResponse<{ code: string; label: string }[]>>(

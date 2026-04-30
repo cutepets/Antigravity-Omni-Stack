@@ -27,6 +27,7 @@ export interface BulkDeleteResult {
 }
 
 export type CreatePetPayload = Omit<Pet, 'id' | 'petCode' | 'createdAt' | 'updatedAt' | 'gender'> & { gender?: 'MALE' | 'FEMALE' | 'UNKNOWN' }
+export type BulkUpdatePetPayload = Partial<CreatePetPayload>
 
 export interface AddVaccinationPayload {
   vaccineName: string
@@ -69,6 +70,11 @@ export const petApi = {
 
   bulkDeletePets: async (ids: string[]) => {
     const res = await api.post<BulkDeleteResult>('/pets/bulk-delete', { ids })
+    return res.data
+  },
+
+  bulkUpdatePets: async (ids: string[], updates: BulkUpdatePetPayload) => {
+    const res = await api.put<{ success: boolean; deletedIds: string[]; blocked: Array<{ id: string; reason: string }> }>('/pets/bulk-update', { ids, updates })
     return res.data
   },
 

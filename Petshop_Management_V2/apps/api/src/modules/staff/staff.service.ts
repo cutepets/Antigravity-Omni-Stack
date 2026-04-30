@@ -10,6 +10,8 @@ import {
 } from '../../common/utils/upload.util.js'
 import { normalizeBulkDeleteIds, runBulkDelete } from '../../common/utils/bulk-delete.util.js'
 
+const ROOT_SYSTEM_USERNAME = 'superadmin'
+
 export interface CreateStaffDto {
   username: string
   password?: string
@@ -57,12 +59,21 @@ export interface UpdateStaffDto {
   avatar?: string
 }
 
+export interface BulkUpdateStaffDto {
+  branchId?: string | null
+  shiftStart?: string | null
+  shiftEnd?: string | null
+  baseSalary?: number | null
+  employmentType?: string
+}
+
 @Injectable()
 export class StaffService {
   constructor(private readonly db: DatabaseService) { }
 
   async findAll() {
     return this.db.user.findMany({
+      where: { username: { not: ROOT_SYSTEM_USERNAME } },
       select: {
         id: true, staffCode: true, username: true, fullName: true,
         role: true, status: true, phone: true, email: true, avatar: true, createdAt: true,
@@ -207,6 +218,101 @@ export class StaffService {
   async bulkDeactivate(ids: unknown) {
     const normalizedIds = normalizeBulkDeleteIds(ids)
     return runBulkDelete(normalizedIds, (id) => this.deactivate(id))
+  }
+
+  async hardDelete(id: string) {
+    return this.db.$transaction(async (tx) => {
+      const user = await this.findByIdWithClient(tx, id)
+
+      if (user.username === 'superadmin') {
+        throw new ConflictException('Khong the xoa tai khoan Super Admin goc')
+      }
+
+      await tx.user.update({
+        where: { id },
+        data: {
+          authorizedBranches: { set: [] },
+          assignedGroomingSessions: { set: [] },
+        },
+      })
+
+      await Promise.all([
+        tx.order.updateMany({ where: { staffId: id }, data: { staffId: null } as any }),
+        tx.order.updateMany({ where: { approvedBy: id }, data: { approvedBy: null } }),
+        tx.order.updateMany({ where: { stockExportedBy: id }, data: { stockExportedBy: null } }),
+        tx.order.updateMany({ where: { settledBy: id }, data: { settledBy: null } }),
+        tx.groomingSession.updateMany({ where: { staffId: id }, data: { staffId: null } }),
+        tx.hotelStay.updateMany({ where: { createdById: id }, data: { createdById: null } }),
+        tx.stockReceiptReceive.updateMany({ where: { staffId: id }, data: { staffId: null } }),
+        tx.supplierPayment.updateMany({ where: { staffId: id }, data: { staffId: null } }),
+        tx.supplierReturn.updateMany({ where: { staffId: id }, data: { staffId: null } }),
+        tx.supplierReturnRefund.updateMany({ where: { staffId: id }, data: { staffId: null } }),
+        tx.transaction.updateMany({ where: { staffId: id }, data: { staffId: null } }),
+        tx.stockTransaction.updateMany({ where: { staffId: id }, data: { staffId: null } }),
+        tx.cashVaultEntry.updateMany({ where: { performedById: id }, data: { performedById: null } }),
+        tx.activityLog.updateMany({ where: { userId: id }, data: { userId: null } }),
+        tx.orderTimeline.updateMany({ where: { performedBy: id }, data: { performedBy: null } as any }),
+        tx.groomingTimeline.updateMany({ where: { performedBy: id }, data: { performedBy: null } as any }),
+        tx.hotelStayTimeline.updateMany({ where: { performedBy: id }, data: { performedBy: null } as any }),
+        tx.hotelStayHealthLog.updateMany({ where: { performedBy: id }, data: { performedBy: null } as any }),
+        tx.attendanceRecord.updateMany({ where: { reviewedBy: id }, data: { reviewedBy: null } }),
+        tx.leaveRequest.updateMany({ where: { approvedBy: id }, data: { approvedBy: null } }),
+        tx.payrollPeriod.updateMany({ where: { approvedBy: id }, data: { approvedBy: null } }),
+        tx.stockCountSession.updateMany({ where: { createdBy: id }, data: { createdBy: null } as any }),
+        tx.stockCountSession.updateMany({ where: { approvedBy: id }, data: { approvedBy: null } }),
+        tx.stockCountShiftSession.updateMany({ where: { countedBy: id }, data: { countedBy: null } }),
+        tx.storedAsset.updateMany({ where: { uploadedById: id }, data: { uploadedById: null } }),
+        tx.equipment.updateMany({ where: { createdById: id }, data: { createdById: null } }),
+        tx.equipment.updateMany({ where: { updatedById: id }, data: { updatedById: null } }),
+        tx.equipmentHistory.updateMany({ where: { actorId: id }, data: { actorId: null } }),
+        tx.payrollSlip.deleteMany({ where: { userId: id } }),
+        tx.staffSchedule.deleteMany({ where: { userId: id } }),
+        tx.shiftSession.updateMany({ where: { staffId: id }, data: { staffId: null } as any }),
+      ])
+
+      return tx.user.delete({
+        where: { id },
+        select: { id: true, staffCode: true },
+      })
+    })
+  }
+
+  async bulkHardDelete(ids: unknown) {
+    const normalizedIds = normalizeBulkDeleteIds(ids)
+    return runBulkDelete(normalizedIds, (id) => this.hardDelete(id))
+  }
+
+  async bulkUpdate(ids: unknown, dto: BulkUpdateStaffDto) {
+    const normalizedIds = normalizeBulkDeleteIds(ids)
+    const data: Record<string, unknown> = {}
+
+    if ('branchId' in dto) data.branchId = dto.branchId || null
+    if ('shiftStart' in dto) data.shiftStart = dto.shiftStart || null
+    if ('shiftEnd' in dto) data.shiftEnd = dto.shiftEnd || null
+    if ('baseSalary' in dto) data.baseSalary = dto.baseSalary === null || dto.baseSalary === undefined ? null : Number(dto.baseSalary)
+    if ('employmentType' in dto) data.employmentType = dto.employmentType as EmploymentType
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('Khong co thong tin can cap nhat')
+    }
+
+    const result = await this.db.user.updateMany({
+      where: { id: { in: normalizedIds } },
+      data: data as any,
+    })
+
+    return { success: true, updatedIds: normalizedIds, count: result.count }
+  }
+
+  private async findByIdWithClient(client: Pick<DatabaseService, 'user'>, idOrUsername: string) {
+    const user = await client.user.findFirst({
+      where: {
+        OR: [{ id: idOrUsername }, { username: idOrUsername }],
+      },
+      select: { id: true, username: true },
+    })
+    if (!user) throw new NotFoundException('Khong tim thay nhan vien')
+    return user
   }
 
   // =========================================================================

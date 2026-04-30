@@ -1,4 +1,5 @@
 import { BackupService } from './backup.service'
+import * as bcrypt from 'bcryptjs'
 
 describe('BackupService', () => {
   const originalEnv = process.env['APP_SECRET_ENCRYPTION_KEY']
@@ -88,6 +89,17 @@ describe('BackupService', () => {
     })
 
     const db = {
+      user: {
+        findUnique: jest.fn(async ({ where }: { where: { id: string } }) => {
+          if (where.id !== 'super-admin-1') return null
+          return {
+            id: 'super-admin-1',
+            passwordHash: bcrypt.hashSync('SuperAdmin@123', 4),
+            legacyRole: 'SUPER_ADMIN',
+            role: { code: 'SUPER_ADMIN' },
+          }
+        }),
+      },
       systemConfig: delegate(systemConfigState),
       printTemplate: delegate(printTemplatesState),
       moduleConfig: delegate(moduleConfigsState),
@@ -111,6 +123,44 @@ describe('BackupService', () => {
       },
     }
   }
+
+  it('rejects full data purge when the super admin password is invalid', async () => {
+    const { service } = createService()
+    jest.spyOn(service, 'purgeModules').mockResolvedValue({ purgedModules: [] })
+
+    await expect(
+      service.purgeAllDataWithSuperAdminPassword('super-admin-1', 'wrong-password'),
+    ).rejects.toThrow('Mat khau Super Admin khong chinh xac')
+
+    expect(service.purgeModules).not.toHaveBeenCalled()
+  })
+
+  it('purges every registered module after verifying the super admin password', async () => {
+    const { service } = createService()
+    const purgeModulesSpy = jest
+      .spyOn(service, 'purgeModules')
+      .mockResolvedValue({ purgedModules: ['operations.commerce'] })
+
+    const result = await service.purgeAllDataWithSuperAdminPassword(
+      'super-admin-1',
+      'SuperAdmin@123',
+    )
+
+    expect(purgeModulesSpy).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        'core.settings',
+        'finance.configuration',
+        'core.organization',
+        'crm.contacts',
+        'catalog.items',
+        'inventory.stock',
+        'operations.commerce',
+        'hr.workforce',
+        'assets.equipment',
+      ]),
+    )
+    expect(result.purgedModules).toEqual(['operations.commerce'])
+  })
 
   it('exports and inspects a .appbak archive for core.settings', async () => {
     const { service } = createService()

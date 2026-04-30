@@ -8,15 +8,12 @@ import {
   CheckCircle2,
   Code2,
   Info,
-  Layers,
   Package,
   Sparkles,
 } from 'lucide-react'
 import { settingsApi } from '@/lib/api/settings.api'
 
-const APP_DESCRIPTION = `Petshop Management V2 là hệ thống vận hành tập trung cho Cutepets Management.
-Ứng dụng hợp nhất POS bán hàng, đơn Spa/Grooming, Pet Hotel, kho, sổ quỹ, báo cáo,
-nhân sự và cấu hình Google integrations trong một màn hình quản trị thống nhất.`
+const DISPLAY_VERSION = '1.00'
 
 const TECH_STACK = [
   'Next.js 15 (App Router)',
@@ -44,16 +41,17 @@ type ChangeLogEntry = {
 
 const CHANGELOG: ChangeLogEntry[] = [
   {
-    version: '2.5.1',
-    date: '2026-04-28',
+    version: DISPLAY_VERSION,
+    date: '2026-04-30',
     changes: [
+      'Bổ sung tài liệu tổng quan hệ thống và chuẩn hóa tiêu đề các trang quản trị',
+      'Mở rộng phân quyền RBAC và luồng xóa hàng loạt cho các module vận hành',
+      'Tinh gọn trang Giới thiệu hệ thống để tập trung vào phiên bản, module, công nghệ và lịch sử mới nhất',
       'Hoàn thiện Docker production build cho Prisma/pnpm 10',
-      'Giảm Docker build context bằng cách loại artifacts build/cache',
-      'Mount riêng uploads và private storage để giữ ảnh/tài liệu sau recreate container',
     ],
   },
   {
-    version: '2.5.0',
+    version: '0.99',
     date: '2026-04-26',
     changes: [
       'Sửa tự phục hồi khi trình duyệt còn giữ chunk cũ sau deploy VPS',
@@ -62,7 +60,7 @@ const CHANGELOG: ChangeLogEntry[] = [
     ],
   },
   {
-    version: '2.4.0',
+    version: '0.98',
     date: '2026-04-23',
     changes: [
       'Kanban Grooming với bộ lọc ngày thông minh',
@@ -71,7 +69,7 @@ const CHANGELOG: ChangeLogEntry[] = [
     ],
   },
   {
-    version: '2.3.0',
+    version: '0.97',
     date: '2026-04-22',
     changes: [
       'Module Hotel với lịch sử chăm sóc và timeline',
@@ -80,7 +78,7 @@ const CHANGELOG: ChangeLogEntry[] = [
     ],
   },
   {
-    version: '2.2.0',
+    version: '0.96',
     date: '2026-04-20',
     changes: [
       'POS responsive trên mobile',
@@ -89,7 +87,7 @@ const CHANGELOG: ChangeLogEntry[] = [
     ],
   },
   {
-    version: '2.1.0',
+    version: '0.95',
     date: '2026-04-15',
     changes: [
       'Hệ thống phân quyền RBAC chi tiết',
@@ -98,7 +96,7 @@ const CHANGELOG: ChangeLogEntry[] = [
     ],
   },
   {
-    version: '2.0.0',
+    version: '0.90',
     date: '2026-04-01',
     changes: [
       'Khởi tạo dự án Petshop Management V2',
@@ -115,9 +113,8 @@ export function TabAbout() {
     staleTime: Infinity,
   })
 
-  const version = aboutData?.version ?? '—'
-  const env = aboutData?.nodeEnv ?? '—'
   const buildDate = aboutData?.buildDate ?? CHANGELOG[0]?.date ?? '—'
+  const recentChangelog = CHANGELOG.slice(0, 3)
 
   return (
     <div className="relative z-0 h-full w-full">
@@ -132,35 +129,20 @@ export function TabAbout() {
                 Giới thiệu hệ thống
               </h2>
               <p className="mt-1 text-sm text-foreground-muted">
-                Phiên bản, lịch sử cập nhật và tổng quan dự án
+                Phiên bản, module, công nghệ và lịch sử cập nhật
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-xl bg-primary-500/10 px-4 py-2 text-sm font-bold text-primary-500">
+          <div className="flex items-center gap-2 rounded-xl bg-primary-500/10 px-3 py-1.5 text-xs font-bold text-primary-500">
             <Sparkles size={16} />
-            v{version}
+            V{DISPLAY_VERSION}
           </div>
         </div>
 
         <div className="space-y-8 px-2">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <InfoCard icon={<Package size={18} />} label="Phiên bản" value={`v${version}`} />
-            <InfoCard
-              icon={<Layers size={18} />}
-              label="Môi trường"
-              value={env === 'production' ? 'Sản xuất' : 'Phát triển'}
-            />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <InfoCard icon={<Package size={18} />} label="Phiên bản" value={`V${DISPLAY_VERSION}`} />
             <InfoCard icon={<Calendar size={18} />} label="Cập nhật" value={buildDate} />
-          </div>
-
-          <div>
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-foreground-base">
-              <Info size={16} className="text-primary-500" />
-              Tổng quan dự án
-            </h3>
-            <p className="whitespace-pre-line rounded-2xl border border-border/40 bg-black/5 p-5 text-sm leading-relaxed text-foreground-secondary">
-              {APP_DESCRIPTION}
-            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -207,7 +189,7 @@ export function TabAbout() {
               Lịch sử cập nhật
             </h3>
             <div className="space-y-4">
-              {CHANGELOG.map((entry, idx) => (
+              {recentChangelog.map((entry, idx) => (
                 <div
                   key={entry.version}
                   className="relative rounded-2xl border border-border/40 bg-black/5 p-5"
@@ -221,7 +203,7 @@ export function TabAbout() {
                             : 'bg-foreground-muted/10 text-foreground-muted'
                         }`}
                       >
-                        v{entry.version}
+                        V{entry.version}
                       </span>
                       {idx === 0 ? (
                         <span className="text-xs font-medium text-primary-500">

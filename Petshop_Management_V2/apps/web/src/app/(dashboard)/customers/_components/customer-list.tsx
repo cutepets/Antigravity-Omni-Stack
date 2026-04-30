@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -38,27 +38,27 @@ import {
   useDataListSelection,
 } from '@petshop/ui/data-list'
 
-// ── Types & Constants ────────────────────────────────────────────────────────
+// â”€â”€ Types & Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type DisplayColumnId = 'code' | 'name' | 'contact' | 'group' | 'address' | 'petCount' | 'petNames' | 'debt' | 'spaCount' | 'hotelCount' | 'tier' | 'points' | 'spent' | 'orders' | 'created' | 'status'
 type PinFilterId = 'tier' | 'status'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
-  { id: 'code', label: 'Mã KH', sortable: true, width: 'w-24' },
-  { id: 'name', label: 'Khách hàng', sortable: true, minWidth: 'min-w-[180px]' },
-  { id: 'contact', label: 'Liên hệ', minWidth: 'min-w-[140px]' },
-  { id: 'group', label: 'Nhóm KH', minWidth: 'min-w-[120px]' },
-  { id: 'address', label: 'Địa chỉ', minWidth: 'min-w-[160px]' },
-  { id: 'petCount', label: 'Số TC', sortable: false, width: 'w-20' },
-  { id: 'petNames', label: 'Tên TC', sortable: false, minWidth: 'min-w-[120px]' },
-  { id: 'debt', label: 'Công nợ', sortable: true, width: 'w-28' },
-  { id: 'spaCount', label: 'Lượt Spa', sortable: false, width: 'w-24' },
-  { id: 'hotelCount', label: 'Lượt Hotel', sortable: false, width: 'w-24' },
-  { id: 'tier', label: 'Hạng', sortable: true, width: 'w-28' },
-  { id: 'points', label: 'Điểm', sortable: true, width: 'w-28' },
-  { id: 'spent', label: 'Chi tiêu', sortable: true, width: 'w-32' },
-  { id: 'orders', label: 'Đơn hàng', sortable: true, width: 'w-24' },
-  { id: 'created', label: 'Ngày tạo', sortable: true, width: 'w-28' },
-  { id: 'status', label: 'Trạng thái', sortable: true, width: 'w-32' },
+  { id: 'code', label: 'MÃ£ KH', sortable: true, width: 'w-24' },
+  { id: 'name', label: 'KhÃ¡ch hÃ ng', sortable: true, minWidth: 'min-w-[180px]' },
+  { id: 'contact', label: 'LiÃªn há»‡', minWidth: 'min-w-[140px]' },
+  { id: 'group', label: 'NhÃ³m KH', minWidth: 'min-w-[120px]' },
+  { id: 'address', label: 'Äá»‹a chá»‰', minWidth: 'min-w-[160px]' },
+  { id: 'petCount', label: 'Sá»‘ TC', sortable: false, width: 'w-20' },
+  { id: 'petNames', label: 'TÃªn TC', sortable: false, minWidth: 'min-w-[120px]' },
+  { id: 'debt', label: 'CÃ´ng ná»£', sortable: true, width: 'w-28' },
+  { id: 'spaCount', label: 'LÆ°á»£t Spa', sortable: false, width: 'w-24' },
+  { id: 'hotelCount', label: 'LÆ°á»£t Hotel', sortable: false, width: 'w-24' },
+  { id: 'tier', label: 'Háº¡ng', sortable: true, width: 'w-28' },
+  { id: 'points', label: 'Äiá»ƒm', sortable: true, width: 'w-28' },
+  { id: 'spent', label: 'Chi tiÃªu', sortable: true, width: 'w-32' },
+  { id: 'orders', label: 'ÄÆ¡n hÃ ng', sortable: true, width: 'w-24' },
+  { id: 'created', label: 'NgÃ y táº¡o', sortable: true, width: 'w-28' },
+  { id: 'status', label: 'Tráº¡ng thÃ¡i', sortable: true, width: 'w-32' },
 ]
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>(
@@ -73,10 +73,10 @@ const TIER_BADGE: Record<string, string> = {
 }
 
 const TIER_LABEL: Record<string, { label: string; icon: string }> = {
-  BRONZE: { label: 'Đồng', icon: '🥉' },
-  SILVER: { label: 'Bạc', icon: '🥈' },
-  GOLD: { label: 'Vàng', icon: '🥇' },
-  DIAMOND: { label: 'Kim cương', icon: '💎' },
+  BRONZE: { label: 'Äá»“ng', icon: 'ðŸ¥‰' },
+  SILVER: { label: 'Báº¡c', icon: 'ðŸ¥ˆ' },
+  GOLD: { label: 'VÃ ng', icon: 'ðŸ¥‡' },
+  DIAMOND: { label: 'Kim cÆ°Æ¡ng', icon: 'ðŸ’Ž' },
 }
 
 function TierBadge({ tier }: { tier: string }) {
@@ -89,7 +89,7 @@ function compareText(left?: string | null, right?: string | null) {
   return `${left ?? ''}`.localeCompare(`${right ?? ''}`, 'vi', { sensitivity: 'base' })
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export function CustomerList() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -180,7 +180,7 @@ export function CustomerList() {
     }
   }, [canReadCustomers, isActiveFilter, isAuthLoading, page, pageSize, router, search, searchParams, tier])
 
-  // ── Queries ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: groupsData } = useQuery({
     queryKey: ['settings', 'customer-groups'],
     queryFn: async () => {
@@ -226,16 +226,16 @@ export function CustomerList() {
   const deleteMutation = useMutation({
     mutationFn: customerApi.deleteCustomer,
     onSuccess: () => {
-      toast.success('Đã xoá khách hàng')
+      toast.success('ÄÃ£ xoÃ¡ khÃ¡ch hÃ ng')
       queryClient.invalidateQueries({ queryKey: ['customers'] })
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.message || 'Không thể xoá khách hàng này'
+      const msg = err?.response?.data?.message || 'KhÃ´ng thá»ƒ xoÃ¡ khÃ¡ch hÃ ng nÃ y'
       toast.error(msg)
     },
   })
 
-  // ── Computation ──────────────────────────────────────────────────────────────
+  // â”€â”€ Computation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const rawCustomers = data?.data ?? []
   const total = data?.total ?? 0
   const totalPages = data?.totalPages ?? 1
@@ -260,7 +260,7 @@ export function CustomerList() {
   )
 
   const handleDelete = (c: Customer) => {
-    if (window.confirm(`Xoá khách hàng "${c.fullName}"?\n\nHệ thống sẽ kiểm tra trước khi xoá.`)) {
+    if (window.confirm(`XoÃ¡ khÃ¡ch hÃ ng "${c.fullName}"?\n\nHá»‡ thá»‘ng sáº½ kiá»ƒm tra trÆ°á»›c khi xoÃ¡.`)) {
       deleteMutation.mutate(c.id)
     }
   }
@@ -290,7 +290,7 @@ export function CustomerList() {
     setPage(1)
   }
 
-  // ── Layout Components ─────────────────────────────────────────────────────────
+  // â”€â”€ Layout Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const activeColumns = useMemo(() => {
     return orderedVisibleColumns.map((id) => {
@@ -310,7 +310,7 @@ export function CustomerList() {
     return <div className="flex h-64 items-center justify-center text-foreground-muted">Dang chuyen huong...</div>
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <DataListShell>
       {reportSource === 'reports' ? (
@@ -329,7 +329,7 @@ export function CustomerList() {
       <DataListToolbar
         searchValue={search}
         onSearchChange={(v) => { setSearch(v); setPage(1) }}
-        searchPlaceholder="Tìm kiếm khách hàng..."
+        searchPlaceholder="TÃ¬m kiáº¿m khÃ¡ch hÃ ng..."
         showColumnToggle={true}
         showFilterToggle={true}
         filterSlot={
@@ -341,11 +341,11 @@ export function CustomerList() {
                 onChange={(e) => { setTier(e.target.value); setPage(1) }}
                 className={toolbarSelectClass}
               >
-                <option value="">Tất cả hạng</option>
-                <option value="BRONZE">🥉 Đồng</option>
-                <option value="SILVER">🥈 Bạc</option>
-                <option value="GOLD">🥇 Vàng</option>
-                <option value="DIAMOND">💎 Kim cương</option>
+                <option value="">Táº¥t cáº£ háº¡ng</option>
+                <option value="BRONZE">ðŸ¥‰ Äá»“ng</option>
+                <option value="SILVER">ðŸ¥ˆ Báº¡c</option>
+                <option value="GOLD">ðŸ¥‡ VÃ ng</option>
+                <option value="DIAMOND">ðŸ’Ž Kim cÆ°Æ¡ng</option>
               </select>
             )}
 
@@ -356,9 +356,9 @@ export function CustomerList() {
                 onChange={(e) => { setIsActiveFilter(e.target.value); setPage(1) }}
                 className={toolbarSelectClass}
               >
-                <option value="">Tất cả trạng thái</option>
-                <option value="true">✅ Hoạt động</option>
-                <option value="false">🚫 Vô hiệu hoá</option>
+                <option value="">Táº¥t cáº£ tráº¡ng thÃ¡i</option>
+                <option value="true">âœ… Hoáº¡t Ä‘á»™ng</option>
+                <option value="false">ðŸš« VÃ´ hiá»‡u hoÃ¡</option>
               </select>
             )}
           </>
@@ -393,20 +393,20 @@ export function CustomerList() {
                 onClick={() => { setEditingCustomer(null); setIsModalOpen(true) }}
                 className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
               >
-                <Plus size={15} /> Thêm khách hàng
+                <Plus size={15} /> ThÃªm khÃ¡ch hÃ ng
               </button>
             ) : null}
           </div>
         }
       />
 
-      {/* ── Filter Panel ────────────────────────────────── */}
+      {/* â”€â”€ Filter Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <DataListFilterPanel onClearAll={clearFilters}>
         <label className="space-y-2">
           <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
             <span className="inline-flex items-center gap-2">
               <BadgeCheck size={14} className="text-primary-500" />
-              Hạng thành viên
+              Háº¡ng thÃ nh viÃªn
             </span>
             <button
               type="button"
@@ -422,11 +422,11 @@ export function CustomerList() {
             onChange={(e) => { setTier(e.target.value); setPage(1) }}
             className={filterSelectClass}
           >
-            <option value="">Tất cả hạng</option>
-            <option value="BRONZE">🥉 Đồng</option>
-            <option value="SILVER">🥈 Bạc</option>
-            <option value="GOLD">🥇 Vàng</option>
-            <option value="DIAMOND">💎 Kim cương</option>
+            <option value="">Táº¥t cáº£ háº¡ng</option>
+            <option value="BRONZE">ðŸ¥‰ Äá»“ng</option>
+            <option value="SILVER">ðŸ¥ˆ Báº¡c</option>
+            <option value="GOLD">ðŸ¥‡ VÃ ng</option>
+            <option value="DIAMOND">ðŸ’Ž Kim cÆ°Æ¡ng</option>
           </select>
         </label>
 
@@ -434,7 +434,7 @@ export function CustomerList() {
           <span className="flex items-center justify-between gap-2 text-sm text-foreground-muted">
             <span className="inline-flex items-center gap-2">
               <AlertCircle size={14} className="text-primary-500" />
-              Trạng thái
+              Tráº¡ng thÃ¡i
             </span>
             <button
               type="button"
@@ -450,9 +450,9 @@ export function CustomerList() {
             onChange={(e) => { setIsActiveFilter(e.target.value); setPage(1) }}
             className={filterSelectClass}
           >
-            <option value="">Tất cả</option>
-            <option value="true">✅ Hoạt động</option>
-            <option value="false">🚫 Vô hiệu hoá</option>
+            <option value="">Táº¥t cáº£</option>
+            <option value="true">âœ… Hoáº¡t Ä‘á»™ng</option>
+            <option value="false">ðŸš« VÃ´ hiá»‡u hoÃ¡</option>
           </select>
         </label>
       </DataListFilterPanel>
@@ -463,7 +463,7 @@ export function CustomerList() {
         columns={activeColumns}
         isLoading={isLoading}
         isEmpty={!isLoading && processedCustomers.length === 0}
-        emptyText="Không tìm thấy khách hàng nào phù hợp."
+        emptyText="KhÃ´ng tÃ¬m tháº¥y khÃ¡ch hÃ ng nÃ o phÃ¹ há»£p."
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
         bulkBar={
@@ -477,16 +477,18 @@ export function CustomerList() {
                   type="button"
                   className="flex h-8 items-center gap-1.5 rounded-lg border border-primary-500/20 bg-primary-500/10 px-3 text-xs font-semibold text-primary-500 transition-colors hover:bg-primary-500/20"
                   onClick={() => {
-                    toast.success('Chức năng sửa nhóm khách đang được nâng cấp.')
+                    toast.success('Chá»©c nÄƒng sá»­a nhÃ³m khÃ¡ch Ä‘ang Ä‘Æ°á»£c nÃ¢ng cáº¥p.')
                   }}
                 >
-                  <Users size={13} /> Nhóm khách
+                  <Users size={13} /> NhÃ³m khÃ¡ch
                 </button>
               )}
               {canDeleteCustomer && isSuperAdmin() && (
                 <button
                   type="button"
-                  className="flex h-8 items-center gap-1.5 rounded-lg border border-error/20 bg-error/10 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/20"
+                  aria-label="Xóa DB"
+                  title="Xóa DB"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-error/20 bg-error/10 text-error transition-colors hover:bg-error/20"
                   onClick={() => {
                     if (window.confirm(`Xoa ${selectedCustomerIds.length} khach hang da chon?`)) {
                       bulkDeleteMutation.mutate(selectedCustomerIds)
@@ -494,7 +496,7 @@ export function CustomerList() {
                   }}
                   disabled={bulkDeleteMutation.isPending}
                 >
-                  <Trash2 size={13} /> Khách hàng
+                  <Trash2 size={13} />
                 </button>
               )}
             </DataListBulkBar>
@@ -577,7 +579,7 @@ export function CustomerList() {
                   case 'debt': return (
                     <td key={columnId} className="px-3 py-3 w-28">
                       <div className={`text-sm font-semibold ${(c.debt ?? 0) > 0 ? 'text-error' : 'text-foreground'}`}>
-                        {(c.debt ?? 0).toLocaleString('vi-VN')}₫
+                        {(c.debt ?? 0).toLocaleString('vi-VN')}â‚«
                       </div>
                     </td>
                   );
@@ -604,14 +606,14 @@ export function CustomerList() {
                   case 'spent': return (
                     <td key={columnId} className="px-3 py-3 w-32">
                       <div className="text-sm font-semibold text-foreground">
-                        {(c.totalSpent ?? 0).toLocaleString('vi-VN')}₫
+                        {(c.totalSpent ?? 0).toLocaleString('vi-VN')}â‚«
                       </div>
                     </td>
                   );
                   case 'orders': return (
                     <td key={columnId} className="px-3 py-3 w-24">
                       <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background-tertiary text-xs text-foreground-muted font-medium">
-                        {c.totalOrders ?? 0} đơn
+                        {c.totalOrders ?? 0} Ä‘Æ¡n
                       </div>
                     </td>
                   );
@@ -626,9 +628,9 @@ export function CustomerList() {
                   case 'status': return (
                     <td key={columnId} className="px-3 py-3 w-32">
                       {c.isActive !== false ? (
-                        <span className="badge-success"><BadgeCheck size={11} /> Hoạt động</span>
+                        <span className="badge-success"><BadgeCheck size={11} /> Hoáº¡t Ä‘á»™ng</span>
                       ) : (
-                        <span className="badge-error"><AlertCircle size={11} /> Vô hiệu</span>
+                        <span className="badge-error"><AlertCircle size={11} /> VÃ´ hiá»‡u</span>
                       )}
                     </td>
                   );
@@ -653,8 +655,8 @@ export function CustomerList() {
         pageSizeOptions={[20, 50, 100]}
         totalItemText={
           <p className="shrink-0 text-xs text-foreground-muted">
-            Tổng <strong className="text-foreground">{total}</strong> khách hàng
-            {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
+            Tá»•ng <strong className="text-foreground">{total}</strong> khÃ¡ch hÃ ng
+            {search && <span> Â· tÃ¬m kiáº¿m &quot;{search}&quot;</span>}
           </p>
         }
       />
@@ -663,3 +665,4 @@ export function CustomerList() {
     </DataListShell>
   )
 }
+

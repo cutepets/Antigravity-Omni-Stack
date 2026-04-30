@@ -72,6 +72,20 @@ export interface BulkDeleteResult {
   blocked: Array<{ id: string; reason: string }>
 }
 
+export interface BulkUpdateStaffDto {
+  branchId?: string | null
+  shiftStart?: string | null
+  shiftEnd?: string | null
+  baseSalary?: number | null
+  employmentType?: string
+}
+
+export interface BulkUpdateStaffResult {
+  success: boolean
+  updatedIds: string[]
+  count: number
+}
+
 export interface StaffExcelIssue {
   sheet: string
   row?: number
@@ -273,6 +287,9 @@ export const staffApi = {
 
   bulkDeactivate: (ids: string[]) =>
     api.post<BulkDeleteResult>('/staff/bulk-delete', { ids }).then((r) => r.data),
+
+  bulkUpdate: (ids: string[], updates: BulkUpdateStaffDto) =>
+    api.patch<BulkUpdateStaffResult>('/staff/bulk-update', { ids, updates }).then((r) => r.data),
 
   exportExcel: async () => {
     const res = await api.get<Blob>('/staff/excel-export', {

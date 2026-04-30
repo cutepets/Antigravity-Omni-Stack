@@ -20,8 +20,15 @@ import { CompleteOrderDto } from './dto/complete-order.dto.js';
 import { CancelOrderDto } from './dto/cancel-order.dto.js';
 import { RefundOrderDto } from './dto/refund-order.dto.js';
 import { SwapGroomingServiceDto } from './dto/swap-grooming-service.dto.js';
+import { DatabaseService } from '../../database/database.service.js';
+import { normalizeBulkUpdateIds, sanitizeBulkUpdatePayload } from '../../common/utils/bulk-delete.util.js';
 
 type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>;
+export type BulkUpdateOrderDto = Partial<Pick<UpdateOrderDto, 'branchId'>> & {
+  status?: string;
+  paymentStatus?: string;
+  staffId?: string | null;
+};
 
 @Injectable()
 export class OrdersService {
@@ -37,6 +44,7 @@ export class OrdersService {
     private readonly deletions: OrderDeletionService,
     private readonly swaps: OrderSwapService,
     private readonly timeline: OrderTimelineService,
+    private readonly db?: DatabaseService,
   ) {}
 
   getProducts() {
@@ -93,6 +101,19 @@ export class OrdersService {
 
   bulkDeleteOrders(ids: string[], staffId: string, user?: AccessUser) {
     return this.deletions.bulkDeleteOrders(ids, staffId, user);
+  }
+
+  async bulkUpdateOrders(ids: unknown, updates: BulkUpdateOrderDto) {
+    if (!this.db) {
+      throw new Error('DatabaseService is required for bulkUpdateOrders');
+    }
+    const normalizedIds = normalizeBulkUpdateIds(ids);
+    const payload = sanitizeBulkUpdatePayload<BulkUpdateOrderDto>(updates, ['status', 'paymentStatus', 'branchId', 'staffId']);
+    const result = await this.db.order.updateMany({
+      where: { id: { in: normalizedIds } },
+      data: payload as any,
+    });
+    return { success: true, updatedIds: normalizedIds, updatedCount: result.count };
   }
 
   refundOrder(id: string, dto: RefundOrderDto, staffId: string, user?: AccessUser): Promise<any> {

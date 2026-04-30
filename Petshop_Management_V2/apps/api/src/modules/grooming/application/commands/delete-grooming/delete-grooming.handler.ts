@@ -17,7 +17,11 @@ export class DeleteGroomingHandler implements ICommandHandler<DeleteGroomingComm
         if (!session) throw new NotFoundException('Không tìm thấy phiên grooming')
 
         assertBranchAccess(session.branchId, user)
-        await this.db.groomingSession.delete({ where: { id: session.id } })
+        await this.db.$transaction(async (tx) => {
+            await (tx as any).groomingTimeline.deleteMany({ where: { groomingSessionId: session.id } })
+            await (tx as any).orderItem.deleteMany({ where: { groomingSessionId: session.id } })
+            await (tx as any).groomingSession.delete({ where: { id: session.id } })
+        })
 
         return { success: true }
     }

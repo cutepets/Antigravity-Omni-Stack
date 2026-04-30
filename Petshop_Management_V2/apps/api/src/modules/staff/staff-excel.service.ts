@@ -23,6 +23,7 @@ type ColumnDef = {
 const STAFF_SHEET = 'NhanVien'
 const GUIDE_SHEET = 'HuongDan'
 const DEFAULT_STAFF_PASSWORD = 'Petshop@123'
+const ROOT_SYSTEM_USERNAME = 'superadmin'
 
 const STAFF_COLUMNS: ColumnDef[] = [
   { key: 'id', header: 'id', width: 28, readonly: true },
@@ -117,6 +118,7 @@ export class StaffExcelService {
     const sheet = workbook.addWorksheet(STAFF_SHEET)
     this.addHeader(sheet, STAFF_COLUMNS)
     const users = await (this.db as any).user.findMany({
+      where: { username: { not: ROOT_SYSTEM_USERNAME } },
       orderBy: { createdAt: 'desc' },
       include: {
         role: { select: { name: true } },

@@ -82,6 +82,10 @@ export interface BulkDeleteResult {
   blocked: Array<{ id: string; reason: string }>
 }
 
+export type BulkUpdateProductPayload = Partial<Pick<ProductExcelRow,
+  'category' | 'brand' | 'price' | 'costPrice' | 'minStock' | 'lastCountShift'
+>> & { unit?: string; isActive?: boolean }
+
 export const inventoryApi = {
   getProducts: (params?: any, config?: any) => api.get('/inventory/products', { params, ...config }).then(res => res.data),
   getProduct: (id: string) => api.get(`/inventory/products/${id}`).then(res => res.data),
@@ -89,6 +93,8 @@ export const inventoryApi = {
   updateProduct: (id: string, data: any) => api.put(`/inventory/products/${id}`, data).then(res => res.data),
   deleteProduct: (id: string) => api.delete(`/inventory/products/${id}`).then(res => res.data),
   bulkDeleteProducts: (ids: string[]) => api.post<BulkDeleteResult>('/inventory/products/bulk-delete', { ids }).then(res => res.data),
+  bulkUpdateProducts: (ids: string[], updates: BulkUpdateProductPayload) =>
+    api.patch<{ success: boolean; updatedIds: string[]; updatedCount: number }>('/inventory/products/bulk-update', { ids, updates }).then(res => res.data),
   restoreProduct: (id: string) => api.post(`/inventory/products/${id}/restore`).then(res => res.data),
   getProductTransactions: (id: string, params?: { variantId?: string; variantScope?: 'base'; branchId?: string }) =>
     api.get(`/stock/transactions/${id}`, { params }).then(res => res.data),
