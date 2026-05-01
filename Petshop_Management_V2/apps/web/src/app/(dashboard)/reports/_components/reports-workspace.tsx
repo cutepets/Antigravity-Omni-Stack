@@ -19,7 +19,6 @@ import {
   YAxis,
 } from 'recharts'
 import { exportMultiSheetToExcel } from '@/lib/excel'
-import { PageHeader } from '@/components/layout/PageLayout'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import {
   reportsApi,
@@ -167,8 +166,8 @@ function SectionCard({
   action?: React.ReactNode
 }) {
   return (
-    <section className="rounded-3xl border border-border/60 bg-background-secondary p-5 shadow-sm">
-      <div className="mb-5 flex items-start justify-between gap-3">
+    <section className="rounded-3xl border border-border/60 bg-background-secondary p-[10px] shadow-sm">
+      <div className="mb-[10px] flex items-start justify-between gap-[10px]">
         <div>
           <h2 className="text-base font-bold text-foreground-base">{title}</h2>
           {description ? <p className="mt-1 text-sm text-foreground-muted">{description}</p> : null}
@@ -199,7 +198,7 @@ function MetricCard({
   }
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-background-base p-4">
+    <div className="rounded-2xl border border-border/50 bg-background-base p-[10px]">
       <div className="text-xs font-bold uppercase tracking-[0.18em] text-foreground-muted">{label}</div>
       <div className="mt-3 text-2xl font-extrabold text-foreground-base">{value}</div>
       {hint ? <div className={cn('mt-3 inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold', palette[tone])}>{hint}</div> : null}
@@ -214,7 +213,7 @@ function EmptyState({ message }: { message: string }) {
 function LoadingPanel({ message }: { message: string }) {
   return (
     <div className="flex h-64 items-center justify-center rounded-3xl border border-border/60 bg-background-secondary">
-      <div className="flex items-center gap-3 text-sm text-foreground-muted">
+      <div className="flex items-center gap-[10px] text-sm text-foreground-muted">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-primary-500" />
         {message}
       </div>
@@ -448,42 +447,6 @@ export function ReportsWorkspace() {
     'Chi nhánh đang chọn'
   const salesKpis = useMemo(() => buildSalesKpis(metrics, revenuePoints), [metrics, revenuePoints])
   const customerKpis = useMemo(() => buildCustomerKpis(metrics, topCustomers), [metrics, topCustomers])
-  const activeTabMeta = useMemo(() => {
-    switch (activeTab) {
-      case 'customers':
-        return {
-          title: 'Báo cáo khách hàng',
-          description: 'Tập trung vào nhóm khách chi tiêu cao, tần suất mua và quy mô tập khách.',
-        }
-      case 'purchase':
-        return {
-          title: 'Báo cáo mua hàng',
-          description: 'Theo dõi nhà cung cấp, tổng chi mua và điểm cần xử lý trong vận hành nhập hàng.',
-        }
-      case 'inventory':
-        return {
-          title: 'Báo cáo kho',
-          description: 'Tập trung vào mặt hàng sắp thiếu, mức độ thiếu và chi nhánh đang cần bổ sung.',
-        }
-      case 'debt':
-        return {
-          title: 'Báo cáo công nợ',
-          description: 'Tổng hợp công nợ khách hàng và nhà cung cấp để ưu tiên thu hồi và đối soát.',
-        }
-      case 'cashbook':
-        return {
-          title: 'Báo cáo sổ quỹ',
-          description: 'Theo dõi dòng tiền, giao dịch gần nhất và điều hướng sang workspace đối soát chi tiết.',
-        }
-      case 'sales':
-      default:
-        return {
-          title: 'Báo cáo bán hàng',
-          description: 'Đi sâu vào doanh thu theo kỳ, biến động theo ngày và nhóm sản phẩm đóng góp.',
-        }
-    }
-  }, [activeTab])
-
   const handleSelectRangePreset = (value: RangePreset) => {
     replaceSearchParams({
       range: String(value),
@@ -628,86 +591,79 @@ export function ReportsWorkspace() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-6">
-      <PageHeader
-        title={activeTabMeta.title}
-        description={activeTabMeta.description}
-        icon={BarChart3}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {allowedBranches.length > 1 ? (
-              <select
-                value={resolvedBranchId}
-                onChange={(event) => {
-                  const nextBranchId = event.target.value
-                  switchBranch(nextBranchId)
-                  replaceSearchParams({ branchId: nextBranchId || null })
-                }}
-                className="rounded-full border border-border/60 bg-background-secondary px-4 py-2 text-sm font-semibold text-foreground-base outline-none transition-colors hover:border-border"
-              >
-                {allowedBranches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-            {RANGE_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => handleSelectRangePreset(option.value)}
-                className={cn(
-                  'rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
-                  !isCustomRange && rangeDays === option.value
-                    ? 'border-primary-500/40 bg-primary-500/10 text-primary-500'
-                    : 'border-border/60 bg-background-secondary text-foreground-muted hover:border-border hover:text-foreground-base',
-                )}
-              >
-                {option.label}
-              </button>
-            ))}
-            <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background-secondary px-3 py-2">
-              <CalendarDays size={14} className="text-primary-500" />
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo}
-                onChange={(event) => handleCustomDateFromChange(event.target.value)}
-                className="min-w-[132px] bg-transparent text-sm font-semibold text-foreground-base outline-none"
-              />
-              <span className="text-foreground-muted">-</span>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom}
-                max={todayValue}
-                onChange={(event) => handleCustomDateToChange(event.target.value)}
-                className="min-w-[132px] bg-transparent text-sm font-semibold text-foreground-base outline-none"
-              />
-            </div>
+    <div className="flex w-full flex-col gap-[10px] p-[10px]">
+      <div className="flex shrink-0 justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-[10px]">
+          {allowedBranches.length > 1 ? (
+            <select
+              value={resolvedBranchId}
+              onChange={(event) => {
+                const nextBranchId = event.target.value
+                switchBranch(nextBranchId)
+                replaceSearchParams({ branchId: nextBranchId || null })
+              }}
+              className="rounded-full border border-border/60 bg-background-secondary px-4 py-2 text-sm font-semibold text-foreground-base outline-none transition-colors hover:border-border"
+            >
+              {allowedBranches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {RANGE_OPTIONS.map((option) => (
             <button
+              key={option.value}
               type="button"
-              onClick={handleExport}
-              disabled={exportRows.length === 0}
+              onClick={() => handleSelectRangePreset(option.value)}
               className={cn(
-                'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
-                exportRows.length > 0
-                  ? 'border-primary-500/30 bg-primary-500/10 text-primary-500 hover:bg-primary-500/15'
-                  : 'cursor-not-allowed border-border/50 bg-background-secondary text-foreground-muted',
+                'rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
+                !isCustomRange && rangeDays === option.value
+                  ? 'border-primary-500/40 bg-primary-500/10 text-primary-500'
+                  : 'border-border/60 bg-background-secondary text-foreground-muted hover:border-border hover:text-foreground-base',
               )}
             >
-              <Download size={16} />
-              Xuất XLSX
+              {option.label}
             </button>
+          ))}
+          <div className="flex items-center gap-[10px] rounded-full border border-border/60 bg-background-secondary px-3 py-2">
+            <CalendarDays size={14} className="text-primary-500" />
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo}
+              onChange={(event) => handleCustomDateFromChange(event.target.value)}
+              className="min-w-[132px] bg-transparent text-sm font-semibold text-foreground-base outline-none"
+            />
+            <span className="text-foreground-muted">-</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom}
+              max={todayValue}
+              onChange={(event) => handleCustomDateToChange(event.target.value)}
+              className="min-w-[132px] bg-transparent text-sm font-semibold text-foreground-base outline-none"
+            />
           </div>
-        }
-      />
-
-
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exportRows.length === 0}
+            className={cn(
+              'inline-flex items-center gap-[10px] rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
+              exportRows.length > 0
+                ? 'border-primary-500/30 bg-primary-500/10 text-primary-500 hover:bg-primary-500/15'
+                : 'cursor-not-allowed border-border/50 bg-background-secondary text-foreground-muted',
+            )}
+          >
+            <Download size={16} />
+            Xuất XLSX
+          </button>
+        </div>
+      </div>
 
       {visibleTabs.length > 1 ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-background-secondary p-2">
+        <div className="flex flex-wrap items-center gap-[10px] rounded-2xl border border-border/60 bg-background-secondary p-[10px]">
           {visibleTabs.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
@@ -718,7 +674,7 @@ export function ReportsWorkspace() {
                 type="button"
                 onClick={() => replaceSearchParams({ tab: tab.id })}
                 className={cn(
-                  'relative flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors',
+                  'relative flex items-center gap-[10px] rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors',
                   isActive ? 'text-white' : 'text-foreground-muted hover:text-foreground-base',
                 )}
               >
@@ -729,7 +685,7 @@ export function ReportsWorkspace() {
                     transition={{ type: 'spring', bounce: 0.18, duration: 0.35 }}
                   />
                 ) : null}
-                <span className="relative z-10 flex items-center gap-2">
+                <span className="relative z-10 flex items-center gap-[10px]">
                   <Icon size={16} />
                   {tab.label}
                 </span>
@@ -746,7 +702,7 @@ export function ReportsWorkspace() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.18 }}
-          className="space-y-6"
+          className="space-y-[10px]"
         >
           {activeTab === 'sales' ? (
             <SalesTab
@@ -844,8 +800,8 @@ function SalesTab({
     .slice(0, 5)
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-[10px]">
+      <div className="grid grid-cols-1 gap-[10px] md:grid-cols-2 xl:grid-cols-4">
         {kpis.map((item) => (
           <MetricCard key={item.label} label={item.label} value={item.value} hint={item.hint} tone={item.tone} />
         ))}
@@ -853,7 +809,7 @@ function SalesTab({
 
       <ServiceRevenuePanel report={serviceRevenue} />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-[10px] xl:grid-cols-5">
         <div className="xl:col-span-3">
           <SectionCard title="Biểu đồ doanh thu" description="So sánh biến động doanh thu theo ngày trong kỳ đang chọn.">
             <RevenueChartPanel data={revenuePoints} variant="line" />
@@ -862,7 +818,7 @@ function SalesTab({
 
         <div className="xl:col-span-2">
           <SectionCard title="Điểm nhấn trong kỳ" description="Những mốc cần xem kỹ hơn khi đọc báo cáo bán hàng.">
-            <div className="space-y-3">
+            <div className="space-y-[10px]">
               <InsightRow
                 icon={<TrendingUp size={16} className="text-primary-500" />}
                 title="Ngày cao nhất"
@@ -886,7 +842,7 @@ function SalesTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-[10px] xl:grid-cols-5">
         <div className="xl:col-span-3">
           <SectionCard title="Sản phẩm / dịch vụ đóng góp doanh thu" description="Xếp hạng theo doanh thu và sản lượng bán.">
             <TopProductsList data={topProducts} showRevenueBar />
@@ -896,10 +852,10 @@ function SalesTab({
         <div className="xl:col-span-2">
           <SectionCard title="Top ngày doanh thu" description="Danh sách ngày có doanh thu cao nhất trong kỳ.">
             {revenueRows.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-[10px]">
                 {revenueRows.map((row, index) => (
-                  <div key={`${row.date}-${index}`} className="rounded-2xl border border-border/50 bg-background-base p-4">
-                    <div className="flex items-center justify-between gap-3">
+                  <div key={`${row.date}-${index}`} className="rounded-2xl border border-border/50 bg-background-base p-[10px]">
+                    <div className="flex items-center justify-between gap-[10px]">
                       <div>
                         <div className="text-sm font-bold text-foreground-base">#{index + 1} {formatShortDate(row.date)}</div>
                         <div className="mt-1 text-xs text-foreground-muted">
@@ -933,15 +889,15 @@ function ServiceRevenuePanel({ report }: { report?: ServiceRevenueReport }) {
       {!hasData ? (
         <EmptyState message="Chưa có doanh thu SPA / Hotel trong kỳ đã chọn." />
       ) : (
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="space-y-[10px]">
+          <div className="grid grid-cols-1 gap-[10px] md:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Tổng SPA / Hotel" value={formatCurrency(summary?.totalRevenue ?? 0)} hint={`${formatNumber(summary?.orderCount ?? 0)} đơn có dịch vụ`} tone="primary" />
             <MetricCard label="Hotel" value={formatCurrency(summary?.hotelRevenue ?? 0)} hint={`${formatNumber(summary?.hotelDays ?? 0)} ngày tính phí`} tone="blue" />
             <MetricCard label="Grooming / SPA" value={formatCurrency(summary?.groomingRevenue ?? 0)} hint={`${formatNumber(summary?.groomingQuantity ?? 0)} lượt`} tone="emerald" />
             <MetricCard label="Dòng snapshot" value={formatNumber(summary?.itemCount ?? 0)} hint="Dùng cho đối soát export" tone="amber" />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-[10px] xl:grid-cols-2">
             <ServiceRevenueGroupList title="Hotel theo ngày thường / ngày lễ" rows={report?.hotel.byDayType ?? []} quantityLabel="ngày" />
             <ServiceRevenueGroupList title="Hotel theo hạng cân" rows={report?.hotel.byWeightBand ?? []} quantityLabel="ngày" />
             <ServiceRevenueGroupList title="SPA theo gói" rows={report?.grooming.byPackage ?? []} quantityLabel="lượt" />
@@ -964,7 +920,7 @@ function ServiceRevenueGroupList({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border/60 p-4 text-sm text-foreground-muted">
+      <div className="rounded-2xl border border-dashed border-border/60 p-[10px] text-sm text-foreground-muted">
         {title}: chưa có dữ liệu.
       </div>
     )
@@ -973,18 +929,18 @@ function ServiceRevenueGroupList({
   const maxRevenue = rows.reduce((current, row) => Math.max(current, row.revenue), 0)
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-background-base p-4">
-      <div className="mb-3 text-sm font-bold text-foreground-base">{title}</div>
-      <div className="space-y-3">
+    <div className="rounded-2xl border border-border/50 bg-background-base p-[10px]">
+      <div className="mb-[10px] text-sm font-bold text-foreground-base">{title}</div>
+      <div className="space-y-[10px]">
         {rows.map((row) => {
           const width = maxRevenue > 0 ? Math.max(6, (row.revenue / maxRevenue) * 100) : 0
           return (
             <div key={row.key}>
-              <div className="flex items-center justify-between gap-3 text-sm">
+              <div className="flex items-center justify-between gap-[10px] text-sm">
                 <span className="font-semibold text-foreground-base">{row.label}</span>
                 <span className="font-bold text-primary-500">{formatCurrency(row.revenue)}</span>
               </div>
-              <div className="mt-1 flex items-center justify-between gap-3 text-xs text-foreground-muted">
+              <div className="mt-1 flex items-center justify-between gap-[10px] text-xs text-foreground-muted">
                 <span>{formatNumber(row.quantity)} {quantityLabel}</span>
                 <span>{formatNumber(row.count)} dòng</span>
               </div>
@@ -1022,14 +978,14 @@ function CustomersTab({
   const averageOrderPerTopCustomer = topCustomers.length > 0 ? totalOrders / topCustomers.length : 0
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-[10px]">
+      <div className="grid grid-cols-1 gap-[10px] md:grid-cols-2 xl:grid-cols-4">
         {kpis.map((item) => (
           <MetricCard key={item.label} label={item.label} value={item.value} hint={item.hint} tone={item.tone} />
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-[10px] xl:grid-cols-5">
         <div className="xl:col-span-3">
           <SectionCard title="Top khách hàng" description="Bảng xếp hạng khách hàng có tổng chi tiêu cao nhất." action={<Link href={customersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mở khách hàng</Link>}>
             <TopCustomersList data={topCustomers} showSpendBar />
@@ -1038,7 +994,7 @@ function CustomersTab({
 
         <div className="xl:col-span-2">
           <SectionCard title="Góc nhìn nhanh" description="Chỉ số tham khảo để chốt chương trình chăm sóc khách hàng.">
-            <div className="space-y-3">
+            <div className="space-y-[10px]">
               <InsightRow
                 icon={<Crown size={16} className="text-amber-500" />}
                 title="Khách mới tháng này"
@@ -1062,10 +1018,10 @@ function CustomersTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-[10px] xl:grid-cols-5">
         <div className="xl:col-span-2">
           <SectionCard title="Tiếp cận nhóm VIP" description="Tập trung vào quy mô và tần suất mua của nhóm đầu bảng.">
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-[10px]">
               <MetricCard label="Tổng chi tiêu top nhóm" value={formatCurrency(totalSpent)} hint={`${formatNumber(topCustomers.length)} khách được xếp hạng`} tone="primary" />
               <MetricCard label="Đơn trung bình / khách" value={formatNumber(Math.round(averageOrderPerTopCustomer))} hint={`${formatNumber(totalOrders)} đơn trong nhóm`} tone="blue" />
               <MetricCard label="Khách dẫn đầu" value={leadingCustomer?.customer?.fullName ?? 'Chưa có'} hint={formatCurrency(leadingCustomer?.totalSpent ?? 0)} tone="amber" />
@@ -1075,7 +1031,7 @@ function CustomersTab({
 
         <div className="xl:col-span-3">
           <SectionCard title="Điểm cần hành động" description="Hướng để biến báo cáo thành hành động bán hàng và chăm sóc.">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-[10px] md:grid-cols-3">
               <InsightRow
                 icon={<Users size={16} className="text-primary-500" />}
                 title="Nhắc lịch chăm sóc"
@@ -1121,15 +1077,15 @@ function PurchaseTab({
   const riskSuppliers = suppliers.slice().sort((left, right) => left.evaluation.score - right.evaluation.score).slice(0, 4)
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-[10px]">
+      <div className="grid grid-cols-1 gap-[10px] md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Tổng nhà cung cấp" value={formatNumber(summary?.totalSuppliers ?? 0)} hint={`${formatNumber(summary?.activeSuppliers ?? 0)} đang hoạt động`} />
         <MetricCard label="Chi mua theo kỳ" value={formatCurrency(summary?.spendLast30Days ?? 0)} hint="Tổng chi mua trong khoảng ngày đang chọn" tone="blue" />
         <MetricCard label="NCC còn công nợ" value={formatNumber(summary?.suppliersWithDebt ?? 0)} hint={formatCurrency(summary?.totalDebt ?? 0)} tone="amber" />
         <MetricCard label="Điểm đánh giá TB" value={formatNumber(summary?.avgEvaluationScore ?? 0)} hint="Chất lượng quan hệ NCC" tone="emerald" />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-[10px] xl:grid-cols-5">
         <div className="xl:col-span-3">
           <SectionCard title="Nhà cung cấp chi mua cao nhất" description="Tập trung vào đối tác đang đóng góp chi mua lớn nhất." action={<Link href={suppliersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mở nhà cung cấp</Link>}>
             <SupplierSpendList suppliers={topSpendSuppliers} />
@@ -1139,7 +1095,7 @@ function PurchaseTab({
         <div className="xl:col-span-2">
           <SectionCard title="NCC cần theo dõi" description="Sắp xếp theo điểm đánh giá thấp để ưu tiên xử lý.">
             {riskSuppliers.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-[10px]">
                 {riskSuppliers.map((supplier) => (
                   <InsightRow
                     key={supplier.id}
@@ -1179,8 +1135,8 @@ function InventoryTab({
   const sortedSuggestions = suggestions.slice().sort((left, right) => right.shortage - left.shortage)
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-[10px]">
+      <div className="grid grid-cols-1 gap-[10px] md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Mặt hàng cần bổ sung" value={formatNumber(suggestions.length)} hint={`${formatNumber(affectedBranches)} chi nhánh bị ảnh hưởng`} />
         <MetricCard label="Tổng thiếu hụt" value={formatNumber(totalShortage)} hint="Số lượng cần bổ sung tối thiểu" tone="amber" />
         <MetricCard label="Hết hàng" value={formatNumber(zeroStockCount)} hint="Cần xử lý ưu tiên" tone="primary" />
@@ -1189,13 +1145,13 @@ function InventoryTab({
 
       <SectionCard title="Danh sách sắp thiếu hàng" description="Xếp theo mức độ thiếu hụt để nhập kho bổ sung." action={<Link href={inventoryHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mở kho</Link>}>
         {sortedSuggestions.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-[10px] xl:grid-cols-2">
             {sortedSuggestions.slice(0, 12).map((item) => {
               const variantLabel = getLowStockVariantLabel(item)
 
               return (
-              <div key={item.id} className="rounded-2xl border border-border/50 bg-background-base p-4">
-                <div className="flex items-start justify-between gap-3">
+              <div key={item.id} className="rounded-2xl border border-border/50 bg-background-base p-[10px]">
+                <div className="flex items-start justify-between gap-[10px]">
                   <div className="min-w-0">
                     <div className="text-sm font-bold text-foreground-base">
                       {item.product?.name ?? 'Sản phẩm'}
@@ -1249,15 +1205,15 @@ function DebtTab({
   const totalSupplierDebt = supplierDebts.reduce((sum, item) => sum + item.stats.totalDebt, 0)
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-[10px]">
+      <div className="grid grid-cols-1 gap-[10px] md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Công nợ khách hàng" value={formatCurrency(totalCustomerDebt)} hint={`${formatNumber(customerDebts.length)} khách đang nợ`} tone="primary" />
         <MetricCard label="Công nợ nhà cung cấp" value={formatCurrency(totalSupplierDebt)} hint={`${formatNumber(supplierDebts.length)} NCC đang nợ`} tone="amber" />
         <MetricCard label="Tổng đối tượng cần xử lý" value={formatNumber(customerDebts.length + supplierDebts.length)} hint="Danh sách ưu tiên đối soát" tone="blue" />
         <MetricCard label="Cảnh báo lớn nhất" value={formatCurrency(Math.max(customerDebts[0]?.debt ?? 0, supplierDebts[0]?.stats.totalDebt ?? 0))} hint="Giá trị nợ cao nhất hiện tại" tone="emerald" />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-[10px] xl:grid-cols-2">
         <SectionCard title="Khách hàng còn nợ" description="Danh sách khách đang có công nợ lớn nhất." action={canReadCustomerDebt ? <Link href={customersHref} className="text-sm font-semibold text-primary-500 hover:text-primary-400">Mở khách hàng</Link> : undefined}>
           {canReadCustomerDebt ? <CustomerDebtList customers={customerDebts.slice(0, 10)} /> : <EmptyState message="Bạn không có quyền đọc dữ liệu khách hàng." />}
         </SectionCard>
@@ -1284,14 +1240,14 @@ function CashbookTab({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-[10px]">
       <SectionCard
         title="Tổng hợp dòng tiền"
         description="Trang này giữ vai trò tổng hợp. Khi cần đối soát, sửa phiếu hoặc xem dòng tiền tài khoản, mở sang sổ quỹ."
         action={
           <Link
             href={financeHref}
-            className="inline-flex items-center gap-2 rounded-full border border-primary-500/30 bg-primary-500/10 px-4 py-2 text-sm font-semibold text-primary-500 transition-colors hover:bg-primary-500/15"
+            className="inline-flex items-center gap-[10px] rounded-full border border-primary-500/30 bg-primary-500/10 px-4 py-2 text-sm font-semibold text-primary-500 transition-colors hover:bg-primary-500/15"
           >
             Mở sổ quỹ
             <ChevronRight size={16} />
@@ -1371,12 +1327,12 @@ function TopCustomersList({
   const maxSpent = data.reduce((current, item) => Math.max(current, item.totalSpent), 0)
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-[10px]">
       {data.map((item, index) => {
         const width = maxSpent > 0 ? (item.totalSpent / maxSpent) * 100 : 0
         return (
-          <div key={item.customer?.id ?? `customer-${index}`} className="rounded-2xl border border-border/50 bg-background-base p-4">
-            <div className="flex items-start justify-between gap-3">
+          <div key={item.customer?.id ?? `customer-${index}`} className="rounded-2xl border border-border/50 bg-background-base p-[10px]">
+            <div className="flex items-start justify-between gap-[10px]">
               <div className="min-w-0">
                 <div className="text-sm font-bold text-foreground-base">
                   #{index + 1} {item.customer?.fullName ?? 'Khách lẻ / đã xóa'}
@@ -1413,12 +1369,12 @@ function TopProductsList({
   const maxRevenue = data.reduce((current, item) => Math.max(current, item.totalRevenue), 0)
 
   return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-[10px] lg:grid-cols-2">
       {data.map((item, index) => {
         const width = maxRevenue > 0 ? (item.totalRevenue / maxRevenue) * 100 : 0
         return (
-          <div key={item.product?.id ?? `product-${index}`} className="rounded-2xl border border-border/50 bg-background-base p-4">
-            <div className="flex items-start justify-between gap-3">
+          <div key={item.product?.id ?? `product-${index}`} className="rounded-2xl border border-border/50 bg-background-base p-[10px]">
+            <div className="flex items-start justify-between gap-[10px]">
               <div className="min-w-0">
                 <div className="text-sm font-bold text-foreground-base">
                   #{index + 1} {item.product?.name ?? 'Sản phẩm đã xóa'}
@@ -1449,12 +1405,12 @@ function SupplierSpendList({ suppliers }: { suppliers: SupplierAnalyticsItem[] }
   const maxSpent = suppliers.reduce((current, item) => Math.max(current, item.stats.totalSpent), 0)
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-[10px]">
       {suppliers.map((supplier, index) => {
         const width = maxSpent > 0 ? (supplier.stats.totalSpent / maxSpent) * 100 : 0
         return (
-          <div key={supplier.id} className="rounded-2xl border border-border/50 bg-background-base p-4">
-            <div className="flex items-start justify-between gap-3">
+          <div key={supplier.id} className="rounded-2xl border border-border/50 bg-background-base p-[10px]">
+            <div className="flex items-start justify-between gap-[10px]">
               <div className="min-w-0">
                 <div className="text-sm font-bold text-foreground-base">#{index + 1} {supplier.name}</div>
                 <div className="mt-1 text-xs text-foreground-muted">
@@ -1479,10 +1435,10 @@ function CustomerDebtList({ customers }: { customers: CustomerDebtItem[] }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-[10px]">
       {customers.map((customer, index) => (
-        <div key={customer.id} className="rounded-2xl border border-border/50 bg-background-base p-4">
-          <div className="flex items-start justify-between gap-3">
+        <div key={customer.id} className="rounded-2xl border border-border/50 bg-background-base p-[10px]">
+          <div className="flex items-start justify-between gap-[10px]">
             <div className="min-w-0">
               <div className="text-sm font-bold text-foreground-base">#{index + 1} {customer.fullName}</div>
               <div className="mt-1 text-xs text-foreground-muted">
@@ -1503,10 +1459,10 @@ function SupplierDebtList({ suppliers }: { suppliers: SupplierAnalyticsItem[] })
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-[10px]">
       {suppliers.map((supplier, index) => (
-        <div key={supplier.id} className="rounded-2xl border border-border/50 bg-background-base p-4">
-          <div className="flex items-start justify-between gap-3">
+        <div key={supplier.id} className="rounded-2xl border border-border/50 bg-background-base p-[10px]">
+          <div className="flex items-start justify-between gap-[10px]">
             <div className="min-w-0">
               <div className="text-sm font-bold text-foreground-base">#{index + 1} {supplier.name}</div>
               <div className="mt-1 text-xs text-foreground-muted">
@@ -1533,8 +1489,8 @@ function CashbookSummaryPanel({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-[10px]">
+      <div className="grid grid-cols-1 gap-[10px] md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Số dư đầu kỳ" value={formatCurrency(summary.openingBalance)} tone="blue" />
         <MetricCard label="Tổng thu" value={formatCurrency(summary.totalIncome)} tone="emerald" />
         <MetricCard label="Tổng chi" value={formatCurrency(summary.totalExpense)} tone="amber" />
@@ -1542,11 +1498,11 @@ function CashbookSummaryPanel({
       </div>
 
       {!compact ? (
-        <div className="space-y-3">
+        <div className="space-y-[10px]">
           <div className="text-sm font-bold text-foreground-base">Giao dịch gần nhất</div>
           {summary.transactions.length > 0 ? (
             summary.transactions.map((transaction) => (
-              <div key={transaction.id} className="flex items-start justify-between gap-3 rounded-2xl border border-border/50 bg-background-base p-4">
+              <div key={transaction.id} className="flex items-start justify-between gap-[10px] rounded-2xl border border-border/50 bg-background-base p-[10px]">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-foreground-base">{transaction.voucherNumber}</div>
                   <div className="mt-1 text-sm text-foreground-muted">{transaction.description}</div>
@@ -1582,8 +1538,8 @@ function InsightRow({
   description: string
 }) {
   return (
-    <div className="rounded-2xl border border-border/50 bg-background-base p-4">
-      <div className="flex items-center gap-3">
+    <div className="rounded-2xl border border-border/50 bg-background-base p-[10px]">
+      <div className="flex items-center gap-[10px]">
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-black/5 dark:bg-white/5">{icon}</div>
         <div className="min-w-0">
           <div className="text-sm font-semibold text-foreground-base">{title}</div>

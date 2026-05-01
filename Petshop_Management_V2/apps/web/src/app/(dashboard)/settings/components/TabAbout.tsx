@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { settingsApi } from '@/lib/api/settings.api'
 
-const DISPLAY_VERSION = '1.00'
+const DISPLAY_VERSION = '2.5.1'
 
 const TECH_STACK = [
   'Next.js 15 (App Router)',
@@ -42,12 +42,12 @@ type ChangeLogEntry = {
 const CHANGELOG: ChangeLogEntry[] = [
   {
     version: DISPLAY_VERSION,
-    date: '2026-04-30',
+    date: '2026-05-01',
     changes: [
-      'Bổ sung tài liệu tổng quan hệ thống và chuẩn hóa tiêu đề các trang quản trị',
-      'Mở rộng phân quyền RBAC và luồng xóa hàng loạt cho các module vận hành',
-      'Tinh gọn trang Giới thiệu hệ thống để tập trung vào phiên bản, module, công nghệ và lịch sử mới nhất',
-      'Hoàn thiện Docker production build cho Prisma/pnpm 10',
+      'Cập nhật hồ sơ khách hàng với ngày sinh, lịch sử điểm và dữ liệu chăm sóc chi tiết hơn',
+      'Hoàn thiện nhập xuất CRM, kiểm tra dữ liệu Excel và bộ test liên quan',
+      'Tinh chỉnh dashboard, báo cáo, khuyến mãi và các luồng vận hành chính trước bản deploy mới',
+      'Đóng gói lại Docker production cho bản phát hành mới nhất',
     ],
   },
   {
@@ -113,8 +113,11 @@ export function TabAbout() {
     staleTime: Infinity,
   })
 
+  const displayVersion = aboutData?.version ?? DISPLAY_VERSION
   const buildDate = aboutData?.buildDate ?? CHANGELOG[0]?.date ?? '—'
-  const recentChangelog = CHANGELOG.slice(0, 3)
+  const recentChangelog = CHANGELOG.slice(0, 3).map((entry, index) =>
+    index === 0 ? { ...entry, version: displayVersion } : entry,
+  )
 
   return (
     <div className="relative z-0 h-full w-full">
@@ -135,13 +138,13 @@ export function TabAbout() {
           </div>
           <div className="flex items-center gap-2 rounded-xl bg-primary-500/10 px-3 py-1.5 text-xs font-bold text-primary-500">
             <Sparkles size={16} />
-            V{DISPLAY_VERSION}
+            V{displayVersion}
           </div>
         </div>
 
         <div className="space-y-8 px-2">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <InfoCard icon={<Package size={18} />} label="Phiên bản" value={`V${DISPLAY_VERSION}`} />
+            <InfoCard icon={<Package size={18} />} label="Phiên bản" value={`V${displayVersion}`} />
             <InfoCard icon={<Calendar size={18} />} label="Cập nhật" value={buildDate} />
           </div>
 

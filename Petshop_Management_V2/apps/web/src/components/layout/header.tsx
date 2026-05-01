@@ -42,6 +42,8 @@ function resolveHeaderTitle(pathname: string) {
   if (pathname.startsWith('/orders')) return 'Quản lý Đơn hàng'
   if (pathname.startsWith('/customers')) return 'Khách hàng'
   if (pathname.startsWith('/pets')) return 'Thú cưng'
+  if (pathname.startsWith('/promotions')) return 'Khuyến mãi'
+  if (pathname.startsWith('/reports')) return 'Báo cáo bán hàng'
   if (pathname.startsWith('/inventory/stock')) return 'Tồn kho'
   if (pathname.startsWith('/inventory/suppliers')) return 'Nhà cung cấp'
   if (pathname.startsWith('/inventory/receipts')) return 'Phiếu nhập'

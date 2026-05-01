@@ -45,6 +45,7 @@ export interface CreateCustomerDto {
   phone: string
   email?: string
   address?: string
+  dateOfBirth?: string
   notes?: string
   tier?: string
   groupId?: string
@@ -53,6 +54,8 @@ export interface CreateCustomerDto {
   taxCode?: string
   description?: string
   isActive?: boolean
+  isSupplier?: boolean
+  supplierCode?: string
   companyName?: string
   companyAddress?: string
   representativeName?: string
@@ -65,6 +68,24 @@ export interface UpdateCustomerDto extends Partial<CreateCustomerDto> {
   points?: number
 }
 export type BulkUpdateCustomerDto = Partial<Pick<UpdateCustomerDto, 'branchId' | 'groupId' | 'tier' | 'isActive'>>
+
+export interface CustomerPointHistoryEntry {
+  id: string
+  customerId: string
+  actorId?: string | null
+  delta: number
+  balanceBefore: number
+  balanceAfter: number
+  source: string
+  reason?: string | null
+  createdAt: string
+  actor?: { id: string; fullName: string; staffCode: string } | null
+}
+
+export interface AdjustCustomerPointsDto {
+  delta: number
+  reason?: string
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
 export const customerApi = {
@@ -108,6 +129,19 @@ export const customerApi = {
 
   bulkUpdateCustomers: async (ids: string[], updates: BulkUpdateCustomerDto) => {
     const { data } = await api.patch<{ success: boolean; updatedIds: string[]; updatedCount: number }>('/customers/bulk-update', { ids, updates })
+    return data
+  },
+
+  getPointHistory: async (id: string) => {
+    const { data } = await api.get<{ success: boolean; data: CustomerPointHistoryEntry[] }>(`/customers/${id}/points-history`)
+    return data
+  },
+
+  adjustPoints: async (id: string, payload: AdjustCustomerPointsDto) => {
+    const { data } = await api.post<{ success: boolean; data: { customer: Customer; history: CustomerPointHistoryEntry } }>(
+      `/customers/${id}/points-adjustments`,
+      payload,
+    )
     return data
   },
 

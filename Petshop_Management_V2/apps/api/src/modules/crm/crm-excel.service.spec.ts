@@ -19,6 +19,12 @@ function makeDb(overrides: Record<string, any> = {}) {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
     },
+    branch: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    customerPointHistory: {
+      create: jest.fn(),
+    },
     pet: {
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
@@ -52,11 +58,17 @@ describe('CrmExcelService', () => {
         phone: '0901000001',
         email: null,
         address: 'Ha Noi',
+        dateOfBirth: new Date('1990-01-02T00:00:00.000Z'),
         tier: 'BRONZE',
+        points: 120,
+        pointsUsed: 30,
+        debt: 50000,
         notes: null,
         taxCode: null,
         description: null,
         isActive: true,
+        isSupplier: false,
+        supplierCode: null,
         companyName: null,
         companyAddress: null,
         representativeName: null,
@@ -98,7 +110,7 @@ describe('CrmExcelService', () => {
     await workbook.xlsx.load(buffer as any)
 
     expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['KhachHang', 'Pet', 'HuongDan'])
-    expect(workbook.getWorksheet('KhachHang')!.getRow(1).values).toEqual(expect.arrayContaining(['customerCode', 'fullName*', 'phone*', 'petCount']))
+    expect(workbook.getWorksheet('KhachHang')!.getRow(1).values).toEqual(expect.arrayContaining(['customerCode', 'fullName*', 'phone*', 'dateOfBirth', 'points', 'pointsUsed', 'debt', 'branchName', 'isSupplier', 'supplierCode', 'petCount']))
     expect(workbook.getWorksheet('Pet')!.getRow(1).values).toEqual(expect.arrayContaining(['petCode', 'ownerCustomerCode*', 'name*', 'species*']))
     expect(workbook.getWorksheet('KhachHang')!.getRow(2).getCell(2).value).toBe('KH000001')
     expect(workbook.getWorksheet('Pet')!.getRow(2).getCell(3).value).toBe('KH000001')
@@ -112,7 +124,7 @@ describe('CrmExcelService', () => {
 
     expect(workbook.getWorksheet('KhachHang')!.getRow(1).values).toEqual(expect.arrayContaining(['fullName*', 'phone*']))
     expect(workbook.getWorksheet('Pet')!.getRow(1).values).toEqual(expect.arrayContaining(['ownerCustomerCode*', 'name*', 'species*']))
-    expect(workbook.getWorksheet('KhachHang')!.getRow(1).values).toEqual(expect.arrayContaining(['customerCode']))
+    expect(workbook.getWorksheet('KhachHang')!.getRow(1).values).toEqual(expect.arrayContaining(['customerCode', 'dateOfBirth', 'points', 'debt', 'branchName', 'isSupplier', 'supplierCode']))
     expect(workbook.getWorksheet('Pet')!.getRow(1).values).toEqual(expect.arrayContaining(['petCode']))
   })
 
@@ -138,6 +150,63 @@ describe('CrmExcelService', () => {
     expect(result.summary.customerUpdateCount).toBe(1)
     expect(result.summary.errorCount).toBe(0)
     expect(result.normalizedPayload!.customers[0]!.data).not.toHaveProperty('totalSpent')
+  })
+
+  it('previews customer point migration fields and resolves branch names', async () => {
+    const db = makeDb()
+    db.customer.findMany.mockResolvedValue([
+      {
+        id: 'customer-1',
+        customerCode: 'KH000001',
+        phone: '0901000001',
+        fullName: 'Old Name',
+        branchId: 'branch-old',
+        points: 20,
+      },
+    ])
+    db.branch.findMany.mockResolvedValue([{ id: 'branch-1', name: 'Ha Noi' }])
+
+    const buffer = await workbookBuffer((workbook) => {
+      const customers = workbook.addWorksheet('KhachHang')
+      customers.addRow(['customerCode', 'fullName', 'phone', 'dateOfBirth', 'points', 'debt', 'branchName', 'isSupplier', 'supplierCode'])
+      customers.addRow(['KH000001', 'Nguyen Van A', '0901000001', new Date('1990-01-02T00:00:00.000Z'), 150, 25000, 'Ha Noi', 'true', 'NCC0001'])
+      workbook.addWorksheet('Pet').addRow(['petCode', 'ownerCustomerCode', 'name', 'species'])
+      workbook.addWorksheet('HuongDan').addRow(['Huong dan'])
+    })
+
+    const result = await new CrmExcelService(db).previewImport({ buffer, user: actor })
+
+    expect(result.summary.errorCount).toBe(0)
+    expect(result.normalizedPayload!.customers[0]!.data).toEqual(expect.objectContaining({
+      dateOfBirth: new Date('1990-01-02T00:00:00.000Z'),
+      points: 150,
+      debt: 25000,
+      branchId: 'branch-1',
+      isSupplier: true,
+      supplierCode: 'NCC0001',
+    }))
+  })
+
+  it('rejects negative point balances and unknown branch names during customer import preview', async () => {
+    const db = makeDb()
+    db.branch.findMany.mockResolvedValue([])
+
+    const buffer = await workbookBuffer((workbook) => {
+      const customers = workbook.addWorksheet('KhachHang')
+      customers.addRow(['customerCode', 'fullName', 'phone', 'points', 'branchName'])
+      customers.addRow(['', 'Tran Thi B', '0902000002', -1, 'Missing Branch'])
+      workbook.addWorksheet('Pet').addRow(['petCode', 'ownerCustomerCode', 'name', 'species'])
+      workbook.addWorksheet('HuongDan').addRow(['Huong dan'])
+    })
+
+    const result = await new CrmExcelService(db).previewImport({ buffer, user: actor })
+
+    expect(result.summary.errorCount).toBe(2)
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sheet: 'KhachHang', row: 2, column: 'points', message: 'points không được âm' }),
+      expect.objectContaining({ sheet: 'KhachHang', row: 2, column: 'branchName', message: expect.stringContaining('Missing Branch') }),
+    ]))
+    expect(result.normalizedPayload).toBeNull()
   })
 
   it('reports a blocking error when pet ownerCustomerCode cannot be resolved', async () => {
@@ -198,6 +267,41 @@ describe('CrmExcelService', () => {
     expect(db.pet.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ customerId: 'customer-1', name: 'Milu' }),
     }))
+  })
+
+  it('records point history when Excel import sets a different customer point balance', async () => {
+    const db = makeDb()
+    db.customer.findMany.mockResolvedValueOnce([
+      { id: 'customer-1', customerCode: 'KH000001', phone: '0901000001', fullName: 'Old Name', points: 20 },
+    ])
+    db.customer.update.mockResolvedValue({ id: 'customer-1' })
+
+    const buffer = await workbookBuffer((workbook) => {
+      const customers = workbook.addWorksheet('KhachHang')
+      customers.addRow(['customerCode', 'fullName', 'phone', 'points'])
+      customers.addRow(['KH000001', 'Nguyen Van A', '0901000001', 150])
+      workbook.addWorksheet('Pet').addRow(['petCode', 'ownerCustomerCode', 'name', 'species'])
+      workbook.addWorksheet('HuongDan').addRow(['Huong dan'])
+    })
+
+    const result = await new CrmExcelService(db).applyImport({ buffer, user: actor })
+
+    expect(result.summary.customerUpdateCount).toBe(1)
+    expect(db.customer.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'customer-1' },
+      data: expect.objectContaining({ points: 150 }),
+    }))
+    expect(db.customerPointHistory.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: 'customer-1',
+        actorId: 'user-1',
+        delta: 130,
+        balanceBefore: 20,
+        balanceAfter: 150,
+        source: 'EXCEL_IMPORT',
+        reason: 'Legacy points migration',
+      }),
+    })
   })
 
   it('updates an existing pet from sparse columns without requiring ownerCustomerCode', async () => {

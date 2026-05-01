@@ -20,6 +20,7 @@ import { SuperAdminGuard } from '../../common/security/super-admin.guard.js'
 import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import {
+  AdjustCustomerPointsDto,
   CreateCustomerDto,
   BulkUpdateCustomerDto,
   CustomerService,
@@ -61,16 +62,30 @@ export class CustomerController {
   @Post('bulk-delete')
   @UseGuards(SuperAdminGuard)
   @Permissions('customer.delete')
-  @ApiOperation({ summary: 'Xoa hang loat khach hang (chi SUPER_ADMIN)' })
+  @ApiOperation({ summary: 'Xóa hàng loạt khách hàng (chỉ SUPER_ADMIN)' })
   bulkRemove(@Body() body: { ids?: string[] }, @Req() req: AuthenticatedRequest) {
     return this.customerService.bulkRemove(body.ids, req.user)
   }
 
   @Patch('bulk-update')
   @Permissions('customer.update')
-  @ApiOperation({ summary: 'Cap nhat hang loat khach hang' })
+  @ApiOperation({ summary: 'Cập nhật hàng loạt khách hàng' })
   bulkUpdate(@Body() body: { ids?: string[]; updates?: BulkUpdateCustomerDto }, @Req() req: AuthenticatedRequest) {
     return this.customerService.bulkUpdate(body.ids, body.updates ?? {}, req.user)
+  }
+
+  @Get(':id/points-history')
+  @Permissions('customer.read.all', 'customer.read.assigned')
+  @ApiOperation({ summary: 'Lịch sử điểm khách hàng' })
+  getPointHistory(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.customerService.getPointHistory(id, req.user)
+  }
+
+  @Post(':id/points-adjustments')
+  @Permissions('customer.update')
+  @ApiOperation({ summary: 'Điều chỉnh điểm khách hàng' })
+  adjustPoints(@Param('id') id: string, @Body() dto: AdjustCustomerPointsDto, @Req() req: AuthenticatedRequest) {
+    return this.customerService.adjustPoints(id, dto, req.user)
   }
 
   @Get(':id')

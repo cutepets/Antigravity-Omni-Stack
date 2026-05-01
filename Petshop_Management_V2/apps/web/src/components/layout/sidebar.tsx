@@ -90,7 +90,13 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Pet Hotel',
         icon: Hotel,
         href: '/hotel',
-        anyPermissions: ['hotel.read', 'hotel.create', 'hotel.update', 'hotel.checkin', 'hotel.checkout'],
+        anyPermissions: [
+          'hotel.read',
+          'hotel.create',
+          'hotel.update',
+          'hotel.checkin',
+          'hotel.checkout',
+        ],
         moduleKey: 'hotel',
       },
       {
@@ -128,7 +134,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Thiết bị',
         icon: MonitorSmartphone,
         href: '/equipment',
-        anyPermissions: ['equipment.read', 'equipment.create', 'equipment.update', 'equipment.scan'],
+        anyPermissions: [
+          'equipment.read',
+          'equipment.create',
+          'equipment.update',
+          'equipment.scan',
+        ],
         moduleKey: 'equipment',
       },
       {
@@ -238,7 +249,7 @@ export function Sidebar() {
       }
     },
     staleTime: 30 * 60 * 1000, // 30 phút
-    gcTime: 60 * 60 * 1000,   // 1 giờ giữ cache khi unmount
+    gcTime: 60 * 60 * 1000, // 1 giờ giữ cache khi unmount
   })
 
   const canAccessItem = (item: NavItem) => {
@@ -254,7 +265,8 @@ export function Sidebar() {
     return hasRoleCheck || hasPermCheck
   }
 
-  const canViewSettings = hasAnyPermission(SETTINGS_PERMISSIONS) || hasRole(['SUPER_ADMIN', 'ADMIN'])
+  const canViewSettings =
+    hasAnyPermission(SETTINGS_PERMISSIONS) || hasRole(['SUPER_ADMIN', 'ADMIN'])
   const roleLabel = roleCode ? (ROLE_LABELS[roleCode] ?? roleCode) : 'Người dùng'
 
   return (
@@ -262,17 +274,17 @@ export function Sidebar() {
       initial={false}
       animate={{ width: isSidebarOpen ? SIDEBAR_OPEN_WIDTH : SIDEBAR_COLLAPSED_WIDTH }}
       transition={{ duration: 0.3, ease: EASE }}
-      className="relative flex h-screen flex-col overflow-hidden border-r border-border bg-background-secondary"
+      className="border-border bg-background-secondary relative flex h-screen flex-col overflow-hidden border-r"
       style={{ flexShrink: 0 }}
     >
-      <div className='relative flex h-[55px] w-full shrink-0 items-center border-b border-border/50'>
+      <div className="border-border/50 relative flex h-[55px] w-full shrink-0 items-center border-b">
         <div
           className={clsx(
             'flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg transition-all duration-300',
             isSidebarOpen ? 'ml-[24px]' : 'mx-auto',
             config?.shopLogo
               ? 'bg-transparent'
-              : 'bg-primary-500 text-white shadow-lg shadow-primary-500/20',
+              : 'bg-primary-500 shadow-primary-500/20 text-white shadow-lg',
           )}
         >
           {config?.shopLogo ? (
@@ -292,17 +304,17 @@ export function Sidebar() {
         <AnimatePresence mode="wait">
           {isSidebarOpen ? (
             <motion.div key="brand" {...fadeIn} className="absolute left-[64px] whitespace-nowrap">
-              <p className="text-sm font-bold leading-tight tracking-tight text-foreground-base">
+              <p className="text-foreground-base text-sm font-bold leading-tight tracking-tight">
                 {config?.shopName || 'PetShop'}
               </p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground-muted">
+              <p className="text-foreground-muted text-[10px] font-semibold uppercase tracking-wider">
                 Management
               </p>
             </motion.div>
           ) : null}
         </AnimatePresence>
       </div>
-      <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto py-2">
+      <div className="no-scrollbar mb-0 flex flex-1 flex-col gap-3 overflow-y-auto py-2">
         {NAV_GROUPS.map((navGroup, groupIndex) => {
           const visibleItems = navGroup.items.filter(canAccessItem)
           if (visibleItems.length === 0) return null
@@ -316,7 +328,7 @@ export function Sidebar() {
                       <motion.p
                         key={`group-${groupIndex}`}
                         {...fadeIn}
-                        className="text-[11px] font-bold uppercase tracking-wider text-foreground-muted"
+                        className="text-foreground-muted text-[11px] font-bold uppercase tracking-wider"
                       >
                         {navGroup.group}
                       </motion.p>
@@ -338,7 +350,7 @@ export function Sidebar() {
                       'group relative mx-3 flex h-11 w-[calc(100%-24px)] shrink-0 items-center overflow-hidden rounded-lg text-sm font-medium transition-colors',
                       isActive
                         ? 'bg-primary-500/10 text-primary-500'
-                        : 'text-foreground-secondary hover:bg-white/5 hover:text-foreground-base',
+                        : 'text-foreground-secondary hover:text-foreground-base hover:bg-white/5',
                     )}
                   >
                     <div
@@ -375,7 +387,7 @@ export function Sidebar() {
           )
         })}
       </div>
-      <div className="relative flex w-full shrink-0 flex-col items-center border-t border-border/50 bg-background-base py-4">
+      <div className="border-border/50 bg-background-base relative flex w-full shrink-0 flex-col items-center border-t py-4">
         {canViewSettings ? (
           <Link
             href="/settings"
@@ -384,7 +396,7 @@ export function Sidebar() {
               'group relative mx-3 mb-2 flex h-11 w-[calc(100%-24px)] items-center overflow-hidden rounded-lg text-sm font-medium transition-colors',
               pathname.startsWith('/settings')
                 ? 'bg-primary-500/10 text-primary-500'
-                : 'text-foreground-secondary hover:bg-white/5 hover:text-foreground-base',
+                : 'text-foreground-secondary hover:text-foreground-base hover:bg-white/5',
             )}
           >
             <div
@@ -404,7 +416,11 @@ export function Sidebar() {
 
             <AnimatePresence mode="wait">
               {isSidebarOpen ? (
-                <motion.span key="settings-label" {...fadeIn} className="absolute left-[56px] whitespace-nowrap">
+                <motion.span
+                  key="settings-label"
+                  {...fadeIn}
+                  className="absolute left-[56px] whitespace-nowrap"
+                >
                   Cài đặt
                 </motion.span>
               ) : null}
@@ -424,7 +440,7 @@ export function Sidebar() {
             >
               <div
                 className={clsx(
-                  'flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-500/20 text-xs font-bold text-primary-500 transition-colors',
+                  'bg-primary-500/20 text-primary-500 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition-colors',
                   !isSidebarOpen && 'group-hover:bg-error group-hover:text-white',
                 )}
               >
@@ -468,8 +484,12 @@ export function Sidebar() {
                   {...fadeIn}
                   className="absolute left-[56px] right-10 flex flex-col whitespace-nowrap"
                 >
-                  <span className="truncate text-xs font-bold text-foreground-base">{roleLabel}</span>
-                  <span className="truncate text-[11px] text-foreground-muted">@{user.username}</span>
+                  <span className="text-foreground-base truncate text-xs font-bold">
+                    {roleLabel}
+                  </span>
+                  <span className="text-foreground-muted truncate text-[11px]">
+                    @{user.username}
+                  </span>
                 </motion.div>
               ) : null}
             </AnimatePresence>
@@ -480,7 +500,7 @@ export function Sidebar() {
                   key="logout-btn"
                   {...fadeIn}
                   onClick={() => logout()}
-                  className="absolute right-2 z-10 rounded-md bg-background-base p-1.5 text-foreground-muted opacity-0 transition-colors hover:bg-error/10 hover:text-error group-hover:opacity-100"
+                  className="bg-background-base text-foreground-muted hover:bg-error/10 hover:text-error absolute right-2 z-10 rounded-md p-1.5 opacity-0 transition-colors group-hover:opacity-100"
                   title="Đăng xuất"
                 >
                   <LogOut size={16} />
@@ -491,5 +511,5 @@ export function Sidebar() {
         ) : null}
       </div>
     </motion.aside>
-  );
+  )
 }

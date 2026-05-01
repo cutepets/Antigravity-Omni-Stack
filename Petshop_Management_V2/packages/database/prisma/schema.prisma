@@ -139,6 +139,7 @@ model User {
   createdEquipments       Equipment[]            @relation("EquipmentCreatedBy")
   updatedEquipments       Equipment[]            @relation("EquipmentUpdatedBy")
   equipmentHistoryEntries EquipmentHistory[]     @relation("EquipmentHistoryActor")
+  customerPointHistories CustomerPointHistory[]  @relation("CustomerPointHistoryActor")
   
   assignedGroomingSessions GroomingSession[]    @relation("GroomingAssignedStaff")
 
@@ -248,12 +249,32 @@ model Customer {
   hotelStays   HotelStay[]
   orders       Order[]
   pets         Pet[]
+  pointHistory CustomerPointHistory[]
 
   @@index([phone])
   @@index([customerCode])
   @@index([branchId])
   @@index([isActive])
   @@map("customers")
+}
+
+model CustomerPointHistory {
+  id            String   @id @default(cuid())
+  customerId    String
+  actorId       String?
+  delta         Int
+  balanceBefore Int
+  balanceAfter  Int
+  source        String
+  reason        String?
+  createdAt     DateTime @default(now())
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  actor         User?    @relation("CustomerPointHistoryActor", fields: [actorId], references: [id])
+
+  @@index([customerId, createdAt])
+  @@index([actorId])
+  @@index([source])
+  @@map("customer_point_history")
 }
 
 model Pet {

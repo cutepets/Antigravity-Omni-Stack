@@ -1,17 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Phone, Mail, MapPin, Star, Edit2,
   PawPrint, ShoppingBag, Receipt, Calendar,
-  AlertCircle, BadgeCheck,
+  AlertCircle, BadgeCheck, History, MinusCircle, PlusCircle, X,
 } from 'lucide-react'
 import { customerApi } from '@/lib/api/customer.api'
 import { CustomerFormModal } from '../_components/customer-form-modal'
 import { PetFormModal } from '../../pets/_components/pet-form-modal'
 import { useAuthorization } from '@/hooks/useAuthorization'
+import { customToast as toast } from '@/components/ui/toast-with-copy'
 
 // ── Tier config ────────────────────────────────────────────────────────────────
 const TIER_CONFIG: Record<string, { label: string; badgeClass: string; icon: string; barColor: string }> = {
@@ -22,9 +23,17 @@ const TIER_CONFIG: Record<string, { label: string; badgeClass: string; icon: str
 }
 
 const TABS = [
-  { id: 'pets', label: 'Danh sách Pet', icon: PawPrint },
+  { id: 'pets', label: 'Danh sách thú cưng', icon: PawPrint },
   { id: 'orders', label: 'Lịch sử mua hàng', icon: ShoppingBag },
+  { id: 'points', label: 'Lịch sử điểm', icon: History },
 ]
+
+const POINT_SOURCE_LABELS: Record<string, string> = {
+  EXCEL_IMPORT: 'Nhập Excel',
+  MANUAL_ADJUSTMENT: 'Điều chỉnh tay',
+  ORDER_EARN: 'Tích điểm đơn hàng',
+  ORDER_REDEEM: 'Đổi điểm đơn hàng',
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n?: number) => (n ?? 0).toLocaleString('vi-VN') + ' đ'
@@ -64,14 +73,19 @@ function InfoRow({ icon: Icon, label, value, isZalo = false }: {
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { hasAnyPermission, hasPermission, isLoading: isAuthLoading } = useAuthorization()
+  const queryClient = useQueryClient()
+  const { hasAnyPermission, hasPermission, hasRole, isLoading: isAuthLoading } = useAuthorization()
   const canReadCustomers = hasAnyPermission(['customer.read.all', 'customer.read.assigned'])
   const canUpdateCustomer = hasPermission('customer.update')
+  const canAdjustPoints = hasRole(['SUPER_ADMIN', 'ADMIN'])
   const canCreatePet = hasPermission('pet.create')
   const canReadOrders = hasAnyPermission(['order.read.all', 'order.read.assigned'])
   const [activeTab, setActiveTab] = useState('pets')
   const [editOpen, setEditOpen] = useState(false)
   const [petFormOpen, setPetFormOpen] = useState(false)
+  const [pointAdjustOpen, setPointAdjustOpen] = useState(false)
+  const [pointDelta, setPointDelta] = useState('')
+  const [pointReason, setPointReason] = useState('')
 
   const visibleTabs = useMemo(
     () => TABS.filter((tab) => (tab.id === 'orders' ? canReadOrders : true)),
@@ -82,6 +96,28 @@ export default function CustomerDetailPage() {
     queryKey: ['customer', id],
     queryFn: () => customerApi.getCustomer(id),
     enabled: !!id,
+  })
+
+  const pointHistoryQuery = useQuery({
+    queryKey: ['customer-point-history', id],
+    queryFn: () => customerApi.getPointHistory(id),
+    enabled: !!id && canReadCustomers,
+  })
+
+  const adjustPointsMutation = useMutation({
+    mutationFn: (payload: { delta: number; reason?: string }) => customerApi.adjustPoints(id, payload),
+    onSuccess: () => {
+      toast.success('Đã điều chỉnh điểm khách hàng')
+      setPointDelta('')
+      setPointReason('')
+      setPointAdjustOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['customer', id] })
+      queryClient.invalidateQueries({ queryKey: ['customer-point-history', id] })
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Không thể điều chỉnh điểm')
+    },
   })
 
   useEffect(() => {
@@ -100,13 +136,13 @@ export default function CustomerDetailPage() {
   if (isAuthLoading) return (
     <div className="flex items-center justify-center h-[60vh] text-foreground-muted text-sm gap-3">
       <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary-500" />
-      Dang kiem tra quyen truy cap...
+      Đang kiểm tra quyền truy cập...
     </div>
   )
 
   if (!canReadCustomers) return (
     <div className="flex items-center justify-center h-[60vh] text-foreground-muted text-sm gap-3">
-      Dang chuyen huong...
+      Đang chuyển hướng...
     </div>
   )
 
@@ -129,6 +165,22 @@ export default function CustomerDetailPage() {
 
   const customer = data.data as any
   const tier = TIER_CONFIG[customer?.tier] ?? TIER_CONFIG.BRONZE
+  const pointHistory = pointHistoryQuery.data?.data ?? []
+  const parsedPointDelta = Number(pointDelta)
+  const canSubmitPointAdjustment =
+    canAdjustPoints &&
+    Number.isInteger(parsedPointDelta) &&
+    parsedPointDelta !== 0 &&
+    !adjustPointsMutation.isPending
+
+  const submitPointAdjustment = (event: FormEvent) => {
+    event.preventDefault()
+    if (!canSubmitPointAdjustment) return
+    adjustPointsMutation.mutate({
+      delta: parsedPointDelta,
+      reason: pointReason.trim() || undefined,
+    })
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5">
@@ -248,7 +300,7 @@ export default function CustomerDetailPage() {
         </div>
 
         <div className="p-6">
-          {/* ── Pets tab ── */}
+          {/* ── Thú cưng tab ── */}
           {activeTab === 'pets' && (
             <div>
               <div className="flex items-center justify-between mb-6">
@@ -261,7 +313,7 @@ export default function CustomerDetailPage() {
                     onClick={() => setPetFormOpen(true)}
                     className="btn-primary liquid-button px-4 py-2 rounded-xl text-sm"
                   >
-                    + Thêm Pet
+                    + Thú cưng
                   </button>
                 ) : null}
               </div>
@@ -275,7 +327,7 @@ export default function CustomerDetailPage() {
                       onClick={() => setPetFormOpen(true)}
                       className="btn-primary liquid-button px-5 py-2.5 rounded-xl text-sm mt-2"
                     >
-                      + Thêm Pet đầu tiên
+                      + Thêm thú cưng đầu tiên
                     </button>
                   ) : null}
                 </div>
@@ -352,10 +404,160 @@ export default function CustomerDetailPage() {
             </div>
           )}
 
+          {activeTab === 'points' && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h3 className="flex items-center gap-2 text-foreground font-semibold">
+                    <History size={18} className="text-primary-500" />
+                    Lịch sử điểm
+                  </h3>
+                  <p className="text-sm text-foreground-muted mt-1">
+                    Số dư hiện tại: <span className="font-semibold text-accent-500">{customer.points ?? 0} điểm</span>
+                  </p>
+                </div>
+                {canAdjustPoints ? (
+                  <button
+                    type="button"
+                    onClick={() => setPointAdjustOpen(true)}
+                    className="btn-primary liquid-button px-4 py-2 rounded-xl text-sm"
+                  >
+                    <Edit2 size={14} />
+                    Sửa điểm
+                  </button>
+                ) : null}
+              </div>
+
+              {pointHistoryQuery.isLoading ? (
+                <div className="flex items-center justify-center py-16 text-foreground-muted text-sm gap-3">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-primary-500" />
+                  Đang tải lịch sử điểm...
+                </div>
+              ) : !pointHistory.length ? (
+                <div className="flex flex-col items-center justify-center py-20 text-foreground-muted gap-3">
+                  <History size={36} className="opacity-30" />
+                  <p>Chưa có lịch sử điều chỉnh điểm</p>
+                </div>
+              ) : (
+                <div className="border border-border rounded-xl overflow-hidden">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        {['Thời gian', 'Thay đổi', 'Số dư', 'Nguồn', 'Người thao tác', 'Lý do'].map((h) => (
+                          <th key={h}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pointHistory.map((entry: any) => (
+                        <tr key={entry.id}>
+                          <td>{ymd(entry.createdAt)}</td>
+                          <td>
+                            <span className={entry.delta > 0 ? 'text-success font-semibold' : 'text-error font-semibold'}>
+                              {entry.delta > 0 ? '+' : ''}{entry.delta}
+                            </span>
+                          </td>
+                          <td className="font-mono text-foreground">
+                            {entry.balanceBefore} -&gt; {entry.balanceAfter}
+                          </td>
+                          <td>
+                            <span className="badge badge-info">
+                              {POINT_SOURCE_LABELS[entry.source] ?? entry.source}
+                            </span>
+                          </td>
+                          <td>{entry.actor?.fullName || entry.actor?.name || 'Hệ thống'}</td>
+                          <td className="max-w-[260px] whitespace-normal">{entry.reason || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
 
       {/* Modals */}
+      {pointAdjustOpen && canAdjustPoints ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-[2px]"
+            onClick={() => setPointAdjustOpen(false)}
+          />
+          <div className="card p-0 relative w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-5 border-b border-border bg-background-tertiary flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-foreground">Sửa điểm khách hàng</h2>
+                <p className="text-sm text-foreground-muted mt-1">
+                  Số dư hiện tại: <span className="font-semibold text-accent-500">{customer.points ?? 0} điểm</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPointAdjustOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-background-secondary transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={submitPointAdjustment} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Số điểm cộng/trừ
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="1"
+                    value={pointDelta}
+                    onChange={(event) => setPointDelta(event.target.value)}
+                    placeholder="VD: 100 hoặc -50"
+                    className="form-input pr-20"
+                  />
+                  <div className="absolute top-1/2 right-3 -translate-y-1/2 flex items-center gap-1 text-foreground-muted">
+                    {parsedPointDelta < 0 ? <MinusCircle size={16} /> : <PlusCircle size={16} />}
+                    <span className="text-xs">điểm</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Lý do
+                </label>
+                <textarea
+                  value={pointReason}
+                  onChange={(event) => setPointReason(event.target.value)}
+                  rows={3}
+                  placeholder="VD: Chuyển điểm từ nền tảng cũ"
+                  className="form-textarea"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPointAdjustOpen(false)}
+                  className="btn-outline px-4 py-2 rounded-xl text-sm"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={!canSubmitPointAdjustment}
+                  className="btn-primary liquid-button px-4 py-2 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {adjustPointsMutation.isPending ? 'Đang lưu...' : 'Lưu điều chỉnh'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
       <CustomerFormModal
         isOpen={editOpen}
         onClose={() => setEditOpen(false)}

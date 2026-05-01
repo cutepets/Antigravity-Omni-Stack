@@ -145,7 +145,7 @@ export function CrmImportExportDropdown({
       </div>
 
       {selectedFile || preview || isPreviewing ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay p-4">
           <div className="flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-background-base shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
@@ -198,7 +198,7 @@ export function CrmImportExportDropdown({
                     {preview.summary.errorCount > 0 ? <AlertTriangle size={17} /> : <CheckCircle2 size={17} />}
                     {preview.summary.errorCount > 0
                       ? 'File còn lỗi. Sửa Excel rồi nhập lại trước khi áp dụng.'
-                      : 'File hợp lệ. Áp dụng sẽ thêm mới/cập nhật hồ sơ Khách hàng và Pet.'}
+                      : 'File hợp lệ. Áp dụng sẽ thêm mới/cập nhật hồ sơ Khách hàng, Pet và số dư điểm nếu có.'}
                   </div>
 
                   {issueLines.length > 0 ? (
@@ -245,4 +245,3 @@ export function CrmImportExportDropdown({
     </>
   )
 }
-

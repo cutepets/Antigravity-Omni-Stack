@@ -32,12 +32,19 @@ const CUSTOMER_COLUMNS: ColumnDef[] = [
   { key: 'phone', header: 'phone', width: 18, required: true },
   { key: 'email', header: 'email', width: 24 },
   { key: 'address', header: 'address', width: 30 },
+  { key: 'dateOfBirth', header: 'dateOfBirth', width: 16 },
   { key: 'groupName', header: 'groupName', width: 18 },
+  { key: 'branchName', header: 'branchName', width: 24 },
   { key: 'tier', header: 'tier', width: 14 },
+  { key: 'points', header: 'points', width: 12 },
+  { key: 'pointsUsed', header: 'pointsUsed', width: 14, readonly: true },
+  { key: 'debt', header: 'debt', width: 14 },
   { key: 'notes', header: 'notes', width: 30 },
   { key: 'taxCode', header: 'taxCode', width: 18 },
   { key: 'description', header: 'description', width: 30 },
   { key: 'isActive', header: 'isActive', width: 12 },
+  { key: 'isSupplier', header: 'isSupplier', width: 12 },
+  { key: 'supplierCode', header: 'supplierCode', width: 18 },
   { key: 'companyName', header: 'companyName', width: 26 },
   { key: 'companyAddress', header: 'companyAddress', width: 30 },
   { key: 'representativeName', header: 'representativeName', width: 24 },
@@ -75,7 +82,7 @@ const PET_COLUMNS: ColumnDef[] = [
 
 const CUSTOMER_EDITABLE_KEYS = new Set(CUSTOMER_COLUMNS.filter((column) => !column.readonly).map((column) => column.key))
 const PET_EDITABLE_KEYS = new Set(PET_COLUMNS.filter((column) => !column.readonly).map((column) => column.key))
-const CUSTOMER_TIERS = new Set(['BRONZE', 'SILVER', 'GOLD', 'DIAMOND'])
+const CUSTOMER_TIERS = new Set(['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND'])
 const PET_GENDERS = new Set(['MALE', 'FEMALE', 'UNKNOWN'])
 
 function normalizeHeader(value: unknown) {
@@ -176,6 +183,12 @@ export class CrmExcelService {
       for (const row of preview.normalizedPayload!.customers) {
         if (row.action === 'update' && row.existingId) {
           await tx.customer.update({ where: { id: row.existingId }, data: row.data })
+          await this.recordPointMigrationIfNeeded(tx, {
+            customerId: row.existingId,
+            actorId: params.user?.userId,
+            before: row.previousPoints ?? 0,
+            after: typeof row.data.points === 'number' ? row.data.points : undefined,
+          })
           if (row.customerCode) customerIdByCode.set(row.customerCode, row.existingId)
         } else {
           const customerCode = await getNextSequentialCode(tx, {
@@ -187,8 +200,14 @@ export class CrmExcelService {
             data: {
               ...row.data,
               customerCode,
-              branchId: params.user?.branchId ?? null,
+              branchId: (row.data.branchId as string | undefined) ?? params.user?.branchId ?? null,
             },
+          })
+          await this.recordPointMigrationIfNeeded(tx, {
+            customerId: created.id,
+            actorId: params.user?.userId,
+            before: 0,
+            after: typeof row.data.points === 'number' ? row.data.points : undefined,
           })
           customerIdByCode.set(created.customerCode, created.id)
         }
@@ -206,7 +225,7 @@ export class CrmExcelService {
       for (const row of preview.normalizedPayload!.pets) {
         const customerId = row.ownerCustomerCode ? customerIdByCode.get(row.ownerCustomerCode) : undefined
         if (row.action === 'update' && row.existingId) {
-          if (row.ownerCustomerCode && !customerId) throw new BadRequestException(`Khong tim thay khach hang ${row.ownerCustomerCode}`)
+          if (row.ownerCustomerCode && !customerId) throw new BadRequestException(`Không tìm thấy khách hàng ${row.ownerCustomerCode}`)
           await tx.pet.update({
             where: { id: row.existingId },
             data: {
@@ -215,7 +234,7 @@ export class CrmExcelService {
             },
           })
         } else {
-          if (!customerId) throw new BadRequestException(`Khong tim thay khach hang ${row.ownerCustomerCode}`)
+          if (!customerId) throw new BadRequestException(`Không tìm thấy khách hàng ${row.ownerCustomerCode}`)
           const petCode = await getNextSequentialCode(tx, {
             table: 'pets',
             column: 'petCode',
@@ -236,6 +255,24 @@ export class CrmExcelService {
     return preview
   }
 
+  private async recordPointMigrationIfNeeded(
+    tx: any,
+    params: { customerId: string; actorId?: string; before: number; after?: number },
+  ) {
+    if (params.after === undefined || params.after === params.before) return
+    await tx.customerPointHistory.create({
+      data: {
+        customerId: params.customerId,
+        actorId: params.actorId ?? null,
+        delta: params.after - params.before,
+        balanceBefore: params.before,
+        balanceAfter: params.after,
+        source: 'EXCEL_IMPORT',
+        reason: 'Legacy points migration',
+      },
+    })
+  }
+
   private async addCustomerSheet(workbook: any) {
     const sheet = workbook.addWorksheet(CUSTOMER_SHEET)
     this.addHeader(sheet, CUSTOMER_COLUMNS)
@@ -243,13 +280,16 @@ export class CrmExcelService {
       orderBy: { createdAt: 'desc' },
       include: {
         group: { select: { name: true } },
+        branch: { select: { name: true } },
         _count: { select: { pets: true } },
       },
     })
     for (const customer of customers) {
       sheet.addRow(CUSTOMER_COLUMNS.map((column) => {
         if (column.key === 'groupName') return customer.group?.name ?? ''
+        if (column.key === 'branchName') return customer.branch?.name ?? ''
         if (column.key === 'petCount') return customer._count?.pets ?? 0
+        if (column.key === 'dateOfBirth') return customer.dateOfBirth ? iso(customer.dateOfBirth).slice(0, 10) : ''
         if (column.key === 'createdAt' || column.key === 'updatedAt') return iso(customer[column.key])
         return customer[column.key] ?? ''
       }))
@@ -286,12 +326,14 @@ export class CrmExcelService {
     const sheet = workbook.addWorksheet(GUIDE_SHEET)
     sheet.addRows([
       ['Sheet', 'Cot', 'Ghi chu'],
-      [CUSTOMER_SHEET, 'customerCode', 'Ma KH dung de cap nhat. De trong khi tao moi.'],
-      [CUSTOMER_SHEET, 'fullName*, phone*', 'Bat buoc khi tao moi khach hang. Co the xoa cot khong can cap nhat.'],
-      [PET_SHEET, 'ownerCustomerCode*', 'Bat buoc khi tao moi Pet hoac khi muon doi chu so huu.'],
-      [PET_SHEET, 'petCode', 'Ma PET dung de cap nhat. De trong khi tao moi.'],
+      [CUSTOMER_SHEET, 'customerCode', 'Mã KH dùng để cập nhật. Để trống khi tạo mới.'],
+      [CUSTOMER_SHEET, 'fullName*, phone*', 'Bắt buộc khi tạo mới khách hàng. Có thể xóa cột không cần cập nhật.'],
+      [CUSTOMER_SHEET, 'points', 'Số dư điểm hiện tại khi migrate từ nền tảng cũ. Hệ thống sẽ ghi lịch sử chênh lệch.'],
+      [CUSTOMER_SHEET, 'branchName', 'Tên chi nhánh phải tồn tại nếu nhập. Để trống sẽ dùng chi nhánh người thao tác khi tạo mới.'],
+      [PET_SHEET, 'ownerCustomerCode*', 'Bắt buộc khi tạo mới Pet hoặc khi muốn đổi chủ sở hữu.'],
+      [PET_SHEET, 'petCode', 'Mã PET dùng để cập nhật. Để trống khi tạo mới.'],
       [PET_SHEET, 'gender', 'MALE, FEMALE, UNKNOWN'],
-      [CUSTOMER_SHEET, 'tier', 'BRONZE, SILVER, GOLD, DIAMOND'],
+      [CUSTOMER_SHEET, 'tier', 'BRONZE, SILVER, GOLD, PLATINUM, DIAMOND'],
     ])
     sheet.getRow(1).font = { bold: true }
     sheet.columns = [{ width: 18 }, { width: 28 }, { width: 60 }]
@@ -311,10 +353,10 @@ export class CrmExcelService {
     const canImportCustomers = this.isAdmin(user) || hasAnyPermission(permissions, ['customer.create', 'customer.update'])
     const canImportPets = this.isAdmin(user) || hasAnyPermission(permissions, ['pet.create', 'pet.update'])
 
-    if (!customerSheet) errors.push({ sheet: CUSTOMER_SHEET, message: 'Thieu sheet KhachHang' })
-    if (!petSheet) errors.push({ sheet: PET_SHEET, message: 'Thieu sheet Pet' })
-    if (customerSheet && !canImportCustomers) errors.push({ sheet: CUSTOMER_SHEET, message: 'Khong co quyen nhap khach hang' })
-    if (petSheet && !canImportPets) errors.push({ sheet: PET_SHEET, message: 'Khong co quyen nhap pet' })
+    if (!customerSheet) errors.push({ sheet: CUSTOMER_SHEET, message: 'Thiếu sheet KhachHang' })
+    if (!petSheet) errors.push({ sheet: PET_SHEET, message: 'Thiếu sheet Pet' })
+    if (customerSheet && !canImportCustomers) errors.push({ sheet: CUSTOMER_SHEET, message: 'Không có quyền nhập khách hàng' })
+    if (petSheet && !canImportPets) errors.push({ sheet: PET_SHEET, message: 'Không có quyền nhập pet' })
 
     const customerRows = customerSheet ? this.readRows(customerSheet, CUSTOMER_COLUMNS, errors) : []
     const petRows = petSheet ? this.readRows(petSheet, PET_COLUMNS, errors) : []
@@ -322,7 +364,8 @@ export class CrmExcelService {
     const existingCustomers = await this.loadExistingCustomers(customerRows, petRows)
     const existingPets = await this.loadExistingPets(petRows)
     const groups = await this.loadCustomerGroups()
-    this.normalizeCustomerRows(customerRows, existingCustomers, groups, payload, errors)
+    const branches = await this.loadBranches()
+    this.normalizeCustomerRows(customerRows, existingCustomers, groups, branches, payload, errors)
     this.normalizePetRows(petRows, existingCustomers, existingPets, payload, errors)
 
     const summary = this.summarize(payload, errors, warnings)
@@ -354,7 +397,7 @@ export class CrmExcelService {
       rows.push({ row: rowNumber, values })
     })
     if (indexByKey.size === 0 && sheet.rowCount > 0) {
-      errors.push({ sheet: sheet.name, row: 1, message: 'Khong tim thay dong tieu de hop le' })
+      errors.push({ sheet: sheet.name, row: 1, message: 'Không tìm thấy dòng tiêu đề hợp lệ' })
     }
     return rows
   }
@@ -385,7 +428,7 @@ export class CrmExcelService {
           ...(phones.size ? [{ phone: { in: [...phones] } }] : []),
         ],
       },
-      select: { id: true, customerCode: true, phone: true, fullName: true, branchId: true },
+      select: { id: true, customerCode: true, phone: true, fullName: true, branchId: true, points: true },
     })
     return {
       byCode: new Map<string, any>(customers.map((customer: any) => [customer.customerCode, customer])),
@@ -410,10 +453,18 @@ export class CrmExcelService {
     return new Map<string, string>(groups.map((group: any) => [normalizeHeader(group.name), group.id]))
   }
 
+  private async loadBranches(): Promise<Map<string, string>> {
+    const branches = await (this.db as any).branch.findMany({
+      select: { id: true, name: true },
+    })
+    return new Map<string, string>(branches.map((branch: any) => [normalizeHeader(branch.name), branch.id]))
+  }
+
   private normalizeCustomerRows(
     rows: Array<{ row: number; values: Record<string, unknown> }>,
     existing: { byCode: Map<string, any>; byPhone: Map<string, any> },
     groups: Map<string, string>,
+    branches: Map<string, string>,
     payload: CrmExcelNormalizedPayload,
     errors: CrmExcelIssue[],
   ) {
@@ -426,37 +477,48 @@ export class CrmExcelService {
       const existingByPhone = phone ? existing.byPhone.get(phone) : null
       const action = existingByCode ? 'update' : 'create'
 
-      if (customerCode && seenCodes.has(customerCode)) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'customerCode', message: `Trung customerCode ${customerCode} trong file` })
-      if (phone && seenPhones.has(phone)) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'phone', message: `Trung phone ${phone} trong file` })
+      if (customerCode && seenCodes.has(customerCode)) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'customerCode', message: `Trùng customerCode ${customerCode} trong file` })
+      if (phone && seenPhones.has(phone)) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'phone', message: `Trùng phone ${phone} trong file` })
       if (customerCode) seenCodes.add(customerCode)
       if (phone) seenPhones.add(phone)
 
       if (customerCode && !existingByCode) {
-        errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'customerCode', message: `customerCode ${customerCode} khong ton tai. De trong cot nay khi tao moi.` })
+        errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'customerCode', message: `customerCode ${customerCode} không tồn tại. Để trống cột này khi tạo mới.` })
       }
-      if (action === 'create' && !text(row.values.fullName)) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'fullName', message: 'fullName bat buoc khi tao moi' })
-      if (action === 'create' && !phone) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'phone', message: 'phone bat buoc khi tao moi' })
-      if (existingByPhone && (!existingByCode || existingByPhone.id !== existingByCode.id)) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'phone', message: `So dien thoai ${phone} da duoc su dung` })
+      if (action === 'create' && !text(row.values.fullName)) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'fullName', message: 'fullName bắt buộc khi tạo mới' })
+      if (action === 'create' && !phone) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'phone', message: 'phone bắt buộc khi tạo mới' })
+      if (existingByPhone && (!existingByCode || existingByPhone.id !== existingByCode.id)) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'phone', message: `Số điện thoại ${phone} đã được sử dụng` })
 
       const tier = text(row.values.tier)?.toUpperCase()
-      if (tier && !CUSTOMER_TIERS.has(tier)) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'tier', message: `tier khong hop le: ${tier}` })
+      if (tier && !CUSTOMER_TIERS.has(tier)) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'tier', message: `tier không hợp lệ: ${tier}` })
       const groupName = text(row.values.groupName)
       const groupId = groupName ? groups.get(normalizeHeader(groupName)) : undefined
+      const branchName = text(row.values.branchName)
+      const branchId = branchName ? branches.get(normalizeHeader(branchName)) : undefined
+      if (branchName && !branchId) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'branchName', message: `Không tìm thấy chi nhánh ${branchName}` })
       const data: Record<string, unknown> = {}
       for (const key of CUSTOMER_EDITABLE_KEYS) {
-        if (key === 'customerCode' || key === 'groupName') continue
+        if (key === 'customerCode' || key === 'groupName' || key === 'branchName') continue
         const raw = row.values[key]
-        const parsed = key === 'isActive' ? booleanValue(raw) : text(raw)
+        const parsed =
+          key === 'isActive' || key === 'isSupplier' ? booleanValue(raw)
+            : key === 'points' || key === 'debt' ? numberValue(raw)
+              : key === 'dateOfBirth' ? dateValue(raw)
+                : text(raw)
         if (parsed !== undefined) data[key] = parsed
       }
+      if (typeof data.points === 'number' && data.points < 0) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'points', message: 'points không được âm' })
+      if (typeof data.debt === 'number' && data.debt < 0) errors.push({ sheet: CUSTOMER_SHEET, row: row.row, column: 'debt', message: 'debt không được âm' })
       if (tier) data.tier = tier
       if (groupName) data.groupId = groupId ?? null
+      if (branchName && branchId) data.branchId = branchId
       payload.customers.push({
         row: row.row,
         action,
         existingId: existingByCode?.id,
         customerCode,
         phone: phone ?? '',
+        previousPoints: existingByCode?.points ?? 0,
         data,
       } satisfies NormalizedCustomerImportRow)
     }
@@ -476,17 +538,17 @@ export class CrmExcelService {
       const existingPet = petCode ? existingPets.get(petCode) : null
       const action = existingPet ? 'update' : 'create'
 
-      if (petCode && seenCodes.has(petCode)) errors.push({ sheet: PET_SHEET, row: row.row, column: 'petCode', message: `Trung petCode ${petCode} trong file` })
+      if (petCode && seenCodes.has(petCode)) errors.push({ sheet: PET_SHEET, row: row.row, column: 'petCode', message: `Trùng petCode ${petCode} trong file` })
       if (petCode) seenCodes.add(petCode)
-      if (action === 'create' && !ownerCustomerCode) errors.push({ sheet: PET_SHEET, row: row.row, column: 'ownerCustomerCode', message: 'ownerCustomerCode bat buoc khi tao moi' })
+      if (action === 'create' && !ownerCustomerCode) errors.push({ sheet: PET_SHEET, row: row.row, column: 'ownerCustomerCode', message: 'ownerCustomerCode bắt buộc khi tạo mới' })
       if (ownerCustomerCode && !customers.byCode.has(ownerCustomerCode)) {
-        errors.push({ sheet: PET_SHEET, row: row.row, column: 'ownerCustomerCode', message: `Khong tim thay ownerCustomerCode ${ownerCustomerCode}` })
+        errors.push({ sheet: PET_SHEET, row: row.row, column: 'ownerCustomerCode', message: `Không tìm thấy ownerCustomerCode ${ownerCustomerCode}` })
       }
-      if (action === 'create' && !text(row.values.name)) errors.push({ sheet: PET_SHEET, row: row.row, column: 'name', message: 'name bat buoc khi tao moi' })
-      if (action === 'create' && !text(row.values.species)) errors.push({ sheet: PET_SHEET, row: row.row, column: 'species', message: 'species bat buoc khi tao moi' })
+      if (action === 'create' && !text(row.values.name)) errors.push({ sheet: PET_SHEET, row: row.row, column: 'name', message: 'name bắt buộc khi tạo mới' })
+      if (action === 'create' && !text(row.values.species)) errors.push({ sheet: PET_SHEET, row: row.row, column: 'species', message: 'species bắt buộc khi tạo mới' })
 
       const gender = text(row.values.gender)?.toUpperCase()
-      if (gender && !PET_GENDERS.has(gender)) errors.push({ sheet: PET_SHEET, row: row.row, column: 'gender', message: `gender khong hop le: ${gender}` })
+      if (gender && !PET_GENDERS.has(gender)) errors.push({ sheet: PET_SHEET, row: row.row, column: 'gender', message: `gender không hợp lệ: ${gender}` })
       const data: Record<string, unknown> = {}
       for (const key of PET_EDITABLE_KEYS) {
         if (key === 'petCode' || key === 'ownerCustomerCode') continue

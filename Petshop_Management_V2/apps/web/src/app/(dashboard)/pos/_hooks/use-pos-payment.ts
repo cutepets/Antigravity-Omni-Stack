@@ -25,6 +25,7 @@ import { confirmDialog } from '@/components/ui/confirmation-provider'
 export function usePosPayment() {
   const queryClient = useQueryClient();
   const store = usePosStore();
+  const setPromotionPreview = usePosStore((state) => state.setPromotionPreview);
   const activeTab = useActiveTab();
   const cartTotal = useCartTotal();
   const createOrder = useCreateOrder();
@@ -115,6 +116,12 @@ export function usePosPayment() {
   const allowMultiPayment = Boolean(paymentOptions?.allowMultiPayment);
   const loyaltyPointValue = Number(paymentOptions?.loyaltyPointValue ?? 1) || 1;
   const tabPayments = activeTab?.payments ?? [];
+  const activeTabId = activeTab?.id;
+  const activeTabBranchId = activeTab?.branchId;
+  const activeTabCart = useMemo(() => activeTab?.cart ?? [], [activeTab?.cart]);
+  const activeTabCustomerId = activeTab?.customerId;
+  const activeTabManualDiscountTotal = activeTab?.manualDiscountTotal;
+  const activeTabPromotionVoucherCode = activeTab?.promotionVoucherCode;
   const isMultiPaymentSummary = tabPayments.length > 1;
   const selectedSinglePayment = tabPayments.length === 1 ? tabPayments[0] : null;
   const currentSinglePaymentMethod =
@@ -136,7 +143,7 @@ export function usePosPayment() {
   const returnMoney = currentSinglePaymentType === 'CASH' && guestMoney > cartTotal ? guestMoney - cartTotal : 0;
   const multiPaymentTotal = tabPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   const hasServiceItems =
-    activeTab?.cart.some(
+    activeTabCart.some(
       (item) =>
         item.type === 'service' ||
         item.type === 'hotel' ||
@@ -146,13 +153,13 @@ export function usePosPayment() {
     ) || false;
   const quickCashSuggestions = useMemo(() => buildQuickCashSuggestions(cartTotal), [cartTotal]);
   const promotionPreviewPayload = useMemo(() => {
-    if (!activeTab || activeTab.cart.length === 0) return null;
+    if (activeTabCart.length === 0) return null;
     return {
-      branchId: activeTab.branchId,
-      customerId: activeTab.customerId === 'GUEST' ? undefined : activeTab.customerId,
-      voucherCode: activeTab.promotionVoucherCode || undefined,
-      manualDiscount: activeTab.manualDiscountTotal ?? 0,
-      items: activeTab.cart.map((item) => ({
+      branchId: activeTabBranchId,
+      customerId: activeTabCustomerId === 'GUEST' ? undefined : activeTabCustomerId,
+      voucherCode: activeTabPromotionVoucherCode || undefined,
+      manualDiscount: activeTabManualDiscountTotal ?? 0,
+      items: activeTabCart.map((item) => ({
         lineId: item.id,
         productId: item.productId,
         productVariantId: item.productVariantId,
@@ -166,11 +173,11 @@ export function usePosPayment() {
       })),
     };
   }, [
-    activeTab?.branchId,
-    activeTab?.cart,
-    activeTab?.customerId,
-    activeTab?.manualDiscountTotal,
-    activeTab?.promotionVoucherCode,
+    activeTabBranchId,
+    activeTabCart,
+    activeTabCustomerId,
+    activeTabManualDiscountTotal,
+    activeTabPromotionVoucherCode,
   ]);
   const { data: promotionPreview } = useQuery({
     queryKey: ['promotions', 'preview', promotionPreviewPayload],
@@ -180,23 +187,26 @@ export function usePosPayment() {
   });
 
   useEffect(() => {
-    if (!activeTab || isMultiPaymentSummary || currentSinglePaymentType !== 'CASH') return;
+    if (!activeTabId || isMultiPaymentSummary || currentSinglePaymentType !== 'CASH') return;
 
     const parsedCurrent = parseMoneyInputValue(customerMoneyInput);
     const previousSeed = autoCashSeedRef.current;
     const shouldSeed = !customerMoneyInput || (previousSeed !== null && parsedCurrent === previousSeed);
 
     if (shouldSeed) {
-      setCustomerMoneyInput(cartTotal > 0 ? money(cartTotal) : '');
+      const nextCustomerMoneyInput = cartTotal > 0 ? money(cartTotal) : '';
+      if (nextCustomerMoneyInput !== customerMoneyInput) {
+        setCustomerMoneyInput(nextCustomerMoneyInput);
+      }
     }
 
     autoCashSeedRef.current = cartTotal;
-  }, [activeTab, cartTotal, currentSinglePaymentType, customerMoneyInput, isMultiPaymentSummary]);
+  }, [activeTabId, cartTotal, currentSinglePaymentType, customerMoneyInput, isMultiPaymentSummary]);
 
   useEffect(() => {
-    if (!activeTab) return;
-    store.setPromotionPreview(promotionPreview ?? null);
-  }, [activeTab?.id, promotionPreview, store]);
+    if (!activeTabId) return;
+    setPromotionPreview(promotionPreview ?? null);
+  }, [activeTabId, promotionPreview, setPromotionPreview]);
 
   useEffect(() => {
     if (!isPaymentMenuOpen) return;

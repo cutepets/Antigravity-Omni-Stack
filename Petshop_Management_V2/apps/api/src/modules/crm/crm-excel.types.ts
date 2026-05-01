@@ -25,6 +25,7 @@ export type NormalizedCustomerImportRow = {
   existingId?: string
   customerCode?: string
   phone: string
+  previousPoints?: number
   data: Record<string, unknown>
 }
 

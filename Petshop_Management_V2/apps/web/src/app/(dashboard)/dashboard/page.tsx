@@ -245,9 +245,9 @@ export default function DashboardPage() {
   const kpis = buildKpis(overview, isStaffView)
 
   return (
-    <div className="flex w-full flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="sticky top-0 z-20 -mx-1 flex min-h-[55px] items-center justify-end bg-transparent py-1">
-          <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex w-full flex-col gap-3 px-[5px] animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="sticky top-0 z-20 -mx-1 flex min-h-[45px] items-center justify-end bg-transparent py-0">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             {(canUseAllBranches || allowedBranches.length > 1) ? (
               <select
                 value={canUseAllBranches ? branchId : selectedBranchId ?? ''}
@@ -315,7 +315,7 @@ export default function DashboardPage() {
       </div>
 
       {overviewQuery.isLoading ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
           {Array.from({ length: 5 }).map((_, index) => (
             <div key={index} className="glass-panel h-32 animate-pulse rounded-2xl" />
           ))}
@@ -326,13 +326,13 @@ export default function DashboardPage() {
         </SectionPanel>
       ) : overview ? (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             {kpis.map((kpi) => (
               <KpiCard key={kpi.label} {...kpi} />
             ))}
           </div>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <SectionPanel title="Doanh thu theo thời gian" icon={TrendingUp} className="xl:col-span-2">
               <div className="h-[340px]">
                 {chartData.length > 0 ? (
@@ -378,7 +378,7 @@ export default function DashboardPage() {
             </SectionPanel>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
             <SectionPanel title="Bán hàng / POS" icon={ReceiptText}>
               <div className="grid grid-cols-2 gap-3">
                 <MiniStat label="Đơn hàng" value={formatNumber(overview.kpis.orderCount)} />
@@ -424,7 +424,7 @@ export default function DashboardPage() {
             </SectionPanel>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <SectionPanel title="Top sản phẩm / dịch vụ" icon={Package}>
               <TopProductsList overview={overview} expanded />
             </SectionPanel>
@@ -512,10 +512,16 @@ function buildKpis(overview: ReportsOverview | undefined, isStaffView: boolean) 
 
 function TopProductsList({ overview, expanded = false }: { overview: ReportsOverview; expanded?: boolean }) {
   const products = overview.sales?.topProducts?.slice(0, expanded ? 5 : 3) ?? []
-  if (!products.length) return <EmptyState message="Chưa có dữ liệu sản phẩm" />
+  if (!products.length) {
+    return (
+      <div className="mt-2.5">
+        <EmptyState message="Chưa có dữ liệu sản phẩm" />
+      </div>
+    )
+  }
 
   return (
-    <div className="mt-4 space-y-3">
+    <div className="mt-2.5 space-y-3">
       {products.map((item, index) => (
         <div key={item.product?.id ?? index} className="flex items-center justify-between gap-3 rounded-xl bg-background-base/60 px-3 py-2">
           <div className="min-w-0">
@@ -533,10 +539,16 @@ function TopProductsList({ overview, expanded = false }: { overview: ReportsOver
 
 function TopCustomersList({ overview, expanded = false }: { overview: ReportsOverview; expanded?: boolean }) {
   const customers = overview.customers.topCustomers.slice(0, expanded ? 5 : 3)
-  if (!customers.length) return <EmptyState message="Chưa có dữ liệu khách hàng" />
+  if (!customers.length) {
+    return (
+      <div className="mt-2.5">
+        <EmptyState message="Chưa có dữ liệu khách hàng" />
+      </div>
+    )
+  }
 
   return (
-    <div className="mt-4 space-y-3">
+    <div className="mt-2.5 space-y-3">
       {customers.map((item, index) => (
         <div key={item.customer?.id ?? index} className="flex items-center justify-between gap-3 rounded-xl bg-background-base/60 px-3 py-2">
           <div className="min-w-0">

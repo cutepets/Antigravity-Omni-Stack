@@ -46,8 +46,8 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'contact', label: 'Liên hệ', minWidth: 'min-w-[140px]' },
   { id: 'group', label: 'Nhóm KH', minWidth: 'min-w-[120px]' },
   { id: 'address', label: 'Địa chỉ', minWidth: 'min-w-[160px]' },
-  { id: 'petCount', label: 'Số TC', sortable: false, width: 'w-20' },
-  { id: 'petNames', label: 'Tên TC', sortable: false, minWidth: 'min-w-[120px]' },
+  { id: 'petCount', label: 'Số thú cưng', sortable: false, width: 'w-24' },
+  { id: 'petNames', label: 'Tên thú cưng', sortable: false, minWidth: 'min-w-[140px]' },
   { id: 'debt', label: 'Công nợ', sortable: true, width: 'w-28' },
   { id: 'spaCount', label: 'Lượt Spa', sortable: false, width: 'w-24' },
   { id: 'hotelCount', label: 'Lượt Hotel', sortable: false, width: 'w-24' },
@@ -568,7 +568,7 @@ export function CustomerList() {
                   );
                   case 'points': return (
                     <td key={columnId} className="px-3 py-3 w-28">
-                      <div className="text-sm font-semibold">{(c.points ?? 0).toLocaleString()} pts</div>
+                      <div className="text-sm font-semibold">{(c.points ?? 0).toLocaleString()} điểm</div>
                     </td>
                   );
                   case 'spent': return (

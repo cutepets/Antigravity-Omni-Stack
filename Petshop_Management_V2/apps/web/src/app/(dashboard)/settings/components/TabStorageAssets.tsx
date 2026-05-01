@@ -508,7 +508,7 @@ export function TabStorageAssets() {
       </div>
 
       {restoreTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay px-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-xl">
             <h3 className="text-base font-bold text-foreground-base">Khôi phục / gắn lại file</h3>
             <p className="mt-1 truncate text-sm text-foreground-muted">{restoreTarget.originalName}</p>

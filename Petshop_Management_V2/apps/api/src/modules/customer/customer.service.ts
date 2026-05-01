@@ -84,6 +84,7 @@ export interface CreateCustomerDto {
   phone: string
   email?: string
   address?: string
+  dateOfBirth?: Date | string | null
   tier?: any
   points?: number
   debt?: number
@@ -106,6 +107,11 @@ export interface CreateCustomerDto {
 
 export interface UpdateCustomerDto extends Partial<CreateCustomerDto> { }
 export type BulkUpdateCustomerDto = Partial<Pick<UpdateCustomerDto, 'branchId' | 'groupId' | 'tier' | 'isActive'>>
+
+export interface AdjustCustomerPointsDto {
+  delta: number
+  reason?: string
+}
 
 type AccessUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>
 
@@ -168,7 +174,7 @@ export class CustomerService {
     if (restrictByPermission && normalizedRequestedBranchId) {
       const authorizedBranchIds = this.getAuthorizedBranchIds(user)
       if (!authorizedBranchIds.includes(normalizedRequestedBranchId)) {
-        throw new ForbiddenException('Ban chi duoc truy cap du lieu thuoc chi nhanh duoc phan quyen')
+        throw new ForbiddenException('Bạn chỉ được truy cập dữ liệu thuộc chi nhánh được phân quyền')
       }
     }
 
@@ -261,18 +267,18 @@ export class CustomerService {
 
       if (dateFrom) {
         const from = startOfDay(dateFrom)
-        if (Number.isNaN(from.getTime())) throw new BadRequestException('dateFrom khong hop le')
+      if (Number.isNaN(from.getTime())) throw new BadRequestException('dateFrom không hợp lệ')
         createdAt.gte = from
       }
 
       if (dateTo) {
         const to = endOfDay(dateTo)
-        if (Number.isNaN(to.getTime())) throw new BadRequestException('dateTo khong hop le')
+      if (Number.isNaN(to.getTime())) throw new BadRequestException('dateTo không hợp lệ')
         createdAt.lte = to
       }
 
       if (createdAt.gte && createdAt.lte && createdAt.gte.getTime() > createdAt.lte.getTime()) {
-        throw new BadRequestException('dateFrom khong duoc lon hon dateTo')
+      throw new BadRequestException('dateFrom không được lớn hơn dateTo')
       }
 
       baseWhere.orders = {
@@ -446,6 +452,7 @@ export class CustomerService {
         phone: dto.phone,
         email: dto.email || null,
         address: dto.address || null,
+        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
         tier: dto.tier ?? 'BRONZE',
         points: dto.points ?? 0,
         pointsUsed: 0,
@@ -480,12 +487,66 @@ export class CustomerService {
       if (exists) throw new ConflictException('Số điện thoại đã tồn tại trong hệ thống')
     }
 
+    const updateData: Record<string, any> = { ...(dto as any) }
+    if ('dateOfBirth' in updateData) {
+      updateData.dateOfBirth = updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : null
+    }
+
     const updated = await this.db.customer.update({
       where: { id },
-      data: dto as any,
+      data: updateData as any,
     })
 
     return { success: true, data: updated }
+  }
+
+  async getPointHistory(id: string, user?: AccessUser) {
+    await this.assertCustomerScope(id, user)
+    const history = await (this.db as any).customerPointHistory.findMany({
+      where: { customerId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { actor: { select: { id: true, fullName: true, staffCode: true } } },
+    })
+    return { success: true, data: history }
+  }
+
+  async adjustPoints(id: string, dto: AdjustCustomerPointsDto, user?: AccessUser) {
+    if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') {
+      throw new ForbiddenException('Chỉ Super Admin hoặc Admin mới được điều chỉnh điểm')
+    }
+    await this.assertCustomerScope(id, user)
+    const delta = Number(dto.delta)
+    if (!Number.isInteger(delta) || delta === 0) {
+      throw new BadRequestException('delta phai la so nguyen khac 0')
+    }
+
+    return (this.db as any).$transaction(async (tx: any) => {
+      const customer = await tx.customer.findUnique({ where: { id }, select: { id: true, points: true } })
+      if (!customer) throw new NotFoundException('Không tìm thấy khách hàng')
+      const balanceBefore = Number(customer.points ?? 0)
+      const balanceAfter = balanceBefore + delta
+      if (balanceAfter < 0) throw new BadRequestException('Số điểm không được âm')
+
+      const updated = await tx.customer.update({
+        where: { id },
+        data: { points: balanceAfter },
+      })
+      const history = await tx.customerPointHistory.create({
+        data: {
+          customerId: id,
+          actorId: user?.userId ?? null,
+          delta,
+          balanceBefore,
+          balanceAfter,
+          source: 'MANUAL_ADJUSTMENT',
+          reason: dto.reason?.trim() || null,
+        },
+        include: { actor: { select: { id: true, fullName: true, staffCode: true } } },
+      })
+
+      return { success: true, data: { customer: updated, history } }
+    })
   }
 
   // ── Delete (safe — check relations first) ──────────────────────────────────
@@ -558,7 +619,7 @@ export class CustomerService {
         await (tx as any).customer.delete({ where: { id } })
       })
 
-      return { success: true, message: `Da xoa vinh vien khach hang "${customer.fullName}"` }
+      return { success: true, message: `Đã xóa vĩnh viễn khách hàng "${customer.fullName}"` }
     }
 
     // GroomingSession & HotelStay gắn với Pet, không phải Customer trực tiếp

@@ -686,7 +686,7 @@ export function StaffList({
         })}
       </DataListTable>
       {bulkAction ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeBulkAction}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay p-4" onClick={closeBulkAction}>
           <div
             className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl"
             onClick={(event) => event.stopPropagation()}

@@ -11,6 +11,7 @@
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "ui:editor": "node scripts/react-rewrite-workspace.mjs 3000",
+    "audit:daily": "pnpm lint && pnpm type-check && pnpm utf8:check && pnpm audit:generated-artifacts && git diff --check",
     "audit:generated-artifacts": "node scripts/audit-generated-artifacts.mjs",
     "utf8:check": "node scripts/check-utf8.mjs",
     "utf8:check:staged": "node scripts/check-utf8.mjs --staged",
@@ -38,6 +39,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
+    "prettier-plugin-tailwindcss": "^0.6.14",
     "rimraf": "^6.0.1",
     "turbo": "^2.9.6",
     "typescript": "^5.7.3"

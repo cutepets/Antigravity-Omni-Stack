@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import {
   Plus, X, User, Phone, Mail, MapPin, AlignLeft,
-  Building2, Receipt, CreditCard, ToggleLeft, ToggleRight, FileText, Users
+  Building2, Receipt, CreditCard, ToggleLeft, ToggleRight, FileText, Users, Calendar
 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customerApi } from '@/lib/api/customer.api'
@@ -18,6 +18,7 @@ const customerSchema = z.object({
   fullName: z.string().min(1, 'Vui lòng nhập tên khách hàng'),
   phone: z.string().min(1, 'Vui lòng nhập số điện thoại'),
   email: z.string().email('Email không hợp lệ').optional().or(z.literal('')),
+  dateOfBirth: z.string().optional(),
   address: z.string().optional(),
   notes: z.string().optional(),
   tier: z.string().optional(),
@@ -59,6 +60,7 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
   const queryClient = useQueryClient()
   const isEditing = !!initialData
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [customerIsRepresentative, setCustomerIsRepresentative] = useState(true)
 
   const {
     register,
@@ -70,7 +72,7 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
   } = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
     defaultValues: {
-      fullName: '', phone: '', email: '', address: '', notes: '',
+      fullName: '', phone: '', email: '', dateOfBirth: '', address: '', notes: '',
       tier: 'BRONZE', taxCode: '', description: '', isActive: true,
       companyName: '', bankAccount: '', bankName: '', groupId: '',
       companyAddress: '', representativeName: '', representativePhone: '',
@@ -94,6 +96,7 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
         fullName: initialData?.fullName || '',
         phone: initialData?.phone || '',
         email: initialData?.email || '',
+        dateOfBirth: initialData?.dateOfBirth ? new Date(initialData.dateOfBirth as any).toISOString().slice(0, 10) : '',
         address: initialData?.address || '',
         notes: initialData?.notes || '',
         tier: initialData?.tier || 'BRONZE',
@@ -108,6 +111,12 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
         bankAccount: (initialData as any)?.bankAccount || '',
         bankName: (initialData as any)?.bankName || '',
       })
+      const representativeName = (initialData as any)?.representativeName || ''
+      const representativePhone = (initialData as any)?.representativePhone || ''
+      setCustomerIsRepresentative(
+        !representativeName ||
+        (representativeName === (initialData?.fullName || '') && representativePhone === (initialData?.phone || '')),
+      )
       setShowAdvanced(false)
     }
   }, [isOpen, initialData, reset])
@@ -149,10 +158,18 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
   })
 
   const onSubmit = (data: CustomerFormValues) => {
+    const payload = customerIsRepresentative
+      ? {
+        ...data,
+        representativeName: data.fullName,
+        representativePhone: data.phone,
+      }
+      : data
+
     if (isEditing) {
-      updateMutation.mutate(data)
+      updateMutation.mutate(payload)
     } else {
-      createMutation.mutate(data)
+      createMutation.mutate(payload)
     }
   }
 
@@ -160,7 +177,7 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <div className="fixed inset-0 app-modal-overlay" />
+      <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px]" />
 
       <div className="card p-0 relative w-full flex flex-col max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
 
@@ -170,9 +187,6 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
             <h2 className="text-xl font-bold text-foreground">
               {isEditing ? 'Cập nhật Khách hàng' : 'Thêm Khách hàng mới'}
             </h2>
-            <p className="text-sm text-foreground-muted mt-1">
-              {isEditing ? 'Cập nhật thông tin khách hàng' : 'Điền thông tin để thêm khách hàng vào hệ thống'}
-            </p>
           </div>
           <button
             onClick={onClose}
@@ -222,6 +236,19 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
                 <input
                   {...register('email')}
                   placeholder="example@mail.com"
+                  className="form-input pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Ngay sinh */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Ngay sinh</label>
+              <div className="relative">
+                <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><Calendar size={18} /></div>
+                <input
+                  type="date"
+                  {...register('dateOfBirth')}
                   className="form-input pl-10"
                 />
               </div>
@@ -324,23 +351,42 @@ export function CustomerFormModal({ isOpen, onClose, initialData }: Props) {
                 </div>
               </div>
 
-              {/* Người đại diện */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Người đại diện</label>
-                <div className="relative">
-                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><User size={18} /></div>
-                  <input {...register('representativeName')} placeholder="Họ và tên..." className="form-input pl-10" />
+              <div className="md:col-span-2 flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-3">
+                <div>
+                  <div className="text-sm font-medium text-foreground">Khách là người đại diện</div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setCustomerIsRepresentative((value) => !value)}
+                  className="inline-flex items-center text-primary-500 transition-colors hover:text-primary-600"
+                  aria-pressed={customerIsRepresentative}
+                  aria-label="Khách là người đại diện"
+                >
+                  {customerIsRepresentative ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                </button>
               </div>
 
-              {/* SĐT Người đại diện */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">SĐT người đại diện</label>
-                <div className="relative">
-                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><Phone size={18} /></div>
-                  <input {...register('representativePhone')} placeholder="Số điện thoại..." className="form-input pl-10" />
-                </div>
-              </div>
+              {!customerIsRepresentative && (
+                <>
+                  {/* Người đại diện */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Người đại diện</label>
+                    <div className="relative">
+                      <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><User size={18} /></div>
+                      <input {...register('representativeName')} placeholder="Họ và tên..." className="form-input pl-10" />
+                    </div>
+                  </div>
+
+                  {/* SĐT Người đại diện */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">SĐT người đại diện</label>
+                    <div className="relative">
+                      <div className="absolute top-1/2 left-3 -translate-y-1/2 text-foreground-muted"><Phone size={18} /></div>
+                      <input {...register('representativePhone')} placeholder="Số điện thoại..." className="form-input pl-10" />
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Số tài khoản */}
               <div>

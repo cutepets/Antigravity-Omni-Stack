@@ -11,6 +11,8 @@ import {
   MapPin,
   Phone,
   Receipt,
+  ToggleLeft,
+  ToggleRight,
   User,
   UserPlus,
   X,
@@ -29,6 +31,7 @@ export function AddCustomerModal({ isOpen, onClose, initialData, onSaved }: AddC
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [customerIsRepresentative, setCustomerIsRepresentative] = useState(true);
   const [form, setForm] = useState({
     fullName: '',
     phone: '',
@@ -56,6 +59,11 @@ export function AddCustomerModal({ isOpen, onClose, initialData, onSaved }: AddC
         representativeName: initialData.representativeName || '',
         representativePhone: initialData.representativePhone || '',
       });
+      setCustomerIsRepresentative(
+        !initialData.representativeName ||
+        (initialData.representativeName === (initialData.fullName || '') &&
+          (initialData.representativePhone || '') === (initialData.phone || '')),
+      );
     } else {
       setForm({
         fullName: '',
@@ -68,6 +76,7 @@ export function AddCustomerModal({ isOpen, onClose, initialData, onSaved }: AddC
         representativeName: '',
         representativePhone: '',
       });
+      setCustomerIsRepresentative(true);
     }
 
     setError('');
@@ -91,13 +100,20 @@ export function AddCustomerModal({ isOpen, onClose, initialData, onSaved }: AddC
     try {
       setLoading(true);
       setError('');
+      const payload = customerIsRepresentative
+        ? {
+          ...form,
+          representativeName: form.fullName,
+          representativePhone: form.phone,
+        }
+        : form;
 
       if (initialData?.id) {
-        const res = await api.put(`/customers/${initialData.id}`, { ...form });
+        const res = await api.put(`/customers/${initialData.id}`, payload);
         toast.success('Cập nhật khách hàng thành công');
         onSaved(res.data.data ?? res.data);
       } else {
-        const res = await api.post('/customers', { ...form, isActive: true });
+        const res = await api.post('/customers', { ...payload, isActive: true });
         toast.success('Thêm khách hàng thành công');
         onSaved(res.data.data ?? res.data);
       }
@@ -111,8 +127,8 @@ export function AddCustomerModal({ isOpen, onClose, initialData, onSaved }: AddC
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 sm:p-6">
-      <div className="absolute inset-0 app-modal-overlay" onClick={onClose} />
+    <div className="fixed inset-0 z-140 flex items-center justify-center p-4 sm:p-6">
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]" onClick={onClose} />
 
       <div className="card relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden p-0 shadow-2xl animate-in fade-in zoom-in duration-200">
         <div className="flex items-start justify-between gap-4 border-b border-border bg-background-tertiary px-6 py-5">
@@ -260,31 +276,51 @@ export function AddCustomerModal({ isOpen, onClose, initialData, onSaved }: AddC
                   </div>
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-foreground">Người đại diện</label>
-                  <div className="relative">
-                    <User className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
-                    <input
-                      className={iconInputClass}
-                      value={form.representativeName}
-                      onChange={e => setForm({ ...form, representativeName: e.target.value })}
-                      placeholder="Tên người đại diện"
-                    />
+                <div className="md:col-span-2 flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-4 py-3">
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Khách là người đại diện</div>
+                    <div className="text-xs text-foreground-muted">Dùng tên và SĐT khách hàng cho thông tin xuất hóa đơn.</div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerIsRepresentative((value) => !value)}
+                    className="inline-flex items-center text-primary-500 transition-colors hover:text-primary-600"
+                    aria-pressed={customerIsRepresentative}
+                    aria-label="Khách là người đại diện"
+                  >
+                    {customerIsRepresentative ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                  </button>
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-foreground">Số đại diện</label>
-                  <div className="relative">
-                    <Phone className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
-                    <input
-                      className={iconInputClass}
-                      value={form.representativePhone}
-                      onChange={e => setForm({ ...form, representativePhone: e.target.value })}
-                      placeholder="SĐT người đại diện"
-                    />
-                  </div>
-                </div>
+                {!customerIsRepresentative && (
+                  <>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">Người đại diện</label>
+                      <div className="relative">
+                        <User className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                        <input
+                          className={iconInputClass}
+                          value={form.representativeName}
+                          onChange={e => setForm({ ...form, representativeName: e.target.value })}
+                          placeholder="Tên người đại diện"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">Số đại diện</label>
+                      <div className="relative">
+                        <Phone className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
+                        <input
+                          className={iconInputClass}
+                          value={form.representativePhone}
+                          onChange={e => setForm({ ...form, representativePhone: e.target.value })}
+                          placeholder="SĐT người đại diện"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

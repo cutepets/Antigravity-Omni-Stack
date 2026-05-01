@@ -467,13 +467,6 @@ export default function PromotionsPage() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-4 p-4 text-foreground">
-      <div className="shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold tracking-normal">Khuyến mãi</h1>
-          <p className="text-sm text-foreground-muted">Quản lý chương trình, voucher, mua tặng.</p>
-        </div>
-      </div>
-
       <div className="grid shrink-0 gap-3 lg:grid-cols-4">
         <Metric icon={BadgePercent} label="Chương trình" value={promotions.length} />
         <Metric icon={Power} label="Đang chạy" value={activeCount} tone="text-emerald-500" />
