@@ -93,7 +93,7 @@ export class HotelService {
       select: {
         id: true,
         fullName: true,
-        staffCode: true,
+        username: true,
       },
     },
     cage: true,
@@ -135,7 +135,7 @@ export class HotelService {
       },
     },
     timeline: {
-      include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
+      include: { performedByUser: { select: { id: true, fullName: true, username: true } } },
       orderBy: [{ createdAt: 'desc' as const }],
     },
   } satisfies Prisma.HotelStayInclude;
@@ -1726,7 +1726,7 @@ export class HotelService {
         estimatedCheckOut: true,
         checkOutActual: true,
         cancelledAt: true,
-        createdBy: { select: { id: true, fullName: true, staffCode: true } },
+        createdBy: { select: { id: true, fullName: true, username: true } },
       },
     });
     if (!stay) throw new NotFoundException('Khong tim thay ky luu tru');
@@ -1743,7 +1743,7 @@ export class HotelService {
           select: {
             id: true,
             fullName: true,
-            staffCode: true,
+            username: true,
           },
         },
       },
@@ -1803,7 +1803,7 @@ export class HotelService {
           select: {
             id: true,
             fullName: true,
-            staffCode: true,
+            username: true,
           },
         },
       },
@@ -1863,7 +1863,7 @@ export class HotelService {
           select: {
             id: true,
             fullName: true,
-            staffCode: true,
+            username: true,
           },
         },
       },
@@ -1925,7 +1925,7 @@ export class HotelService {
             select: {
               id: true,
               fullName: true,
-              staffCode: true,
+              username: true,
             },
           },
         },

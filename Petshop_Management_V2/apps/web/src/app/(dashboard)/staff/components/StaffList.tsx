@@ -63,7 +63,7 @@ type BulkAction = 'branch' | 'shift' | 'salary' | 'employmentType'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string }> = [
   { id: 'avatar', label: 'Ảnh', width: 'w-14' },
-  { id: 'code', label: 'Mã NV', sortable: true, width: 'w-24' },
+  { id: 'code', label: 'Username', sortable: true, width: 'w-28' },
   { id: 'staff', label: 'Nhân viên', sortable: true, minWidth: 'min-w-[180px]' },
   { id: 'role', label: 'Vai trò', sortable: true, width: 'w-32' },
   { id: 'contact', label: 'Liên hệ', minWidth: 'min-w-[140px]' },
@@ -190,7 +190,6 @@ export function StaffList({
       const matchesSearch =
         !normalizedQuery ||
         member.fullName.toLowerCase().includes(normalizedQuery) ||
-        member.staffCode.toLowerCase().includes(normalizedQuery) ||
         member.phone?.includes(deferredSearch) ||
         member.email?.toLowerCase().includes(normalizedQuery) ||
         member.identityCode?.toLowerCase().includes(normalizedQuery) ||
@@ -209,7 +208,7 @@ export function StaffList({
         let cmp = 0
         switch (columnSort.columnId) {
           case 'code':
-            cmp = (a.staffCode || '').localeCompare(b.staffCode || '', 'vi')
+            cmp = (a.username || '').localeCompare(b.username || '', 'vi')
             break
           case 'staff':
             cmp = (a.fullName || '').localeCompare(b.fullName || '', 'vi')
@@ -584,7 +583,7 @@ export function StaffList({
                   case 'code': return (
                     <td key={colId} className="px-3 py-2.5 w-24">
                       <span className="font-mono text-xs font-semibold text-primary-500 bg-primary-500/10 px-2 py-0.5 rounded-md">
-                        {staff.staffCode || '--'}
+                        {staff.username || '--'}
                       </span>
                     </td>
                   )

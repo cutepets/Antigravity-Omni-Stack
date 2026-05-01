@@ -66,7 +66,6 @@ export class AuthService {
     id: string
     username: string
     fullName: string
-    staffCode: string
     branchId: string | null
     defaultBranchId?: string | null
     posPreferences?: unknown
@@ -124,7 +123,6 @@ export class AuthService {
       username: user.username,
       fullName: user.fullName,
       role: combinedRole as AuthUser['role'],
-      staffCode: user.staffCode,
       branchId: user.branchId ?? null,
       defaultBranchId: user.defaultBranchId ?? null,
       posPreferences: (user.posPreferences as any) ?? null,
@@ -145,7 +143,6 @@ export class AuthService {
         id: true,
         username: true,
         fullName: true,
-        staffCode: true,
         branchId: true,
         defaultBranchId: true,
         posPreferences: true,
@@ -181,7 +178,6 @@ export class AuthService {
         id: true,
         username: true,
         fullName: true,
-        staffCode: true,
         branchId: true,
         defaultBranchId: true,
         posPreferences: true,
@@ -245,7 +241,6 @@ export class AuthService {
       username: user.username,
       fullName: user.fullName,
       role: combinedRole as AuthUser['role'],
-      staffCode: user.staffCode,
       branchId: user.branchId ?? null,
       defaultBranchId: (user as any).defaultBranchId ?? null,
       posPreferences: (user as any).posPreferences ?? null,
@@ -333,7 +328,6 @@ export class AuthService {
       fullName: u.fullName,
       role: combinedRole,
       permissions: combinedPermissions,
-      staffCode: u.staffCode,
       branchId: u.branchId ?? null,
       defaultBranchId: (u as any).defaultBranchId ?? null,
       posPreferences: (u as any).posPreferences ?? null,
@@ -372,7 +366,6 @@ export class AuthService {
         username: true,
         fullName: true,
         role: true,
-        staffCode: true,
         branchId: true,
         defaultBranchId: true,
         posPreferences: true,
@@ -395,7 +388,6 @@ export class AuthService {
       fullName: user.fullName,
       role: combinedRole,
       permissions: combinedPermissions,
-      staffCode: user.staffCode,
       branchId: user.branchId ?? null,
       defaultBranchId: (user as any).defaultBranchId ?? null,
       posPreferences: (user as any).posPreferences ?? null,

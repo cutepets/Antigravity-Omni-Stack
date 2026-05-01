@@ -34,7 +34,7 @@ export function PayrollSlipDetail({ slipId, open, onOpenChange }: PayrollSlipDet
                         <h3 className="text-base font-bold">Chi tiết bảng lương</h3>
                         {slip && (
                             <p className="text-xs text-foreground-muted mt-0.5">
-                                {slip.staff?.staffCode || slip.staffId} — {slip.staff?.fullName || 'Không rõ'}
+                                {slip.staff?.username || slip.staffId} — {slip.staff?.fullName || 'Không rõ'}
                             </p>
                         )}
                     </div>

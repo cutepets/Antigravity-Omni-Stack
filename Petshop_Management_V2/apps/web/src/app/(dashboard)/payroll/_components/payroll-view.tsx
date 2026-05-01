@@ -175,7 +175,7 @@ export function PayrollView() {
                                             </div>
                                             <div className="flex flex-col gap-0.5">
                                                 <span className="text-sm font-semibold">{s.staff?.fullName || s.staffId}</span>
-                                                <span className="text-xs text-foreground-muted">{s.staff?.staffCode || s.staffId}</span>
+                                                <span className="text-xs text-foreground-muted">{s.staff?.username || s.staffId}</span>
                                             </div>
                                         </div>
                                     </td>

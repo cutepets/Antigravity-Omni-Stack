@@ -126,7 +126,7 @@ export interface OrderTimelineEntry {
   performedByUser: {
     id: string;
     fullName: string;
-    staffCode: string;
+    username: string;
   };
   metadata?: Record<string, any> | null;
   createdAt: string;

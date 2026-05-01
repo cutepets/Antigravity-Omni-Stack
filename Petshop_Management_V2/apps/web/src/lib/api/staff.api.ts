@@ -2,7 +2,6 @@ import { API_URL, api } from '../api'
 
 export interface Staff {
   id: string
-  staffCode: string
   username: string
   fullName: string
   role: { id: string; code: string; name: string; permissions: string[] } | null
@@ -77,7 +76,7 @@ export interface StaffActivityLog {
   details: Record<string, unknown> | null
   ipAddress: string | null
   createdAt: string
-  user: { id: string; fullName: string; staffCode: string } | null
+  user: { id: string; fullName: string; username: string } | null
 }
 
 export interface BulkDeleteResult {
@@ -329,7 +328,7 @@ export const staffApi = {
     api.patch<Staff>('/staff/me', data).then((r) => r.data),
 
   deactivate: (id: string) =>
-    api.delete<{ id: string; staffCode: string; status: string }>(`/staff/${id}`).then((r) => r.data),
+    api.delete<{ id: string; username: string; status: string }>(`/staff/${id}`).then((r) => r.data),
 
   bulkDeactivate: (ids: string[]) =>
     api.post<BulkDeleteResult>('/staff/bulk-delete', { ids }).then((r) => r.data),

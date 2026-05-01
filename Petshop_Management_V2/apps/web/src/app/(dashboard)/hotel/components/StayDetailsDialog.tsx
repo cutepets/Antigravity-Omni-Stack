@@ -64,8 +64,8 @@ type ActivityEntry = {
   fromStatus?: string | null
   toStatus?: string | null
   details?: Record<string, unknown> | null
-  user?: { fullName?: string | null; staffCode?: string | null } | null
-  performedByUser?: { fullName?: string | null; staffCode?: string | null } | null
+  user?: { fullName?: string | null; username?: string | null } | null
+  performedByUser?: { fullName?: string | null; username?: string | null } | null
 }
 
 type NoteDraft = {
@@ -263,9 +263,9 @@ function getActionLabel(action?: string | null) {
 function buildHistorySummary(entry: ActivityEntry) {
   const actorName =
     entry.user?.fullName ??
-    entry.user?.staffCode ??
+    entry.user?.username ??
     entry.performedByUser?.fullName ??
-    entry.performedByUser?.staffCode ??
+    entry.performedByUser?.username ??
     'Chưa xác định'
   const statusLabel =
     entry.fromStatus || entry.toStatus
@@ -304,9 +304,9 @@ function autoResizeTextArea(element: HTMLTextAreaElement) {
 function getActivityActor(entry: ActivityEntry) {
   return (
     entry.user?.fullName ??
-    entry.user?.staffCode ??
+    entry.user?.username ??
     entry.performedByUser?.fullName ??
-    entry.performedByUser?.staffCode ??
+    entry.performedByUser?.username ??
     'Nhân viên'
   )
 }
@@ -331,7 +331,7 @@ function getStayCareEntries(stay: HotelStay | null, healthLogs: HotelStayHealthL
     id: log.id,
     content: log.content,
     createdAt: log.createdAt,
-    actor: log.performedByUser?.fullName ?? log.performedByUser?.staffCode ?? 'Nhân viên',
+    actor: log.performedByUser?.fullName ?? log.performedByUser?.username ?? 'Nhân viên',
   }))
 
   const entries = [...noteEntries, ...healthEntries].sort((a, b) => {
@@ -347,7 +347,7 @@ function getStayCareEntries(stay: HotelStay | null, healthLogs: HotelStayHealthL
     id: `${stay.id}-current-note`,
     content: fallbackNote,
     createdAt: stay.updatedAt ?? stay.createdAt,
-    actor: stay.createdBy?.fullName ?? stay.createdBy?.staffCode ?? 'Nhân viên',
+    actor: stay.createdBy?.fullName ?? stay.createdBy?.username ?? 'Nhân viên',
   }]
 }
 

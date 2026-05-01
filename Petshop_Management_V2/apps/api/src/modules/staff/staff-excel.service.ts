@@ -24,11 +24,10 @@ const STAFF_SHEET = 'NhanVien'
 const GUIDE_SHEET = 'HuongDan'
 const DEFAULT_STAFF_PASSWORD = 'Abcd@123'
 const ROOT_SYSTEM_USERNAME = 'superadmin'
-const STAFF_IMPORT_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 }
+const STAFF_IMPORT_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 120_000 }
 
 const STAFF_COLUMNS: ColumnDef[] = [
   { key: 'id', header: 'id', width: 28, readonly: true },
-  { key: 'staffCode', header: 'staffCode', width: 14, readonly: true },
   { key: 'username', header: 'username', width: 18, required: true },
   { key: 'fullName', header: 'fullName', width: 28, required: true },
   { key: 'phone', header: 'phone', width: 18 },
@@ -202,7 +201,6 @@ export class StaffExcelService {
     })))
 
     await (this.db as any).$transaction(async (tx: any) => {
-      let nextStaffNumber = (await tx.user.count()) + 1
       for (const { row, passwordHash } of rows) {
         if (row.action === 'update' && row.existingId) {
           await tx.user.update({
@@ -212,7 +210,6 @@ export class StaffExcelService {
         } else {
           await tx.user.create({
             data: {
-              staffCode: `NV${String(nextStaffNumber).padStart(5, '0')}`,
               username: row.username,
               passwordHash: passwordHash!,
               status: StaffStatus.WORKING,
@@ -220,7 +217,6 @@ export class StaffExcelService {
               ...this.toPrismaData(row.data, 'create'),
             },
           })
-          nextStaffNumber += 1
         }
       }
     }, STAFF_IMPORT_TRANSACTION_OPTIONS)
@@ -326,7 +322,7 @@ export class StaffExcelService {
           ...(phones.size ? [{ phone: { in: [...phones] } }] : []),
         ],
       },
-      select: { id: true, username: true, staffCode: true, fullName: true, phone: true },
+      select: { id: true, username: true, fullName: true, phone: true },
     })
     return {
       byId: new Map<string, any>(users.map((staff: any) => [staff.id, staff])),

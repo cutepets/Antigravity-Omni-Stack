@@ -413,7 +413,7 @@ export class GroomingService {
           },
         },
         timeline: {
-          include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
+          include: { performedByUser: { select: { id: true, fullName: true, username: true } } },
           orderBy: { createdAt: 'desc' as const }
         },
       },
@@ -463,7 +463,7 @@ export class GroomingService {
         },
       },
       timeline: {
-        include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
+        include: { performedByUser: { select: { id: true, fullName: true, username: true } } },
         orderBy: { createdAt: 'desc' as const }
       },
     }

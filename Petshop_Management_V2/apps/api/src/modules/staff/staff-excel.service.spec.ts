@@ -55,7 +55,7 @@ describe('StaffExcelService', () => {
 
     expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['NhanVien', 'HuongDan'])
     expect(workbook.getWorksheet('NhanVien')!.getRow(1).values).toEqual(expect.arrayContaining(['username*', 'fullName*']))
-    expect(workbook.getWorksheet('NhanVien')!.getRow(1).values).toEqual(expect.arrayContaining(['id', 'staffCode']))
+    expect(workbook.getWorksheet('NhanVien')!.getRow(1).values).toEqual(expect.arrayContaining(['id']))
     expect(workbook.getWorksheet('NhanVien')!.getRow(1).values).toEqual(expect.arrayContaining(['salaryBankName', 'salaryBankAccount']))
     expect(workbook.getWorksheet('NhanVien')!.getRow(1).values).not.toEqual(expect.arrayContaining(['password']))
   })
@@ -66,7 +66,6 @@ describe('StaffExcelService', () => {
     db.user.findMany.mockResolvedValue([
       {
         id: 'staff-1',
-        staffCode: 'NV00001',
         username: 'nguyenvana',
         fullName: 'Nguyen Van A',
         phone: '0901000001',
@@ -111,7 +110,6 @@ describe('StaffExcelService', () => {
       {
         id: 'staff-1',
         username: 'olduser',
-        staffCode: 'NV00001',
         fullName: 'Old Name',
         phone: '0901000001',
       },
@@ -165,7 +163,6 @@ describe('StaffExcelService', () => {
       {
         id: 'staff-existing',
         username: 'existing',
-        staffCode: 'NV00001',
         fullName: 'Existing Staff',
         phone: '0901234567',
       },
@@ -218,7 +215,6 @@ describe('StaffExcelService', () => {
       {
         id: 'staff-1',
         username: 'olduser',
-        staffCode: 'NV00001',
         fullName: 'Old Name',
         phone: '0901000001',
       },
@@ -235,7 +231,7 @@ describe('StaffExcelService', () => {
 
     expect(result.summary.updateCount).toBe(1)
     expect(result.summary.createCount).toBe(1)
-    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { maxWait: 10000, timeout: 30000 })
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { maxWait: 10000, timeout: 120000 })
     expect(db.user.update).toHaveBeenCalledWith({
       where: { id: 'staff-1' },
       data: { fullName: 'Nguyen Van A' },
@@ -245,7 +241,6 @@ describe('StaffExcelService', () => {
         username: 'tranthib',
         fullName: 'Tran Thi B',
         phone: '0902000002',
-        staffCode: 'NV00008',
         status: 'WORKING',
         employmentType: 'FULL_TIME',
         passwordHash: expect.any(String),

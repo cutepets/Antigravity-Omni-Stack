@@ -921,7 +921,7 @@ export function TabPayments() {
 
                         <div className="min-w-0 flex-1 flex items-center gap-3 lg:border-l lg:border-border/50 lg:pl-4">
                           <div className="min-w-0 flex-1">
-                            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-foreground-muted">Secret preview</div>
+                            <div className="text-[10px] font-semibold uppercase tracking-widest text-foreground-muted">Secret preview</div>
                             <div className="mt-0.5 font-mono text-sm text-foreground-base truncate">{secret.secretPreview}</div>
                           </div>
                           <div className="flex shrink-0 items-center gap-1">

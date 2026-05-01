@@ -184,7 +184,7 @@ export function useOrderWorkspace({ mode, orderId, copyFromOrderId }: { mode: Or
   }, [mode, order?.branchId, order?.items, draft.items])
 
   const operatorName = user?.fullName || user?.username || 'NHÂN VIÊN'
-  const operatorCode = user?.staffCode || ''
+  const operatorCode = user?.username || ''
 
   const visibleProgressSteps = useMemo(
     () => buildVisibleProgressSteps(mode, order, displayTimeline),

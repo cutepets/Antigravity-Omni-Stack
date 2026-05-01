@@ -1,6 +1,10 @@
 import { BadRequestException } from '@nestjs/common'
 import { decryptSecret, encryptSecret } from '../../../common/utils/secret-box.util.js'
-import type { BackupCatalogEntry, BackupModuleId } from './backup.types.js'
+import type {
+  BackupCatalogEntry,
+  BackupDataBlockCatalogEntry,
+  BackupModuleId,
+} from './backup.types.js'
 
 type BackupDbClient = Record<string, any>
 
@@ -357,6 +361,37 @@ const registry = [
   }),
 ] satisfies BackupModuleDefinition[]
 
+const dataBlocks = [
+  {
+    blockId: 'configuration',
+    label: 'Cấu hình hệ thống và cấu hình ở các mục',
+    description:
+      'Cấu hình hệ thống, mẫu in, cấu hình module, thanh toán, thu chi, danh mục, dịch vụ, bảng giá, lồng/phòng và quy tắc giá.',
+    moduleIds: ['core.settings', 'finance.configuration', 'catalog.items'],
+  },
+  {
+    blockId: 'staff_equipment',
+    label: 'Nhân viên, chấm công, bảng lương, thưởng phạt, trang thiết bị',
+    description:
+      'Chi nhánh, vai trò, tài khoản, lịch làm, nghỉ phép, chấm công, bảng lương, dòng thưởng phạt và trang thiết bị.',
+    moduleIds: ['core.organization', 'hr.workforce', 'assets.equipment'],
+  },
+  {
+    blockId: 'customers_pets',
+    label: 'Khách hàng, thú cưng, điểm',
+    description:
+      'Nhóm khách hàng, hồ sơ khách hàng, thú cưng, lịch sử cân nặng, tiêm phòng, ghi chú sức khỏe, timeline và điểm theo ranh giới dữ liệu hiện có.',
+    moduleIds: ['crm.contacts'],
+  },
+  {
+    blockId: 'operations',
+    label: 'Đơn hàng, thu chi, grooming, hotel',
+    description:
+      'Đơn hàng, thanh toán, thu chi, giao dịch ngân hàng, grooming, hotel, trả hàng, timeline và két tiền.',
+    moduleIds: ['operations.commerce'],
+  },
+] satisfies BackupDataBlockCatalogEntry[]
+
 const registryMap = new Map(registry.map((entry) => [entry.moduleId, entry]))
 
 const reverseDependencyMap = registry.reduce<Record<string, BackupModuleId[]>>((acc, entry) => {
@@ -390,6 +425,15 @@ export function getBackupCatalogEntries(): BackupCatalogEntry[] {
     requiredBy: [...(reverseDependencyMap[entry.moduleId] ?? [])],
     keepsFileRefs: entry.keepsFileRefs,
     supportedImportVersions: [...entry.supportedImportVersions],
+  }))
+}
+
+export function getBackupDataBlockCatalogEntries(): BackupDataBlockCatalogEntry[] {
+  return dataBlocks.map((entry) => ({
+    blockId: entry.blockId,
+    label: entry.label,
+    description: entry.description,
+    moduleIds: [...entry.moduleIds],
   }))
 }
 

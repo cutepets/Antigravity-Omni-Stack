@@ -77,7 +77,7 @@ export interface CustomerPointHistoryEntry {
   source: string
   reason?: string | null
   createdAt: string
-  actor?: { id: string; fullName: string; staffCode: string } | null
+  actor?: { id: string; fullName: string; username: string } | null
 }
 
 export interface AdjustCustomerPointsDto {

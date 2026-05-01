@@ -13,8 +13,6 @@ import {
 } from 'lucide-react'
 import { settingsApi } from '@/lib/api/settings.api'
 
-const DISPLAY_VERSION = '2.5.1'
-
 const TECH_STACK = [
   'Next.js 15 (App Router)',
   'NestJS (API)',
@@ -45,7 +43,7 @@ type ChangeLogEntry = {
 
 const CHANGELOG: ChangeLogEntry[] = [
   {
-    version: DISPLAY_VERSION,
+    version: 'current',
     date: '2026-05-01',
     changes: [
       'Map lại kiến trúc hệ thống, tài liệu vận hành và luồng deploy Docker production',
@@ -81,34 +79,7 @@ const CHANGELOG: ChangeLogEntry[] = [
       'Hệ thống Backup/Restore theo module',
       'Nhập xuất kho đa chi nhánh',
     ],
-  },
-  {
-    version: '0.96',
-    date: '2026-04-20',
-    changes: [
-      'POS responsive trên mobile',
-      'Thanh toán QR VietQR tự động',
-      'Webhook ngân hàng real-time',
-    ],
-  },
-  {
-    version: '0.95',
-    date: '2026-04-15',
-    changes: [
-      'Hệ thống phân quyền RBAC chi tiết',
-      'Lịch sử thao tác (Audit Log)',
-      'Quản lý mẫu in A4/K80 tùy chỉnh',
-    ],
-  },
-  {
-    version: '0.90',
-    date: '2026-04-01',
-    changes: [
-      'Khởi tạo dự án Petshop Management V2',
-      'Kiến trúc monorepo Turborepo',
-      'Cơ sở dữ liệu Prisma + PostgreSQL',
-    ],
-  },
+  }
 ]
 
 export function TabAbout() {
@@ -118,8 +89,10 @@ export function TabAbout() {
     staleTime: Infinity,
   })
 
-  const displayVersion = aboutData?.version ?? DISPLAY_VERSION
+  const displayVersion = aboutData?.version ?? 'runtime'
   const buildDate = aboutData?.buildDate ?? CHANGELOG[0]?.date ?? '—'
+  const buildLabel = aboutData?.buildNumber ? `Build #${aboutData.buildNumber}` : null
+  const gitLabel = aboutData?.gitSha ? `Git ${aboutData.gitSha}` : null
   const recentChangelog = CHANGELOG.slice(0, 3).map((entry, index) =>
     index === 0 ? { ...entry, version: displayVersion } : entry,
   )
@@ -136,9 +109,6 @@ export function TabAbout() {
               <h2 className="text-lg font-bold text-foreground-base">
                 Giới thiệu hệ thống
               </h2>
-              <p className="mt-1 text-sm text-foreground-muted">
-                Phiên bản, module, công nghệ và lịch sử cập nhật
-              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 rounded-xl bg-primary-500/10 px-3 py-1.5 text-xs font-bold text-primary-500">
@@ -148,20 +118,15 @@ export function TabAbout() {
         </div>
 
         <div className="space-y-8 px-2">
-          <div className="rounded-2xl border border-border/40 bg-black/5 p-5">
-            <h3 className="mb-2 text-sm font-bold text-foreground-base">
-              Petshop Management V2
-            </h3>
-            <p className="text-sm leading-6 text-foreground-secondary">
-              Hệ thống quản lý vận hành cho cửa hàng thú cưng, gom các nghiệp vụ
-              khách hàng, thú cưng, POS, grooming, hotel, kho, nhân sự, tài chính
-              và cấu hình tích hợp trong một nền tảng web dùng chung dữ liệu.
-            </p>
-          </div>
-
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <InfoCard icon={<Package size={18} />} label="Phiên bản" value={`V${displayVersion}`} />
             <InfoCard icon={<Calendar size={18} />} label="Cập nhật" value={buildDate} />
+            {buildLabel ? (
+              <InfoCard icon={<Code2 size={18} />} label="Mã build" value={buildLabel} />
+            ) : null}
+            {gitLabel ? (
+              <InfoCard icon={<Code2 size={18} />} label="Commit" value={gitLabel} />
+            ) : null}
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -216,11 +181,10 @@ export function TabAbout() {
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`rounded-lg px-2.5 py-1 text-xs font-bold ${
-                          idx === 0
-                            ? 'bg-primary-500/15 text-primary-500'
-                            : 'bg-foreground-muted/10 text-foreground-muted'
-                        }`}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-bold ${idx === 0
+                          ? 'bg-primary-500/15 text-primary-500'
+                          : 'bg-foreground-muted/10 text-foreground-muted'
+                          }`}
                       >
                         V{entry.version}
                       </span>

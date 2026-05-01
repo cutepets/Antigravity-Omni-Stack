@@ -13,7 +13,6 @@ const mockAuthUser = {
   username: 'admin',
   fullName: 'Mock Super Admin',
   role: 'SUPER_ADMIN',
-  staffCode: 'NV0001',
   branchId: mockBranches[0].id,
   authorizedBranches: mockBranches,
   permissions: getRolePermissions('SUPER_ADMIN'),
@@ -1192,8 +1191,8 @@ export const settingsHandlers = [
     const page = Number(url.searchParams.get('page') ?? 1)
     const limit = Number(url.searchParams.get('limit') ?? 20)
     const logs = [
-      { id: 'log-1', action: 'ORDER_COMPLETE', target: 'Order', description: 'Hoàn thành đơn DH001', createdAt: new Date().toISOString(), user: { id: 'u1', fullName: 'Admin', staffCode: 'NV00001' } },
-      { id: 'log-2', action: 'CUSTOMER_CREATE', target: 'Customer', description: 'Tạo khách hàng KH000123', createdAt: new Date().toISOString(), user: { id: 'u1', fullName: 'Admin', staffCode: 'NV00001' } },
+      { id: 'log-1', action: 'ORDER_COMPLETE', target: 'Order', description: 'Hoàn thành đơn DH001', createdAt: new Date().toISOString(), user: { id: 'u1', fullName: 'Admin', username: 'NV00001' } },
+      { id: 'log-2', action: 'CUSTOMER_CREATE', target: 'Customer', description: 'Tạo khách hàng KH000123', createdAt: new Date().toISOString(), user: { id: 'u1', fullName: 'Admin', username: 'NV00001' } },
     ]
     return HttpResponse.json(paginate(logs, page, limit))
   }),

@@ -65,7 +65,7 @@ export class PayrollService {
             include: {
                 slips: {
                     include: {
-                        user: { select: { id: true, fullName: true, staffCode: true, avatar: true, employmentType: true } },
+                        user: { select: { id: true, fullName: true, username: true, avatar: true, employmentType: true } },
                         lineItems: true,
                     },
                     orderBy: { user: { fullName: 'asc' } },
@@ -84,7 +84,7 @@ export class PayrollService {
         return this.prisma.payrollSlip.findMany({
             where,
             include: {
-                user: { select: { id: true, fullName: true, staffCode: true, avatar: true } },
+                user: { select: { id: true, fullName: true, username: true, avatar: true } },
             },
             orderBy: { user: { fullName: 'asc' } },
         });
@@ -94,7 +94,7 @@ export class PayrollService {
         return this.prisma.payrollSlip.findUniqueOrThrow({
             where: { id: slipId },
             include: {
-                user: { select: { id: true, fullName: true, staffCode: true, avatar: true, phone: true, branchId: true } },
+                user: { select: { id: true, fullName: true, username: true, avatar: true, phone: true, branchId: true } },
                 period: { include: { branch: { select: { name: true } } } },
                 lineItems: true,
             },

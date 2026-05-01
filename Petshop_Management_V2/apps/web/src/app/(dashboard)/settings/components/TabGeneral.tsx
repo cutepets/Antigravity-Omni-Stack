@@ -385,9 +385,6 @@ export function TabGeneral() {
               <Store className="text-primary-500" size={24} />
               Cấu hình cửa hàng và Google integrations
             </h2>
-            <p className="mt-1 text-sm text-foreground-muted">
-              Cửa hàng, Google Login, Google Drive shared storage.
-            </p>
           </div>
 
           {!canUpdateSettings ? (

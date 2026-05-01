@@ -68,7 +68,6 @@ model Branch {
 
 model User {
   id                    String                 @id @default(cuid())
-  staffCode             String                 @unique
   username              String                 @unique
   passwordHash          String
   googleId              String?                @unique

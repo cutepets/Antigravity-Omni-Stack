@@ -226,7 +226,7 @@ describe('StaffService activity logs', () => {
             details: { fields: ['phone'] },
             ipAddress: '127.0.0.1',
             createdAt: new Date('2026-04-30T10:00:00.000Z'),
-            user: { id: 'admin-1', fullName: 'Admin', staffCode: 'NV00001' },
+            user: { id: 'admin-1', fullName: 'Admin', username: 'admin' },
           },
         ]),
       },
@@ -248,7 +248,7 @@ describe('StaffService activity logs', () => {
         details: true,
         ipAddress: true,
         createdAt: true,
-        user: { select: { id: true, fullName: true, staffCode: true } },
+        user: { select: { id: true, fullName: true, username: true } },
       },
     })
     expect(result).toHaveLength(1)
@@ -315,7 +315,7 @@ describe('StaffService bulk operations', () => {
       user: {
         findFirst: jest.fn().mockResolvedValue({ id: 'user-1', username: 'oldstaff' }),
         update: jest.fn().mockResolvedValue({}),
-        delete: jest.fn().mockResolvedValue({ id: 'user-1', staffCode: 'NV00001' }),
+        delete: jest.fn().mockResolvedValue({ id: 'user-1', username: 'oldstaff' }),
       },
       order: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       groomingSession: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -358,7 +358,7 @@ describe('StaffService bulk operations', () => {
     })
     expect(tx.user.delete).toHaveBeenCalledWith({
       where: { id: 'user-1' },
-      select: { id: true, staffCode: true },
+      select: { id: true, username: true },
     })
   })
 

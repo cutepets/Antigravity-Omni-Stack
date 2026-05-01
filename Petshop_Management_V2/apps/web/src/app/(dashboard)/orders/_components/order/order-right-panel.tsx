@@ -231,7 +231,7 @@ function HistorySection({ timeline, orderStatus }: { timeline: any[]; orderStatu
             <div className="absolute bottom-2 left-[7px] top-2 w-px bg-border/60" />
             <div className="space-y-0">
               {timeline.map((entry: any) => {
-                const actorName = entry.performedByUser?.fullName ?? entry.performedByUser?.staffCode ?? null
+                const actorName = entry.performedByUser?.fullName ?? entry.performedByUser?.username ?? null
                 const cleanNote = splitHistoryNote(String(entry.note ?? ''))
                   .filter((part) => !shouldHideHistoryPart(part))
                   .join(' • ')

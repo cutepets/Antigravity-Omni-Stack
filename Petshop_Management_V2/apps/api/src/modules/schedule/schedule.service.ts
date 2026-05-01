@@ -31,7 +31,7 @@ export class ScheduleService {
                 endTime: dto.endTime,
                 note: dto.note,
             },
-            include: { user: { select: { fullName: true, staffCode: true } } },
+            include: { user: { select: { fullName: true, username: true } } },
         });
     }
 
@@ -66,7 +66,7 @@ export class ScheduleService {
                 isActive: true,
             },
             include: {
-                user: { select: { id: true, fullName: true, staffCode: true, avatar: true } },
+                user: { select: { id: true, fullName: true, username: true, avatar: true } },
             },
             orderBy: [{ date: 'asc' }, { shiftType: 'asc' }],
         });
@@ -93,7 +93,7 @@ export class ScheduleService {
         return this.prisma.staffSchedule.findMany({
             where,
             include: {
-                user: { select: { id: true, fullName: true, staffCode: true, avatar: true } },
+                user: { select: { id: true, fullName: true, username: true, avatar: true } },
             },
             orderBy: [{ date: 'asc' }, { shiftType: 'asc' }],
         });
@@ -109,7 +109,7 @@ export class ScheduleService {
                 ...(dto.note !== undefined ? { note: dto.note } : {}),
                 ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
             },
-            include: { user: { select: { fullName: true, staffCode: true } } },
+            include: { user: { select: { fullName: true, username: true } } },
         });
     }
 
@@ -123,7 +123,7 @@ export class ScheduleService {
     async findById(id: string) {
         return this.prisma.staffSchedule.findUnique({
             where: { id },
-            include: { user: { select: { fullName: true, staffCode: true } } },
+            include: { user: { select: { fullName: true, username: true } } },
         });
     }
 

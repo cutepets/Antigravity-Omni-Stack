@@ -1947,7 +1947,7 @@ export class SettingsService {
         skip,
         take: Number(limit),
         orderBy: { createdAt: 'desc' },
-        include: { user: { select: { id: true, fullName: true, staffCode: true } } },
+        include: { user: { select: { id: true, fullName: true, username: true } } },
       }),
       this.db.activityLog.count({ where }),
     ])

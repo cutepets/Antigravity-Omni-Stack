@@ -88,7 +88,7 @@ export function buildDisplayTimeline(
             performedByUser: {
                 id: order.staffId ?? '',
                 fullName: '',
-                staffCode: '',
+                username: '',
             },
             metadata: null,
             ...entry,
@@ -105,7 +105,7 @@ export function buildDisplayTimeline(
             performedByUser: {
                 id: order.staff?.id ?? order.staffId ?? '',
                 fullName: order.staff?.fullName ?? '',
-                staffCode: '',
+                username: '',
             },
         })
     }

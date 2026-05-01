@@ -194,8 +194,8 @@ export class EquipmentService {
       branch: { select: { id: true, code: true, name: true } },
       category: { select: { id: true, name: true, description: true } },
       locationPreset: { select: { id: true, name: true, branchId: true } },
-      createdBy: { select: { id: true, fullName: true, staffCode: true } },
-      updatedBy: { select: { id: true, fullName: true, staffCode: true } },
+      createdBy: { select: { id: true, fullName: true, username: true } },
+      updatedBy: { select: { id: true, fullName: true, username: true } },
     }
   }
 
@@ -286,7 +286,7 @@ export class EquipmentService {
               select: {
                 id: true,
                 fullName: true,
-                staffCode: true,
+                username: true,
               },
             },
           },
@@ -323,7 +323,7 @@ export class EquipmentService {
           select: {
             id: true,
             fullName: true,
-            staffCode: true,
+            username: true,
           },
         },
       },

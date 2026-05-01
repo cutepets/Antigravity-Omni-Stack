@@ -78,7 +78,6 @@ export function TabHistory() {
                         <History className="text-primary-500" size={24} /> 
                         Lịch sử thao tác
                     </h2>
-                    <p className="text-sm text-foreground-muted mt-1">Giám sát và kiểm tra lại lịch sử người dùng trên hệ thống.</p>
                 </div>
 
                 {/* Dashboard Stats */}
@@ -147,7 +146,7 @@ export function TabHistory() {
                         <select 
                             value={timeRange}
                             onChange={(e) => setTimeRange(e.target.value)}
-                            className="bg-background-secondary border border-border/50 rounded-xl px-4 py-2 text-sm outline-none text-foreground-base appearance-none cursor-pointer font-medium text-primary-500"
+                            className="bg-background-secondary border border-border/50 rounded-xl px-4 py-2 text-sm outline-none text-foreground-base appearance-none cursor-pointer font-medium"
                         >
                             <option value="today" className="bg-background text-foreground-base">Hôm nay</option>
                             <option value="yesterday" className="bg-background text-foreground-base">Hôm qua</option>

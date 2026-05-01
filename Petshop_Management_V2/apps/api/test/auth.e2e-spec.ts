@@ -14,7 +14,6 @@ const authUser = {
   fullName: 'Admin',
   role: 'ADMIN' as const,
   permissions: ['orders.read'],
-  staffCode: 'NV001',
   branchId: 'branch-1',
   avatar: null,
   authorizedBranches: [{ id: 'branch-1', name: 'Main', address: null, isActive: true }],

@@ -35,7 +35,7 @@ export type EquipmentHistoryEntry = {
   actor?: {
     id: string
     fullName: string
-    staffCode: string
+    username: string
   } | null
 }
 
@@ -60,8 +60,8 @@ export type EquipmentItem = {
   branch?: EquipmentBranch | null
   category?: EquipmentCategory | null
   locationPreset?: EquipmentLocationPreset | null
-  createdBy?: { id: string; fullName: string; staffCode: string } | null
-  updatedBy?: { id: string; fullName: string; staffCode: string } | null
+  createdBy?: { id: string; fullName: string; username: string } | null
+  updatedBy?: { id: string; fullName: string; username: string } | null
   history?: EquipmentHistoryEntry[]
   createdAt?: string
   updatedAt?: string

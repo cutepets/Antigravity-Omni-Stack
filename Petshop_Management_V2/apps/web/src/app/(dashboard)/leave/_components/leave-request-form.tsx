@@ -96,7 +96,7 @@ export function LeaveRequestForm({ open, onOpenChange, defaultBranchId = '' }: L
                         >
                             <option value="">Chọn nhân viên...</option>
                             {staffs.map(s => (
-                                <option key={s.id} value={s.id}>{s.fullName} ({s.staffCode})</option>
+                                <option key={s.id} value={s.id}>{s.fullName} ({s.username})</option>
                             ))}
                         </select>
                     </div>

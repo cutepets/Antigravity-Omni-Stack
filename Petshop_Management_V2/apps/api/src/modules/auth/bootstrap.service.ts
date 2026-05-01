@@ -94,17 +94,9 @@ export class BootstrapService implements OnModuleInit {
 
             // 3. Tạo user superadmin
             const passwordHash = await bcrypt.hash(defaultPassword, 12)
-            let nextStaffNumber = await tx.user.count() + 1
-            let staffCode = `NV${String(nextStaffNumber).padStart(5, '0')}`
-            while (await tx.user.findUnique({ where: { staffCode }, select: { id: true } })) {
-                nextStaffNumber += 1
-                staffCode = `NV${String(nextStaffNumber).padStart(5, '0')}`
-            }
-
             await tx.user.create({
                 data: {
                     username: 'superadmin',
-                    staffCode,
                     passwordHash,
                     fullName: 'Super Admin',
                     legacyRole: 'STAFF',

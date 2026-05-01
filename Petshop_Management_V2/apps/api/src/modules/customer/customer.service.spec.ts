@@ -159,7 +159,7 @@ describe('CustomerService', () => {
       where: { customerId: 'customer-1' },
       orderBy: { createdAt: 'desc' },
       take: 100,
-      include: { actor: { select: { id: true, fullName: true, staffCode: true } } },
+      include: { actor: { select: { id: true, fullName: true, username: true } } },
     })
     expect(result.success).toBe(true)
     expect(result.data).toHaveLength(2)
@@ -199,7 +199,7 @@ describe('CustomerService', () => {
         source: 'MANUAL_ADJUSTMENT',
         reason: 'Thưởng điểm',
       }),
-      include: { actor: { select: { id: true, fullName: true, staffCode: true } } },
+      include: { actor: { select: { id: true, fullName: true, username: true } } },
     })
     expect(result.data.customer.points).toBe(35)
   })

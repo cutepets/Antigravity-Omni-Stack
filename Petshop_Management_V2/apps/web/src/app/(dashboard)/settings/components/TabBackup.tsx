@@ -20,6 +20,7 @@ import { useAuthorization } from '@/hooks/useAuthorization'
 import {
   settingsApi,
   type BackupCatalogEntry,
+  type BackupDataBlockCatalogEntry,
   type BackupInspectModuleResult,
   type BackupInspectResult,
 } from '@/lib/api/settings.api'
@@ -67,20 +68,52 @@ function sumRecordCounts(recordCounts: Record<string, number>) {
   return Object.values(recordCounts).reduce((total, value) => total + value, 0)
 }
 
+function modulesFromBlocks(
+  blockIds: string[],
+  dataBlocks: BackupDataBlockCatalogEntry[],
+  availableModuleIds?: Set<string>,
+) {
+  const blockMap = new Map(dataBlocks.map((entry) => [entry.blockId, entry]))
+  const selected = new Set<string>()
+
+  for (const blockId of blockIds) {
+    const block = blockMap.get(blockId as BackupDataBlockCatalogEntry['blockId'])
+    if (!block) continue
+
+    for (const moduleId of block.moduleIds) {
+      if (!availableModuleIds || availableModuleIds.has(moduleId)) {
+        selected.add(moduleId)
+      }
+    }
+  }
+
+  return [...selected]
+}
+
+function isBlockAvailableForRestore(
+  block: BackupDataBlockCatalogEntry,
+  availableModuleIds: Set<string>,
+) {
+  return block.moduleIds.some((moduleId) => availableModuleIds.has(moduleId))
+}
+
 const inputClassName =
   'w-full rounded-xl border border-border/50 bg-black/20 px-4 py-3 text-sm outline-none transition-colors focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60'
+
+const EMPTY_CATALOG_MODULES: BackupCatalogEntry[] = []
+const EMPTY_DATA_BLOCKS: BackupDataBlockCatalogEntry[] = []
 
 export function TabBackup() {
   const { isSuperAdmin } = useAuthorization()
   const canManageBackup = isSuperAdmin()
-  const [exportModules, setExportModules] = useState<string[]>([])
+  const [exportBlocks, setExportBlocks] = useState<string[]>([])
   const [destination, setDestination] = useState<'download' | 'google_drive'>('download')
   const [exportPassword, setExportPassword] = useState('')
   const [exportPasswordConfirm, setExportPasswordConfirm] = useState('')
   const [backupFile, setBackupFile] = useState<File | null>(null)
   const [restorePassword, setRestorePassword] = useState('')
   const [inspectedBackup, setInspectedBackup] = useState<BackupInspectResult | null>(null)
-  const [restoreModules, setRestoreModules] = useState<string[]>([])
+  const [restoreBlocks, setRestoreBlocks] = useState<string[]>([])
   const [isApplyingInspectResult, startInspectTransition] = useTransition()
 
   const catalogQuery = useQuery({
@@ -95,9 +128,27 @@ export function TabBackup() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const catalogModules = catalogQuery.data?.modules ?? EMPTY_CATALOG_MODULES
+  const catalogDataBlocks = catalogQuery.data?.dataBlocks ?? EMPTY_DATA_BLOCKS
+
+  const exportModules = useMemo(
+    () => modulesFromBlocks(exportBlocks, catalogDataBlocks),
+    [catalogDataBlocks, exportBlocks],
+  )
+
   const exportModulePreview = useMemo(
-    () => expandModules(exportModules, catalogQuery.data ?? []),
-    [catalogQuery.data, exportModules],
+    () => expandModules(exportModules, catalogModules),
+    [catalogModules, exportModules],
+  )
+
+  const inspectedModuleIds = useMemo(
+    () => new Set((inspectedBackup?.modules ?? []).map((entry) => entry.moduleId)),
+    [inspectedBackup?.modules],
+  )
+
+  const restoreModules = useMemo(
+    () => modulesFromBlocks(restoreBlocks, catalogDataBlocks, inspectedModuleIds),
+    [catalogDataBlocks, inspectedModuleIds, restoreBlocks],
   )
 
   const restoreModulePreview = useMemo(
@@ -160,17 +211,24 @@ export function TabBackup() {
     onSuccess: (result) => {
       startInspectTransition(() => {
         setInspectedBackup(result)
-        setRestoreModules(
+        const compatibleModuleIds = new Set(
           result.modules
             .filter((entry) => entry.compatible)
             .map((entry) => entry.moduleId),
+        )
+        setRestoreBlocks(
+          catalogDataBlocks
+            .filter((block) =>
+              block.moduleIds.some((moduleId) => compatibleModuleIds.has(moduleId)),
+            )
+            .map((block) => block.blockId),
         )
       })
       toast.success('Đã giải mã file backup và đọc được manifest')
     },
     onError: (error: any) => {
       setInspectedBackup(null)
-      setRestoreModules([])
+      setRestoreBlocks([])
       toast.error(error?.message || 'Không đọc được file backup')
     },
   })
@@ -196,28 +254,28 @@ export function TabBackup() {
     },
   })
 
-  const toggleExportModule = (moduleId: string) => {
+  const toggleExportBlock = (blockId: string) => {
     if (!canManageBackup) return
-    setExportModules((current) =>
-      current.includes(moduleId)
-        ? current.filter((entry) => entry !== moduleId)
-        : [...current, moduleId],
+    setExportBlocks((current) =>
+      current.includes(blockId)
+        ? current.filter((entry) => entry !== blockId)
+        : [...current, blockId],
     )
   }
 
-  const toggleRestoreModule = (moduleId: string) => {
+  const toggleRestoreBlock = (blockId: string) => {
     if (!canManageBackup) return
-    setRestoreModules((current) =>
-      current.includes(moduleId)
-        ? current.filter((entry) => entry !== moduleId)
-        : [...current, moduleId],
+    setRestoreBlocks((current) =>
+      current.includes(blockId)
+        ? current.filter((entry) => entry !== blockId)
+        : [...current, blockId],
     )
   }
 
   const handleExport = () => {
     if (!canManageBackup) return
     if (exportModules.length === 0) {
-      toast.error('Cần chọn ít nhất 1 module để backup')
+      toast.error('Cần chọn ít nhất 1 khối dữ liệu để backup')
       return
     }
     if (exportPassword.length < 8) {
@@ -257,7 +315,7 @@ export function TabBackup() {
       return
     }
     if (restoreModules.length === 0) {
-      toast.error('Cần chọn ít nhất 1 module để khôi phục')
+      toast.error('Cần chọn ít nhất 1 khối dữ liệu để khôi phục')
       return
     }
     if (restoreBlockers.length > 0) {
@@ -318,28 +376,31 @@ export function TabBackup() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-              {(catalogQuery.data ?? []).map((entry) => {
-                const checked = exportModules.includes(entry.moduleId)
+              {catalogDataBlocks.map((entry) => {
+                const checked = exportBlocks.includes(entry.blockId)
                 return (
                   <label
-                    key={entry.moduleId}
-                    className="flex items-start gap-3 rounded-2xl border border-border/40 bg-background-base px-4 py-4"
+                    key={entry.blockId}
+                    className={`flex items-start gap-3 rounded-2xl border px-4 py-4 ${checked
+                      ? 'border-primary-500 bg-primary-500/10'
+                      : 'border-border/40 bg-background-base'
+                      }`}
                   >
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => toggleExportModule(entry.moduleId)}
+                      onChange={() => toggleExportBlock(entry.blockId)}
                       className="mt-1 h-4 w-4 rounded border-border/50"
                     />
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-foreground-base">
                         {entry.label}
                       </div>
-                      <div className="mt-1 text-xs text-foreground-muted">
-                        {entry.moduleId} • v{entry.moduleVersion}
+                      <div className="mt-2 text-xs text-foreground-muted">
+                        {entry.description}
                       </div>
                       <div className="mt-2 text-xs text-foreground-muted">
-                        Phụ thuộc: {entry.dependencies.length > 0 ? entry.dependencies.join(', ') : 'Không có'}
+                        Module: {entry.moduleIds.join(', ')}
                       </div>
                     </div>
                   </label>
@@ -463,7 +524,7 @@ export function TabBackup() {
                     const file = event.target.files?.[0] ?? null
                     setBackupFile(file)
                     setInspectedBackup(null)
-                    setRestoreModules([])
+                    setRestoreBlocks([])
                   }}
                 />
               </label>
@@ -519,49 +580,58 @@ export function TabBackup() {
               </div>
 
               <div className="space-y-3">
-                <div className="text-sm font-semibold text-foreground-base">Chọn module cần khôi phục</div>
+                <div className="text-sm font-semibold text-foreground-base">Chọn khối dữ liệu cần khôi phục</div>
                 <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                  {inspectedBackup.modules.map((entry) => {
-                    const checked = restoreModules.includes(entry.moduleId)
-                    const totalRecords = sumRecordCounts(entry.recordCounts)
+                  {catalogDataBlocks.map((entry) => {
+                    const available = isBlockAvailableForRestore(entry, inspectedModuleIds)
+                    const checked = restoreBlocks.includes(entry.blockId)
+                    const blockModules = inspectedBackup.modules.filter((moduleEntry) =>
+                      entry.moduleIds.includes(moduleEntry.moduleId),
+                    )
+                    const compatible = blockModules.some((moduleEntry) => moduleEntry.compatible)
+                    const totalRecords = blockModules.reduce(
+                      (total, moduleEntry) => total + sumRecordCounts(moduleEntry.recordCounts),
+                      0,
+                    )
+
                     return (
                       <label
-                        key={entry.moduleId}
+                        key={entry.blockId}
                         className={`flex items-start gap-3 rounded-2xl border px-4 py-4 ${checked
                           ? 'border-primary-500 bg-primary-500/10'
                           : 'border-border/40 bg-background-base'
-                          }`}
+                          } ${!available ? 'opacity-60' : ''}`}
                       >
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => toggleRestoreModule(entry.moduleId)}
+                          disabled={!available || !compatible}
+                          onChange={() => toggleRestoreBlock(entry.blockId)}
                           className="mt-1 h-4 w-4 rounded border-border/50"
                         />
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground-base">
                             <span>{entry.label}</span>
-                            {entry.compatible ? (
+                            {available && compatible ? (
                               <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300">
-                                Compatible
+                                Có thể khôi phục
+                              </span>
+                            ) : available ? (
+                              <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-xs text-rose-300">
+                                Không tương thích
                               </span>
                             ) : (
-                              <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-xs text-rose-300">
-                                Incompatible
+                              <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-xs text-foreground-muted">
+                                Không có trong file
                               </span>
                             )}
                           </div>
-                          <div className="mt-1 text-xs text-foreground-muted">
-                            {entry.moduleId} • file v{entry.fileModuleVersion} • app v{entry.moduleVersion}
+                          <div className="mt-2 text-xs text-foreground-muted">
+                            {entry.description}
                           </div>
                           <div className="mt-2 text-xs text-foreground-muted">
-                            {totalRecords} bản ghi • Phụ thuộc: {entry.dependencies.length > 0 ? entry.dependencies.join(', ') : 'Không có'}
+                            {totalRecords} bản ghi • Module trong file: {blockModules.map((moduleEntry) => moduleEntry.moduleId).join(', ') || 'Không có'}
                           </div>
-                          {entry.compatibilityReason ? (
-                            <div className="mt-2 text-xs text-rose-300">
-                              {entry.compatibilityReason}
-                            </div>
-                          ) : null}
                         </div>
                       </label>
                     )

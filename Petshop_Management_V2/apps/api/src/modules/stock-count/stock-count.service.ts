@@ -172,11 +172,11 @@ export class StockCountService {
         orderBy: [{ countDate: 'asc' as const }, { shift: 'asc' as const }],
         include: {
           _count: { select: { items: true } },
-          counter: { select: { id: true, fullName: true, staffCode: true } },
+          counter: { select: { id: true, fullName: true, username: true } },
         },
       },
-      creator: { select: { id: true, fullName: true, staffCode: true } },
-      approver: { select: { id: true, fullName: true, staffCode: true } },
+      creator: { select: { id: true, fullName: true, username: true } },
+      approver: { select: { id: true, fullName: true, username: true } },
     }
   }
 
@@ -201,7 +201,7 @@ export class StockCountService {
           branch: { select: { id: true, name: true, code: true } },
         },
       },
-      counter: { select: { id: true, fullName: true, staffCode: true } },
+      counter: { select: { id: true, fullName: true, username: true } },
     }
   }
 
@@ -801,7 +801,7 @@ export class StockCountService {
           orderBy: [{ countDate: 'asc' as const }, { shift: 'asc' as const }],
           include: {
             _count: { select: { items: true } },
-            counter: { select: { id: true, fullName: true, staffCode: true } },
+            counter: { select: { id: true, fullName: true, username: true } },
           },
         },
         branch: { select: { id: true, name: true, code: true } },

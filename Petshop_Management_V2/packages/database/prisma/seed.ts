@@ -437,7 +437,6 @@ async function main() {
     const seed = userSeeds[i]!
     const payload = {
       username: seed.username,
-      staffCode: `NV${String(i + 1).padStart(5, '0')}`,
       passwordHash: seed.roleCode.includes('ADMIN') ? hashes.admin : hashes.staff,
       fullName: seed.fullName,
       legacyRole: 'STAFF' as any,

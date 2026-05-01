@@ -163,6 +163,18 @@ export type BackupCatalogEntry = {
   supportedImportVersions: number[]
 }
 
+export type BackupDataBlockCatalogEntry = {
+  blockId: 'configuration' | 'staff_equipment' | 'customers_pets' | 'operations'
+  label: string
+  description: string
+  moduleIds: string[]
+}
+
+export type BackupCatalogResult = {
+  modules: BackupCatalogEntry[]
+  dataBlocks: BackupDataBlockCatalogEntry[]
+}
+
 export type BackupInspectModuleResult = BackupCatalogEntry & {
   fileModuleVersion: number
   recordCounts: Record<string, number>
@@ -255,9 +267,21 @@ async function parseErrorResponse(response: Response) {
 }
 
 export const settingsApi = {
-  getBackupCatalog: async (): Promise<BackupCatalogEntry[]> => {
+  getBackupCatalog: async (): Promise<BackupCatalogResult> => {
     const { data } = await api.get('/settings/backups/catalog')
-    return data.data ?? []
+    const payload = data.data ?? {}
+
+    if (Array.isArray(payload)) {
+      return {
+        modules: payload,
+        dataBlocks: [],
+      }
+    }
+
+    return {
+      modules: Array.isArray(payload.modules) ? payload.modules : [],
+      dataBlocks: Array.isArray(payload.dataBlocks) ? payload.dataBlocks : [],
+    }
   },
 
   exportBackup: async (payload: BackupExportPayload): Promise<BackupExportResult> => {
@@ -526,7 +550,14 @@ export const settingsApi = {
     return data
   },
 
-  getAbout: async (): Promise<{ version: string; nodeEnv: string; buildDate: string | null }> => {
+  getAbout: async (): Promise<{
+    appId: string
+    version: string
+    nodeEnv: string
+    buildNumber: string | null
+    gitSha: string | null
+    buildDate: string | null
+  }> => {
     const { data } = await api.get('/settings/about')
     return data.data
   },

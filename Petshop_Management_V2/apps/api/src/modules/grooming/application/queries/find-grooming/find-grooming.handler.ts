@@ -22,7 +22,7 @@ const fullSessionInclude = {
     branch: { select: { id: true, name: true, code: true } },
     orderItems: groomingOrderItemsInclude,
     timeline: {
-        include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
+        include: { performedByUser: { select: { id: true, fullName: true, username: true } } },
         orderBy: { createdAt: 'desc' as const },
     },
 } as const

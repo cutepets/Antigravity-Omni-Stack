@@ -452,7 +452,7 @@ export function EquipmentDetail({ code }: { code: string }) {
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-foreground-secondary">
-                    {entry.actor?.fullName || 'Hệ thống'} {entry.actor?.staffCode ? `· ${entry.actor.staffCode}` : ''}
+                    {entry.actor?.fullName || 'Hệ thống'} {entry.actor?.username ? `· ${entry.actor.username}` : ''}
                   </p>
                 </div>
               ))

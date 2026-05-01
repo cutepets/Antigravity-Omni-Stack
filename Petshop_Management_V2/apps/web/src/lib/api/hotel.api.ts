@@ -76,7 +76,7 @@ export interface HotelStay {
   createdBy?: {
     id: string
     fullName: string
-    staffCode?: string | null
+    username?: string | null
   } | null
   cage?: Cage | null
   branch?: {
@@ -154,7 +154,7 @@ export interface HotelStayTimeline {
     user?: {
       id: string
       fullName: string
-      staffCode?: string | null
+      username?: string | null
     } | null
   }>
   activities: Array<{
@@ -167,7 +167,7 @@ export interface HotelStayTimeline {
     user?: {
       id: string
       fullName: string
-      staffCode?: string | null
+      username?: string | null
     } | null
   }>
 }
@@ -187,7 +187,7 @@ export interface HotelStayHealthLog {
   performedByUser?: {
     id: string
     fullName: string
-    staffCode?: string | null
+    username?: string | null
   } | null
 }
 

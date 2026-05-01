@@ -64,7 +64,7 @@ function translateStatus(status?: string | null) {
 
 function buildHistorySummary(entry: any) {
   const actorName =
-    entry.performedByUser?.fullName ?? entry.performedByUser?.staffCode ?? 'Chưa xác định';
+    entry.performedByUser?.fullName ?? entry.performedByUser?.username ?? 'Chưa xác định';
   const statusLabel =
     entry.fromStatus || entry.toStatus
       ? [

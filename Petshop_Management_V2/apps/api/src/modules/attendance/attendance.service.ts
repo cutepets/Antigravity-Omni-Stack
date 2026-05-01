@@ -34,7 +34,7 @@ export class AttendanceService {
                 skip,
                 take: limit,
                 include: {
-                    user: { select: { id: true, fullName: true, staffCode: true } },
+                    user: { select: { id: true, fullName: true, username: true } },
                     schedule: true,
                 },
                 orderBy: { date: 'desc' },
@@ -82,7 +82,7 @@ export class AttendanceService {
                 note: dto.note,
             },
             include: {
-                user: { select: { fullName: true, staffCode: true } },
+                user: { select: { fullName: true, username: true } },
                 schedule: true,
             },
         });
@@ -196,7 +196,7 @@ export class AttendanceService {
         return this.prisma.attendanceRecord.findMany({
             where: { branchId, date: { gte: startDate, lte: endDate } },
             include: {
-                user: { select: { id: true, fullName: true, staffCode: true, avatar: true } },
+                user: { select: { id: true, fullName: true, username: true, avatar: true } },
                 schedule: true,
                 leaveRequest: { select: { leaveType: true, status: true } },
             },
@@ -221,7 +221,7 @@ export class AttendanceService {
         return this.prisma.attendanceRecord.findMany({
             where: { branchId, status: AttendanceStatus.PENDING_REVIEW },
             include: {
-                user: { select: { id: true, fullName: true, staffCode: true, avatar: true } },
+                user: { select: { id: true, fullName: true, username: true, avatar: true } },
                 schedule: true,
             },
             orderBy: { createdAt: 'desc' },

@@ -184,7 +184,7 @@ export function ShiftScheduleMatrix() {
                                         </div>
                                         <div className="flex flex-col gap-0.5">
                                             <span className="text-sm font-semibold leading-none">{staff.fullName}</span>
-                                            <span className="text-[11px] text-foreground-muted leading-none">{staff.staffCode}</span>
+                                            <span className="text-[11px] text-foreground-muted leading-none">{staff.username}</span>
                                         </div>
                                     </div>
                                 </td>

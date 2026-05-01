@@ -35,8 +35,11 @@ echo '🔄 Step 1/6: Pulling latest code...'
 cd "$APP_DIR" && git pull origin "$BRANCH" || fail 'Git pull failed'
 VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo 'unknown')
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
+export BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || date -u '+%Y%m%d%H%M%S')"
+export GIT_SHA="$COMMIT"
 log "Code updated: v$VERSION ($COMMIT) from branch: $BRANCH"
 log "Build date: $BUILD_DATE"
+log "Build number: $BUILD_NUMBER"
 
 # Step 2: Build Docker images
 echo ''

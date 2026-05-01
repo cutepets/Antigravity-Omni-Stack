@@ -213,7 +213,7 @@ export class OrderQueryService {
             },
           },
           timeline: {
-            include: { performedByUser: { select: { id: true, fullName: true, staffCode: true } } },
+            include: { performedByUser: { select: { id: true, fullName: true, username: true } } },
             orderBy: { createdAt: 'desc' as const },
             take: 5,
           },

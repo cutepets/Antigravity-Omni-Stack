@@ -3,6 +3,9 @@ import * as bcrypt from 'bcryptjs'
 
 describe('BackupService', () => {
   const originalEnv = process.env['APP_SECRET_ENCRYPTION_KEY']
+  const originalBuildNumber = process.env['BUILD_NUMBER']
+  const originalGitSha = process.env['GIT_SHA']
+  const originalBuildDate = process.env['BUILD_DATE']
 
   beforeEach(() => {
     process.env['APP_SECRET_ENCRYPTION_KEY'] = 'backup-test-secret-key'
@@ -13,6 +16,21 @@ describe('BackupService', () => {
       delete process.env['APP_SECRET_ENCRYPTION_KEY']
     } else {
       process.env['APP_SECRET_ENCRYPTION_KEY'] = originalEnv
+    }
+    if (originalBuildNumber === undefined) {
+      delete process.env['BUILD_NUMBER']
+    } else {
+      process.env['BUILD_NUMBER'] = originalBuildNumber
+    }
+    if (originalGitSha === undefined) {
+      delete process.env['GIT_SHA']
+    } else {
+      process.env['GIT_SHA'] = originalGitSha
+    }
+    if (originalBuildDate === undefined) {
+      delete process.env['BUILD_DATE']
+    } else {
+      process.env['BUILD_DATE'] = originalBuildDate
     }
     jest.restoreAllMocks()
   })
@@ -160,6 +178,64 @@ describe('BackupService', () => {
       ]),
     )
     expect(result.purgedModules).toEqual(['operations.commerce'])
+  })
+
+  it('exposes business data blocks for backup selection', () => {
+    const { service } = createService()
+
+    const catalog = service.getCatalog()
+
+    expect(catalog.data.dataBlocks).toEqual([
+      {
+        blockId: 'configuration',
+        label: 'Cấu hình hệ thống và cấu hình ở các mục',
+        description: expect.any(String),
+        moduleIds: ['core.settings', 'finance.configuration', 'catalog.items'],
+      },
+      {
+        blockId: 'staff_equipment',
+        label: 'Nhân viên, chấm công, bảng lương, thưởng phạt, trang thiết bị',
+        description: expect.any(String),
+        moduleIds: ['core.organization', 'hr.workforce', 'assets.equipment'],
+      },
+      {
+        blockId: 'customers_pets',
+        label: 'Khách hàng, thú cưng, điểm',
+        description: expect.any(String),
+        moduleIds: ['crm.contacts'],
+      },
+      {
+        blockId: 'operations',
+        label: 'Đơn hàng, thu chi, grooming, hotel',
+        description: expect.any(String),
+        moduleIds: ['operations.commerce'],
+      },
+    ])
+    expect(catalog.data.modules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ moduleId: 'core.settings' }),
+        expect.objectContaining({ moduleId: 'operations.commerce' }),
+      ]),
+    )
+  })
+
+  it('reads app version from release metadata and build metadata from env', () => {
+    process.env['BUILD_NUMBER'] = '128'
+    process.env['GIT_SHA'] = 'abc1234'
+    process.env['BUILD_DATE'] = '2026-05-01T15:30:00Z'
+    const { service } = createService()
+
+    const metadata = service.getAppMetadata()
+
+    expect(metadata).toEqual(
+      expect.objectContaining({
+        appId: 'petshop-management-v2',
+        appVersion: '2.5.1',
+        buildNumber: '128',
+        gitSha: 'abc1234',
+        buildDate: '2026-05-01T15:30:00Z',
+      }),
+    )
   })
 
   it('exports and inspects a .appbak archive for core.settings', async () => {

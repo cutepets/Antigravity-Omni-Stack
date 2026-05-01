@@ -499,7 +499,7 @@ export class CustomerService {
       where: { customerId: id },
       orderBy: { createdAt: 'desc' },
       take: 100,
-      include: { actor: { select: { id: true, fullName: true, staffCode: true } } },
+      include: { actor: { select: { id: true, fullName: true, username: true } } },
     })
     return { success: true, data: history }
   }
@@ -535,7 +535,7 @@ export class CustomerService {
           source: 'MANUAL_ADJUSTMENT',
           reason: dto.reason?.trim() || null,
         },
-        include: { actor: { select: { id: true, fullName: true, staffCode: true } } },
+        include: { actor: { select: { id: true, fullName: true, username: true } } },
       })
 
       return { success: true, data: { customer: updated, history } }

@@ -1,7 +1,20 @@
 'use client'
 
 import React from 'react'
-import { AlertCircle, Box, CheckCircle2, Loader2, Package } from 'lucide-react'
+import {
+    AlertCircle,
+    BadgePercent,
+    Box,
+    CheckCircle2,
+    Clock,
+    Gift,
+    Hotel,
+    Loader2,
+    MonitorSmartphone,
+    Package,
+    PawPrint,
+    Scissors,
+} from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { cn } from '@/lib/utils'
@@ -27,6 +40,44 @@ const MODULE_ACCENT: Record<string, { from: string; to: string; ring: string }> 
     attendance: { from: 'from-amber-500/20', to: 'to-yellow-500/10', ring: 'ring-amber-500/30' },
     payroll: { from: 'from-green-500/20', to: 'to-emerald-500/10', ring: 'ring-green-500/30' },
     rewards: { from: 'from-rose-500/20', to: 'to-orange-500/10', ring: 'ring-rose-500/30' },
+    equipment: { from: 'from-blue-500/20', to: 'to-cyan-500/10', ring: 'ring-blue-500/30' },
+    promotions: { from: 'from-fuchsia-500/20', to: 'to-rose-500/10', ring: 'ring-fuchsia-500/30' },
+}
+
+const MODULE_ICON_BY_KEY = {
+    pet: PawPrint,
+    hotel: Hotel,
+    grooming: Scissors,
+    attendance: Clock,
+    payroll: Package,
+    rewards: Gift,
+    equipment: MonitorSmartphone,
+    promotions: BadgePercent,
+} as const
+
+const MODULE_ICON_BY_NAME = {
+    BadgePercent,
+    Box,
+    Clock,
+    Gift,
+    Hotel,
+    MonitorSmartphone,
+    Package,
+    PawPrint,
+    Scissors,
+} as const
+
+function resolveModuleIcon(module: ModuleConfig) {
+    const iconName = String(module.icon ?? '').trim()
+    const Icon =
+        MODULE_ICON_BY_NAME[iconName as keyof typeof MODULE_ICON_BY_NAME] ??
+        MODULE_ICON_BY_KEY[module.key as keyof typeof MODULE_ICON_BY_KEY]
+
+    if (Icon) {
+        return <Icon size={28} strokeWidth={1.8} />
+    }
+
+    return iconName || '📦'
 }
 
 function ModuleCard({
@@ -70,7 +121,7 @@ function ModuleCard({
                         accent.ring,
                     )}
                 >
-                    {module.icon || '📦'}
+                    {resolveModuleIcon(module)}
                 </div>
 
                 {/* Info */}
@@ -190,9 +241,6 @@ export function TabModules() {
                     </div>
                     <div>
                         <h2 className="text-lg font-bold text-foreground-base">Quản lý Module</h2>
-                        <p className="mt-0.5 text-sm text-foreground-secondary">
-                            Bật hoặc tắt các phân hệ phụ của hệ thống
-                        </p>
                     </div>
                 </div>
 

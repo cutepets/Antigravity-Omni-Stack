@@ -28,7 +28,7 @@ export class LeaveService {
                 status: LeaveStatus.PENDING,
             },
             include: {
-                user: { select: { fullName: true, staffCode: true, email: true } },
+                user: { select: { fullName: true, username: true, email: true } },
             },
         });
     }
@@ -92,7 +92,7 @@ export class LeaveService {
             this.prisma.leaveRequest.findMany({
                 where, skip, take: limit,
                 include: {
-                    user: { select: { id: true, fullName: true, staffCode: true, avatar: true } },
+                    user: { select: { id: true, fullName: true, username: true, avatar: true } },
                     approver: { select: { fullName: true } },
                 },
                 orderBy: { createdAt: 'desc' },
@@ -107,7 +107,7 @@ export class LeaveService {
         return this.prisma.leaveRequest.findMany({
             where: { branchId, ...(status ? { status } : {}) },
             include: {
-                user: { select: { id: true, fullName: true, staffCode: true, avatar: true } },
+                user: { select: { id: true, fullName: true, username: true, avatar: true } },
                 approver: { select: { fullName: true } },
             },
             orderBy: { createdAt: 'desc' },

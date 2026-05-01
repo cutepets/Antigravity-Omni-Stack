@@ -86,7 +86,7 @@ export class StaffService {
     return this.db.user.findMany({
       where: { username: { not: ROOT_SYSTEM_USERNAME } },
       select: {
-        id: true, staffCode: true, username: true, fullName: true,
+        id: true, username: true, fullName: true,
         role: true, status: true, phone: true, email: true, avatar: true, createdAt: true,
         gender: true, dob: true, identityCode: true, emergencyContactTitle: true, emergencyContactPhone: true,
         employmentType: true, joinDate: true, shiftStart: true, shiftEnd: true, baseSalary: true, spaCommissionRate: true,
@@ -104,7 +104,7 @@ export class StaffService {
         OR: [{ id: idOrUsername }, { username: idOrUsername }]
       },
       select: {
-        id: true, staffCode: true, username: true, fullName: true,
+        id: true, username: true, fullName: true,
         role: true, status: true, phone: true, email: true, avatar: true,
         branchId: true, branch: { select: { id: true, name: true } }, joinDate: true, createdAt: true,
         gender: true, dob: true, identityCode: true, emergencyContactTitle: true, emergencyContactPhone: true,
@@ -135,15 +135,11 @@ export class StaffService {
 
     await this.assertAssignableRole(dto.role, dto.username)
 
-    const count = await this.db.user.count()
-    const staffCode = `NV${String(count + 1).padStart(5, '0')}`
-
     const passwordToHash = dto.password || 'Abcd@123'
     const passwordHash = await bcrypt.hash(passwordToHash, 12)
 
     return this.db.user.create({
       data: {
-        staffCode,
         username: dto.username,
         passwordHash,
         fullName: dto.fullName,
@@ -170,7 +166,7 @@ export class StaffService {
         joinDate: dto.joinDate ? new Date(dto.joinDate) : null,
       },
       select: {
-        id: true, staffCode: true, username: true, fullName: true,
+        id: true, username: true, fullName: true,
         role: true, status: true, createdAt: true, branchId: true,
         authorizedBranches: { select: { id: true, name: true } },
       },
@@ -228,7 +224,7 @@ export class StaffService {
         ...('joinDate' in dto && { joinDate: dto.joinDate ? new Date(dto.joinDate) : null }),
       },
       select: {
-        id: true, staffCode: true, username: true, fullName: true,
+        id: true, username: true, fullName: true,
         role: true, status: true, phone: true, email: true, branchId: true,
         authorizedBranches: { select: { id: true, name: true } },
       },
@@ -250,7 +246,7 @@ export class StaffService {
         ...('salaryBankAccount' in dto && { salaryBankAccount: dto.salaryBankAccount || null }),
       },
       select: {
-        id: true, staffCode: true, username: true, fullName: true,
+        id: true, username: true, fullName: true,
         role: true, status: true, phone: true, email: true, avatar: true,
         branchId: true, branch: { select: { id: true, name: true } },
         salaryBankName: true, salaryBankAccount: true,
@@ -264,7 +260,7 @@ export class StaffService {
     return this.db.user.update({
       where: { id },
       data: { status: StaffStatus.RESIGNED },
-      select: { id: true, staffCode: true, status: true }
+      select: { id: true, username: true, status: true }
     })
   }
 
@@ -325,7 +321,7 @@ export class StaffService {
 
       return tx.user.delete({
         where: { id },
-        select: { id: true, staffCode: true },
+        select: { id: true, username: true },
       })
     })
   }
@@ -466,7 +462,7 @@ export class StaffService {
         details: true,
         ipAddress: true,
         createdAt: true,
-        user: { select: { id: true, fullName: true, staffCode: true } },
+        user: { select: { id: true, fullName: true, username: true } },
       },
     })
   }

@@ -2,13 +2,14 @@ import { BadRequestException, ForbiddenException, Injectable, UnauthorizedExcept
 import { StorageProviderKind } from '@prisma/client'
 import { createHash } from 'crypto'
 import { existsSync, readFileSync } from 'fs'
-import { resolve } from 'path'
+import { dirname, resolve } from 'path'
 import * as bcrypt from 'bcryptjs'
 import { DatabaseService } from '../../../database/database.service.js'
 import { StorageService } from '../../storage/storage.service.js'
 import { decodeBackupArchive, encodeBackupArchive } from './backup.format.js'
 import {
   getBackupCatalogEntries,
+  getBackupDataBlockCatalogEntries,
   getBackupModuleDefinition,
   getBackupModuleRegistry,
   getReverseDependencies,
@@ -31,6 +32,9 @@ import {
 type AppMetadata = {
   appId: string
   appVersion: string
+  buildNumber: string | null
+  gitSha: string | null
+  buildDate: string | null
 }
 
 @Injectable()
@@ -43,7 +47,10 @@ export class BackupService {
   getCatalog() {
     return {
       success: true,
-      data: getBackupCatalogEntries(),
+      data: {
+        modules: getBackupCatalogEntries(),
+        dataBlocks: getBackupDataBlockCatalogEntries(),
+      },
     }
   }
 
@@ -434,31 +441,65 @@ export class BackupService {
     const fallback = {
       appId: 'application',
       appVersion: '0.0.0',
+      buildNumber: process.env['BUILD_NUMBER'] ?? null,
+      gitSha: process.env['GIT_SHA'] ?? null,
+      buildDate: process.env['BUILD_DATE'] ?? null,
     }
 
-    const candidates = [
-      resolve(process.cwd(), 'package.json'),
-      resolve(process.cwd(), '../../package.json'),
-      resolve(process.cwd(), '../../../package.json'),
-    ]
+    const candidates: string[] = []
+    let currentDir = resolve(process.cwd())
+    for (let depth = 0; depth < 6; depth += 1) {
+      candidates.push(currentDir)
+      const parentDir = dirname(currentDir)
+      if (parentDir === currentDir) break
+      currentDir = parentDir
+    }
 
-    for (const candidate of candidates) {
+    for (const candidateDir of candidates) {
+      const releaseMetadataPath = resolve(candidateDir, 'release.json')
+      if (!existsSync(releaseMetadataPath)) continue
+
+      try {
+        const parsed = JSON.parse(readFileSync(releaseMetadataPath, 'utf8')) as Record<string, unknown>
+        return {
+          appId: String(parsed['appId'] ?? fallback.appId),
+          appVersion: String(parsed['version'] ?? fallback.appVersion),
+          buildNumber: fallback.buildNumber,
+          gitSha: fallback.gitSha,
+          buildDate: fallback.buildDate,
+        }
+      } catch {
+        // Fall back to package metadata when release metadata is unreadable.
+      }
+    }
+
+    let firstReadablePackage: AppMetadata | null = null
+
+    for (const candidate of candidates.map((candidateDir) => resolve(candidateDir, 'package.json'))) {
       if (!existsSync(candidate)) {
         continue
       }
 
       try {
         const parsed = JSON.parse(readFileSync(candidate, 'utf8')) as Record<string, unknown>
-        return {
+        const metadata = {
           appId: String(parsed['name'] ?? fallback.appId),
           appVersion: String(parsed['version'] ?? fallback.appVersion),
+          buildNumber: fallback.buildNumber,
+          gitSha: fallback.gitSha,
+          buildDate: fallback.buildDate,
+        }
+        firstReadablePackage = firstReadablePackage ?? metadata
+
+        if (metadata.appId === 'petshop-management-v2') {
+          return metadata
         }
       } catch {
         continue
       }
     }
 
-    return fallback
+    return firstReadablePackage ?? fallback
   }
 
   private readSchemaFingerprint() {

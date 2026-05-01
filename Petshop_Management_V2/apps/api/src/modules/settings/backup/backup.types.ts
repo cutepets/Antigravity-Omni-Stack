@@ -22,6 +22,12 @@ export type BackupModuleId =
   | 'hr.workforce'
   | 'assets.equipment'
 
+export type BackupDataBlockId =
+  | 'configuration'
+  | 'staff_equipment'
+  | 'customers_pets'
+  | 'operations'
+
 export class CreateBackupDto {
   @IsArray()
   @ArrayNotEmpty()
@@ -100,6 +106,18 @@ export interface BackupCatalogEntry {
   requiredBy: string[]
   keepsFileRefs: boolean
   supportedImportVersions: number[]
+}
+
+export interface BackupDataBlockCatalogEntry {
+  blockId: BackupDataBlockId
+  label: string
+  description: string
+  moduleIds: BackupModuleId[]
+}
+
+export interface BackupCatalogResult {
+  modules: BackupCatalogEntry[]
+  dataBlocks: BackupDataBlockCatalogEntry[]
 }
 
 export interface BackupInspectModuleResult extends BackupCatalogEntry {

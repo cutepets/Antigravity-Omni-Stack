@@ -77,7 +77,6 @@ export interface AuthUser {
   username: string
   fullName: string
   role: StaffRole | string
-  staffCode: string
   branchId?: string | null
   defaultBranchId?: string | null
   posPreferences?: PosPreferences | null

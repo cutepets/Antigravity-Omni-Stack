@@ -28,7 +28,7 @@ export interface GroomingPet {
 export interface GroomingStaff {
   id: string;
   fullName: string;
-  staffCode?: string | null;
+  username?: string | null;
   avatar?: string | null;
 }
 

@@ -871,7 +871,9 @@ export class SettingsController {
         appId: meta.appId,
         version: meta.appVersion,
         nodeEnv: process.env['NODE_ENV'] ?? 'development',
-        buildDate: process.env['BUILD_DATE'] ?? null,
+        buildNumber: meta.buildNumber,
+        gitSha: meta.gitSha,
+        buildDate: meta.buildDate,
       },
     }
   }

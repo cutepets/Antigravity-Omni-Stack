@@ -57,6 +57,8 @@ services:
     environment:
       NODE_ENV: production
       BUILD_DATE: ${BUILD_DATE:-}
+      BUILD_NUMBER: ${BUILD_NUMBER:-}
+      GIT_SHA: ${GIT_SHA:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:-petshop}:${POSTGRES_PASSWORD:-petshop_secret}@postgres:5432/${POSTGRES_DB:-petshop_db}
       REDIS_URL: redis://redis:6379
       API_PORT: 3001

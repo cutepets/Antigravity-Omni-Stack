@@ -104,7 +104,7 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
   { id: 'theme', label: 'Giao diện', icon: Palette },
   {
     id: 'storage-assets',
-    label: 'Quan ly file',
+    label: 'Quản lý file',
     icon: FileText,
     anyPermissions: ['settings.app.read', 'settings.app.update'],
   },
@@ -211,9 +211,6 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground-base">
             Cài đặt hệ thống
           </h1>
-          <p className="mt-0.5 text-sm text-foreground-secondary">
-            Quản lý cấu hình chung, giao diện và thông báo hệ thống
-          </p>
         </div>
       </div>
 

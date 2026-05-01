@@ -71,7 +71,7 @@ export class OrderTimelineService {
           select: {
             id: true,
             fullName: true,
-            staffCode: true,
+            username: true,
           },
         },
       },
@@ -98,7 +98,7 @@ export class OrderTimelineService {
           select: {
             id: true,
             fullName: true,
-            staffCode: true,
+            username: true,
           },
         },
       },

@@ -69,6 +69,7 @@ ENV NODE_ENV=production
 # Copy full node_modules (includes hoisted prisma client)
 COPY --from=build-api /app/node_modules ./node_modules
 COPY --from=build-api /app/package.json ./package.json
+COPY --from=build-api /app/release.json ./release.json
 COPY --from=build-api /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 
 # Copy API build output

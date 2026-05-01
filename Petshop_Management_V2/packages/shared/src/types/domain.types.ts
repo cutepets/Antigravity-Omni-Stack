@@ -65,7 +65,6 @@ export interface HotelRateTable {
 // ---- Staff ----
 export interface Staff {
   id: string
-  staffCode: string
   username: string
   fullName: string
   role: StaffRole
