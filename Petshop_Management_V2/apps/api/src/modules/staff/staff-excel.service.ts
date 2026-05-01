@@ -24,6 +24,7 @@ const STAFF_SHEET = 'NhanVien'
 const GUIDE_SHEET = 'HuongDan'
 const DEFAULT_STAFF_PASSWORD = 'Petshop@123'
 const ROOT_SYSTEM_USERNAME = 'superadmin'
+const STAFF_IMPORT_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 }
 
 const STAFF_COLUMNS: ColumnDef[] = [
   { key: 'id', header: 'id', width: 28, readonly: true },
@@ -193,21 +194,27 @@ export class StaffExcelService {
     const preview = await this.previewImport(params)
     if (!preview.normalizedPayload || preview.summary.errorCount > 0) return preview
 
+    const rows = await Promise.all(preview.normalizedPayload.rows.map(async (row) => ({
+      row,
+      passwordHash: row.action === 'create'
+        ? await bcrypt.hash(row.password || DEFAULT_STAFF_PASSWORD, 12)
+        : null,
+    })))
+
     await (this.db as any).$transaction(async (tx: any) => {
       let nextStaffNumber = (await tx.user.count()) + 1
-      for (const row of preview.normalizedPayload!.rows) {
+      for (const { row, passwordHash } of rows) {
         if (row.action === 'update' && row.existingId) {
           await tx.user.update({
             where: { id: row.existingId },
             data: this.toPrismaData(row.data, 'update'),
           })
         } else {
-          const passwordHash = await bcrypt.hash(row.password || DEFAULT_STAFF_PASSWORD, 12)
           await tx.user.create({
             data: {
               staffCode: `NV${String(nextStaffNumber).padStart(5, '0')}`,
               username: row.username,
-              passwordHash,
+              passwordHash: passwordHash!,
               status: StaffStatus.WORKING,
               employmentType: EmploymentType.FULL_TIME,
               ...this.toPrismaData(row.data, 'create'),
@@ -216,7 +223,7 @@ export class StaffExcelService {
           nextStaffNumber += 1
         }
       }
-    })
+    }, STAFF_IMPORT_TRANSACTION_OPTIONS)
 
     return preview
   }

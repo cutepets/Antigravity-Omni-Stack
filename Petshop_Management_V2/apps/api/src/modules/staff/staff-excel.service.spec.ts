@@ -234,7 +234,7 @@ describe('StaffExcelService', () => {
 
     expect(result.summary.updateCount).toBe(1)
     expect(result.summary.createCount).toBe(1)
-    expect(db.$transaction).toHaveBeenCalled()
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { maxWait: 10000, timeout: 30000 })
     expect(db.user.update).toHaveBeenCalledWith({
       where: { id: 'staff-1' },
       data: { fullName: 'Nguyen Van A' },
