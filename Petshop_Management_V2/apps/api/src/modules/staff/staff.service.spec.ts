@@ -1,4 +1,5 @@
 import { StaffService } from './staff.service'
+import * as bcrypt from 'bcryptjs'
 
 describe('StaffService listing', () => {
   it('hides the root superadmin from staff management lists', async () => {
@@ -96,6 +97,28 @@ describe('StaffService self update', () => {
 })
 
 describe('StaffService role restrictions', () => {
+  it('uses Abcd@123 as the default password when creating staff without an explicit password', async () => {
+    const db = {
+      user: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(1),
+        create: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      role: {
+        findUnique: jest.fn(),
+      },
+    }
+    const service = new StaffService(db as any)
+
+    await service.create({
+      username: 'staff1',
+      fullName: 'Staff One',
+    })
+
+    const passwordHash = db.user.create.mock.calls[0][0].data.passwordHash
+    await expect(bcrypt.compare('Abcd@123', passwordHash)).resolves.toBe(true)
+  })
+
   it('rejects assigning the SUPER_ADMIN role to a regular staff account', async () => {
     const db = {
       user: {

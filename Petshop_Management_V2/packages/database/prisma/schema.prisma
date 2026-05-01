@@ -234,8 +234,6 @@ model Customer {
   totalSpent   Float          @default(0)
   totalOrders  Int            @default(0)
   isActive     Boolean        @default(true)
-  isSupplier   Boolean        @default(false)
-  supplierCode String?        @unique
   companyName         String?
   companyAddress      String?
   representativeName  String?

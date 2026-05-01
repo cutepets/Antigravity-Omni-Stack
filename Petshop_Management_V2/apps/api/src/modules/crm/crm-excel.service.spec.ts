@@ -67,8 +67,6 @@ describe('CrmExcelService', () => {
         taxCode: null,
         description: null,
         isActive: true,
-        isSupplier: false,
-        supplierCode: null,
         companyName: null,
         companyAddress: null,
         representativeName: null,
@@ -110,7 +108,9 @@ describe('CrmExcelService', () => {
     await workbook.xlsx.load(buffer as any)
 
     expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['KhachHang', 'Pet', 'HuongDan'])
-    expect(workbook.getWorksheet('KhachHang')!.getRow(1).values).toEqual(expect.arrayContaining(['customerCode', 'fullName*', 'phone*', 'dateOfBirth', 'points', 'pointsUsed', 'debt', 'branchName', 'isSupplier', 'supplierCode', 'petCount']))
+    const customerHeaders = workbook.getWorksheet('KhachHang')!.getRow(1).values
+    expect(customerHeaders).toEqual(expect.arrayContaining(['customerCode', 'fullName*', 'phone*', 'dateOfBirth', 'points', 'pointsUsed', 'debt', 'branchName', 'taxCode', 'companyName', 'bankAccount', 'bankName', 'petCount']))
+    expect(customerHeaders).not.toEqual(expect.arrayContaining(['isSupplier', 'supplierCode']))
     expect(workbook.getWorksheet('Pet')!.getRow(1).values).toEqual(expect.arrayContaining(['petCode', 'ownerCustomerCode*', 'name*', 'species*']))
     expect(workbook.getWorksheet('KhachHang')!.getRow(2).getCell(2).value).toBe('KH000001')
     expect(workbook.getWorksheet('Pet')!.getRow(2).getCell(3).value).toBe('KH000001')
@@ -124,7 +124,9 @@ describe('CrmExcelService', () => {
 
     expect(workbook.getWorksheet('KhachHang')!.getRow(1).values).toEqual(expect.arrayContaining(['fullName*', 'phone*']))
     expect(workbook.getWorksheet('Pet')!.getRow(1).values).toEqual(expect.arrayContaining(['ownerCustomerCode*', 'name*', 'species*']))
-    expect(workbook.getWorksheet('KhachHang')!.getRow(1).values).toEqual(expect.arrayContaining(['customerCode', 'dateOfBirth', 'points', 'debt', 'branchName', 'isSupplier', 'supplierCode']))
+    const customerHeaders = workbook.getWorksheet('KhachHang')!.getRow(1).values
+    expect(customerHeaders).toEqual(expect.arrayContaining(['customerCode', 'dateOfBirth', 'points', 'debt', 'branchName', 'taxCode', 'companyName', 'bankAccount', 'bankName']))
+    expect(customerHeaders).not.toEqual(expect.arrayContaining(['isSupplier', 'supplierCode']))
     expect(workbook.getWorksheet('Pet')!.getRow(1).values).toEqual(expect.arrayContaining(['petCode']))
   })
 
@@ -182,9 +184,9 @@ describe('CrmExcelService', () => {
       points: 150,
       debt: 25000,
       branchId: 'branch-1',
-      isSupplier: true,
-      supplierCode: 'NCC0001',
     }))
+    expect(result.normalizedPayload!.customers[0]!.data).not.toHaveProperty('isSupplier')
+    expect(result.normalizedPayload!.customers[0]!.data).not.toHaveProperty('supplierCode')
   })
 
   it('rejects negative point balances and unknown branch names during customer import preview', async () => {
@@ -266,6 +268,37 @@ describe('CrmExcelService', () => {
     }))
     expect(db.pet.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ customerId: 'customer-1', name: 'Milu' }),
+    }))
+  })
+
+  it('allocates customer codes in batch and uses an extended transaction timeout for large imports', async () => {
+    const db = makeDb()
+    db.$queryRawUnsafe.mockResolvedValue([{ maxNumber: 10 }])
+    db.customer.create
+      .mockImplementationOnce(async ({ data }: any) => ({ id: 'customer-1', ...data }))
+      .mockImplementationOnce(async ({ data }: any) => ({ id: 'customer-2', ...data }))
+
+    const buffer = await workbookBuffer((workbook) => {
+      const customers = workbook.addWorksheet('KhachHang')
+      customers.addRow(['customerCode', 'fullName', 'phone'])
+      customers.addRow(['', 'Nguyen Van A', '0901000001'])
+      customers.addRow(['', 'Tran Thi B', '0901000002'])
+      workbook.addWorksheet('Pet').addRow(['petCode', 'ownerCustomerCode', 'name', 'species'])
+      workbook.addWorksheet('HuongDan').addRow(['Huong dan'])
+    })
+
+    const result = await new CrmExcelService(db).applyImport({ buffer, user: actor })
+
+    expect(result.summary.customerCreateCount).toBe(2)
+    expect(db.$queryRawUnsafe).toHaveBeenCalledTimes(1)
+    expect(db.customer.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      data: expect.objectContaining({ customerCode: 'KH000011' }),
+    }))
+    expect(db.customer.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      data: expect.objectContaining({ customerCode: 'KH000012' }),
+    }))
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({
+      timeout: expect.any(Number),
     }))
   })
 

@@ -47,17 +47,6 @@ export class AuthService {
     ])
   }
 
-  private getJwtPermissions(rolePermissions: unknown): string[] | undefined {
-    const storedPermissions = Array.isArray(rolePermissions)
-      ? rolePermissions
-        .filter((permission): permission is string => typeof permission === 'string')
-        .map((permission) => permission.trim())
-        .filter(Boolean)
-      : []
-
-    return storedPermissions.length > 0 ? [...new Set(storedPermissions)] : undefined
-  }
-
   private hashRefreshToken(token: string): string {
     return createHash('sha256').update(token).digest('hex')
   }
@@ -112,7 +101,6 @@ export class AuthService {
     const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
       userId: user.id,
       role: combinedRole as JwtPayload['role'],
-      permissions: this.getJwtPermissions(user.role?.permissions),
       branchId: user.branchId ?? null,
       authorizedBranchIds: mappedAuthorizedBranches.map((branch) => branch.id),
     }
@@ -234,7 +222,6 @@ export class AuthService {
     const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
       userId: user.id,
       role: combinedRole as JwtPayload['role'],
-      permissions: this.getJwtPermissions((user as any).role?.permissions),
       branchId: user.branchId ?? null,
       authorizedBranchIds: mappedAuthorizedBranches.map((branch) => branch.id),
     }
@@ -323,7 +310,6 @@ export class AuthService {
     const newPayload: Omit<JwtPayload, 'iat' | 'exp'> = {
       userId: payload.userId,
       role: combinedRole,
-      permissions: this.getJwtPermissions((u.role as any)?.permissions),
       branchId: u.branchId ?? null,
       authorizedBranchIds: mappedAuthorizedBranches.map((branch) => branch.id),
     }

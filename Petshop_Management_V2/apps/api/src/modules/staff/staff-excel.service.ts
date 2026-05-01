@@ -22,7 +22,7 @@ type ColumnDef = {
 
 const STAFF_SHEET = 'NhanVien'
 const GUIDE_SHEET = 'HuongDan'
-const DEFAULT_STAFF_PASSWORD = 'Petshop@123'
+const DEFAULT_STAFF_PASSWORD = 'Abcd@123'
 const ROOT_SYSTEM_USERNAME = 'superadmin'
 const STAFF_IMPORT_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 }
 

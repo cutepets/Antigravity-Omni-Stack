@@ -1,7 +1,7 @@
 import type { AuthUser } from '@petshop/shared'
-import { API_URL, api } from '@/lib/api/transport'
+import { API_URL, SKIP_AUTH_REDIRECT_HEADER, api } from '@/lib/api/transport'
 
-export { API_URL, api }
+export { API_URL, SKIP_AUTH_REDIRECT_HEADER, api }
 
 type AuthCookieResponse = {
   success: true

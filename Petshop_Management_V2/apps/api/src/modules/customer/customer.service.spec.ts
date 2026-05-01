@@ -48,6 +48,67 @@ describe('CustomerService', () => {
     expect(result.data.customerCode).toBe('KH000005')
   })
 
+  it('does not persist legacy supplier flags on customer create payloads', async () => {
+    const db = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([{ maxNumber: 4 }]),
+      branch: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'branch-main', code: 'HCM', name: 'HCM', isMain: true }),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      customerGroup: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      customer: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation(async ({ data }) => ({
+          id: 'customer-1',
+          ...data,
+        })),
+      },
+    } as any
+    const service = new CustomerService(db)
+
+    await service.create({
+      fullName: 'Khach test',
+      phone: '0900000005',
+      isSupplier: true,
+      supplierCode: 'NCC0001',
+    } as any)
+
+    expect(db.customer.findFirst).not.toHaveBeenCalledWith({ where: { supplierCode: 'NCC0001' } })
+    expect(db.customer.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({
+          isSupplier: expect.anything(),
+          supplierCode: expect.anything(),
+        }),
+      }),
+    )
+  })
+
+  it('does not persist legacy supplier flags on customer update payloads', async () => {
+    const db = {
+      customer: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'customer-1', phone: '0900000005' }),
+        findFirst: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({ id: 'customer-1' }),
+      },
+    } as any
+    const service = new CustomerService(db)
+
+    await service.update('customer-1', {
+      fullName: 'Khach test',
+      isSupplier: true,
+      supplierCode: 'NCC0001',
+    } as any)
+
+    expect(db.customer.update).toHaveBeenCalledWith({
+      where: { id: 'customer-1' },
+      data: { fullName: 'Khach test' },
+    })
+  })
+
   it('maps customer list UI sort keys to real database fields', async () => {
     const db = makeFindAllDb()
     const service = new CustomerService(db)

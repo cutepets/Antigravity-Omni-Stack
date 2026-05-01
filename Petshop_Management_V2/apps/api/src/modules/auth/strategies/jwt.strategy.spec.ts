@@ -3,6 +3,16 @@ import { JwtStrategy } from './jwt.strategy'
 
 describe('JwtStrategy', () => {
   const previousSecret = process.env['JWT_SECRET']
+  const makeDb = (user?: any) => ({
+    user: {
+      findUnique: jest.fn().mockResolvedValue(user ?? {
+        id: 'user-1',
+        role: { code: 'STAFF', permissions: ['dashboard.read'] },
+        branchId: 'branch-1',
+        authorizedBranches: [{ id: 'branch-2' }],
+      }),
+    },
+  } as any)
 
   beforeAll(() => {
     process.env['JWT_SECRET'] = 'test-secret'
@@ -18,7 +28,7 @@ describe('JwtStrategy', () => {
   })
 
   it('extracts the access token from cookies', () => {
-    const strategy = new JwtStrategy()
+    const strategy = new JwtStrategy(makeDb())
     const extractor = (strategy as unknown as { _jwtFromRequest: (req: unknown) => string | null })._jwtFromRequest
 
     const token = extractor({
@@ -31,7 +41,7 @@ describe('JwtStrategy', () => {
   })
 
   it('falls back to bearer auth before cookies', () => {
-    const strategy = new JwtStrategy()
+    const strategy = new JwtStrategy(makeDb())
     const extractor = (strategy as unknown as { _jwtFromRequest: (req: unknown) => string | null })._jwtFromRequest
 
     const token = extractor({
@@ -44,9 +54,44 @@ describe('JwtStrategy', () => {
     expect(token).toBe('bearer-access-token')
   })
 
-  it('rejects payloads without userId', () => {
-    const strategy = new JwtStrategy()
+  it('rejects payloads without userId', async () => {
+    const strategy = new JwtStrategy(makeDb())
 
-    expect(() => strategy.validate({ userId: '' } as any)).toThrow(UnauthorizedException)
+    await expect(strategy.validate({ userId: '' } as any)).rejects.toThrow(UnauthorizedException)
+  })
+
+  it('hydrates role permissions from the database instead of trusting token permissions', async () => {
+    const db = makeDb({
+      id: 'user-1',
+      role: { code: 'QLCH', permissions: ['dashboard.read', 'stock_receipt.read'] },
+      branchId: 'branch-1',
+      authorizedBranches: [{ id: 'branch-2' }],
+    })
+    const strategy = new JwtStrategy(db)
+
+    const result = await strategy.validate({
+      userId: 'user-1',
+      role: 'STALE',
+      permissions: ['too.large'],
+      branchId: null,
+      authorizedBranchIds: [],
+    } as any)
+
+    expect(db.user.findUnique).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      select: {
+        id: true,
+        branchId: true,
+        authorizedBranches: { select: { id: true } },
+        role: { select: { code: true, permissions: true } },
+      },
+    })
+    expect(result).toEqual(expect.objectContaining({
+      userId: 'user-1',
+      role: 'QLCH',
+      permissions: ['dashboard.read', 'stock_receipt.read'],
+      branchId: 'branch-1',
+      authorizedBranchIds: ['branch-1', 'branch-2'],
+    }))
   })
 })

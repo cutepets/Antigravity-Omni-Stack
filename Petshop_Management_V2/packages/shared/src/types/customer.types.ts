@@ -20,8 +20,6 @@ export interface Customer {
   totalSpent?: number
   totalOrders?: number
   isActive?: boolean
-  isSupplier?: boolean
-  supplierCode?: string | null
   companyName?: string | null
   companyAddress?: string | null
   representativeName?: string | null

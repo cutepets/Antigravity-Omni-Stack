@@ -138,7 +138,7 @@ export class StaffService {
     const count = await this.db.user.count()
     const staffCode = `NV${String(count + 1).padStart(5, '0')}`
 
-    const passwordToHash = dto.password || 'Petshop@123'
+    const passwordToHash = dto.password || 'Abcd@123'
     const passwordHash = await bcrypt.hash(passwordToHash, 12)
 
     return this.db.user.create({

@@ -66,8 +66,8 @@ describe('AuthService', () => {
     })
     expect(jwt.sign).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({
-        permissions: ['MANAGE_STAFF', 'FULL_BRANCH_ACCESS'],
+      expect.not.objectContaining({
+        permissions: expect.any(Array),
       }),
     )
     expect(result.refreshToken).toBe('refresh-token-1')
@@ -253,8 +253,8 @@ describe('AuthService', () => {
     })
     expect(jwt.sign).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({
-        permissions: ['MANAGE_STAFF', 'FULL_BRANCH_ACCESS'],
+      expect.not.objectContaining({
+        permissions: expect.any(Array),
       }),
     )
     expect(result.refreshToken).toBe('new-refresh-token')

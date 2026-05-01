@@ -4,6 +4,7 @@ import { clearAuthSessionCookie, setAuthSessionCookie } from '@/lib/auth-session
 import { useAuthStore } from '@/stores/auth.store'
 
 export const API_URL = process.env['NEXT_PUBLIC_API_URL']?.replace(/\/+$/, '') ?? ''
+export const SKIP_AUTH_REDIRECT_HEADER = 'X-Skip-Auth-Redirect'
 
 export const api = axios.create({
   baseURL: `${API_URL}/api`,
@@ -16,6 +17,13 @@ export const api = axios.create({
 api.defaults.headers.common['Content-Type'] = 'application/json'
 
 api.interceptors.request.use((config) => {
+  const skipAuthRedirect =
+    String((config.headers as any)?.[SKIP_AUTH_REDIRECT_HEADER] ?? '').toLowerCase() === 'true'
+  if (skipAuthRedirect) {
+    ;(config as any).skipAuthRedirect = true
+    delete (config.headers as any)[SKIP_AUTH_REDIRECT_HEADER]
+  }
+
   if (typeof window !== 'undefined') {
     const branchId = useAuthStore.getState().activeBranchId
     const method = (config.method ?? 'get').toLowerCase()
@@ -62,6 +70,10 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
+
+    if (error.response?.status === 401 && (originalRequest as any)?.skipAuthRedirect) {
+      return Promise.reject(error)
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       const requestUrl = String(originalRequest?.url ?? '')

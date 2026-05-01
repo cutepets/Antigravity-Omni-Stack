@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
 import { getRolePermissions, hasAnyPermission, resolvePermissions } from '@petshop/auth'
-import { getNextSequentialCode } from '../../common/utils/sequential-code.util.js'
+import { formatSequentialCode } from '@petshop/shared'
 import { DatabaseService } from '../../database/database.service.js'
 import type {
   CrmExcelIssue,
@@ -43,8 +43,6 @@ const CUSTOMER_COLUMNS: ColumnDef[] = [
   { key: 'taxCode', header: 'taxCode', width: 18 },
   { key: 'description', header: 'description', width: 30 },
   { key: 'isActive', header: 'isActive', width: 12 },
-  { key: 'isSupplier', header: 'isSupplier', width: 12 },
-  { key: 'supplierCode', header: 'supplierCode', width: 18 },
   { key: 'companyName', header: 'companyName', width: 26 },
   { key: 'companyAddress', header: 'companyAddress', width: 30 },
   { key: 'representativeName', header: 'representativeName', width: 24 },
@@ -84,6 +82,7 @@ const CUSTOMER_EDITABLE_KEYS = new Set(CUSTOMER_COLUMNS.filter((column) => !colu
 const PET_EDITABLE_KEYS = new Set(PET_COLUMNS.filter((column) => !column.readonly).map((column) => column.key))
 const CUSTOMER_TIERS = new Set(['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND'])
 const PET_GENDERS = new Set(['MALE', 'FEMALE', 'UNKNOWN'])
+const LARGE_IMPORT_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 120_000 }
 
 function normalizeHeader(value: unknown) {
   return String(value ?? '')
@@ -180,6 +179,15 @@ export class CrmExcelService {
 
     await (this.db as any).$transaction(async (tx: any) => {
       const customerIdByCode = new Map<string, string>()
+      const customerCreateCount = preview.normalizedPayload!.customers.filter((row) => row.action === 'create').length
+      const petCreateCount = preview.normalizedPayload!.pets.filter((row) => row.action === 'create').length
+      const nextCustomerCode = customerCreateCount > 0
+        ? await this.createSequentialCodeAllocator(tx, { table: 'customers', column: 'customerCode', prefix: 'KH' })
+        : null
+      const nextPetCode = petCreateCount > 0
+        ? await this.createSequentialCodeAllocator(tx, { table: 'pets', column: 'petCode', prefix: 'PET' })
+        : null
+
       for (const row of preview.normalizedPayload!.customers) {
         if (row.action === 'update' && row.existingId) {
           await tx.customer.update({ where: { id: row.existingId }, data: row.data })
@@ -191,11 +199,7 @@ export class CrmExcelService {
           })
           if (row.customerCode) customerIdByCode.set(row.customerCode, row.existingId)
         } else {
-          const customerCode = await getNextSequentialCode(tx, {
-            table: 'customers',
-            column: 'customerCode',
-            prefix: 'KH',
-          })
+          const customerCode = nextCustomerCode!()
           const created = await tx.customer.create({
             data: {
               ...row.data,
@@ -235,11 +239,7 @@ export class CrmExcelService {
           })
         } else {
           if (!customerId) throw new BadRequestException(`Không tìm thấy khách hàng ${row.ownerCustomerCode}`)
-          const petCode = await getNextSequentialCode(tx, {
-            table: 'pets',
-            column: 'petCode',
-            prefix: 'PET',
-          })
+          const petCode = nextPetCode!()
           await tx.pet.create({
             data: {
               ...row.data,
@@ -250,9 +250,23 @@ export class CrmExcelService {
           })
         }
       }
-    })
+    }, LARGE_IMPORT_TRANSACTION_OPTIONS)
 
     return preview
+  }
+
+  private async createSequentialCodeAllocator(
+    tx: any,
+    options: { table: string; column: string; prefix: string; padLength?: number },
+  ) {
+    const rows = await tx.$queryRawUnsafe(`
+      SELECT MAX(CAST(SUBSTRING("${options.column}" FROM '([0-9]+)$') AS INTEGER)) AS "maxNumber"
+      FROM "${options.table}"
+      WHERE "${options.column}" ~ '^${options.prefix}[0-9]+$'
+    `) as Array<{ maxNumber: number | bigint | null }>
+    const [result] = rows
+    let nextNumber = Number(result?.maxNumber ?? 0) + 1
+    return () => formatSequentialCode(options.prefix, nextNumber++, options.padLength ?? 6)
   }
 
   private async recordPointMigrationIfNeeded(
@@ -501,7 +515,7 @@ export class CrmExcelService {
         if (key === 'customerCode' || key === 'groupName' || key === 'branchName') continue
         const raw = row.values[key]
         const parsed =
-          key === 'isActive' || key === 'isSupplier' ? booleanValue(raw)
+          key === 'isActive' ? booleanValue(raw)
             : key === 'points' || key === 'debt' ? numberValue(raw)
               : key === 'dateOfBirth' ? dateValue(raw)
                 : text(raw)

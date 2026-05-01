@@ -95,8 +95,6 @@ export interface CreateCustomerDto {
   taxCode?: string
   description?: string
   isActive?: boolean
-  isSupplier?: boolean
-  supplierCode?: string
   companyName?: string
   companyAddress?: string
   representativeName?: string
@@ -425,11 +423,6 @@ export class CustomerService {
       if (exists) throw new ConflictException(`Số điện thoại "${dto.phone}" đã được sử dụng`)
     }
 
-    if (dto.supplierCode) {
-      const exists = await this.db.customer.findFirst({ where: { supplierCode: dto.supplierCode } })
-      if (exists) throw new ConflictException(`Mã nhà cung cấp "${dto.supplierCode}" đã tồn tại`)
-    }
-
     const customerCode = await this._nextCustomerCode()
     const branchId = await this.resolveWriteBranchId(user, requestedBranchId)
 
@@ -462,8 +455,6 @@ export class CustomerService {
         taxCode: dto.taxCode || null,
         description: dto.description || null,
         isActive: dto.isActive ?? true,
-        isSupplier: dto.isSupplier ?? false,
-        supplierCode: dto.supplierCode || null,
         companyName: dto.companyName || null,
         companyAddress: dto.companyAddress || null,
         representativeName: dto.representativeName || null,
@@ -488,6 +479,8 @@ export class CustomerService {
     }
 
     const updateData: Record<string, any> = { ...(dto as any) }
+    delete updateData.isSupplier
+    delete updateData.supplierCode
     if ('dateOfBirth' in updateData) {
       updateData.dateOfBirth = updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : null
     }

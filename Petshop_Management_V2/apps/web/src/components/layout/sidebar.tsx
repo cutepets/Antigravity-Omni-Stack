@@ -15,7 +15,6 @@ import {
   Gift,
   Hotel,
   LayoutDashboard,
-  LogOut,
   MonitorSmartphone,
   Package,
   PawPrint,
@@ -26,10 +25,9 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, SKIP_AUTH_REDIRECT_HEADER } from '@/lib/api'
 import { useAuthorization, type StaffRole } from '@/hooks/useAuthorization'
 import { useModuleConfig } from '@/hooks/useModuleConfig'
-import { useAuthStore } from '@/stores/auth.store'
 import { useThemeStore } from '@/stores/theme.store'
 
 type NavItem = {
@@ -223,18 +221,9 @@ const fadeIn = {
   exit: { opacity: 0, transition: { duration: 0.08, ease: EASE } },
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  SUPER_ADMIN: 'Super Admin',
-  ADMIN: 'Quản trị viên',
-  MANAGER: 'Quản lý',
-  STAFF: 'Nhân viên',
-  VIEWER: 'Chỉ xem',
-}
-
 export function Sidebar() {
   const pathname = usePathname()
-  const { hasRole, hasAnyPermission, roleCode } = useAuthorization()
-  const { user, logout } = useAuthStore()
+  const { hasRole, hasAnyPermission } = useAuthorization()
   const { isSidebarOpen } = useThemeStore()
   const { isModuleActive } = useModuleConfig()
 
@@ -242,7 +231,9 @@ export function Sidebar() {
     queryKey: ['settings', 'configs'],
     queryFn: async () => {
       try {
-        const res = await api.get('/settings/configs')
+        const res = await api.get('/settings/configs', {
+          headers: { [SKIP_AUTH_REDIRECT_HEADER]: 'true' },
+        })
         return res.data?.data || null
       } catch {
         return null
@@ -267,8 +258,6 @@ export function Sidebar() {
 
   const canViewSettings =
     hasAnyPermission(SETTINGS_PERMISSIONS) || hasRole(['SUPER_ADMIN', 'ADMIN'])
-  const roleLabel = roleCode ? (ROLE_LABELS[roleCode] ?? roleCode) : 'Người dùng'
-
   return (
     <motion.aside
       initial={false}
@@ -428,87 +417,6 @@ export function Sidebar() {
           </Link>
         ) : null}
 
-        {user ? (
-          <div className="group relative mx-3 flex h-14 w-[calc(100%-24px)] items-center overflow-hidden rounded-lg transition-colors hover:bg-white/5">
-            <div
-              className={clsx(
-                'flex h-full shrink-0 cursor-pointer items-center justify-center transition-all duration-300',
-                isSidebarOpen ? 'w-[56px]' : 'w-full',
-              )}
-              title={!isSidebarOpen ? 'Đăng xuất' : undefined}
-              onClick={!isSidebarOpen ? () => logout() : undefined}
-            >
-              <div
-                className={clsx(
-                  'bg-primary-500/20 text-primary-500 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition-colors',
-                  !isSidebarOpen && 'group-hover:bg-error group-hover:text-white',
-                )}
-              >
-                {!isSidebarOpen ? (
-                  <>
-                    <span className="block group-hover:hidden">
-                      {user.avatar ? (
-                        <Image
-                          src={user.avatar}
-                          alt={user.fullName}
-                          width={32}
-                          height={32}
-                          className="h-full w-full object-cover"
-                          unoptimized
-                        />
-                      ) : (
-                        user.username?.charAt(0).toUpperCase() || 'A'
-                      )}
-                    </span>
-                    <LogOut size={14} className="hidden group-hover:block" />
-                  </>
-                ) : user.avatar ? (
-                  <Image
-                    src={user.avatar}
-                    alt={user.fullName}
-                    width={32}
-                    height={32}
-                    className="h-full w-full object-cover"
-                    unoptimized
-                  />
-                ) : (
-                  user.username?.charAt(0).toUpperCase() || 'A'
-                )}
-              </div>
-            </div>
-
-            <AnimatePresence mode="wait">
-              {isSidebarOpen ? (
-                <motion.div
-                  key="user-info"
-                  {...fadeIn}
-                  className="absolute left-[56px] right-10 flex flex-col whitespace-nowrap"
-                >
-                  <span className="text-foreground-base truncate text-xs font-bold">
-                    {roleLabel}
-                  </span>
-                  <span className="text-foreground-muted truncate text-[11px]">
-                    @{user.username}
-                  </span>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-
-            <AnimatePresence mode="wait">
-              {isSidebarOpen ? (
-                <motion.button
-                  key="logout-btn"
-                  {...fadeIn}
-                  onClick={() => logout()}
-                  className="bg-background-base text-foreground-muted hover:bg-error/10 hover:text-error absolute right-2 z-10 rounded-md p-1.5 opacity-0 transition-colors group-hover:opacity-100"
-                  title="Đăng xuất"
-                >
-                  <LogOut size={16} />
-                </motion.button>
-              ) : null}
-            </AnimatePresence>
-          </div>
-        ) : null}
       </div>
     </motion.aside>
   )

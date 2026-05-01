@@ -3,6 +3,9 @@ import type { NextRequest } from 'next/server'
 import { AUTH_SESSION_COOKIE } from '@/lib/auth-session-cookie'
 
 const PUBLIC_ROUTES = ['/login', '/forgot-password']
+const IGNORED_PREFIXES = [
+  '/.well-known',
+]
 
 export function middleware(request: NextRequest) {
   try {
@@ -10,6 +13,11 @@ export function middleware(request: NextRequest) {
     const hasSessionCookie = request.cookies.get(AUTH_SESSION_COOKIE)?.value === '1'
 
     const isPublic = PUBLIC_ROUTES.some((route) => pathname.startsWith(route))
+    const isIgnored = IGNORED_PREFIXES.some((route) => pathname.startsWith(route))
+
+    if (isIgnored) {
+      return NextResponse.next()
+    }
 
     // Redirect unauthenticated users to login
     if (!isPublic && !hasSessionCookie) {
@@ -28,6 +36,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/|mockServiceWorker.js).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/|mockServiceWorker.js|\\.well-known/).*)',
   ],
 }

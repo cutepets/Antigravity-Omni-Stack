@@ -376,7 +376,7 @@ export function StaffFormModal({ isOpen, onClose, onSave, initialData, roles, br
                       placeholder="nva2025"
                     />
                     {!isEditing && (
-                      <p className="mt-1.5 text-[11px] text-foreground-muted">Mật khẩu mặc định: <span className="text-foreground font-medium">Petshop@123</span></p>
+                      <p className="mt-1.5 text-[11px] text-foreground-muted">Mật khẩu mặc định: <span className="text-foreground font-medium">Abcd@123</span></p>
                     )}
                   </div>
 

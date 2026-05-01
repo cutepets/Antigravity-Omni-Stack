@@ -291,7 +291,7 @@ export function Header() {
               >
                 {user.fullName}
               </p>
-              <p style={{ fontSize: 12, color: 'var(--color-primary-500)', fontWeight: 600, margin: 0 }}>{user.role}</p>
+              <p style={{ fontSize: 12, color: 'var(--color-primary-500)', fontWeight: 600, margin: 0 }}>@{user.username}</p>
             </div>
             <motion.div
               whileHover={{ scale: 1.05 }}

@@ -25,12 +25,16 @@ const TECH_STACK = [
 ]
 
 const MODULES = [
+  { name: 'Khách hàng & CRM', color: 'text-sky-500' },
+  { name: 'Hồ sơ thú cưng', color: 'text-lime-500' },
   { name: 'POS bán hàng', color: 'text-emerald-500' },
-  { name: 'Quản lý kho', color: 'text-blue-500' },
+  { name: 'Đơn hàng & đổi trả', color: 'text-orange-500' },
+  { name: 'Kho & nhà cung cấp', color: 'text-blue-500' },
   { name: 'Spa / Grooming', color: 'text-pink-500' },
   { name: 'Pet Hotel', color: 'text-amber-500' },
   { name: 'Nhân sự & Chấm công', color: 'text-violet-500' },
   { name: 'Báo cáo & Tài chính', color: 'text-cyan-500' },
+  { name: 'Cài đặt & tích hợp', color: 'text-slate-500' },
 ]
 
 type ChangeLogEntry = {
@@ -44,9 +48,10 @@ const CHANGELOG: ChangeLogEntry[] = [
     version: DISPLAY_VERSION,
     date: '2026-05-01',
     changes: [
+      'Map lại kiến trúc hệ thống, tài liệu vận hành và luồng deploy Docker production',
       'Cập nhật hồ sơ khách hàng với ngày sinh, lịch sử điểm và dữ liệu chăm sóc chi tiết hơn',
       'Hoàn thiện nhập xuất CRM, kiểm tra dữ liệu Excel và bộ test liên quan',
-      'Tinh chỉnh dashboard, báo cáo, khuyến mãi và các luồng vận hành chính trước bản deploy mới',
+      'Chuẩn hóa phân loại khách hàng, nhà cung cấp, staff và dữ liệu Excel trước bản deploy mới',
       'Đóng gói lại Docker production cho bản phát hành mới nhất',
     ],
   },
@@ -143,6 +148,17 @@ export function TabAbout() {
         </div>
 
         <div className="space-y-8 px-2">
+          <div className="rounded-2xl border border-border/40 bg-black/5 p-5">
+            <h3 className="mb-2 text-sm font-bold text-foreground-base">
+              Petshop Management V2
+            </h3>
+            <p className="text-sm leading-6 text-foreground-secondary">
+              Hệ thống quản lý vận hành cho cửa hàng thú cưng, gom các nghiệp vụ
+              khách hàng, thú cưng, POS, grooming, hotel, kho, nhân sự, tài chính
+              và cấu hình tích hợp trong một nền tảng web dùng chung dữ liệu.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <InfoCard icon={<Package size={18} />} label="Phiên bản" value={`V${displayVersion}`} />
             <InfoCard icon={<Calendar size={18} />} label="Cập nhật" value={buildDate} />

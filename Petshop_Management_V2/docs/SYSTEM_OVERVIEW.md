@@ -6,12 +6,40 @@
 - Phien ban hien tai: 2.5.1
 - Kieu trien khai: Docker Compose production
 - Nhanh trien khai: codex/baseline-upgrade
+- Ngay cap nhat tai lieu: 2026-05-01
 
 ## Tong quan
 
 Petshop Management V2 la he thong quan ly van hanh cho chuoi cua hang cham soc thu cung. He thong tap trung gom cac nghiep vu ban hang, quan ly khach hang, ho so thu cung, dich vu grooming, khach san thu cung, kho hang, nhan su, cham cong, bang luong, bao cao tai chinh va cau hinh tich hop.
 
 Nen tang duoc xay dung theo monorepo, gom ung dung API NestJS, ung dung web Next.js va cac package dung chung cho database, auth, shared DTO, UI, queue va cau hinh. Moi truong production chay bang Docker Compose voi PostgreSQL, Redis, API va Web tach container.
+
+## Ban do he thong
+
+```text
+Petshop_Management_V2/
+|-- apps/
+|   |-- web/      Next.js 15 App Router, dashboard, POS va settings UI
+|   `-- api/      NestJS REST API, auth, nghiep vu va tich hop
+|-- packages/
+|   |-- database/ Prisma schema, migrations, seed va Prisma Client
+|   |-- shared/   DTO, types, constants dung chung
+|   |-- auth/     JWT, RBAC va permission helpers
+|   |-- api-client/ DTO/client helpers cho frontend
+|   |-- queue/    BullMQ job definitions
+|   |-- ui/       UI primitives dung lai
+|   `-- config/   cau hinh dung chung
+|-- deploy/       deploy.sh va cau hinh nginx production
+`-- docs/         CODEMAPS, roadmap va tai lieu van hanh
+```
+
+Luon chinh:
+
+1. Nguoi dung thao tac tren `apps/web`.
+2. Frontend goi REST API qua `apps/web/src/lib/api`.
+3. `apps/api` xu ly auth/RBAC, nghiep vu va goi Prisma.
+4. `packages/database` ket noi PostgreSQL, Redis dung cho cache/queue.
+5. Storage co the luu local hoac dong bo Google Drive theo cau hinh he thong.
 
 ## Cac phan he chinh
 
@@ -23,6 +51,13 @@ Nen tang duoc xay dung theo monorepo, gom ung dung API NestJS, ung dung web Next
 - Nhan su: quan ly nhan vien, chi nhanh, vai tro, tai lieu nhan su, cham cong, nghi phep va bang luong.
 - Bao cao: tong hop doanh thu, giao dich tai chinh, van hanh va cac chi so quan tri.
 - Cau hinh he thong: quan ly tich hop Google OAuth, Google Drive, backup, bao mat va cac tham so van hanh.
+
+## Diem cap nhat ban 2.5.1
+
+- Map lai tai lieu he thong, CODEMAPS va thong tin gioi thieu trong Settings.
+- Cap nhat luong khach hang/CRM voi ngay sinh, lich su diem va import/export Excel.
+- Chuan hoa phan loai khach hang, nha cung cap va staff tren API, shared DTO va frontend.
+- Cap nhat Docker production flow: commit, push branch, build image tren VPS va health check.
 
 ## Kien truc trien khai
 

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, SKIP_AUTH_REDIRECT_HEADER } from '@/lib/api'
 
 /**
  * Dynamically updates the browser tab favicon to match the shop logo
@@ -13,7 +13,9 @@ export function FaviconUpdater() {
         queryKey: ['settings', 'configs'],
         queryFn: async () => {
             try {
-                const res = await api.get('/settings/configs')
+                const res = await api.get('/settings/configs', {
+                    headers: { [SKIP_AUTH_REDIRECT_HEADER]: 'true' },
+                })
                 return res.data?.data || null
             } catch {
                 return null

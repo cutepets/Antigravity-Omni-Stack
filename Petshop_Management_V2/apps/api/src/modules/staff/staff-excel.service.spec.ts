@@ -1,4 +1,5 @@
 import { StaffExcelService } from './staff-excel.service'
+import * as bcrypt from 'bcryptjs'
 
 const actor: any = {
   userId: 'admin-1',
@@ -250,5 +251,7 @@ describe('StaffExcelService', () => {
         passwordHash: expect.any(String),
       }),
     })
+    const passwordHash = db.user.create.mock.calls[0][0].data.passwordHash
+    await expect(bcrypt.compare('Abcd@123', passwordHash)).resolves.toBe(true)
   })
 })

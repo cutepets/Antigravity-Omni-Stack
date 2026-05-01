@@ -5,6 +5,22 @@ Format theo [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) và [Semant
 
 ---
 
+## [2.5.1] - 2026-05-01
+
+### Documentation & Release
+- Map lại hệ thống, CODEMAPS và giới thiệu trong Settings.
+- Cập nhật tài liệu vận hành Docker Compose production và luồng deploy VPS.
+
+### Customer / CRM
+- Cập nhật hồ sơ khách hàng với ngày sinh, lịch sử điểm và dữ liệu chăm sóc chi tiết hơn.
+- Hoàn thiện nhập xuất CRM, kiểm tra dữ liệu Excel và bộ test liên quan.
+- Chuẩn hóa phân loại khách hàng, nhà cung cấp và staff trên API, shared DTO và frontend.
+
+### DevOps
+- Chuẩn bị đóng gói Docker production cho API/Web và deploy qua VPS script.
+
+---
+
 ## [2.5.0] - 2026-04-25
 
 ### 🏨 Hotel Module

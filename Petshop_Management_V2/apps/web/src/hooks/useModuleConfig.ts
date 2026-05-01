@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, SKIP_AUTH_REDIRECT_HEADER } from '@/lib/api'
 
 export interface ModuleConfig {
     id: string
@@ -18,7 +18,9 @@ const QUERY_KEY = ['settings', 'modules'] as const
 
 async function fetchModules(): Promise<ModuleConfig[]> {
     try {
-        const res = await api.get('/settings/modules')
+        const res = await api.get('/settings/modules', {
+            headers: { [SKIP_AUTH_REDIRECT_HEADER]: 'true' },
+        })
         return res.data?.data ?? []
     } catch {
         // Fail open: if API is down, don't hide nav

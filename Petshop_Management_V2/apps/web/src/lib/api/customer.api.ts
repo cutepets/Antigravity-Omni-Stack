@@ -54,8 +54,6 @@ export interface CreateCustomerDto {
   taxCode?: string
   description?: string
   isActive?: boolean
-  isSupplier?: boolean
-  supplierCode?: string
   companyName?: string
   companyAddress?: string
   representativeName?: string

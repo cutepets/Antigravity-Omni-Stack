@@ -1,10 +1,12 @@
-<!-- Generated: 2026-04-25 | Files scanned: ~500 | Token estimate: ~350 -->
+<!-- Generated: 2026-05-01 | Files scanned: 1110 | Token estimate: ~500 -->
 # Dependencies Architecture
 
 ## Core Platforms
-- Node.js (Runtime)
-- PostgreSQL (Primary DB)
-- Redis (Job queues / caching)
+- Node.js 20 (runtime)
+- pnpm 10.33.0 (package manager)
+- PostgreSQL 16 (primary DB)
+- Redis 7 (job queues / caching)
+- Docker Compose (production packaging and runtime)
 
 ## Framework Dependencies
 - NestJS (Backend framework)
@@ -20,3 +22,8 @@
 - `passport`, `passport-jwt`, `passport-google-oauth20`, `bcryptjs`: Backend auth.
 - `@googleapis/drive`: Google Drive integration for storage.
 - `xlsx`: Excel import/export for pricing data.
+
+## Deployment Dependencies
+- `Dockerfile`: Multi-stage build for `api-runner` and `web-runner` images.
+- `docker-compose.prod.yml`: PostgreSQL, Redis, API and Web services.
+- `deploy/deploy.sh`: VPS release script for pull, build, recreate, migrate and health check.

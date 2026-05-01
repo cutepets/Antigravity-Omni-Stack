@@ -100,6 +100,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            onClick={onClose}
             className="fixed inset-0 z-50 app-modal-overlay"
           />
 
@@ -251,24 +252,6 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-2xl border border-border bg-background-base p-4">
-                <div className="mb-1 flex items-center gap-2">
-                  <Monitor className="h-4 w-4 text-primary-400" />
-                  <span className="text-sm font-medium text-foreground-base">Thông tin hệ thống</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-foreground-muted">Phien ban:</span>
-                  <span className="font-medium text-foreground-base">1.0.0-beta</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-foreground-muted">Chi nhanh:</span>
-                  <span className="font-medium text-foreground-base">{currentBranch?.name || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-foreground-muted">Vai trò:</span>
-                  <span className="font-medium text-foreground-base">{user.role}</span>
-                </div>
-              </div>
             </div>
 
             <div className="mt-auto border-t border-border bg-background-base p-5">
