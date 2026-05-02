@@ -208,3 +208,52 @@ describe('SettingsService google auth config', () => {
     })
   })
 })
+
+describe('SettingsService public branding', () => {
+  it('returns only safe public branding fields from system config', async () => {
+    const db = {
+      systemConfig: {
+        findFirst: jest.fn().mockResolvedValue({
+          shopName: 'Cutepets Hanoi',
+          shopLogo: 'https://cdn.example/logo.png',
+          googleAuthClientSecretEnc: 'secret',
+        }),
+      },
+    } as any
+    const service = new SettingsService(db)
+
+    await expect(service.getPublicBranding()).resolves.toEqual({
+      success: true,
+      data: {
+        shopName: 'Cutepets Hanoi',
+        shopLogo: 'https://cdn.example/logo.png',
+      },
+    })
+    expect(db.systemConfig.findFirst).toHaveBeenCalledWith({
+      select: {
+        shopName: true,
+        shopLogo: true,
+      },
+    })
+  })
+
+  it('falls back to PetShop when public branding is empty', async () => {
+    const db = {
+      systemConfig: {
+        findFirst: jest.fn().mockResolvedValue({
+          shopName: '   ',
+          shopLogo: '',
+        }),
+      },
+    } as any
+    const service = new SettingsService(db)
+
+    await expect(service.getPublicBranding()).resolves.toEqual({
+      success: true,
+      data: {
+        shopName: 'PetShop',
+        shopLogo: null,
+      },
+    })
+  })
+})

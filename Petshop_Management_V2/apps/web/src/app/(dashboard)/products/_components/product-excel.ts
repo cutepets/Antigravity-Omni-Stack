@@ -18,7 +18,7 @@ export type ParsedProductExcelFile = {
   priceBookHeaders: string[]
 }
 
-const BASE_PRODUCT_EXCEL_COLUMNS: ProductExcelColumn[] = [
+export const BASE_PRODUCT_EXCEL_COLUMNS: ProductExcelColumn[] = [
   { key: 'groupCode', header: 'Mã nhóm SP*', width: 18 },
   { key: 'rowType', header: 'Loại dòng*', width: 16 },
   { key: 'sku', header: 'SKU*', width: 20 },
@@ -36,9 +36,15 @@ const BASE_PRODUCT_EXCEL_COLUMNS: ProductExcelColumn[] = [
   { key: 'category', header: 'Danh mục', width: 18 },
   { key: 'brand', header: 'Thương hiệu', width: 18 },
   { key: 'importName', header: 'Tên nhập', width: 20 },
+  { key: 'targetSpecies', header: 'Loài áp dụng', width: 16 },
   { key: 'isActive', header: 'Đang bán', width: 12 },
   { key: 'imageUrl', header: 'Ảnh link', width: 28 },
   { key: 'costPrice', header: 'Giá vốn', width: 14 },
+  { key: 'vat', header: 'VAT', width: 12 },
+  { key: 'weight', header: 'Khối lượng', width: 14 },
+  { key: 'minStock', header: 'Tồn tối thiểu', width: 14 },
+  { key: 'tags', header: 'Tags', width: 20 },
+  { key: 'lastCountShift', header: 'Ca kiểm gần nhất', width: 18 },
 ]
 
 const REQUIRED_COLUMN_KEYS = new Set<BaseProductExcelColumnKey>(['groupCode', 'rowType', 'sku'])
@@ -96,9 +102,15 @@ function normalizeRow(row: ProductExcelRow): ProductExcelRow {
     category: parseText(row.category),
     brand: parseText(row.brand),
     importName: parseText(row.importName),
+    targetSpecies: parseText(row.targetSpecies),
     isActive: parseBoolean(row.isActive),
     imageUrl: parseText(row.imageUrl),
     costPrice: parseNumber(row.costPrice),
+    vat: parseNumber(row.vat),
+    weight: parseNumber(row.weight),
+    minStock: parseNumber(row.minStock),
+    tags: parseText(row.tags),
+    lastCountShift: parseText(row.lastCountShift),
     priceBookValues: Object.fromEntries(
       Object.entries(row.priceBookValues ?? {}).map(([header, value]) => [header, parseNumber(value)]),
     ),
@@ -116,25 +128,32 @@ export async function exportProductWorkbook(params: {
   rows: ProductExcelRow[]
   guideRows?: Array<Array<string | number | null>>
   priceBookHeaders?: string[]
+  columns?: string[]
   fileName?: string
 }) {
   const workbook = new ExcelJS.Workbook()
   const productSheet = workbook.addWorksheet('Products')
   const guideSheet = workbook.addWorksheet('HuongDan')
   const priceBookHeaders = getExportPriceHeaders(params.rows, params.priceBookHeaders)
+  const selectedColumnSet = Array.isArray(params.columns) && params.columns.length > 0
+    ? new Set(params.columns)
+    : null
+  const staticColumns = selectedColumnSet
+    ? BASE_PRODUCT_EXCEL_COLUMNS.filter((column) => selectedColumnSet.has(column.key))
+    : BASE_PRODUCT_EXCEL_COLUMNS
 
-  const headers = [...BASE_PRODUCT_EXCEL_COLUMNS.map((column) => column.header), ...priceBookHeaders]
+  const headers = [...staticColumns.map((column) => column.header), ...priceBookHeaders]
   productSheet.addRow(headers)
   productSheet.getRow(1).font = { bold: true }
   productSheet.views = [{ state: 'frozen', ySplit: 1 }]
   productSheet.columns = [
-    ...BASE_PRODUCT_EXCEL_COLUMNS.map((column) => ({ width: column.width })),
+    ...staticColumns.map((column) => ({ width: column.width })),
     ...priceBookHeaders.map(() => ({ width: 14 })),
   ]
 
   for (const row of params.rows) {
     productSheet.addRow([
-      ...BASE_PRODUCT_EXCEL_COLUMNS.map((column) => row[column.key] ?? ''),
+      ...staticColumns.map((column) => row[column.key] ?? ''),
       ...priceBookHeaders.map((header) => row.priceBookValues?.[header] ?? ''),
     ])
   }

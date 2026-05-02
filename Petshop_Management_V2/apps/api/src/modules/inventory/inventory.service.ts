@@ -15,6 +15,7 @@ import {
   buildProductGuideSheetRows,
   buildVariantLabelFromRow,
   buildVariantPayloadFromRow,
+  filterProductExcelRows,
   hasAnyPriceBookValue,
   matchPriceBookHeaders,
   resolvePrimaryPriceFromValues,
@@ -542,19 +543,27 @@ export class InventoryService {
     const filters = (body.filters ?? {}) as FindProductsDto
     const priceBooks = await this.getProductExcelPriceBooks()
 
-    let products = (await this.listProducts(filters, { paginate: false })).data ?? []
+    let products = (await this.listProducts(filters, { paginate: body.scope === 'page' })).data ?? []
     if (body.scope === 'selected') {
       const selectedIds = new Set((body.productIds ?? []).filter(Boolean))
       products = products.filter((product: any) => selectedIds.has(product.id))
     }
 
-    const rows = buildProductExcelRows(products, priceBooks)
+    const selectedPriceBookNames = Array.isArray(body.priceBookColumns)
+      ? priceBooks
+        .filter((priceBook) => body.priceBookColumns!.includes(priceBook.id) || body.priceBookColumns!.includes(priceBook.name))
+        .map((priceBook) => priceBook.name)
+      : undefined
+    const rows = filterProductExcelRows(buildProductExcelRows(products, priceBooks), {
+      columns: body.columns,
+      priceBookColumns: selectedPriceBookNames,
+    })
     return {
       success: true,
       data: {
         rows,
         guideRows: buildProductGuideSheetRows(priceBooks.map((priceBook) => priceBook.name)),
-        priceBookHeaders: priceBooks.map((priceBook) => priceBook.name),
+        priceBookHeaders: selectedPriceBookNames ?? priceBooks.map((priceBook) => priceBook.name),
         summary: {
           scope: body.scope,
           productCount: products.length,

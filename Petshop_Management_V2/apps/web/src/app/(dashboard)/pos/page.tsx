@@ -16,12 +16,10 @@ import { PosCheckoutPanel } from './components/PosCheckoutPanel';
 import { PosProductSearch } from './components/PosProductSearch';
 import { PosNotifications } from './components/PosNotifications';
 import { PosBranchSelect } from './components/PosBranchSelect';
-import { Menu, X, Plus, Home, NotebookText, Settings, UserCircle2, Bell, LogOut, Maximize, Store, QrCode, EyeOff, Eye, ListChecks } from 'lucide-react';
+import { Menu, X, Plus, Home, NotebookText, Maximize, EyeOff, Eye, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { useRouter } from 'next/navigation';
 import { customToast as toast } from '@/components/ui/toast-with-copy';
-import { moneyRaw } from '@/app/(dashboard)/_shared/payment/payment.utils';
 import { confirmDialog } from '@/components/ui/confirmation-provider'
 
 const HotelCheckoutModal = dynamic(() =>
@@ -50,7 +48,6 @@ function PosPageContent() {
   const cartCount = useCartItemCount();
   const activeBranchId = useAuthStore((state) => state.activeBranchId);
   const authUser = useAuthStore((state) => state.user);
-  const router = useRouter();
   const {
     showHotelCheckout,
     setShowHotelCheckout,
@@ -193,19 +190,6 @@ function PosPageContent() {
           {/* Search + Barcode + OutOfStock toggle */}
           <div className="flex items-center gap-2 w-full lg:w-auto h-full py-1.5 pb-2">
 
-            {/* Mobile LogOut */}
-            <button
-              className="lg:hidden p-1.5 hover:bg-white/20 rounded text-red-100 transition-colors shrink-0"
-              title="Thoát"
-              onClick={async () => {
-                if (await confirmDialog('Bạn có chắc chắn muốn thoát POS?')) {
-                  window.location.href = '/';
-                }
-              }}
-            >
-              <LogOut size={20} />
-            </button>
-
             {/* Desktop Menu */}
             <Menu size={20} className="cursor-pointer hover:opacity-80 transition-opacity hidden lg:block shrink-0" />
 
@@ -333,17 +317,6 @@ function PosPageContent() {
             <span>Chốt sổ</span>
           </button>
 
-          <button
-            className="flex items-center gap-2 bg-[#006E82] hover:bg-[#005767] text-white px-3 py-1.5 rounded text-sm font-bold transition-colors ml-1"
-            title="Lưu nháp / Thoát"
-            onClick={async () => {
-              if (await confirmDialog('Bạn có chắc chắn muốn thoát POS?')) {
-                window.location.href = '/';
-              }
-            }}
-          >
-            <LogOut size={16} />
-          </button>
         </div>
       </header>
       {/* MOBILE TABS BAR */}
@@ -408,7 +381,10 @@ function PosPageContent() {
                   if (check) store.clearCart();
                 }}
               >Xoá tất cả</button>
-              <button className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap">Khuyến mại</button>
+              <button
+                className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap"
+                onClick={() => window.open('/promotions', '_blank')}
+              >Khuyến mại</button>
               <button
                 className="px-3 py-1.5 text-sm bg-surface border border-border text-foreground rounded hover:border-primary-500 transition-colors whitespace-nowrap"
                 onClick={async () => {

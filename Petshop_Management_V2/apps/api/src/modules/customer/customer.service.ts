@@ -155,12 +155,10 @@ export class CustomerService {
     }
   }
 
-  private shouldRestrictToCustomerBranches(user?: AccessUser): boolean {
-    if (!user) return false
-    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return false
-
-    const permissions = this.resolveUserPermissions(user)
-    return !permissions.has('branch.access.all')
+  private shouldRestrictToCustomerBranches(_user?: AccessUser): boolean {
+    // Customers are shared globally: any branch can search/select/sell to the
+    // same customer. Permission checks stay at the controller level.
+    return false
   }
 
   private buildBranchCustomerScope(user?: AccessUser, requestedBranchId?: string | null): any {
@@ -336,10 +334,21 @@ export class CustomerService {
 
     // With search: accent-insensitive in-memory filter (port từ dự án cũ)
     const dbSearch = search.trim()
+    const searchWhere = dbSearch
+      ? {
+        OR: [
+          { phone: { contains: dbSearch, mode: 'insensitive' } },
+          { customerCode: { contains: dbSearch, mode: 'insensitive' } },
+          { email: { contains: dbSearch, mode: 'insensitive' } },
+          { fullName: { contains: dbSearch, mode: 'insensitive' } },
+        ],
+      }
+      : null
+    const searchableWhere = searchWhere
+      ? Object.keys(where).length === 0 ? searchWhere : { AND: [where, searchWhere] }
+      : where
     const allCustomers = await this.db.customer.findMany({
-      where: {
-        ...where,
-      },
+      where: searchableWhere,
       orderBy,
       take: 500,
       include: {

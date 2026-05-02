@@ -357,6 +357,7 @@ export function CountingDashboard() {
             onPageChange={setPage}
             onPageSizeChange={() => {}}
             pageSizeOptions={[10, 20, 50]}
+            attachedToTable
             totalItemText={
               <span className="text-xs">
                 Tổng <strong className="text-foreground">{total}</strong> phiếu kiểm

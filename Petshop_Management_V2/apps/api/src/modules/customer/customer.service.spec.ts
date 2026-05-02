@@ -135,6 +135,68 @@ describe('CustomerService', () => {
     )
   })
 
+  it('searches customers globally even when the active branch is different', async () => {
+    const customer = {
+      id: 'customer-nguyen-khang',
+      customerCode: 'KH000001',
+      fullName: 'Phan Duc Thanh',
+      phone: '0949111520',
+      email: null,
+      branchId: 'branch-nguyen-khang',
+    }
+    const db = {
+      customer: {
+        findMany: jest.fn().mockResolvedValue([customer]),
+      },
+    } as any
+    const service = new CustomerService(db)
+
+    const result = await service.findAll(
+      { search: '0949111520', limit: 10 },
+      {
+        userId: 'staff-kham-thien',
+        role: 'STAFF',
+        permissions: ['customer.read.assigned'],
+        branchId: 'branch-kham-thien',
+        authorizedBranchIds: ['branch-kham-thien'],
+      } as any,
+    )
+
+    expect(db.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.not.objectContaining({
+          AND: expect.arrayContaining([
+            expect.objectContaining({ branchId: 'branch-kham-thien' }),
+          ]),
+        }),
+      }),
+    )
+    expect(result.data).toEqual([customer])
+  })
+
+  it('uses database searchable fields before limiting customer search results', async () => {
+    const db = {
+      customer: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    } as any
+    const service = new CustomerService(db)
+
+    await service.findAll({ search: '0949111520', limit: 10 })
+
+    expect(db.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { phone: { contains: '0949111520', mode: 'insensitive' } },
+            { customerCode: { contains: '0949111520', mode: 'insensitive' } },
+            { email: { contains: '0949111520', mode: 'insensitive' } },
+          ]),
+        }),
+      }),
+    )
+  })
+
   it('lists customer point history ordered newest first after scope check', async () => {
     const db = {
       customer: {

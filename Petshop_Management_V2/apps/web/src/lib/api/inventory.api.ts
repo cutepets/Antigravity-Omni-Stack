@@ -2,7 +2,7 @@ import { api } from '@/lib/api'
 
 export type ProductExcelRowType = 'VARIANT' | 'CONVERSION'
 export type ProductImportMode = 'update' | 'create'
-export type ProductExportScope = 'all' | 'filtered' | 'selected'
+export type ProductExportScope = 'all' | 'filtered' | 'selected' | 'page'
 
 export interface ProductExcelRow {
   groupCode?: string | null
@@ -112,7 +112,13 @@ export const inventoryApi = {
   createUnit: (data: any) => api.post('/inventory/units', data).then(res => res.data),
   getPriceBooks: () => api.get('/inventory/price-books').then(res => res.data),
 
-  exportProducts: (body: { scope: ProductExportScope; filters?: Record<string, any>; productIds?: string[] }) =>
+  exportProducts: (body: {
+    scope: ProductExportScope
+    filters?: Record<string, any>
+    productIds?: string[]
+    columns?: string[]
+    priceBookColumns?: string[]
+  }) =>
     api.post('/inventory/products/export', body).then(res => res.data),
   previewProductImport: (body: ProductImportRequest) =>
     api.post('/inventory/products/import/preview', body).then(res => res.data),

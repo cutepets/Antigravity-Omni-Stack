@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common'
+import { Body, Controller, Get, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import type { Response } from 'express'
 import { Permissions } from '../../common/decorators/permissions.decorator.js'
@@ -10,6 +10,7 @@ import {
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CrmExcelService } from './crm-excel.service.js'
 import type { CrmExcelScope, CrmExcelUser } from './crm-excel.types.js'
+import type { CrmCustomerExportRequest } from './crm-excel.types.js'
 
 const MAX_CRM_EXCEL_SIZE = 10 * 1024 * 1024
 const crmExcelUploadOptions = {
@@ -55,6 +56,21 @@ export class CrmExcelController {
     res.send(buffer)
   }
 
+  @Post('customers/export')
+  @Permissions('customer.read.all', 'customer.read.assigned')
+  async exportCustomers(
+    @Body() body: CrmCustomerExportRequest,
+    @Req() req: { user?: CrmExcelUser },
+    @Res() res: Response,
+  ) {
+    const normalizedScope = body?.scope ?? 'all'
+    const buffer = await this.crmExcelService.exportCustomerWorkbook({ ...body, scope: normalizedScope, user: req.user })
+    const filename = `khach-hang-${normalizedScope}-${new Date().toISOString().slice(0, 10)}.xlsx`
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(buffer)
+  }
+
   @Post('excel-import/preview')
   @Permissions('customer.create', 'customer.update', 'pet.create', 'pet.update')
   @UseInterceptors(
@@ -85,4 +101,3 @@ export class CrmExcelController {
     return this.crmExcelService.applyImport({ buffer: file.buffer, user: req.user })
   }
 }
-

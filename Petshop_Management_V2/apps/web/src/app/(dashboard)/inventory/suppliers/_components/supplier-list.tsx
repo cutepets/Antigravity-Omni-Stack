@@ -629,6 +629,7 @@ export function SupplierList({ initialSupplierCode }: SupplierListProps) {
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
               pageSizeOptions={[20, 50, 100]}
+              attachedToTable
               totalItemText={
                 <span className="text-xs">
                   Tổng <strong className="text-foreground">{total}</strong> nhà cung cấp

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { FileText, Package, Scissors, Trash2, ChevronDown } from 'lucide-react';
-import { getProductVariantOptionLabel } from '@petshop/shared';
+import { getProductVariantOptionLabel, resolveProductVariantLabels } from '@petshop/shared';
 import { moneyRaw } from '@/app/(dashboard)/_shared/payment/payment.utils';
 import { resolveCartItemStockState } from '@/app/(dashboard)/_shared/cart/stock.utils';
 import { resolveCartUnitLabel } from '@/app/(dashboard)/_shared/cart/cart.utils';
@@ -18,6 +18,16 @@ const normalizeLabel = (value?: string | null) => `${value ?? ''}`.trim().toLowe
 const getVariantOptionText = (productName: string, variant: any) => {
     const label = getProductVariantOptionLabel(productName, variant);
     return label || variant?.unitLabel || variant?.variantLabel || variant?.name || '—';
+};
+
+const getVariantLabelText = (productName: string, variant: any) => {
+    const { variantLabel } = resolveProductVariantLabels(productName, variant);
+    return variantLabel || variant?.variantLabel || variant?.name || '—';
+};
+
+const getUnitLabelText = (productName: string, variant: any) => {
+    const { unitLabel } = resolveProductVariantLabels(productName, variant);
+    return unitLabel || variant?.unitLabel || getVariantOptionText(productName, variant);
 };
 
 export function PosCartRow({
@@ -52,10 +62,17 @@ export function PosCartRow({
     const baseUnit = (item as any).baseUnit ?? item.unit ?? 'cái';
     const cartUnitLabel = resolveCartUnitLabel(item) || baseUnit;
     const normalizedDescription = normalizeLabel(item.description);
-    const displayTrueVariants = trueVariants.filter((variant: any) => {
-        const optionLabel = normalizeLabel(getVariantOptionText(item.description, variant));
-        return optionLabel.length > 0 && optionLabel !== normalizedDescription;
+    const displayTrueVariantMap = new Map<string, any>();
+    trueVariants.forEach((variant: any) => {
+        const optionLabel = normalizeLabel(getVariantLabelText(item.description, variant));
+        if (!optionLabel || optionLabel === normalizedDescription) return;
+
+        const existing = displayTrueVariantMap.get(optionLabel);
+        if (!existing || variant.id === currentTrueVariant?.id) {
+            displayTrueVariantMap.set(optionLabel, variant);
+        }
     });
+    const displayTrueVariants = Array.from(displayTrueVariantMap.values());
 
     const removeItem = () =>
         callbacks ? callbacks.onRemoveItem(item.id) : store?.removeItem(item.id);
@@ -153,7 +170,7 @@ export function PosCartRow({
                                 >
                                     <option value="base" className="hidden">Phiên bản</option>
                                     {displayTrueVariants.map((variant: any) => (
-                                        <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
+                                        <option key={variant.id} value={variant.id}>{getVariantLabelText(item.description, variant)}</option>
                                     ))}
                                 </select>
                                 <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 text-primary-500/50 group-hover:text-primary-600 pointer-events-none transition-colors" size={11} />
@@ -171,7 +188,7 @@ export function PosCartRow({
                                 >
                                     <option value="base">{cartUnitLabel}</option>
                                     {conversionVariants.map((variant: any) => (
-                                        <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
+                                        <option key={variant.id} value={variant.id}>{getUnitLabelText(item.description, variant)}</option>
                                     ))}
                                 </select>
                                 <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 group-hover:opacity-100" size={11} />
@@ -314,7 +331,7 @@ export function PosCartRow({
                             >
                                 <option value="base" className="hidden">Phiên bản</option>
                                 {displayTrueVariants.map((variant: any) => (
-                                    <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
+                                    <option key={variant.id} value={variant.id}>{getVariantLabelText(item.description, variant)}</option>
                                 ))}
                             </select>
                             <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 text-primary-500 pointer-events-none" size={12} />
@@ -334,7 +351,7 @@ export function PosCartRow({
                             >
                                 <option value="base">{cartUnitLabel}</option>
                                 {conversionVariants.map((variant: any) => (
-                                    <option key={variant.id} value={variant.id}>{getVariantOptionText(item.description, variant)}</option>
+                                    <option key={variant.id} value={variant.id}>{getUnitLabelText(item.description, variant)}</option>
                                 ))}
                             </select>
                             <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={12} />

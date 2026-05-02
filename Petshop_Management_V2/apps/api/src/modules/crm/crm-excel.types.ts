@@ -1,6 +1,7 @@
 import type { JwtPayload } from '@petshop/shared'
 
 export type CrmExcelScope = 'customers' | 'pets' | 'all'
+export type CrmCustomerExportScope = 'all' | 'filtered' | 'selected' | 'page'
 
 export type CrmExcelIssue = {
   sheet: string
@@ -51,3 +52,22 @@ export type CrmExcelPreviewResult = {
 }
 
 export type CrmExcelUser = Pick<JwtPayload, 'userId' | 'role' | 'permissions' | 'branchId' | 'authorizedBranchIds'>
+
+export type CrmCustomerExportRequest = {
+  scope: CrmCustomerExportScope
+  filters?: {
+    search?: string
+    page?: number
+    limit?: number
+    tier?: string
+    groupId?: string
+    isActive?: boolean | string
+    branchId?: string
+    dateFrom?: string
+    dateTo?: string
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
+  }
+  customerIds?: string[]
+  columns?: string[]
+}

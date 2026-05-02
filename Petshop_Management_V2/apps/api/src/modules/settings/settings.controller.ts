@@ -71,6 +71,18 @@ type GoogleDriveOAuthStatePayload = {
 
 @ApiTags('Settings')
 @Controller()
+export class PublicSettingsController {
+  constructor(private readonly settingsService: SettingsService) {}
+
+  @Get('public/branding')
+  @ApiOperation({ summary: 'Lay branding cong khai cho metadata va man dang nhap' })
+  getPublicBranding() {
+    return this.settingsService.getPublicBranding()
+  }
+}
+
+@ApiTags('Settings')
+@Controller()
 @UseGuards(JwtGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class SettingsController {
@@ -193,7 +205,6 @@ export class SettingsController {
   }
 
   @Get('settings/configs')
-  @Permissions('settings.app.read')
   @ApiOperation({ summary: 'Lấy cấu hình hệ thống' })
   getConfigs() {
     return this.settingsService.getConfigs()
@@ -828,7 +839,6 @@ export class SettingsController {
   // ─── Module Config ──────────────────────────────────────────────────────────
 
   @Get('settings/modules')
-  @Permissions('settings.app.update')
   @ApiOperation({ summary: 'Lấy danh sách module' })
   async getModules() {
     return this.settingsService.getModules()

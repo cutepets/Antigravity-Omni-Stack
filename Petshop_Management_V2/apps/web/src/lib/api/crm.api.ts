@@ -1,6 +1,7 @@
 import { api } from '@/lib/api'
 
 export type CrmExcelScope = 'customers' | 'pets' | 'all'
+export type CrmCustomerExportScope = 'all' | 'filtered' | 'selected' | 'page'
 
 export type CrmExcelIssue = {
   sheet: string
@@ -22,6 +23,13 @@ export type CrmExcelPreviewResult = {
   errors: CrmExcelIssue[]
   warnings: CrmExcelIssue[]
   normalizedPayload: unknown | null
+}
+
+export type CrmCustomerExportRequest = {
+  scope: CrmCustomerExportScope
+  filters?: Record<string, any>
+  customerIds?: string[]
+  columns?: string[]
 }
 
 function filenameFromDisposition(disposition?: string) {
@@ -70,6 +78,15 @@ export const crmApi = {
     return { filename }
   },
 
+  exportCustomers: async (payload: CrmCustomerExportRequest) => {
+    const res = await api.post<Blob>('/crm/customers/export', payload, {
+      responseType: 'blob',
+    })
+    const filename = filenameFromDisposition(res.headers['content-disposition']) ?? `khach-hang-${payload.scope}.xlsx`
+    downloadBlob(res.data, filename)
+    return { filename }
+  },
+
   previewImport: async (file: File) => {
     const { data } = await api.post<CrmExcelPreviewResult>('/crm/excel-import/preview', uploadForm(file), {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -84,4 +101,3 @@ export const crmApi = {
     return data
   },
 }
-

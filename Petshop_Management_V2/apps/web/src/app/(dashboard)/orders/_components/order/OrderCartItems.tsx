@@ -5,7 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import type { CartItem } from '@petshop/shared'
-import { getProductVariantOptionLabel } from '@petshop/shared'
+import { getProductVariantOptionLabel, resolveProductVariantLabels } from '@petshop/shared'
 import {
     ArrowLeftRight,
     ChevronDown,
@@ -124,6 +124,16 @@ const normalizeLabel = (value?: string | null) => `${value ?? ''}`.trim().toLowe
 const getVariantOptionText = (productName: string, variant: any) => {
     const label = getProductVariantOptionLabel(productName, variant)
     return label || variant?.unitLabel || variant?.variantLabel || variant?.name || '—'
+}
+
+const getVariantLabelText = (productName: string, variant: any) => {
+    const { variantLabel } = resolveProductVariantLabels(productName, variant)
+    return variantLabel || variant?.variantLabel || variant?.name || '—'
+}
+
+const getUnitLabelText = (productName: string, variant: any) => {
+    const { unitLabel } = resolveProductVariantLabels(productName, variant)
+    return unitLabel || variant?.unitLabel || getVariantOptionText(productName, variant)
 }
 
 const BLOCKED_TEMP_SWAP_STATUSES = new Set(['CANCELLED'])
@@ -280,13 +290,17 @@ function OrderCartRow({
     const baseUnit = (item as any).baseUnit ?? item.unit ?? 'Cái'
     const cartUnitLabel = resolveCartUnitLabel(item) || baseUnit
     const normalizedDescription = normalizeLabel(item.description)
-    const variantSuffix = item.variantName && normalizeLabel(item.variantName) !== normalizedDescription
-        ? item.variantName
-        : null
-    const displayTrueVariants = trueVariants.filter((v: any) => {
-        const lbl = normalizeLabel(getVariantOptionText(item.description, v))
-        return lbl.length > 0 && lbl !== normalizedDescription
+    const displayTrueVariantMap = new Map<string, any>()
+    trueVariants.forEach((v: any) => {
+        const lbl = normalizeLabel(getVariantLabelText(item.description, v))
+        if (!lbl || lbl === normalizedDescription) return
+
+        const existing = displayTrueVariantMap.get(lbl)
+        if (!existing || v.id === currentTrueVariant?.id) {
+            displayTrueVariantMap.set(lbl, v)
+        }
     })
+    const displayTrueVariants = Array.from(displayTrueVariantMap.values())
 
     const updateVariant = (variantId: string) => callbacks.onUpdateItemVariant(item.id, variantId)
     const isSelected = idx === selectedRowIndex
@@ -362,11 +376,6 @@ function OrderCartRow({
                                 <span className="truncate text-[14px] font-semibold text-foreground" title={item.description}>
                                     {item.description}
                                 </span>
-                                {variantSuffix && (
-                                    <span className="inline-flex shrink-0 items-center rounded bg-primary-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary-500">
-                                        {variantSuffix}
-                                    </span>
-                                )}
                                 {canSwapTemp && onSwapItem && (
                                     <SwapActionButton onClick={() => onSwapItem(item, 'TEMP_PRODUCT')} />
                                 )}
@@ -403,7 +412,7 @@ function OrderCartRow({
                                         >
                                             <option value="base" className="hidden">Phiên bản</option>
                                             {displayTrueVariants.map((v: any) => (
-                                                <option key={v.id} value={v.id}>{getVariantOptionText(item.description, v)}</option>
+                                                <option key={v.id} value={v.id}>{getVariantLabelText(item.description, v)}</option>
                                             ))}
                                         </select>
                                         <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-primary-500/50 pointer-events-none" size={11} />
@@ -506,7 +515,7 @@ function OrderCartRow({
                             >
                                 <option value="base">{cartUnitLabel}</option>
                                 {conversionVariants.map((v: any) => (
-                                    <option key={v.id} value={v.id}>{getVariantOptionText(item.description, v)}</option>
+                                    <option key={v.id} value={v.id}>{getUnitLabelText(item.description, v)}</option>
                                 ))}
                             </select>
                             <ChevronDown className={`absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none ${isCurrentConversion ? 'text-primary-500/60' : 'opacity-40'
@@ -576,7 +585,25 @@ function OrderCartRow({
                                     onChange={(e) => updateVariant(e.target.value)}
                                 >
                                     {displayTrueVariants.map((v: any) => (
-                                        <option key={v.id} value={v.id}>{getVariantOptionText(item.description, v)}</option>
+                                        <option key={v.id} value={v.id}>{getVariantLabelText(item.description, v)}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" size={12} />
+                            </div>
+                        )}
+                        {conversionVariants.length > 0 && (
+                            <div className="relative inline-flex cursor-pointer items-center">
+                                <select
+                                    className="appearance-none bg-transparent text-foreground-muted text-[13px] font-semibold pr-4 outline-none cursor-pointer"
+                                    value={isCurrentConversion ? item.productVariantId : 'base'}
+                                    onChange={(e) => {
+                                        if (e.target.value === 'base') updateVariant(currentTrueVariant ? currentTrueVariant.id : 'base')
+                                        else updateVariant(e.target.value)
+                                    }}
+                                >
+                                    <option value="base">{cartUnitLabel}</option>
+                                    {conversionVariants.map((v: any) => (
+                                        <option key={v.id} value={v.id}>{getUnitLabelText(item.description, v)}</option>
                                     ))}
                                 </select>
                                 <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" size={12} />

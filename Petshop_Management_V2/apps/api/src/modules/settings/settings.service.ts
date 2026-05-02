@@ -1186,6 +1186,35 @@ export class SettingsService {
     }
   }
 
+  async getPublicBranding() {
+    try {
+      const config = await (this.db as any).systemConfig.findFirst({
+        select: {
+          shopName: true,
+          shopLogo: true,
+        },
+      })
+      const shopName = String(config?.shopName ?? '').trim() || 'PetShop'
+      const shopLogo = String(config?.shopLogo ?? '').trim() || null
+
+      return {
+        success: true,
+        data: {
+          shopName,
+          shopLogo,
+        },
+      }
+    } catch {
+      return {
+        success: true,
+        data: {
+          shopName: 'PetShop',
+          shopLogo: null,
+        },
+      }
+    }
+  }
+
   async updateConfigs(dto: UpdateConfigDto) {
     const existing = await (this.db as any).systemConfig.findFirst({
       select: { id: true },

@@ -22,6 +22,7 @@ import {
   PinOff,
   ShoppingBag,
   CalendarDays,
+  Plus,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { orderApi } from '@/lib/api/order.api'
@@ -358,9 +359,10 @@ export function OrderList() {
             <button
               type="button"
               onClick={() => router.push('/orders/new')}
-              className="flex h-8 w-8 items-center justify-center text-xs font-semibold text-white transition-colors hover:bg-primary-600 shadow-sm"
+              className="inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-600"
             >
-              + Tạo đơn
+              <Plus size={16} />
+              Tạo đơn
             </button>
           </div>
         }
@@ -700,4 +702,3 @@ export function OrderList() {
     </DataListShell>
   )
 }
-

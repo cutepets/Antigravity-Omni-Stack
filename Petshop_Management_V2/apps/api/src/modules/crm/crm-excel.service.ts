@@ -7,6 +7,7 @@ import type {
   CrmExcelNormalizedPayload,
   CrmExcelPreviewResult,
   CrmExcelScope,
+  CrmCustomerExportRequest,
   CrmExcelSummary,
   CrmExcelUser,
   NormalizedCustomerImportRow,
@@ -84,6 +85,22 @@ const CUSTOMER_TIERS = new Set(['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND
 const PET_GENDERS = new Set(['MALE', 'FEMALE', 'UNKNOWN'])
 const LARGE_IMPORT_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 120_000 }
 
+const CUSTOMER_EXPORT_SORT_FIELDS: Record<string, string> = {
+  code: 'customerCode',
+  name: 'fullName',
+  tier: 'tier',
+  points: 'points',
+  spent: 'totalSpent',
+  debt: 'debt',
+  created: 'createdAt',
+  status: 'isActive',
+  customerCode: 'customerCode',
+  fullName: 'fullName',
+  totalSpent: 'totalSpent',
+  createdAt: 'createdAt',
+  isActive: 'isActive',
+}
+
 function normalizeHeader(value: unknown) {
   return String(value ?? '')
     .normalize('NFD')
@@ -131,6 +148,23 @@ function iso(value: unknown) {
   return Number.isNaN(date.getTime()) ? '' : date.toISOString()
 }
 
+function startOfDay(value: string) {
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+function endOfDay(value: string) {
+  const date = new Date(value)
+  date.setHours(23, 59, 59, 999)
+  return date
+}
+
+function resolveCustomerExportOrderBy(sortBy?: string, sortOrder?: 'asc' | 'desc') {
+  const field = sortBy ? CUSTOMER_EXPORT_SORT_FIELDS[sortBy] : undefined
+  return { [field ?? 'createdAt']: sortOrder === 'asc' ? 'asc' : 'desc' }
+}
+
 function emptySummary(): CrmExcelSummary {
   return {
     customerCreateCount: 0,
@@ -157,6 +191,21 @@ export class CrmExcelService {
       await this.addPetSheet(workbook)
     }
     this.addGuideSheet(workbook)
+    return Buffer.from(await workbook.xlsx.writeBuffer())
+  }
+
+  async exportCustomerWorkbook(params: CrmCustomerExportRequest & { user?: CrmExcelUser }) {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.default.Workbook()
+    const sheet = workbook.addWorksheet(CUSTOMER_SHEET)
+    const columns = this.resolveCustomerExportColumns(params.columns)
+    this.addHeader(sheet, columns, { markRequired: false })
+
+    const customers = await this.loadCustomersForExport(params)
+    for (const customer of customers) {
+      sheet.addRow(columns.map((column) => this.resolveCustomerCell(customer, column.key)))
+    }
+
     return Buffer.from(await workbook.xlsx.writeBuffer())
   }
 
@@ -310,6 +359,79 @@ export class CrmExcelService {
     }
   }
 
+  private resolveCustomerExportColumns(columnKeys?: string[]) {
+    if (!Array.isArray(columnKeys) || columnKeys.length === 0) return CUSTOMER_COLUMNS
+    const selected = new Set(columnKeys)
+    const columns = CUSTOMER_COLUMNS.filter((column) => selected.has(column.key))
+    return columns.length > 0 ? columns : CUSTOMER_COLUMNS
+  }
+
+  private resolveCustomerCell(customer: any, key: string) {
+    if (key === 'groupName') return customer.group?.name ?? ''
+    if (key === 'branchName') return customer.branch?.name ?? ''
+    if (key === 'petCount') return customer._count?.pets ?? customer.pets?.length ?? 0
+    if (key === 'totalOrders') return customer.totalOrders ?? customer._count?.orders ?? ''
+    if (key === 'dateOfBirth') return customer.dateOfBirth ? iso(customer.dateOfBirth).slice(0, 10) : ''
+    if (key === 'createdAt' || key === 'updatedAt') return iso(customer[key])
+    return customer[key] ?? ''
+  }
+
+  private async loadCustomersForExport(params: CrmCustomerExportRequest & { user?: CrmExcelUser }) {
+    const filters = params.filters ?? {}
+    const where: any = {}
+    if (params.scope === 'selected') {
+      where.id = { in: (params.customerIds ?? []).filter(Boolean) }
+    }
+    if (filters.tier) where.tier = filters.tier
+    if (filters.groupId) where.groupId = filters.groupId
+    if (filters.isActive !== undefined) where.isActive = filters.isActive === true || filters.isActive === 'true'
+    if (filters.branchId) where.branchId = filters.branchId
+    if (filters.dateFrom || filters.dateTo) {
+      const createdAt: Record<string, Date> = {}
+      if (filters.dateFrom) createdAt.gte = startOfDay(filters.dateFrom)
+      if (filters.dateTo) createdAt.lte = endOfDay(filters.dateTo)
+      where.orders = { some: { createdAt, ...(filters.branchId ? { branchId: filters.branchId } : {}) } }
+    }
+
+    const page = Number(filters.page ?? 1)
+    const limit = Number(filters.limit ?? 20)
+    const query: any = {
+      where,
+      orderBy: resolveCustomerExportOrderBy(filters.sortBy, filters.sortOrder),
+      include: {
+        group: { select: { name: true } },
+        branch: { select: { name: true } },
+        pets: { select: { name: true } },
+        _count: { select: { pets: true, orders: true, hotelStays: true } },
+      },
+    }
+
+    if (params.scope === 'page' && !filters.search) {
+      query.skip = Math.max(0, page - 1) * limit
+      query.take = limit
+    }
+
+    let customers = await (this.db as any).customer.findMany(query)
+    const searchTokens = normalizeHeader(filters.search).split(/\s+/).filter(Boolean)
+    if (searchTokens.length > 0) {
+      customers = customers.filter((customer: any) => {
+        const haystack = normalizeHeader([
+          customer.fullName,
+          customer.phone,
+          customer.email,
+          customer.customerCode,
+        ].filter(Boolean).join(' '))
+        return searchTokens.every((token) => haystack.includes(token))
+      })
+      if (params.scope === 'page') {
+        const start = Math.max(0, page - 1) * limit
+        customers = customers.slice(start, start + limit)
+      }
+    }
+
+    return customers
+  }
+
   private async addPetSheet(workbook: any) {
     const sheet = workbook.addWorksheet(PET_SHEET)
     this.addHeader(sheet, PET_COLUMNS)
@@ -329,8 +451,9 @@ export class CrmExcelService {
     }
   }
 
-  private addHeader(sheet: any, columns: ColumnDef[]) {
-    sheet.addRow(columns.map((column) => column.required ? `${column.header}*` : column.header))
+  private addHeader(sheet: any, columns: ColumnDef[], options?: { markRequired?: boolean }) {
+    const markRequired = options?.markRequired ?? true
+    sheet.addRow(columns.map((column) => markRequired && column.required ? `${column.header}*` : column.header))
     sheet.getRow(1).font = { bold: true }
     sheet.views = [{ state: 'frozen', ySplit: 1 }]
     sheet.columns = columns.map((column) => ({ width: column.width }))

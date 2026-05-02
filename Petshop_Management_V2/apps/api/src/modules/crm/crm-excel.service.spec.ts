@@ -116,6 +116,80 @@ describe('CrmExcelService', () => {
     expect(workbook.getWorksheet('Pet')!.getRow(2).getCell(3).value).toBe('KH000001')
   })
 
+  it('exports filtered customers with selected columns only', async () => {
+    const ExcelJS = await import('exceljs')
+    const db = makeDb()
+    db.customer.findMany.mockResolvedValue([
+      {
+        id: 'customer-1',
+        customerCode: 'KH000001',
+        fullName: 'Nguyen Van A',
+        phone: '0901000001',
+        email: 'a@example.com',
+        tier: 'GOLD',
+        isActive: true,
+        totalSpent: 250000,
+        createdAt: new Date('2026-04-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-02T00:00:00.000Z'),
+        group: { name: 'VIP' },
+        branch: { name: 'Ha Noi' },
+        pets: [{ name: 'Milu' }],
+        _count: { pets: 1, orders: 2, hotelStays: 0 },
+      },
+    ])
+    db.customer.count = jest.fn().mockResolvedValue(1)
+
+    const buffer = await new CrmExcelService(db).exportCustomerWorkbook({
+      scope: 'filtered',
+      filters: { search: 'Nguyen', tier: 'GOLD', isActive: true },
+      columns: ['customerCode', 'fullName', 'phone', 'groupName'],
+      user: actor,
+    })
+    const workbook = new ExcelJS.default.Workbook()
+    await workbook.xlsx.load(buffer as any)
+
+    expect(db.customer.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        tier: 'GOLD',
+        isActive: true,
+      }),
+    }))
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['KhachHang'])
+    expect(workbook.getWorksheet('KhachHang')!.getRow(1).values).toEqual([
+      undefined,
+      'customerCode',
+      'fullName',
+      'phone',
+      'groupName',
+    ])
+    expect(workbook.getWorksheet('KhachHang')!.getRow(2).values).toEqual([
+      undefined,
+      'KH000001',
+      'Nguyen Van A',
+      '0901000001',
+      'VIP',
+    ])
+  })
+
+  it('exports selected customers by ID', async () => {
+    const db = makeDb()
+    db.customer.findMany.mockResolvedValue([])
+    db.customer.count = jest.fn().mockResolvedValue(0)
+
+    await new CrmExcelService(db).exportCustomerWorkbook({
+      scope: 'selected',
+      customerIds: ['customer-1', 'customer-2'],
+      columns: ['customerCode', 'fullName'],
+      user: actor,
+    })
+
+    expect(db.customer.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: { in: ['customer-1', 'customer-2'] },
+      }),
+    }))
+  })
+
   it('marks required import columns with an asterisk in the template', async () => {
     const ExcelJS = await import('exceljs')
     const buffer = await new CrmExcelService(makeDb()).templateWorkbook()

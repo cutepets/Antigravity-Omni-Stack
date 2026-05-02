@@ -192,6 +192,31 @@ export function CustomerList() {
     return map
   }, [groupsData])
 
+  const customerFilters = useMemo(() => ({
+    search,
+    tier: tier || undefined,
+    isActive: isActiveFilter === '' ? undefined : isActiveFilter === 'true',
+    branchId: scopedBranchId,
+    dateFrom: shouldApplyReportActivityRange ? scopedDateFrom : undefined,
+    dateTo: shouldApplyReportActivityRange ? scopedDateTo : undefined,
+    page,
+    limit: pageSize,
+    sortBy: columnSort.columnId || undefined,
+    sortOrder: (columnSort.direction as 'asc' | 'desc') || undefined,
+  }), [
+    columnSort.columnId,
+    columnSort.direction,
+    isActiveFilter,
+    page,
+    pageSize,
+    scopedBranchId,
+    scopedDateFrom,
+    scopedDateTo,
+    search,
+    shouldApplyReportActivityRange,
+    tier,
+  ])
+
   const { data, isLoading } = useQuery({
     queryKey: [
       'customers',
@@ -206,18 +231,7 @@ export function CustomerList() {
       columnSort.columnId,
       columnSort.direction,
     ],
-    queryFn: () => customerApi.getCustomers({
-      search,
-      tier: tier || undefined,
-      isActive: isActiveFilter === '' ? undefined : isActiveFilter === 'true',
-      branchId: scopedBranchId,
-      dateFrom: shouldApplyReportActivityRange ? scopedDateFrom : undefined,
-      dateTo: shouldApplyReportActivityRange ? scopedDateTo : undefined,
-      page,
-      limit: pageSize,
-      sortBy: columnSort.columnId || undefined,
-      sortOrder: (columnSort.direction as 'asc' | 'desc') || undefined,
-    }),
+    queryFn: () => customerApi.getCustomers(customerFilters),
   })
 
   // ── Computation ──────────────────────────────────────────────────────────────
@@ -361,6 +375,10 @@ export function CustomerList() {
           <div className="flex items-center gap-2">
             <CrmImportExportDropdown
               canImport={canImportCrm}
+              customerFilters={customerFilters}
+              selectedCustomerIds={selectedCustomerIds}
+              currentPageCount={processedCustomers.length}
+              totalCustomerCount={total}
               onImported={() => {
                 queryClient.invalidateQueries({ queryKey: ['customers'] })
                 queryClient.invalidateQueries({ queryKey: ['pets'] })
@@ -445,6 +463,26 @@ export function CustomerList() {
         emptyText="Không tìm thấy khách hàng nào phù hợp."
         allSelected={allVisibleSelected}
         onSelectAll={toggleSelectAllVisible}
+        footer={
+          <DataListPagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            total={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[20, 50, 100]}
+            attachedToTable
+            totalItemText={
+              <p className="shrink-0 text-xs text-foreground-muted">
+                Tổng <strong className="text-foreground">{total}</strong> khách hàng
+                {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
+              </p>
+            }
+          />
+        }
         bulkBar={
           selectedRowIds.size > 0 ? (
             <DataListBulkBar
@@ -608,26 +646,6 @@ export function CustomerList() {
           )
         })}
       </DataListTable>
-
-
-
-      <DataListPagination
-        page={page}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        total={total}
-        rangeStart={rangeStart}
-        rangeEnd={rangeEnd}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        pageSizeOptions={[20, 50, 100]}
-        totalItemText={
-          <p className="shrink-0 text-xs text-foreground-muted">
-            Tổng <strong className="text-foreground">{total}</strong> khách hàng
-            {search && <span> · tìm kiếm &quot;{search}&quot;</span>}
-          </p>
-        }
-      />
 
       <CustomerFormModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} initialData={editingCustomer} />
     </DataListShell>

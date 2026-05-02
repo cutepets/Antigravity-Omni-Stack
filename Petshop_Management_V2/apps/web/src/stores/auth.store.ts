@@ -10,6 +10,7 @@ type AuthState = {
   user: AuthUser | null
   allowedBranches: BaseBranch[]
   activeBranchId: string | null
+  shouldPromptPasswordChange: boolean
   error: string | null
   isLoading: boolean
   hasHydrated: boolean
@@ -18,9 +19,12 @@ type AuthState = {
   fetchMe: () => Promise<AuthUser | null>
   switchBranch: (branchId: string | null | undefined, persist?: boolean) => void
   updatePosPreferences: (prefs: Partial<PosPreferences>) => Promise<void>
+  dismissPasswordChangePrompt: () => void
   clearError: () => void
   setHydrated: (value: boolean) => void
 }
+
+const DEFAULT_LOGIN_PASSWORDS = new Set(['Admin@123', 'Abcd@123', 'Staff@123'])
 
 function normalizeAllowedBranches(user: AuthUser | null) {
   return user?.authorizedBranches ?? []
@@ -53,6 +57,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       allowedBranches: [],
       activeBranchId: null,
+      shouldPromptPasswordChange: false,
       error: null,
       isLoading: false,
       hasHydrated: false,
@@ -66,6 +71,7 @@ export const useAuthStore = create<AuthState>()(
           // Ưu tiên defaultBranchId từ DB khi login
           set({
             ...buildAuthState(response.user, response.user.defaultBranchId ?? get().activeBranchId),
+            shouldPromptPasswordChange: DEFAULT_LOGIN_PASSWORDS.has(password),
             isLoading: false,
             error: null,
             hasHydrated: true,
@@ -91,6 +97,7 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             allowedBranches: [],
             activeBranchId: null,
+            shouldPromptPasswordChange: false,
             error: null,
             isLoading: false,
             hasHydrated: true,
@@ -157,6 +164,10 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      dismissPasswordChangePrompt() {
+        set({ shouldPromptPasswordChange: false })
+      },
+
       clearError() {
         set({ error: null })
       },
@@ -171,6 +182,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         allowedBranches: state.allowedBranches,
         activeBranchId: state.activeBranchId,
+        shouldPromptPasswordChange: state.shouldPromptPasswordChange,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (!state) return

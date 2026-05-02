@@ -160,7 +160,7 @@ export default function StaffManagementPage() {
 
       {/* Tab Navigation */}
       {visibleTabs.length > 1 ? (
-        <div className="relative flex items-center gap-1 rounded-xl border border-border/50 bg-background-secondary p-1">
+        <div className="relative flex w-fit items-center gap-2">
           {visibleTabs.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id

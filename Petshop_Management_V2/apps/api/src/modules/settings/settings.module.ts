@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common'
-import { SettingsController } from './settings.controller'
+import { PublicSettingsController, SettingsController } from './settings.controller'
 import { SettingsService } from './settings.service'
 import { DatabaseModule } from '../../database/database.module'
 import { OrdersModule } from '../orders/orders.module'
@@ -9,7 +9,7 @@ import { BackupService } from './backup/backup.service.js'
 
 @Module({
   imports: [DatabaseModule, OrdersModule, QueueModule, StorageModule],
-  controllers: [SettingsController],
+  controllers: [PublicSettingsController, SettingsController],
   providers: [SettingsService, BackupService],
   exports: [SettingsService],
 })

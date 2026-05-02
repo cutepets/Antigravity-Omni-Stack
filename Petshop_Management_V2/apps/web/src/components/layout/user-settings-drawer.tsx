@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { Edit2, Link2, LogOut, Monitor, Moon, Settings, Shield, Sun, X } from 'lucide-react'
+import { ChangePasswordDialog } from '@/components/account/ChangePasswordDialog'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { API_URL } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
@@ -28,6 +29,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
   const currentBranch = allowedBranches.find((branch) => branch.id === activeBranchId)
   const [mounted, setMounted] = useState(false)
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
 
   const googleStatusQuery = useQuery({
     queryKey: ['auth', 'google-status', 'drawer'],
@@ -55,6 +57,11 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
     if (!isOpen) return
     void fetchMe()
   }, [fetchMe, isOpen])
+
+  useEffect(() => {
+    if (isOpen) return
+    setShowPasswordDialog(false)
+  }, [isOpen])
 
   useEffect(() => {
     if (!mounted) return
@@ -127,7 +134,7 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
 
             <div className="flex-1 space-y-6 p-5">
               <div className="group relative flex items-center gap-4 rounded-2xl border border-border bg-background-base p-4">
-                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 text-xl font-bold text-white shadow-[0_4px_12px_color-mix(in_srgb,var(--color-primary-500)_40%,transparent)]">
+                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-linear-to-br from-primary-400 to-primary-600 text-xl font-bold text-white shadow-[0_4px_12px_color-mix(in_srgb,var(--color-primary-500)_40%,transparent)]">
                   {user.avatar ? (
                     <Image
                       src={user.avatar}
@@ -163,9 +170,12 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
                   <div className="rounded-lg bg-orange-500/10 p-2 text-orange-400">
                     <Shield className="h-4 w-4" />
                   </div>
-                  <span className="text-sm font-medium text-foreground-base">Bảo mật tài khoản</span>
                 </div>
-                <button className="text-sm font-medium text-primary-400 transition-colors hover:text-primary-300">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordDialog(true)}
+                  className="text-sm font-medium text-primary-400 transition-colors hover:text-primary-300"
+                >
                   Đổi mật khẩu
                 </button>
               </div>
@@ -268,6 +278,16 @@ export function UserSettingsDrawer({ isOpen, onClose }: UserSettingsDrawerProps)
               </button>
             </div>
           </motion.div>
+
+          <ChangePasswordDialog
+            open={showPasswordDialog}
+            selfUpdate
+            onOpenChange={setShowPasswordDialog}
+            onSuccess={() => {
+              setShowPasswordDialog(false)
+              void fetchMe()
+            }}
+          />
         </>
       ) : null}
     </AnimatePresence>,

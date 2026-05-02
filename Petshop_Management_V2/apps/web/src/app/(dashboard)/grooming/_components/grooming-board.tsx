@@ -581,6 +581,20 @@ export function GroomingBoard() {
                     if (!canManageSessions) return
                     toggleSelectAllVisible()
                   }}
+                  footer={
+                    <DataListPagination
+                      page={page}
+                      totalPages={totalPages}
+                      pageSize={pageSize}
+                      total={filteredSessions.length}
+                      rangeStart={rangeStart}
+                      rangeEnd={rangeEnd}
+                      onPageChange={setPage}
+                      onPageSizeChange={setPageSize}
+                      pageSizeOptions={[12, 24, 48]}
+                      attachedToTable
+                    />
+                  }
                   bulkBar={
                     selectedSessionIds.length > 0 ? (
                       <DataListBulkBar selectedCount={selectedSessionIds.length} onClear={clearSelection}>
@@ -630,7 +644,6 @@ export function GroomingBoard() {
                     )
                   })}
                 </DataListTable>
-                <DataListPagination page={page} totalPages={totalPages} pageSize={pageSize} total={filteredSessions.length} rangeStart={rangeStart} rangeEnd={rangeEnd} onPageChange={setPage} onPageSizeChange={setPageSize} pageSizeOptions={[12, 24, 48]} />
               </>
             )}
           </>

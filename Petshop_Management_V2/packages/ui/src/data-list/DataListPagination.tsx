@@ -42,7 +42,7 @@ export function DataListPagination({
     <div
       className={
         isPageVariant
-          ? `${attachedToTable ? '' : '-mt-3'} flex h-[50px] shrink-0 items-center justify-between gap-5 rounded-b-2xl border-t border-border bg-background-secondary px-4 py-0 text-sm`
+          ? `${attachedToTable ? '' : '-mt-3 border-x border-b shadow-sm'} flex h-[50px] shrink-0 items-center justify-between gap-5 rounded-b-2xl border-t border-border bg-background-secondary px-4 py-0 text-sm`
           : 'flex shrink-0 flex-col gap-2 border-t border-border px-4 py-2.5 text-sm md:flex-row md:items-center md:justify-between md:gap-5'
       }
     >

@@ -5,13 +5,51 @@ import { AlertTriangle, CheckCircle2, ChevronDown, Download, FileSpreadsheet, Re
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { crmApi, type CrmExcelPreviewResult } from '@/lib/api/crm.api'
 import { cn } from '@/lib/utils'
+import { ExportDataModal, type ExportColumnOption, type ExportScope } from '@/components/export/ExportDataModal'
+
+const CUSTOMER_EXPORT_COLUMNS: ExportColumnOption[] = [
+  { id: 'customerCode', label: 'Mã KH', group: 'Khách hàng', required: true },
+  { id: 'fullName', label: 'Tên khách hàng', group: 'Khách hàng', required: true },
+  { id: 'phone', label: 'Số điện thoại', group: 'Khách hàng', required: true },
+  { id: 'email', label: 'Email', group: 'Liên hệ' },
+  { id: 'address', label: 'Địa chỉ', group: 'Liên hệ' },
+  { id: 'dateOfBirth', label: 'Ngày sinh', group: 'Khách hàng' },
+  { id: 'groupName', label: 'Nhóm KH', group: 'Phân loại' },
+  { id: 'branchName', label: 'Chi nhánh', group: 'Phân loại' },
+  { id: 'tier', label: 'Hạng', group: 'Phân loại' },
+  { id: 'points', label: 'Điểm', group: 'Tài chính' },
+  { id: 'debt', label: 'Công nợ', group: 'Tài chính' },
+  { id: 'totalSpent', label: 'Tổng chi tiêu', group: 'Tài chính' },
+  { id: 'totalOrders', label: 'Tổng đơn hàng', group: 'Tài chính' },
+  { id: 'petCount', label: 'Số thú cưng', group: 'Thú cưng' },
+  { id: 'taxCode', label: 'Mã số thuế', group: 'Công ty', defaultSelected: false },
+  { id: 'companyName', label: 'Tên công ty', group: 'Công ty', defaultSelected: false },
+  { id: 'companyAddress', label: 'Địa chỉ công ty', group: 'Công ty', defaultSelected: false },
+  { id: 'representativeName', label: 'Người đại diện', group: 'Công ty', defaultSelected: false },
+  { id: 'representativePhone', label: 'SĐT đại diện', group: 'Công ty', defaultSelected: false },
+  { id: 'bankAccount', label: 'Tài khoản ngân hàng', group: 'Công ty', defaultSelected: false },
+  { id: 'bankName', label: 'Ngân hàng', group: 'Công ty', defaultSelected: false },
+  { id: 'notes', label: 'Ghi chú', group: 'Ghi chú', defaultSelected: false },
+  { id: 'description', label: 'Mô tả', group: 'Ghi chú', defaultSelected: false },
+  { id: 'isActive', label: 'Trạng thái', group: 'Trạng thái' },
+  { id: 'createdAt', label: 'Ngày tạo', group: 'Trạng thái' },
+  { id: 'updatedAt', label: 'Ngày cập nhật', group: 'Trạng thái', defaultSelected: false },
+]
 
 export function CrmImportExportDropdown({
   canImport,
   onImported,
+  customerFilters,
+  selectedCustomerIds = [],
+  currentPageCount = 0,
+  totalCustomerCount = 0,
 }: {
   canImport: boolean
   onImported: () => void
+  customerFilters?: Record<string, any>
+  selectedCustomerIds?: string[]
+  currentPageCount?: number
+  totalCustomerCount?: number
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -19,6 +57,7 @@ export function CrmImportExportDropdown({
   const [isTemplateLoading, setIsTemplateLoading] = useState(false)
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [isApplying, setIsApplying] = useState(false)
+  const [isCustomerExportOpen, setIsCustomerExportOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<CrmExcelPreviewResult | null>(null)
 
@@ -30,6 +69,28 @@ export function CrmImportExportDropdown({
       toast.success('Đã tải file Excel Khách hàng/Pet')
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Không xuất được file Excel')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleCustomerExport = async (payload: { scope: ExportScope; columns: string[] }) => {
+    if (payload.scope === 'selected' && selectedCustomerIds.length === 0) {
+      toast.error('Hãy chọn ít nhất một khách hàng để xuất')
+      return
+    }
+    setIsExporting(true)
+    try {
+      await crmApi.exportCustomers({
+        scope: payload.scope,
+        filters: payload.scope === 'all' ? undefined : customerFilters,
+        customerIds: payload.scope === 'selected' ? selectedCustomerIds : undefined,
+        columns: payload.columns,
+      })
+      toast.success('Đã tải file Excel khách hàng')
+      setIsCustomerExportOpen(false)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Không xuất được file Excel khách hàng')
     } finally {
       setIsExporting(false)
     }
@@ -110,7 +171,18 @@ export function CrmImportExportDropdown({
           <div className="absolute right-0 top-12 z-30 w-52 overflow-hidden rounded-xl border border-border bg-background-base shadow-xl">
             <button type="button" onClick={handleExport} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold text-foreground transition-colors hover:bg-background-secondary">
               <Download size={15} />
-              Xuất Excel
+              Xuất CRM cũ
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false)
+                setIsCustomerExportOpen(true)
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold text-foreground transition-colors hover:bg-background-secondary"
+            >
+              <Download size={15} />
+              Xuất khách hàng
             </button>
             <button type="button" onClick={handleTemplate} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold text-foreground transition-colors hover:bg-background-secondary">
               <FileSpreadsheet size={15} />
@@ -143,6 +215,22 @@ export function CrmImportExportDropdown({
           }}
         />
       </div>
+
+      <ExportDataModal
+        isOpen={isCustomerExportOpen}
+        title="Xuất file danh sách khách hàng"
+        storageKey="customer-export-columns-v1"
+        scopeOptions={[
+          { id: 'all', label: 'Tất cả khách hàng', description: 'Xuất toàn bộ khách hàng có quyền truy cập', count: totalCustomerCount },
+          { id: 'page', label: 'Khách hàng trên trang này', description: 'Chỉ xuất các khách hàng đang hiển thị ở trang hiện tại', count: currentPageCount },
+          { id: 'filtered', label: `${totalCustomerCount.toLocaleString('vi-VN')} khách hàng phù hợp với bộ lọc hiện tại`, description: 'Xuất toàn bộ kết quả tìm kiếm và bộ lọc hiện tại', count: totalCustomerCount },
+          { id: 'selected', label: 'Khách hàng đã chọn', description: 'Chỉ xuất các khách hàng được tick trong bảng', count: selectedCustomerIds.length, disabled: selectedCustomerIds.length === 0 },
+        ]}
+        columns={CUSTOMER_EXPORT_COLUMNS}
+        isExporting={isExporting}
+        onClose={() => setIsCustomerExportOpen(false)}
+        onExport={handleCustomerExport}
+      />
 
       {selectedFile || preview || isPreviewing ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center app-modal-overlay p-4">

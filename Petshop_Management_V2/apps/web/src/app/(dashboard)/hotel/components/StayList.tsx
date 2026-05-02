@@ -22,11 +22,13 @@ import {
   filterSelectClass,
   toolbarSelectClass,
 } from '@petshop/ui/data-list'
-import { Pin, PinOff, Trash2 } from 'lucide-react'
+import { LayoutGrid, List, Pin, PinOff, Trash2 } from 'lucide-react'
 import { confirmDialog } from '@/components/ui/confirmation-provider'
+import { HotelQuickPreviewTool } from '@/components/hotel-quick-preview/HotelQuickPreviewTool'
 
 type DisplayColumnId = 'code' | 'pet' | 'customer' | 'checkIn' | 'checkOut' | 'days' | 'status'
 type PinFilterId = 'status'
+type HotelListViewMode = 'kanban' | 'list'
 
 const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boolean; width?: string; minWidth?: string; align?: 'left' | 'center' | 'right' }> = [
   { id: 'code', label: 'Mã lưu trú', sortable: false, width: 'w-24' },
@@ -43,9 +45,13 @@ const SORTABLE_COLUMNS = new Set<DisplayColumnId>([])
 export default function StayList({
   initialSearch = '',
   focusStayId,
+  viewMode = 'list',
+  onViewModeChange,
 }: {
   initialSearch?: string
   focusStayId?: string
+  viewMode?: HotelListViewMode
+  onViewModeChange?: (mode: HotelListViewMode) => void
 }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -226,6 +232,33 @@ export default function StayList({
               onDragEnd={() => dataListState.setDraggingColumnId(null)}
             />
           }
+          extraActions={
+            <div className="flex flex-wrap items-center gap-2">
+              <HotelQuickPreviewTool triggerClassName="bg-background-secondary text-foreground hover:bg-background-secondary/80" />
+              <div className="inline-flex items-center rounded-2xl border border-border bg-background-secondary p-1">
+                <button
+                  type="button"
+                  onClick={() => onViewModeChange?.('kanban')}
+                  className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors ${
+                    viewMode === 'kanban' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground'
+                  }`}
+                >
+                  <LayoutGrid size={15} />
+                  Sơ đồ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onViewModeChange?.('list')}
+                  className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors ${
+                    viewMode === 'list' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground'
+                  }`}
+                >
+                  <List size={15} />
+                  Danh sách
+                </button>
+              </div>
+            </div>
+          }
         />
 
         <DataListFilterPanel onClearAll={clearFilters}>
@@ -264,6 +297,25 @@ export default function StayList({
           columns={renderActiveColumns()}
           allSelected={allVisibleSelected}
           onSelectAll={toggleSelectAllVisible}
+          footer={
+            <DataListPagination
+              page={page}
+              pageSize={pageSize}
+              total={visibleStays.length}
+              totalPages={Math.ceil(visibleStays.length / pageSize)}
+              rangeStart={(page - 1) * pageSize + 1}
+              rangeEnd={Math.min(page * pageSize, visibleStays.length)}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[10, 20, 50]}
+              attachedToTable
+              totalItemText={
+                <p className="shrink-0 text-xs text-foreground-muted">
+                  Tổng số <strong className="text-foreground">{visibleStays.length}</strong> lượt lưu trú
+                </p>
+              }
+            />
+          }
           bulkBar={
             selectedStayIds.length > 0 ? (
               <DataListBulkBar selectedCount={selectedStayIds.length} onClear={clearSelection}>
@@ -364,22 +416,6 @@ export default function StayList({
           })}
         </DataListTable>
 
-        <DataListPagination
-          page={page}
-          pageSize={pageSize}
-          total={visibleStays.length}
-          totalPages={Math.ceil(visibleStays.length / pageSize)}
-          rangeStart={(page - 1) * pageSize + 1}
-          rangeEnd={Math.min(page * pageSize, visibleStays.length)}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-          pageSizeOptions={[10, 20, 50]}
-          totalItemText={
-            <p className="shrink-0 text-xs text-foreground-muted">
-              Tổng số <strong className="text-foreground">{visibleStays.length}</strong> lượt lưu trú
-            </p>
-          }
-        />
       </DataListShell>
       <StayDetailsDialog
         stay={selectedStay}
@@ -395,4 +431,3 @@ export default function StayList({
     </>
   )
 }
-

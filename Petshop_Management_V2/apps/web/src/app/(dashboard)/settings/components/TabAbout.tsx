@@ -12,6 +12,12 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { settingsApi } from '@/lib/api/settings.api'
+import {
+  formatAboutDate,
+  getCurrentAboutVersion,
+  getRecentChangelog,
+  type ChangeLogEntry,
+} from './tab-about.utils'
 
 const TECH_STACK = [
   'Next.js 15 (App Router)',
@@ -35,15 +41,9 @@ const MODULES = [
   { name: 'Cài đặt & tích hợp', color: 'text-slate-500' },
 ]
 
-type ChangeLogEntry = {
-  version: string
-  date: string
-  changes: string[]
-}
-
 const CHANGELOG: ChangeLogEntry[] = [
   {
-    version: 'current',
+    version: '1.00',
     date: '2026-05-01',
     changes: [
       'Map lại kiến trúc hệ thống, tài liệu vận hành và luồng deploy Docker production',
@@ -89,13 +89,11 @@ export function TabAbout() {
     staleTime: Infinity,
   })
 
-  const displayVersion = aboutData?.version ?? 'runtime'
-  const buildDate = aboutData?.buildDate ?? CHANGELOG[0]?.date ?? '—'
+  const displayVersion = getCurrentAboutVersion(CHANGELOG, aboutData?.version)
+  const buildDate = formatAboutDate(aboutData?.buildDate ?? CHANGELOG[0]?.date)
   const buildLabel = aboutData?.buildNumber ? `Build #${aboutData.buildNumber}` : null
   const gitLabel = aboutData?.gitSha ? `Git ${aboutData.gitSha}` : null
-  const recentChangelog = CHANGELOG.slice(0, 3).map((entry, index) =>
-    index === 0 ? { ...entry, version: displayVersion } : entry,
-  )
+  const recentChangelog = getRecentChangelog(CHANGELOG, aboutData?.version)
 
   return (
     <div className="relative z-0 h-full w-full">
@@ -194,7 +192,7 @@ export function TabAbout() {
                         </span>
                       ) : null}
                     </div>
-                    <span className="text-xs text-foreground-muted">{entry.date}</span>
+                    <span className="text-xs text-foreground-muted">{formatAboutDate(entry.date)}</span>
                   </div>
                   <ul className="space-y-1.5">
                     {entry.changes.map((change) => (

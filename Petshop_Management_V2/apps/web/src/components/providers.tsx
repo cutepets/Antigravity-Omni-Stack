@@ -9,6 +9,7 @@ import { ThemeInjector } from './theme-injector'
 import { MSWProvider } from './providers/MSWProvider'
 import { AnimationProvider } from './providers/AnimationProvider'
 import { AuthBootstrap } from './auth-bootstrap'
+import { PasswordChangePrompt } from './account/PasswordChangePrompt'
 import { ConfirmationProvider } from './ui/confirmation-provider'
 
 function isRecoverableAssetLoadError(reason: unknown) {
@@ -85,6 +86,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <ConfirmationProvider>
           <AuthBootstrap />
+          <PasswordChangePrompt />
           {children}
           <Toaster
             position="top-right"

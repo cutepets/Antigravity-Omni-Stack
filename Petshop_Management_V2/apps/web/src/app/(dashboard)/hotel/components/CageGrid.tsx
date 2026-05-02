@@ -214,7 +214,35 @@ const SLOTS = Array.from({ length: GRID_SIZE }, (_, i) => i);
 
 // ---- Main component ----
 
-export default function CageGrid() {
+interface CageGridProps {
+  search?: string
+  statusFilter?: string
+  showBookedPanel?: boolean
+  showCheckedOutPanel?: boolean
+}
+
+function matchesStaySearch(stay: HotelStay, rawSearch: string) {
+  const search = rawSearch.trim().toLowerCase()
+  if (!search) return true
+
+  return [
+    stay.pet?.name,
+    stay.petName,
+    stay.id,
+    stay.stayCode,
+    stay.customer?.phone,
+    stay.customer?.fullName,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(search))
+}
+
+export default function CageGrid({
+  search = '',
+  statusFilter = '',
+  showBookedPanel = true,
+  showCheckedOutPanel = true,
+}: CageGridProps) {
   const queryClient = useQueryClient()
   const { hasAnyPermission } = useAuthorization()
   const activeBranchId = useAuthStore((s) => s.activeBranchId)
@@ -249,6 +277,8 @@ export default function CageGrid() {
     for (const stay of stays) {
       // Filter by branch if activeBranchId is set
       if (activeBranchId && stay.branchId && stay.branchId !== activeBranchId) continue
+      if (statusFilter && stay.status !== statusFilter) continue
+      if (!matchesStaySearch(stay, search)) continue
 
       if (stay.status === 'BOOKED') {
         booked.push(stay)
@@ -260,7 +290,7 @@ export default function CageGrid() {
     }
 
     return { bookedStays: booked, boardingStays: boarding, checkedOutToday: checkedOut }
-  }, [stays, activeBranchId])
+  }, [stays, activeBranchId, search, statusFilter])
 
   // Build slot→stay map for boarding stays
   const slotStayMap = useMemo(() => {
@@ -384,7 +414,7 @@ export default function CageGrid() {
   return (
     <div className="flex h-full gap-3">
       {/* ===== LEFT PANEL: ĐẶT LỊCH ===== */}
-      <aside className="flex w-36 shrink-0 flex-col rounded-2xl border border-border bg-background-secondary/50">
+      <aside className={`${showBookedPanel ? 'flex' : 'hidden'} w-36 shrink-0 flex-col rounded-2xl border border-border bg-background-secondary/50`}>
         <div className="flex items-center justify-between border-b border-border/50 px-3 py-2.5">
           <h3 className="text-xs font-bold uppercase tracking-wider text-foreground-muted">Đặt lịch</h3>
           <span className="rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-blue-500">
@@ -476,7 +506,7 @@ export default function CageGrid() {
 
       {/* ===== RIGHT PANEL: ĐÃ TRẢ HÔM NAY ===== */}
       <aside
-        className="flex w-36 shrink-0 flex-col rounded-2xl border border-emerald-500/20 bg-emerald-500/10"
+        className={`${showCheckedOutPanel ? 'flex' : 'hidden'} w-36 shrink-0 flex-col rounded-2xl border border-emerald-500/20 bg-emerald-500/10`}
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
         onDrop={(e) => {
           e.preventDefault()

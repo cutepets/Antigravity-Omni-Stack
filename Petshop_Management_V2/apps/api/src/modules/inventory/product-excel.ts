@@ -4,7 +4,7 @@ export const PRODUCT_EXCEL_ROW_TYPES = ['VARIANT', 'CONVERSION'] as const
 
 export type ProductExcelRowType = (typeof PRODUCT_EXCEL_ROW_TYPES)[number]
 export type ProductImportMode = 'update' | 'create'
-export type ProductExportScope = 'all' | 'filtered' | 'selected'
+export type ProductExportScope = 'all' | 'filtered' | 'selected' | 'page'
 
 export interface ProductExcelPriceBook {
   id: string
@@ -48,6 +48,8 @@ export interface ProductExportRequest {
   scope: ProductExportScope
   filters?: Record<string, any>
   productIds?: string[]
+  columns?: string[]
+  priceBookColumns?: string[]
 }
 
 export interface ProductImportRequest {
@@ -425,6 +427,42 @@ export function buildProductExcelRows(
   }
 
   return rows
+}
+
+export function filterProductExcelRows(
+  rows: ProductExcelRow[],
+  options?: { columns?: string[]; priceBookColumns?: string[] },
+): ProductExcelRow[] {
+  const hasStaticSelection = Array.isArray(options?.columns) && options.columns.length > 0
+  const hasPriceSelection = Array.isArray(options?.priceBookColumns)
+  if (!hasStaticSelection && !hasPriceSelection) return rows
+
+  const selectedColumns = new Set(options?.columns ?? [])
+  const selectedPriceBooks = new Set(options?.priceBookColumns ?? [])
+
+  return rows.map((row) => {
+    const next: ProductExcelRow = {}
+    if (hasStaticSelection) {
+      for (const key of selectedColumns) {
+        if (key === 'price' || key === 'priceBookValues') continue
+        if (key in row) {
+          const target = next as Record<string, unknown>
+          target[key] = (row as Record<string, unknown>)[key]
+        }
+      }
+    } else {
+      Object.assign(next, row)
+      delete next.priceBookValues
+    }
+
+    next.priceBookValues = hasPriceSelection
+      ? Object.fromEntries(
+        Object.entries(row.priceBookValues ?? {}).filter(([header]) => selectedPriceBooks.has(header)),
+      )
+      : row.priceBookValues
+
+    return next
+  })
 }
 
 export function normalizeProductExcelRows(rows: ProductExcelRow[], priceBookHeaders?: string[]) {

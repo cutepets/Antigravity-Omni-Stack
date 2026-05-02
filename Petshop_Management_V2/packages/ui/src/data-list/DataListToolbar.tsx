@@ -20,6 +20,7 @@ interface DataListToolbarProps {
   searchValue?: string
   onSearchChange?: (value: string) => void
   searchPlaceholder?: string
+  searchClassName?: string
 
   // Total count slot (shown below search bar)
   totalSlot?: ReactNode
@@ -42,6 +43,7 @@ export function DataListToolbar({
   searchValue,
   onSearchChange,
   searchPlaceholder = 'Tìm kiếm...',
+  searchClassName,
   totalSlot,
   filterSlot,
   columnPanelContent,
@@ -85,7 +87,7 @@ export function DataListToolbar({
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         {/* Search */}
         {onSearchChange && (
-          <div className="relative flex-1">
+          <div className={`relative flex-1 ${searchClassName ?? ''}`}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" size={18} />
             <input
               value={searchValue}

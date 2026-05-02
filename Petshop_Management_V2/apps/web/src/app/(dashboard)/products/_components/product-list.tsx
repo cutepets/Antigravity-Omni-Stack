@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { ProductFormModal } from './product-form-modal'
 import { ProductExcelModal } from './product-excel-modal'
 import { exportProductWorkbook } from './product-excel'
+import { ExportDataModal, type ExportColumnOption, type ExportScope } from '@/components/export/ExportDataModal'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { uploadApi } from '@/lib/api'
 import { extractPriceBooks, PRICE_BOOK_QUERY_KEY } from '@/lib/price-books'
@@ -108,6 +109,34 @@ const COLUMN_OPTIONS: Array<{ id: DisplayColumnId; label: string; sortable?: boo
   { id: 'costPrice', label: 'Giá vốn', sortable: true, minWidth: 'min-w-[120px]' },
   { id: 'status', label: 'Trạng thái', sortable: true, minWidth: 'min-w-[140px]' },
   { id: 'lastCountShift', label: 'Ca kiểm', sortable: true, minWidth: 'min-w-[100px]' },
+]
+
+const PRODUCT_EXPORT_COLUMNS: ExportColumnOption[] = [
+  { id: 'groupCode', label: 'Mã nhóm SP', group: 'Sản phẩm', required: true },
+  { id: 'productName', label: 'Tên sản phẩm', group: 'Sản phẩm' },
+  { id: 'category', label: 'Danh mục', group: 'Sản phẩm' },
+  { id: 'brand', label: 'Thương hiệu', group: 'Sản phẩm' },
+  { id: 'importName', label: 'Tên nhập', group: 'Sản phẩm', defaultSelected: false },
+  { id: 'sku', label: 'SKU', group: 'Phân loại / SKU', required: true },
+  { id: 'rowType', label: 'Loại dòng', group: 'Phân loại / SKU', required: true },
+  { id: 'sourceSku', label: 'SKU nguồn quy đổi', group: 'Phân loại / SKU' },
+  { id: 'attributeName1', label: 'Tên phân loại 1', group: 'Phân loại / SKU' },
+  { id: 'attributeValue1', label: 'Giá trị phân loại 1', group: 'Phân loại / SKU' },
+  { id: 'attributeName2', label: 'Tên phân loại 2', group: 'Phân loại / SKU', defaultSelected: false },
+  { id: 'attributeValue2', label: 'Giá trị phân loại 2', group: 'Phân loại / SKU', defaultSelected: false },
+  { id: 'attributeName3', label: 'Tên phân loại 3', group: 'Phân loại / SKU', defaultSelected: false },
+  { id: 'attributeValue3', label: 'Giá trị phân loại 3', group: 'Phân loại / SKU', defaultSelected: false },
+  { id: 'rowUnit', label: 'Đơn vị dòng', group: 'Tồn kho / đơn vị' },
+  { id: 'conversionRate', label: 'Tỷ lệ quy đổi', group: 'Tồn kho / đơn vị' },
+  { id: 'barcode', label: 'Mã vạch', group: 'Tồn kho / đơn vị' },
+  { id: 'minStock', label: 'Tồn tối thiểu', group: 'Tồn kho / đơn vị' },
+  { id: 'costPrice', label: 'Giá vốn', group: 'Giá' },
+  { id: 'vat', label: 'VAT', group: 'Thuế / khối lượng', defaultSelected: false },
+  { id: 'weight', label: 'Khối lượng', group: 'Thuế / khối lượng', defaultSelected: false },
+  { id: 'isActive', label: 'Đang bán', group: 'Trạng thái' },
+  { id: 'lastCountShift', label: 'Ca kiểm gần nhất', group: 'Trạng thái', defaultSelected: false },
+  { id: 'imageUrl', label: 'Ảnh link', group: 'Ảnh / ghi chú', defaultSelected: false },
+  { id: 'tags', label: 'Tags', group: 'Ảnh / ghi chú', defaultSelected: false },
 ]
 
 const SORTABLE_COLUMNS = new Set<DisplayColumnId>([
@@ -261,6 +290,7 @@ export function ProductList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [showExcelMenu, setShowExcelMenu] = useState(false)
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set())
   const excelMenuRef = useRef<HTMLDivElement | null>(null)
@@ -494,36 +524,58 @@ export function ProductList() {
     },
   })
 
+  const productFilters = useMemo(() => ({
+    search: search || undefined,
+    category: category || undefined,
+    brand: brandQuery || undefined,
+    saleStatus,
+    stockStatus,
+    status: systemStatus,
+  }), [brandQuery, category, saleStatus, search, stockStatus, systemStatus])
+
+  const productExportColumns = useMemo<ExportColumnOption[]>(() => [
+    ...PRODUCT_EXPORT_COLUMNS,
+    ...priceBooks.map((priceBook: any) => ({
+      id: `priceBook:${priceBook.id}`,
+      label: priceBook.name,
+      group: 'Bảng giá',
+    })),
+  ], [priceBooks])
+
   const exportMutation = useMutation({
-    mutationFn: async (scope: 'all' | 'filtered' | 'selected') => {
+    mutationFn: async (payload: { scope: ExportScope; columns: string[] }) => {
+      const staticColumns = payload.columns.filter((column) => !column.startsWith('priceBook:'))
+      const priceBookColumns = payload.columns
+        .filter((column) => column.startsWith('priceBook:'))
+        .map((column) => column.slice('priceBook:'.length))
       const filters =
-        scope === 'all'
+        payload.scope === 'all'
           ? { status: systemStatus }
+          : payload.scope === 'page'
+            ? { ...productFilters, page, limit: pageSize }
           : {
-            search: search || undefined,
-            category: category || undefined,
-            brand: brandQuery || undefined,
-            saleStatus,
-            stockStatus,
-            status: systemStatus,
+            ...productFilters,
           }
 
       const response = await inventoryApi.exportProducts({
-        scope,
+        scope: payload.scope,
         filters,
-        productIds: scope === 'selected' ? selectedProductIds : undefined,
+        productIds: payload.scope === 'selected' ? selectedProductIds : undefined,
+        columns: staticColumns,
+        priceBookColumns,
       })
-      const payload = response?.data ?? {}
-      const rows = payload.rows ?? []
+      const exportData = response?.data ?? {}
+      const rows = exportData.rows ?? []
       if (!Array.isArray(rows)) {
         throw new Error('Phản hồi xuất Excel sản phẩm không hợp lệ.')
       }
 
       await exportProductWorkbook({
         rows,
-        guideRows: payload.guideRows ?? [],
-        priceBookHeaders: payload.priceBookHeaders ?? [],
-        fileName: `san-pham-${scope}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        guideRows: exportData.guideRows ?? [],
+        priceBookHeaders: exportData.priceBookHeaders ?? [],
+        columns: staticColumns,
+        fileName: `san-pham-${exportData.summary?.scope ?? 'export'}-${new Date().toISOString().slice(0, 10)}.xlsx`,
       })
 
       return rows.length as number
@@ -536,14 +588,15 @@ export function ProductList() {
     },
   })
 
-  const handleExportProducts = (scope: 'all' | 'filtered' | 'selected') => {
-    if (scope === 'selected' && selectedProductIds.length === 0) {
+  const handleExportProducts = (payload: { scope: ExportScope; columns: string[] }) => {
+    if (payload.scope === 'selected' && selectedProductIds.length === 0) {
       toast.error('Hãy chọn ít nhất một sản phẩm để xuất.')
       return
     }
 
-    setShowExcelMenu(false)
-    exportMutation.mutate(scope)
+    exportMutation.mutate(payload, {
+      onSuccess: () => setIsExportModalOpen(false),
+    })
   }
 
   const toggleExpanded = (productId: string) => {
@@ -691,30 +744,15 @@ export function ProductList() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleExportProducts('all')}
+                      onClick={() => {
+                        setShowExcelMenu(false)
+                        setIsExportModalOpen(true)
+                      }}
                       disabled={exportMutation.isPending}
                       className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-background-secondary disabled:opacity-50"
                     >
-                      <span>Xuất tất cả</span>
-                      <span className="text-xs text-foreground-muted">Mọi sản phẩm</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleExportProducts('filtered')}
-                      disabled={exportMutation.isPending}
-                      className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-background-secondary disabled:opacity-50"
-                    >
-                      <span>Xuất theo bộ lọc</span>
-                      <span className="text-xs text-foreground-muted">Theo màn hình hiện tại</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleExportProducts('selected')}
-                      disabled={exportMutation.isPending || selectedProductIds.length === 0}
-                      className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-background-secondary disabled:opacity-50"
-                    >
-                      <span>Xuất đã chọn</span>
-                      <span className="text-xs text-foreground-muted">{selectedProductIds.length} sản phẩm</span>
+                      <span>Xuất Excel</span>
+                      <span className="text-xs text-foreground-muted">Chọn phạm vi và cột</span>
                     </button>
                     {canImportProducts ? (
                       <button
@@ -922,6 +960,22 @@ export function ProductList() {
           queryClient.invalidateQueries({ queryKey: ['products'] })
           setIsModalOpen(false)
         }}
+      />
+
+      <ExportDataModal
+        isOpen={isExportModalOpen}
+        title="Xuất file danh sách sản phẩm"
+        storageKey="product-export-columns-v1"
+        scopeOptions={[
+          { id: 'all', label: 'Tất cả sản phẩm', description: 'Xuất toàn bộ theo trạng thái hệ thống đang chọn', count: total },
+          { id: 'page', label: 'Sản phẩm trên trang này', description: 'Chỉ xuất các sản phẩm đang hiển thị ở trang hiện tại', count: productRows.length },
+          { id: 'filtered', label: `${total.toLocaleString('vi-VN')} sản phẩm phù hợp với bộ lọc hiện tại`, description: 'Xuất toàn bộ kết quả tìm kiếm và bộ lọc hiện tại', count: total },
+          { id: 'selected', label: 'Sản phẩm đã chọn', description: 'Chỉ xuất các sản phẩm được tick trong bảng', count: selectedProductIds.length, disabled: selectedProductIds.length === 0 },
+        ]}
+        columns={productExportColumns}
+        isExporting={exportMutation.isPending}
+        onClose={() => setIsExportModalOpen(false)}
+        onExport={handleExportProducts}
       />
 
       <ProductExcelModal
