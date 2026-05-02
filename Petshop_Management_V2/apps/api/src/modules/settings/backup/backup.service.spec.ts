@@ -230,7 +230,7 @@ describe('BackupService', () => {
     expect(metadata).toEqual(
       expect.objectContaining({
         appId: 'petshop-management-v2',
-        appVersion: '2.5.2+191488b',
+        appVersion: '2.5.3+6f56572',
         buildNumber: '128',
         gitSha: 'abc1234',
         buildDate: '2026-05-01T15:30:00Z',

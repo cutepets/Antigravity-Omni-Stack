@@ -5,6 +5,14 @@ Format theo [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) và [Semant
 
 ---
 
+## [2.5.3+6f56572] - 2026-05-02
+
+### Release
+- Dong goi ban rollout dua tren commit `6f56572`.
+- Cap nhat metadata release de API tra ve dung version va build co the gan voi commit deploy.
+
+---
+
 ## [2.5.2+191488b] - 2026-05-02
 
 ### Release
