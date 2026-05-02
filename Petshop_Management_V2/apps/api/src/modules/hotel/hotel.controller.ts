@@ -23,6 +23,7 @@ import { getRequestedBranchId } from '../../common/utils/request-branch.util.js'
 import { JwtGuard } from '../auth/guards/jwt.guard.js'
 import { CreateCageDto, CreateHotelRateTableDto, CreateHotelStayDto, CreateHotelStayHealthLogDto, CreateHotelStayNoteDto } from './dto/create-hotel.dto.js'
 import { CalculateHotelPriceDto, CheckoutHotelStayDto, UpdateCageDto, UpdateHotelRateTableDto, UpdateHotelStayDto } from './dto/update-hotel.dto.js'
+import { HotelService } from './hotel.service.js'
 
 // Commands
 import { CreateCageCommand } from './application/commands/create-cage/create-cage.command.js'
@@ -61,6 +62,7 @@ export class HotelController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly hotelService: HotelService,
   ) { }
 
   // ===== CAGES =====
@@ -187,6 +189,27 @@ export class HotelController {
     @Req() req: AuthenticatedRequest,
   ): Promise<any> {
     return this.commandBus.execute(new CreateStayHealthLogCommand(id, dto, req.user))
+  }
+
+  @Patch('stays/:id/health-logs/:logId')
+  @Permissions('hotel.update')
+  updateStayHealthLog(
+    @Param('id') id: string,
+    @Param('logId') logId: string,
+    @Body() dto: CreateHotelStayHealthLogDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.hotelService.updateStayHealthLog(id, logId, dto, req.user)
+  }
+
+  @Delete('stays/:id/health-logs/:logId')
+  @Permissions('hotel.update')
+  deleteStayHealthLog(
+    @Param('id') id: string,
+    @Param('logId') logId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any> {
+    return this.hotelService.deleteStayHealthLog(id, logId, req.user)
   }
 
   @Post('stays/:id/notes')

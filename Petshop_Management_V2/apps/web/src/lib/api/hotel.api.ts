@@ -399,6 +399,10 @@ export const hotelApi = {
     api.get<HotelStayHealthLog[]>(`/hotel/stays/${id}/health-logs`).then((res) => res.data),
   createStayHealthLog: (id: string, data: CreateHotelStayHealthLogDto) =>
     api.post<HotelStayHealthLog>(`/hotel/stays/${id}/health-logs`, data).then((res) => res.data),
+  updateStayHealthLog: (id: string, logId: string, data: CreateHotelStayHealthLogDto) =>
+    api.patch<HotelStayHealthLog>(`/hotel/stays/${id}/health-logs/${logId}`, data).then((res) => res.data),
+  deleteStayHealthLog: (id: string, logId: string) =>
+    api.delete<{ success: boolean }>(`/hotel/stays/${id}/health-logs/${logId}`).then((res) => res.data),
   createStayNote: (id: string, data: CreateHotelStayNoteDto) =>
     api.post<HotelStayTimeline['activities'][number]>(`/hotel/stays/${id}/notes`, data).then((res) => res.data),
   createStay: (data: CreateHotelStayDto) => api.post<HotelStay>('/hotel/stays', data).then((res) => res.data),

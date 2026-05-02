@@ -3,7 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, LayoutGrid, List, Pencil, Plus, RefreshCw, Table, Tag, Trash2, UserRound, XCircle, Phone } from 'lucide-react'
+import { CalendarDays, LayoutGrid, List, MapPin, Package, Pencil, Plus, RefreshCw, Table, Tag, Trash2, UserRound, XCircle, Phone } from 'lucide-react'
 import { customToast as toast } from '@/components/ui/toast-with-copy'
 import { ServicePricingWorkspace } from '@/components/service-pricing/ServicePricingWorkspace'
 import {
@@ -74,6 +74,9 @@ function getSearchText(session: GroomingSession) {
     session.orderId,
     session.serviceId,
     session.notes,
+    session.branch?.name,
+    session.branch?.code,
+    session.packageCode,
   ]
     .filter(Boolean)
     .join(' ')
@@ -252,13 +255,16 @@ export function GroomingBoard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
-  const { hasPermission, hasAnyPermission, isLoading: isAuthLoading, isSuperAdmin } = useAuthorization()
+  const { hasPermission, hasAnyPermission, isLoading: isAuthLoading, isSuperAdmin, allowedBranches } = useAuthorization()
   const activeBranchId = useAuthStore((s) => s.activeBranchId)
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
   const [statusFilter, setStatusFilter] = useState<GroomingStatus | ''>('')
   const [staffFilter, setStaffFilter] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
+  const [contactFilter, setContactFilter] = useState<'CALLED' | 'UNCALLED' | ''>('')
+  const [packageFilter, setPackageFilter] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(12)
@@ -326,7 +332,7 @@ export function GroomingBoard() {
   }, [focusSessionId, initialSearch, initialView])
 
   const sessionsQuery = useQuery({
-    queryKey: ['grooming-sessions'],
+    queryKey: ['grooming-sessions', 'all-branches'],
     queryFn: () => groomingApi.getSessions({ omitBranchId: true }),
     enabled: !isAuthLoading && canReadGrooming,
   })
@@ -339,6 +345,28 @@ export function GroomingBoard() {
 
   const sessions = useMemo(() => sessionsQuery.data ?? [], [sessionsQuery.data])
   const staffOptions = (staffQuery.data ?? []).filter((staff) => !['RESIGNED', 'QUIT'].includes(staff.status))
+  const branchOptions = useMemo(() => {
+    const branchMap = new Map<string, { id: string; name: string; code?: string | null }>()
+
+    allowedBranches.forEach((branch) => {
+      branchMap.set(branch.id, { id: branch.id, name: branch.name })
+    })
+    sessions.forEach((session) => {
+      if (!session.branchId) return
+      branchMap.set(session.branchId, {
+        id: session.branchId,
+        name: session.branch?.name ?? session.branchId,
+        code: session.branch?.code,
+      })
+    })
+
+    return Array.from(branchMap.values()).sort((left, right) => left.name.localeCompare(right.name, 'vi'))
+  }, [allowedBranches, sessions])
+  const packageOptions = useMemo(() => {
+    return Array.from(new Set(sessions.map((session) => session.packageCode).filter(Boolean) as string[])).sort((left, right) =>
+      left.localeCompare(right, 'vi'),
+    )
+  }, [sessions])
 
   useEffect(() => {
     if (!focusSessionId || autoOpenedSessionIdRef.current === focusSessionId || sessions.length === 0) return
@@ -355,12 +383,15 @@ export function GroomingBoard() {
 
     return sessions.filter((session) => {
       if (statusFilter && session.status !== statusFilter) return false
-      if (staffFilter && session.staffId !== staffFilter) return false
+      if (staffFilter && session.staffId !== staffFilter && !session.assignedStaff?.some((staff) => staff.id === staffFilter)) return false
+      if (viewMode === 'list' && branchFilter && session.branchId !== branchFilter) return false
+      if (contactFilter && (session.contactStatus ?? 'UNCALLED') !== contactFilter) return false
+      if (packageFilter && session.packageCode !== packageFilter) return false
       if (dateFilter && getDateKey(session.createdAt) !== dateFilter) return false
       if (normalizedSearch && !getSearchText(session).includes(normalizedSearch)) return false
       return true
     })
-  }, [dateFilter, deferredSearch, sessions, staffFilter, statusFilter])
+  }, [branchFilter, contactFilter, dateFilter, deferredSearch, packageFilter, sessions, staffFilter, statusFilter, viewMode])
 
   const sortedSessions = useMemo(
     () => [...filteredSessions].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()),
@@ -407,6 +438,9 @@ export function GroomingBoard() {
     setSearch('')
     setStatusFilter('')
     setStaffFilter('')
+    setBranchFilter('')
+    setContactFilter('')
+    setPackageFilter('')
     setDateFilter('')
     setPage(1)
   }
@@ -440,7 +474,14 @@ export function GroomingBoard() {
   const totalPages = Math.max(1, Math.ceil(filteredSessions.length / pageSize))
   const rangeStart = filteredSessions.length === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd = filteredSessions.length === 0 ? 0 : Math.min(filteredSessions.length, page * pageSize)
-  const activeFilterCount = [statusFilter, staffFilter, dateFilter].filter(Boolean).length
+  const activeFilterCount = [
+    statusFilter,
+    staffFilter,
+    viewMode === 'list' ? branchFilter : '',
+    contactFilter,
+    packageFilter,
+    dateFilter,
+  ].filter(Boolean).length
 
   if (isAuthLoading) {
     return <div className="flex h-64 items-center justify-center text-gray-400">Đang kiểm tra quyền truy cập...</div>
@@ -490,13 +531,19 @@ export function GroomingBoard() {
                     <option value="">Tất cả nhân viên</option>
                     {staffOptions.map((staff) => <option key={staff.id} value={staff.id}>{staff.fullName}</option>)}
                   </select>
+                  {viewMode === 'list' ? (
+                    <select value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setPage(1) }} className={toolbarSelectClass}>
+                      <option value="">Tất cả chi nhánh</option>
+                      {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                    </select>
+                  ) : null}
                   <input type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1) }} className={toolbarSelectClass} />
                 </>
               }
               extraActions={
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="inline-flex items-center p-1 border rounded-2xl border-border bg-background-secondary">
-                    <button type="button" onClick={() => setViewMode('kanban')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'kanban' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><LayoutGrid size={15} />Kanban</button>
+                    <button type="button" onClick={() => setViewMode('kanban')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'kanban' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><LayoutGrid size={15} />Sơ đồ</button>
                     <button type="button" onClick={() => setViewMode('list')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors', viewMode === 'list' ? 'bg-primary-500 text-white' : 'text-foreground-muted hover:text-foreground')}><List size={15} />Danh sách</button>
                   </div>
                 </div>
@@ -504,6 +551,9 @@ export function GroomingBoard() {
             />
 
             <DataListFilterPanel onClearAll={clearFilters}>
+              {viewMode === 'list' ? <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><MapPin size={14} className="text-primary-500" />Chi nhánh</span><select value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setPage(1) }} className={filterSelectClass}><option value="">Tất cả chi nhánh</option>{branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label> : null}
+              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><Phone size={14} className="text-primary-500" />Liên hệ</span><select value={contactFilter} onChange={(event) => { setContactFilter(event.target.value as 'CALLED' | 'UNCALLED' | ''); setPage(1) }} className={filterSelectClass}><option value="">Tất cả liên hệ</option><option value="UNCALLED">Chưa gọi</option><option value="CALLED">Đã gọi</option></select></label>
+              <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><Package size={14} className="text-primary-500" />Gói SPA</span><select value={packageFilter} onChange={(event) => { setPackageFilter(event.target.value); setPage(1) }} className={filterSelectClass}><option value="">Tất cả gói</option>{packageOptions.map((packageCode) => <option key={packageCode} value={packageCode}>{packageCode}</option>)}</select></label>
               <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><Tag size={14} className="text-primary-500" />Trạng thái</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as GroomingStatus | ''); setPage(1) }} className={filterSelectClass}><option value="">Tất cả trạng thái</option>{GROOMING_STATUS_ORDER.map((status) => <option key={status} value={status}>{GROOMING_STATUS_META[status].label}</option>)}</select></label>
               <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><UserRound size={14} className="text-primary-500" />Nhân viên</span><select value={staffFilter} onChange={(event) => { setStaffFilter(event.target.value); setPage(1) }} className={filterSelectClass}><option value="">Tất cả nhân viên</option>{staffOptions.map((staff) => <option key={staff.id} value={staff.id}>{staff.fullName}</option>)}</select></label>
               <label className="space-y-2"><span className="inline-flex items-center gap-2 text-sm text-foreground-muted"><CalendarDays size={14} className="text-primary-500" />Ngày tạo</span><input type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setPage(1) }} className={filterInputClass} /></label>

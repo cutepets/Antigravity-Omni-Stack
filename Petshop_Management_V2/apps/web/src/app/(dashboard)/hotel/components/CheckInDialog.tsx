@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { hotelApi, Cage, HotelStay } from '@/lib/api/hotel.api'
 import { format } from 'date-fns'
+import { buildBookedStayCheckInPayload, buildNewStayCheckInPayload } from './check-in-dialog.utils'
 
 interface CheckInDialogProps {
   slotIndex?: number | null
@@ -22,6 +23,7 @@ export default function CheckInDialog({ slotIndex, bookedStay, isOpen, onClose }
   const petId = bookedStay?.petId || 'TEMP_ID'
   const [lineType, setLineType] = useState<Cage['type']>('REGULAR')
   const [notes, setNotes] = useState('')
+  const [accessories, setAccessories] = useState('')
   const [estCheckOut, setEstCheckOut] = useState('')
   const canCheckIn = hasAnyPermission(['hotel.create', 'hotel.checkin'])
 
@@ -31,6 +33,7 @@ export default function CheckInDialog({ slotIndex, bookedStay, isOpen, onClose }
       setPetName(bookedStay.petName || '')
       setLineType(bookedStay.lineType || 'REGULAR')
       setNotes(bookedStay.notes || '')
+      setAccessories(bookedStay.accessories || '')
       if (bookedStay.estimatedCheckOut) {
         setEstCheckOut(format(new Date(bookedStay.estimatedCheckOut), 'yyyy-MM-dd'))
       }
@@ -38,20 +41,29 @@ export default function CheckInDialog({ slotIndex, bookedStay, isOpen, onClose }
       setPetName('')
       setLineType('REGULAR')
       setNotes('')
+      setAccessories('')
       setEstCheckOut('')
     }
   }, [bookedStay, isOpen])
 
   const checkInMutation = useMutation({
-    mutationFn: (data: any) =>
+    mutationFn: (data: {
+      slotIndex?: number | null
+      petId: string
+      petName: string
+      notes: string
+      accessories: string
+      estimatedCheckOut: string
+    }) =>
       bookedStay
-        ? hotelApi.updateStay(bookedStay.id, { status: 'CHECKED_IN', slotIndex: data.slotIndex, notes: data.notes, estimatedCheckOut: data.estimatedCheckOut })
-        : hotelApi.createStay(data),
+        ? hotelApi.updateStay(bookedStay.id, buildBookedStayCheckInPayload(data))
+        : hotelApi.createStay(buildNewStayCheckInPayload(data)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cages'] })
       queryClient.invalidateQueries({ queryKey: ['stays'] })
       // Reset form state
       setNotes('')
+      setAccessories('')
       setEstCheckOut('')
       onClose()
     },
@@ -65,10 +77,9 @@ export default function CheckInDialog({ slotIndex, bookedStay, isOpen, onClose }
       slotIndex: slotIndex ?? null,
       petId,
       petName: bookedStay?.petName || '',
-      lineType: 'REGULAR',
-      checkIn: new Date().toISOString(),
-      estimatedCheckOut: estCheckOut ? new Date(estCheckOut).toISOString() : undefined,
+      estimatedCheckOut: estCheckOut,
       notes,
+      accessories,
     })
   }
 
@@ -106,6 +117,18 @@ export default function CheckInDialog({ slotIndex, bookedStay, isOpen, onClose }
                 onChange={(e) => setEstCheckOut(e.target.value)}
                 min={format(new Date(), 'yyyy-MM-dd')}
                 className="flex h-10 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-medium leading-none text-foreground">Đồ đi kèm</label>
+              <textarea
+                value={accessories}
+                disabled={!canCheckIn}
+                onChange={(e) => setAccessories(e.target.value)}
+                placeholder="Ví dụ: Lồng vận chuyển, dây dắt, áo..."
+                rows={2}
+                className="flex w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 

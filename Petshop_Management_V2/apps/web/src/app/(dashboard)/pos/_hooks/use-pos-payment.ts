@@ -21,6 +21,7 @@ import { resolveCartItemStockState } from '@/app/(dashboard)/_shared/cart/stock.
 import { usePosStore, useActiveTab, useCartTotal } from '@/stores/pos.store';
 import { useCreateOrder } from './use-pos-mutations';
 import { confirmDialog } from '@/components/ui/confirmation-provider'
+import { resolvePosServiceNavigationTarget } from './pos-service-navigation';
 
 export function usePosPayment() {
   const queryClient = useQueryClient();
@@ -357,15 +358,18 @@ export function usePosPayment() {
 
   const handleCreateServiceFlow = useCallback(async () => {
     if (!activeTab || activeTab.cart.length === 0) return;
-    const newTab = window.open('about:blank', '_blank');
-    if (!newTab) {
+    const serviceNavigationTarget = resolvePosServiceNavigationTarget(activeTab.cart);
+    if (!serviceNavigationTarget) return;
+
+    const serviceTab = window.open('', serviceNavigationTarget.target);
+    if (!serviceTab) {
       toast.error('Trình duyệt đã chặn cửa sổ mới. Vui lòng cho phép popup.');
       return;
     }
 
     const payload = buildCheckoutPayload(undefined, undefined, { hotelCheckInNow: true });
     if (!payload) {
-      newTab.close();
+      serviceTab.close();
       return;
     }
 
@@ -385,13 +389,14 @@ export function usePosPayment() {
           paidAmount: orderResult.paidAmount ?? orderResult.amountPaid ?? 0,
         });
         store.closeTab(activeTab.id);
-        newTab.location.href = `/orders/${orderResult.id}`;
+        serviceTab.location.href = serviceNavigationTarget.href;
+        serviceTab.focus();
       } else {
-        newTab.close();
+        serviceTab.close();
         toast.error('Có lỗi khi tạo đơn');
       }
     } catch (error: any) {
-      newTab.close();
+      serviceTab.close();
       toast.error(error?.response?.data?.message || error?.message || 'Có lỗi khi tạo đơn');
     }
   }, [activeTab, buildCheckoutPayload, cartTotal, createOrder, store]);

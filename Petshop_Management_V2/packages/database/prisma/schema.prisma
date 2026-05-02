@@ -1117,7 +1117,7 @@ model HotelStay {
   surcharge         Float           @default(0)
   slotIndex         Int?            // Vi tri o trong luoi so do
   accessories       String?         // Do di kem cua thu cung
-  secondaryPhone    String?         // SĐT phụ (người nhờ đón/gửi)
+  secondaryPhone    String?         @map("hotel_stay_secondaryPhone") // SĐT phụ (người nhờ đón/gửi)
   cancelledAt       DateTime?
   totalPrice        Float           @default(0)
   branch            Branch?         @relation(fields: [branchId], references: [id])

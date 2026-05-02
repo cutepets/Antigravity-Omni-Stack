@@ -5,6 +5,12 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { api, authApi } from '@/lib/api'
 import { clearAuthSessionCookie, setAuthSessionCookie } from '@/lib/auth-session-cookie'
+import {
+  ACTIVE_BRANCH_STORAGE_KEY,
+  readStoredActiveBranchId,
+  resolveFetchMeBranchId,
+  writeStoredActiveBranchId,
+} from './auth-branch.utils'
 
 type AuthState = {
   user: AuthUser | null
@@ -70,7 +76,7 @@ export const useAuthStore = create<AuthState>()(
           setAuthSessionCookie()
           // Ưu tiên defaultBranchId từ DB khi login
           set({
-            ...buildAuthState(response.user, response.user.defaultBranchId ?? get().activeBranchId),
+            ...buildAuthState(response.user, readStoredActiveBranchId() ?? response.user.defaultBranchId ?? get().activeBranchId),
             shouldPromptPasswordChange: DEFAULT_LOGIN_PASSWORDS.has(password),
             isLoading: false,
             error: null,
@@ -113,7 +119,7 @@ export const useAuthStore = create<AuthState>()(
           setAuthSessionCookie()
           // Ưu tiên defaultBranchId từ DB, fallback sang activeBranchId hiện tại
           set({
-            ...buildAuthState(user, user.defaultBranchId ?? get().activeBranchId),
+            ...buildAuthState(user, resolveFetchMeBranchId(user, get().activeBranchId, readStoredActiveBranchId())),
             isLoading: false,
             error: null,
             hasHydrated: true,
@@ -141,7 +147,13 @@ export const useAuthStore = create<AuthState>()(
           return
         }
 
-        set({ activeBranchId: nextBranchId, error: null })
+        const user = get().user
+        writeStoredActiveBranchId(nextBranchId)
+        set({
+          activeBranchId: nextBranchId,
+          user: user ? { ...user, defaultBranchId: nextBranchId } : user,
+          error: null,
+        })
 
         // Lưu lên DB nền (fire & forget)
         if (persistToDB) {
@@ -192,10 +204,18 @@ export const useAuthStore = create<AuthState>()(
           return
         }
 
-        const normalized = buildAuthState(state.user, state.activeBranchId)
+        const normalized = buildAuthState(state.user, readStoredActiveBranchId() ?? state.activeBranchId)
         state.switchBranch(normalized.activeBranchId, false) // false = không gọi API khi rehydrate
         state.setHydrated(true)
       },
     },
   ),
 )
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== ACTIVE_BRANCH_STORAGE_KEY) return
+
+    useAuthStore.getState().switchBranch(event.newValue, false)
+  })
+}

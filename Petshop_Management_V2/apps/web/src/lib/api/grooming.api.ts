@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import type { ApiResponse } from "@petshop/shared";
+import { buildGroomingSessionsRequestConfig } from './grooming-request.utils'
 
 export type GroomingStatus =
   | "BOOKED"
@@ -191,12 +192,7 @@ export interface BulkDeleteResult {
 
 export const groomingApi = {
   getSessions: async (params?: GetGroomingSessionsParams) => {
-    const { omitBranchId, ...restParams } = params || {};
-    const config: any = { params: restParams };
-    if (omitBranchId) {
-      config.headers = { "X-Omit-Branch-ID": "true" };
-    }
-    const res = await api.get<ApiResponse<GroomingSession[]>>("/grooming", config);
+    const res = await api.get<ApiResponse<GroomingSession[]>>("/grooming", buildGroomingSessionsRequestConfig(params));
     return res.data.data;
   },
 

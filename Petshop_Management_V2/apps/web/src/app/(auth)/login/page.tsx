@@ -1,12 +1,16 @@
 import React, { Suspense } from 'react'
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { LoginForm } from './_components/login-form'
+import { getPublicLoginBranding } from './login-branding'
 
 export const metadata: Metadata = {
   title: 'Đăng nhập',
 }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const branding = await getPublicLoginBranding()
+
   return (
     <div className="min-h-screen flex bg-grid-pattern relative overflow-hidden" style={{ background: 'var(--color-background-base)' }}>
       {/* Decorative gradient blobs */}
@@ -36,26 +40,37 @@ export default function LoginPage() {
         >
           {/* Decorative circles inside left panel */}
           <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-            <div className="absolute w-[400px] h-[400px] rounded-full bg-white/5 -top-[120px] -right-[80px]" />
-            <div className="absolute w-[300px] h-[300px] rounded-full bg-white/5 bottom-[80px] -left-[60px]" />
+            <div className="absolute w-[400px] h-[400px] rounded-full bg-white/5 top-[-120px] right-[-80px]" />
+            <div className="absolute w-[300px] h-[300px] rounded-full bg-white/5 bottom-[80px] left-[-60px]" />
           </div>
 
           <div className="relative z-10 flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-3xl backdrop-blur-xl shadow-lg border border-white/30">
-              🐾
-            </div>
+            {branding.shopLogo ? (
+              <Image
+                src={branding.shopLogo}
+                alt={branding.shopName}
+                width={56}
+                height={56}
+                className="h-14 w-14 object-contain"
+                unoptimized
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center overflow-hidden text-3xl backdrop-blur-xl shadow-lg border border-white/30">
+                🐾
+              </div>
+            )}
             <div>
-              <p className="text-xl font-bold leading-tight">Petshop Pro</p>
+              <p className="text-xl font-bold leading-tight">{branding.shopName}</p>
             </div>
           </div>
 
           <div className="relative z-10">
             <h2 className="text-4xl font-extrabold leading-tight mb-4">
-              Quản lý thú cưng<br />
-              <span className="text-white/70">đẳng cấp & mượt mà</span>
+              Quản lý bán hàng<br />
+              <span className="text-white/70">Chuyên nghiệp & dễ thao tác</span>
             </h2>
             <p className="text-white/80 text-lg max-w-[360px]">
-              Trải nghiệm hệ thống mượt mà, quản lý mọi dịch vụ dễ dàng với giao diện hiện đại nhất.
+              Trải nghiệm hệ thống mượt mà, quản lý mọi dịch vụ dễ dàng với giao diện hiện đại.
             </p>
 
             <div className="flex flex-wrap gap-2 mt-8">
@@ -72,7 +87,7 @@ export default function LoginPage() {
 
           <div className="relative z-10">
             <p className="text-white/50 text-sm">
-              © 2026 Powered by Antigravity
+              © 2026 Powered by Phan Thanh
             </p>
           </div>
         </div>

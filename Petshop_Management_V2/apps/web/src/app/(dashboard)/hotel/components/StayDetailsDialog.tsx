@@ -5,6 +5,7 @@ import * as Tabs from '@radix-ui/react-tabs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import {
+  AlertTriangle,
   ClipboardList,
   HeartPulse,
   LogIn,
@@ -14,6 +15,7 @@ import {
   PawPrint,
   Printer,
   Save,
+  Trash2,
   type LucideIcon,
   X,
 } from 'lucide-react'
@@ -83,6 +85,7 @@ type CareLogEntry = {
   content: string
   createdAt?: string | null
   actor: string
+  source: 'timeline-note' | 'health-log' | 'stay-note'
 }
 
 type StayDateDraft = {
@@ -325,11 +328,13 @@ function getStayCareEntries(stay: HotelStay | null, healthLogs: HotelStayHealthL
       content: entry.note?.trim() ?? '',
       createdAt: entry.createdAt,
       actor: getActivityActor(entry),
+      source: 'timeline-note',
     }))
 
   const healthEntries: CareLogEntry[] = healthLogs.map((log) => ({
     id: log.id,
     content: log.content,
+    source: 'health-log',
     createdAt: log.createdAt,
     actor: log.performedByUser?.fullName ?? log.performedByUser?.username ?? 'Nhân viên',
   }))
@@ -346,6 +351,7 @@ function getStayCareEntries(stay: HotelStay | null, healthLogs: HotelStayHealthL
   return [{
     id: `${stay.id}-current-note`,
     content: fallbackNote,
+    source: 'stay-note',
     createdAt: stay.updatedAt ?? stay.createdAt,
     actor: stay.createdBy?.fullName ?? stay.createdBy?.username ?? 'Nhân viên',
   }]
@@ -518,9 +524,15 @@ function PhoneLine({ label, phone }: { label: string; phone?: string | null }) {
 function CareLogList({
   entries,
   isLoading,
+  canUpdate = false,
+  onEditStayNote,
+  onDeleteStayNote,
 }: {
   entries: CareLogEntry[]
   isLoading?: boolean
+  canUpdate?: boolean
+  onEditStayNote?: (entry: CareLogEntry) => void
+  onDeleteStayNote?: (entry: CareLogEntry) => void
 }) {
   if (isLoading) {
     return <div className="rounded-xl border border-border/60 px-4 py-5 text-center text-sm text-foreground-muted">Đang tải ghi chú & sức khỏe...</div>
@@ -532,17 +544,40 @@ function CareLogList({
 
   return (
     <div className="rounded-xl border border-border/60">
-      <div className="grid grid-cols-[1fr_120px_130px] gap-3 border-b border-border/60 bg-background-secondary/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-muted">
+      <div className="grid grid-cols-[1fr_120px_130px_64px] gap-3 border-b border-border/60 bg-background-secondary/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-muted">
         <div>Nội dung</div>
         <div>NV cập nhật</div>
         <div>Thời gian</div>
+        <div className="text-right">Thao tác</div>
       </div>
       <div className="divide-y divide-border/60">
         {entries.map((entry) => (
-          <div key={entry.id} className="grid grid-cols-[1fr_120px_130px] gap-3 px-4 py-3 text-sm">
+          <div key={entry.id} className="grid grid-cols-[1fr_120px_130px_64px] gap-3 px-4 py-3 text-sm">
             <div className="whitespace-pre-wrap leading-6 text-foreground">{entry.content}</div>
             <div className="min-w-0 truncate font-medium text-foreground">{entry.actor}</div>
             <div className="text-foreground-muted">{formatStayDate(entry.createdAt)}</div>
+            <div className="flex justify-end gap-1">
+              {canUpdate && (entry.source === 'stay-note' || entry.source === 'health-log') ? (
+                <>
+                  <button
+                    type="button"
+                    title="Sửa ghi chú"
+                    onClick={() => onEditStayNote?.(entry)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-primary-500/10 hover:text-primary-500"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Xóa ghi chú"
+                    onClick={() => onDeleteStayNote?.(entry)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-error/10 hover:text-error"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </>
+              ) : null}
+            </div>
           </div>
         ))}
       </div>
@@ -621,6 +656,9 @@ export default function StayDetailsDialog({
   const [isEditingStayDates, setIsEditingStayDates] = useState(false)
   const [isEditingAccessories, setIsEditingAccessories] = useState(false)
   const [isAddingCareLog, setIsAddingCareLog] = useState(false)
+  const [editingStayNoteEntryId, setEditingStayNoteEntryId] = useState<string | null>(null)
+  const [editingCareEntrySource, setEditingCareEntrySource] = useState<CareLogEntry['source'] | null>(null)
+  const [careLogDeleteTarget, setCareLogDeleteTarget] = useState<CareLogEntry | null>(null)
 
   const detailQuery = useQuery({
     queryKey: ['hotel-stay', stayId],
@@ -841,13 +879,31 @@ export default function StayDetailsDialog({
     },
   })
 
-  const createStayNoteMutation = useMutation({
+  const saveCareLogMutation = useMutation<unknown, unknown, void>({
     mutationFn: () =>
-      hotelApi.createStayNote(stay?.id as string, {
-        content: careDraft.content.trim(),
-      }),
+      editingCareEntrySource === 'health-log' && editingStayNoteEntryId
+        ? hotelApi.updateStayHealthLog(stay?.id as string, editingStayNoteEntryId, {
+          content: careDraft.content.trim(),
+        })
+        : hotelApi.updateStay(stay?.id as string, {
+          notes: careDraft.content.trim(),
+        }),
     onSuccess: () => {
+      if (stay?.id && editingCareEntrySource === 'stay-note') {
+        queryClient.setQueryData<HotelStay>(['hotel-stay', stay.id], (current) =>
+          current ? { ...current, notes: careDraft.content.trim() } : current,
+        )
+      }
+      if (stay?.id && editingCareEntrySource === 'health-log' && editingStayNoteEntryId) {
+        queryClient.setQueryData<HotelStayHealthLog[]>(['hotel-stay-health-logs', stay.id], (current) =>
+          current?.map((entry) =>
+            entry.id === editingStayNoteEntryId ? { ...entry, content: careDraft.content.trim() } : entry,
+          ) ?? current,
+        )
+      }
       setCareDraft(EMPTY_HEALTH_DRAFT)
+      setEditingStayNoteEntryId(null)
+      setEditingCareEntrySource(null)
       setIsAddingCareLog(false)
       queryClient.invalidateQueries({ queryKey: ['stays'] })
       queryClient.invalidateQueries({ queryKey: ['hotel-stay', stay?.id] })
@@ -857,6 +913,60 @@ export default function StayDetailsDialog({
     },
     onError: () => {
       toast.error('Không lưu được ghi chú & sức khỏe')
+    },
+  })
+
+  const createCareLogMutation = useMutation({
+    mutationFn: () =>
+      hotelApi.createStayHealthLog(stay?.id as string, {
+        content: careDraft.content.trim(),
+      }),
+    onSuccess: (_, __) => {
+      setCareDraft(EMPTY_HEALTH_DRAFT)
+      setEditingStayNoteEntryId(null)
+      setEditingCareEntrySource(null)
+      setIsAddingCareLog(false)
+      queryClient.invalidateQueries({ queryKey: ['stays'] })
+      queryClient.invalidateQueries({ queryKey: ['hotel-stay', stay?.id] })
+      queryClient.invalidateQueries({ queryKey: ['hotel-stay-health-logs', stay?.id] })
+      queryClient.invalidateQueries({ queryKey: ['hotel-stay-timeline', stay?.id] })
+      toast.success('Đã lưu ghi chú & sức khỏe')
+    },
+    onError: () => {
+      toast.error('Không lưu được ghi chú & sức khỏe')
+    },
+  })
+
+  const deleteCareLogMutation = useMutation<unknown, unknown, CareLogEntry>({
+    mutationFn: (entry: CareLogEntry) =>
+      entry.source === 'health-log'
+        ? hotelApi.deleteStayHealthLog(stay?.id as string, entry.id)
+        : hotelApi.updateStay(stay?.id as string, {
+          notes: '',
+        }),
+    onSuccess: (_, entry) => {
+      setCareDraft(EMPTY_HEALTH_DRAFT)
+      setEditingStayNoteEntryId(null)
+      setEditingCareEntrySource(null)
+      setIsAddingCareLog(false)
+      if (stay?.id && entry.source === 'stay-note') {
+        queryClient.setQueryData<HotelStay>(['hotel-stay', stay.id], (current) =>
+          current ? { ...current, notes: '' } : current,
+        )
+      }
+      if (stay?.id && entry.source === 'health-log') {
+        queryClient.setQueryData<HotelStayHealthLog[]>(['hotel-stay-health-logs', stay.id], (current) =>
+          current?.filter((item) => item.id !== entry.id) ?? current,
+        )
+      }
+      queryClient.invalidateQueries({ queryKey: ['stays'] })
+      queryClient.invalidateQueries({ queryKey: ['hotel-stay', stay?.id] })
+      queryClient.invalidateQueries({ queryKey: ['hotel-stay-health-logs', stay?.id] })
+      queryClient.invalidateQueries({ queryKey: ['hotel-stay-timeline', stay?.id] })
+      toast.success('Đã xóa ghi chú & sức khỏe')
+    },
+    onError: () => {
+      toast.error('Không xóa được ghi chú & sức khỏe')
     },
   })
 
@@ -1320,6 +1430,8 @@ export default function StayDetailsDialog({
                                   type="button"
                                   onClick={async () => {
                                     setCareDraft(EMPTY_HEALTH_DRAFT)
+                                    setEditingStayNoteEntryId(null)
+                                    setEditingCareEntrySource(null)
                                     setIsAddingCareLog(false)
                                   }}
                                   className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-sm font-medium text-foreground-muted transition-colors hover:bg-background-secondary"
@@ -1328,12 +1440,22 @@ export default function StayDetailsDialog({
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => createStayNoteMutation.mutate()}
-                                  disabled={!careDraft.content.trim() || createStayNoteMutation.isPending}
+                                  onClick={() => {
+                                    if (editingStayNoteEntryId) {
+                                      saveCareLogMutation.mutate()
+                                    } else {
+                                      createCareLogMutation.mutate()
+                                    }
+                                  }}
+                                  disabled={
+                                    !careDraft.content.trim() ||
+                                    createCareLogMutation.isPending ||
+                                    saveCareLogMutation.isPending
+                                  }
                                   className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary-500 px-3 text-sm font-medium text-white transition-all duration-150 hover:bg-primary-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   <Save size={14} />
-                                  {createStayNoteMutation.isPending ? 'Đang lưu...' : 'Lưu'}
+                                  {createCareLogMutation.isPending || saveCareLogMutation.isPending ? 'Đang lưu...' : 'Lưu'}
                                 </button>
                               </div>
                             ) : (
@@ -1341,6 +1463,8 @@ export default function StayDetailsDialog({
                                 type="button"
                                 onClick={async () => {
                                   setCareDraft(EMPTY_HEALTH_DRAFT)
+                                  setEditingStayNoteEntryId(null)
+                                  setEditingCareEntrySource(null)
                                   setIsAddingCareLog(true)
                                 }}
                                 className="inline-flex h-9 items-center rounded-xl border border-primary-500/30 bg-primary-500/10 px-3 text-sm font-medium text-primary-500 transition-colors hover:bg-primary-500/15"
@@ -1367,7 +1491,18 @@ export default function StayDetailsDialog({
                           </div>
                         ) : null}
 
-                        <CareLogList entries={careEntries} isLoading={healthLogsQuery.isFetching} />
+                        <CareLogList
+                          entries={careEntries}
+                          isLoading={healthLogsQuery.isFetching}
+                          canUpdate={canUpdateHotel}
+                          onEditStayNote={(entry) => {
+                            setCareDraft({ content: entry.content })
+                            setEditingStayNoteEntryId(entry.id)
+                            setEditingCareEntrySource(entry.source)
+                            setIsAddingCareLog(true)
+                          }}
+                          onDeleteStayNote={setCareLogDeleteTarget}
+                        />
                       </InfoPanel>
                     </section>
                   </div>
@@ -1429,6 +1564,59 @@ export default function StayDetailsDialog({
               </div>
             </footer>
           </Tabs.Root>
+          {careLogDeleteTarget ? (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 p-4">
+              <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="delete-care-log-title"
+                className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-background-secondary shadow-2xl"
+              >
+                <div className="flex items-start gap-4 p-5">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning ring-1 ring-warning/20">
+                    <AlertTriangle size={22} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <h2 id="delete-care-log-title" className="text-base font-semibold text-foreground-base">
+                        Bạn có chắc muốn xóa ghi chú này?
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={() => setCareLogDeleteTarget(null)}
+                        disabled={deleteCareLogMutation.isPending}
+                        className="rounded-lg p-1 text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground-base disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Đóng"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 border-t border-border bg-background-tertiary/50 px-5 py-4">
+                  <button
+                    type="button"
+                    onClick={() => setCareLogDeleteTarget(null)}
+                    disabled={deleteCareLogMutation.isPending}
+                    className="rounded-lg border border-border bg-background-secondary px-4 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background-tertiary hover:text-foreground-base disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      deleteCareLogMutation.mutate(careLogDeleteTarget)
+                      setCareLogDeleteTarget(null)
+                    }}
+                    disabled={deleteCareLogMutation.isPending}
+                    className="inline-flex items-center gap-2 rounded-lg bg-warning px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-warning/90 focus:outline-none focus:ring-2 focus:ring-warning/35 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Xác nhận
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

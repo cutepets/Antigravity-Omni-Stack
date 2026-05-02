@@ -1877,6 +1877,68 @@ export class HotelService {
     return healthLog;
   }
 
+  async updateStayHealthLog(stayId: string, logId: string, data: CreateHotelStayHealthLogDto, user?: BranchScopedUser) {
+    const content = data.content?.trim();
+    if (!content) {
+      throw new BadRequestException('Noi dung suc khoe la bat buoc');
+    }
+
+    const existing = await this.prisma.hotelStayHealthLog.findFirst({
+      where: { id: logId, hotelStayId: stayId },
+      include: {
+        stay: { select: { id: true, stayCode: true, branchId: true, petName: true } },
+      },
+    });
+    if (!existing) throw new NotFoundException('Khong tim thay ghi nhan suc khoe');
+    assertBranchAccess(existing.stay.branchId, user);
+
+    const healthLog = await this.prisma.hotelStayHealthLog.update({
+      where: { id: logId },
+      data: {
+        content,
+        condition: data.condition?.trim() || existing.condition || 'Theo doi',
+        temperature: data.temperature ?? existing.temperature,
+        weight: data.weight ?? existing.weight,
+        appetite: data.appetite?.trim() || existing.appetite,
+        stool: data.stool?.trim() || existing.stool,
+      },
+      include: {
+        performedByUser: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    await this.logStayActivity('HOTEL_STAY_HEALTH_LOG_UPDATED', existing.stay, user, {
+      healthLogId: healthLog.id,
+      condition: healthLog.condition,
+    });
+
+    return healthLog;
+  }
+
+  async deleteStayHealthLog(stayId: string, logId: string, user?: BranchScopedUser) {
+    const existing = await this.prisma.hotelStayHealthLog.findFirst({
+      where: { id: logId, hotelStayId: stayId },
+      include: {
+        stay: { select: { id: true, stayCode: true, branchId: true, petName: true } },
+      },
+    });
+    if (!existing) throw new NotFoundException('Khong tim thay ghi nhan suc khoe');
+    assertBranchAccess(existing.stay.branchId, user);
+
+    await this.prisma.hotelStayHealthLog.delete({ where: { id: logId } });
+    await this.logStayActivity('HOTEL_STAY_HEALTH_LOG_DELETED', existing.stay, user, {
+      healthLogId: existing.id,
+    });
+
+    return { success: true };
+  }
+
   async createStayNote(id: string, data: CreateHotelStayNoteDto, user?: BranchScopedUser) {
     if (!user?.userId) {
       throw new BadRequestException('Khong xac dinh nhan vien cap nhat ghi chu');
