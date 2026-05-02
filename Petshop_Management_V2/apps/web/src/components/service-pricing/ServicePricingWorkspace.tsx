@@ -15,6 +15,7 @@ import { GroomingPricingMatrix } from './grooming/GroomingPricingMatrix'
 import { createGroomingPricingState, fillEmptyGroomingSkus } from './grooming/grooming-pricing.utils'
 import { UnifiedHotelPricingPanel } from './hotel/UnifiedHotelPricingPanel'
 import { PricingImportExportDropdown } from './shared/PricingImportExportDropdown'
+import { buildSpaServiceImageMap, resolveSpaServiceImage } from './shared/spa-service-image.utils'
 import {
   buildHotelBandIdMap,
   fillEmptyHotelSkus,
@@ -122,11 +123,7 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
   })
 
   const spaServiceImagesMap = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const item of spaServiceImagesQuery.data ?? []) {
-      map.set(`${item.species ?? 'NULL'}:${item.packageCode}`, item.imageUrl)
-    }
-    return map
+    return buildSpaServiceImageMap(spaServiceImagesQuery.data ?? [])
   }, [spaServiceImagesQuery.data])
 
   const hotelServiceImagesMap = useMemo(() => {
@@ -162,13 +159,13 @@ export function ServicePricingWorkspace({ mode }: { mode: PricingMode }) {
     const nextState = createGroomingPricingState(spaRules, species)
     const columnsWithImages = nextState.serviceColumns.map((col) => ({
       ...col,
-      imageUrl: spaServiceImagesMap.get(`${species}:${col.packageCode}`) ?? spaServiceImagesMap.get(`NULL:${col.packageCode}`) ?? null,
+      imageUrl: resolveSpaServiceImage(spaServiceImagesMap, species, col.packageCode, { allowSharedFallback: false }) ?? null,
     }))
     setSpaServiceColumns(columnsWithImages)
     setSpaDrafts(nextState.spaDrafts)
     setFlatRateDrafts(nextState.flatRateDrafts.map((draft) => ({
       ...draft,
-      imageUrl: spaServiceImagesMap.get(`NULL:${draft.name}`) ?? draft.imageUrl ?? null,
+      imageUrl: resolveSpaServiceImage(spaServiceImagesMap, null, draft.name) ?? draft.imageUrl ?? null,
     })))
   }, [mode, spaRules, species, spaServiceImagesMap])
 

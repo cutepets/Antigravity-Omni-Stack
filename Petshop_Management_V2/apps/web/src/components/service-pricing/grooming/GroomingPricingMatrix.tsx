@@ -6,6 +6,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { PriceInput } from '../shared/PriceInput'
 import { SPECIES_OPTIONS } from '../shared/pricing-constants'
+import { getGroomingColumnAvatarKey } from '../shared/spa-service-image.utils'
 import { createDraftKey, getSpaRuleKey } from '../shared/pricing-helpers'
 import type { BandDraft, FlatRateDraft, SpaDraft, SpaServiceColumn } from '../shared/pricing-types'
 
@@ -100,10 +101,11 @@ export function GroomingPricingMatrix({
   const isOtherServicesTab = activeTab === OTHER_SERVICES_TAB
 
   const handleAvatarChange = (column: SpaServiceColumn, file: File) => {
+    const avatarKey = getGroomingColumnAvatarKey(species, column.key)
     // Immediate local preview (dataURL)
     const reader = new FileReader()
     reader.onload = (e) => {
-      setColumnAvatars((prev) => ({ ...prev, [column.key]: e.target?.result as string }))
+      setColumnAvatars((prev) => ({ ...prev, [avatarKey]: e.target?.result as string }))
     }
     reader.readAsDataURL(file)
     // Delegate upload + persist to parent (workspace has queryClient)
@@ -253,8 +255,12 @@ export function GroomingPricingMatrix({
                     <th className="border-b border-border px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-foreground-muted">
                       Dịch vụ
                     </th>
-                  ) : serviceColumns.map((column) => (
-                    <th key={column.key} className="min-w-[240px] border-b border-r border-border px-3 py-2.5">
+                  ) : serviceColumns.map((column) => {
+                    const avatarKey = getGroomingColumnAvatarKey(species, column.key)
+                    const avatarUrl = columnAvatars[avatarKey] ?? column.imageUrl
+
+                    return (
+                      <th key={column.key} className="min-w-[240px] border-b border-r border-border px-3 py-2.5">
                       {/* 2-column header: avatar left | name + subtitle right */}
                       <div className="flex items-center gap-2.5">
 
@@ -278,17 +284,17 @@ export function GroomingPricingMatrix({
                             title={canEditPricing ? 'Đổi ảnh dịch vụ' : undefined}
                             className={cn(
                               'group relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border transition-colors',
-                              (columnAvatars[column.key] ?? column.imageUrl)
+                              avatarUrl
                                 ? 'border-border/60 bg-transparent'
                                 : 'border-dashed border-border bg-background-secondary',
                               canEditPricing && 'cursor-pointer hover:border-primary-500/70 hover:bg-primary-500/10 active:scale-[0.97]',
                             )}
                           >
                             {/* Avatar display: local preview > DB imageUrl > no-image hint > emoji */}
-                            {(columnAvatars[column.key] ?? column.imageUrl) ? (
+                            {avatarUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
-                                src={columnAvatars[column.key] ?? column.imageUrl!}
+                                src={avatarUrl}
                                 alt={column.packageCode}
                                 className="h-full w-full object-cover"
                               />
@@ -340,8 +346,9 @@ export function GroomingPricingMatrix({
                         </div>
 
                       </div>
-                    </th>
-                  ))}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
 

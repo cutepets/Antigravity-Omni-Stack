@@ -78,7 +78,7 @@ export class PetEntity {
     // ─── Domain mutations ────────────────────────────────────────────────────────
 
     updateInfo(data: Partial<Pick<PetProps,
-        'name' | 'breed' | 'gender' | 'dateOfBirth' | 'color' |
+        'name' | 'species' | 'breed' | 'gender' | 'dateOfBirth' | 'color' |
         'allergies' | 'temperament' | 'notes' | 'weight' | 'microchipId'
     >>) {
         if (data.name !== undefined && !data.name.trim()) {

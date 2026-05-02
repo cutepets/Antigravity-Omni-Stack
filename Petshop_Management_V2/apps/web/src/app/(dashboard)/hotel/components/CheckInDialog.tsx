@@ -6,7 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthorization } from '@/hooks/useAuthorization'
 import { hotelApi, Cage, HotelStay } from '@/lib/api/hotel.api'
 import { format } from 'date-fns'
-import { buildBookedStayCheckInPayload, buildNewStayCheckInPayload } from './check-in-dialog.utils'
+import { buildBookedStayCheckInPayload, buildNewStayCheckInPayload, deriveCheckInDialogDefaults } from './check-in-dialog.utils'
 
 interface CheckInDialogProps {
   slotIndex?: number | null
@@ -29,21 +29,12 @@ export default function CheckInDialog({ slotIndex, bookedStay, isOpen, onClose }
 
   // Pre-fill from booked stay
   useEffect(() => {
-    if (bookedStay) {
-      setPetName(bookedStay.petName || '')
-      setLineType(bookedStay.lineType || 'REGULAR')
-      setNotes(bookedStay.notes || '')
-      setAccessories(bookedStay.accessories || '')
-      if (bookedStay.estimatedCheckOut) {
-        setEstCheckOut(format(new Date(bookedStay.estimatedCheckOut), 'yyyy-MM-dd'))
-      }
-    } else {
-      setPetName('')
-      setLineType('REGULAR')
-      setNotes('')
-      setAccessories('')
-      setEstCheckOut('')
-    }
+    const defaults = deriveCheckInDialogDefaults(bookedStay)
+    setPetName(defaults.petName)
+    setLineType(defaults.lineType)
+    setNotes(defaults.notes)
+    setAccessories(defaults.accessories)
+    setEstCheckOut(defaults.estimatedCheckOut)
   }, [bookedStay, isOpen])
 
   const checkInMutation = useMutation({

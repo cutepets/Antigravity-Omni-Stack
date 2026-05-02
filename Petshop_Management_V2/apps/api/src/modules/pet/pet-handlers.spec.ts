@@ -153,6 +153,32 @@ describe('Pet CQRS Handlers', () => {
       expect(petRepo.update).toHaveBeenCalledWith(entity)
       expect(result.success).toBe(true)
     })
+
+    it('passes species changes to the domain entity when updating pet info', async () => {
+      const petRepo = makePetRepo()
+      const referenceLookup = makeReferenceLookup()
+      const accessPolicy = new PetAccessPolicy(referenceLookup as any)
+      const entity = makePetEntity()
+
+      referenceLookup.findAccessiblePetIdentity.mockResolvedValue({
+        id: 'pet-1',
+        petCode: 'PET000001',
+        branchId: 'branch-1',
+        customerId: 'customer-1',
+      })
+      petRepo.findById.mockResolvedValue(entity)
+      petRepo.update.mockResolvedValue(entity)
+
+      const { UpdatePetHandler } = await import('./application/commands/update-pet/update-pet.handler')
+      const { UpdatePetCommand } = await import('./application/commands/update-pet/update-pet.command')
+      const handler = new UpdatePetHandler(petRepo, accessPolicy)
+
+      await handler.execute(
+        new UpdatePetCommand('pet-1', { species: 'Mèo' }, makeActor()),
+      )
+
+      expect(entity.updateInfo).toHaveBeenCalledWith(expect.objectContaining({ species: 'Mèo' }))
+    })
   })
 
   describe('DeletePetHandler', () => {

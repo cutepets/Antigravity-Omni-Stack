@@ -1,4 +1,4 @@
-import type { CreateHotelStayDto, UpdateHotelStayDto } from '@/lib/api/hotel.api'
+import type { Cage, CreateHotelStayDto, HotelStay, UpdateHotelStayDto } from '@/lib/api/hotel.api'
 
 type CheckInFormValues = {
   slotIndex?: number | null
@@ -11,6 +11,34 @@ type NewStayCheckInValues = CheckInFormValues & {
   petId: string
   petName: string
   now?: Date
+}
+
+type CheckInDialogDefaults = {
+  petName: string
+  lineType: Cage['type']
+  notes: string
+  accessories: string
+  estimatedCheckOut: string
+}
+
+export function deriveCheckInDialogDefaults(bookedStay?: HotelStay | null): CheckInDialogDefaults {
+  if (!bookedStay) {
+    return {
+      petName: '',
+      lineType: 'REGULAR',
+      notes: '',
+      accessories: '',
+      estimatedCheckOut: '',
+    }
+  }
+
+  return {
+    petName: bookedStay.petName || '',
+    lineType: bookedStay.lineType || 'REGULAR',
+    notes: bookedStay.notes || '',
+    accessories: bookedStay.accessories || '',
+    estimatedCheckOut: '',
+  }
 }
 
 function toOptionalIsoDate(value: string) {

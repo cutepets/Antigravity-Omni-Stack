@@ -1305,6 +1305,7 @@ export class PricingService implements OnModuleInit {
         { header: 'Từ kg', key: 'minWeight', width: 12 },
         { header: 'Đến kg', key: 'maxWeight', width: 12 },
         ...services.flatMap((service) => [
+          { header: `Link ảnh - ${service}`, key: `image:${service}`, width: 38 },
           { header: `Số tiền - ${service}`, key: `price:${service}`, width: 16 },
           { header: `SKU - ${service}`, key: `sku:${service}`, width: 16 },
           { header: `Thời gian - ${service}`, key: `duration:${service}`, width: 18 },
@@ -1320,6 +1321,7 @@ export class PricingService implements OnModuleInit {
         }
         for (const service of services) {
           const rule = ruleByBandAndService.get(`${band.id}:${service}`)
+          row[`image:${service}`] = imageByKey.get(`${species}:${service}`) ?? ''
           row[`price:${service}`] = rule?.price ?? ''
           row[`sku:${service}`] = rule?.sku ?? ''
           row[`duration:${service}`] = rule?.durationMinutes ?? ''
@@ -1475,9 +1477,11 @@ export class PricingService implements OnModuleInit {
         .map((header) => header.replace('Số tiền - ', '').trim())
         .filter(Boolean)
       for (const serviceName of serviceNames) {
+        if (!headers.includes(`Link ảnh - ${serviceName}`)) errors.push({ sheet: sheetName, column: `Link ảnh - ${serviceName}`, message: `Thiếu cột Link ảnh - ${serviceName}` })
         if (!headers.includes(`SKU - ${serviceName}`)) errors.push({ sheet: sheetName, column: `SKU - ${serviceName}`, message: `Thiếu cột SKU - ${serviceName}` })
         if (!headers.includes(`Thời gian - ${serviceName}`)) errors.push({ sheet: sheetName, column: `Thời gian - ${serviceName}`, message: `Thiếu cột Thời gian - ${serviceName}` })
       }
+      
       sheet.eachRow((row: any, rowNumber: number) => {
         if (rowNumber === 1) return
         const label = this.excelCellText(this.getExcelCell(row, headers, 'Tên hạng cân'))
@@ -1498,6 +1502,17 @@ export class PricingService implements OnModuleInit {
         seenBandSignatures.add(bandSignature)
         bands.push({ sourceId, species, label, minWeight, maxWeight, sortOrder: bands.filter((band) => band.species === species).length })
         for (const serviceName of serviceNames) {
+          const imageUrl = this.excelCellText(this.getExcelCell(row, headers, `Link ảnh - ${serviceName}`))
+          if (imageUrl) {
+            const imageKey = `${species}:${serviceName}`
+            const existingImage = spaImages.find((image) => `${image.species ?? 'NULL'}:${image.packageCode}` === imageKey)
+            if (existingImage && existingImage.imageUrl !== imageUrl) {
+              warnings.push({ sheet: sheetName, row: rowNumber, column: `Link ảnh - ${serviceName}`, message: 'Phát hiện nhiều link ảnh khác nhau cho cùng dịch vụ, sẽ dùng giá trị ở dòng sau cùng' })
+              existingImage.imageUrl = imageUrl
+            } else if (!existingImage) {
+              spaImages.push({ species, packageCode: serviceName, imageUrl })
+            }
+          }
           const price = this.excelCellNumber(this.getExcelCell(row, headers, `Số tiền - ${serviceName}`))
           if (price === null) continue
           if (price < 0) {
@@ -1566,7 +1581,9 @@ export class PricingService implements OnModuleInit {
       const packageCode = packageParts.join(':').trim()
       if (!packageCode) continue
       const species: string | null = !speciesToken || speciesToken === 'NULL' ? null : speciesToken
-      imageByKey.set(`${species ?? 'NULL'}:${packageCode}`, { species, packageCode, imageUrl: row.value })
+      const imageKey = `${species ?? 'NULL'}:${packageCode}`
+      if (imageByKey.has(imageKey)) continue
+      imageByKey.set(imageKey, { species, packageCode, imageUrl: row.value })
     }
     return { mode: 'GROOMING', year, bands, spaRules, spaImages: Array.from(imageByKey.values()), hotelRules: [], hotelImages: [] }
   }

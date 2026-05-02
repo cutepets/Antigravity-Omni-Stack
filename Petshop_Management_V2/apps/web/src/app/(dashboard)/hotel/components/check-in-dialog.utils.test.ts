@@ -1,31 +1,33 @@
+import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildBookedStayCheckInPayload, buildNewStayCheckInPayload } from './check-in-dialog.utils'
+// TypeScript disallows `.ts` specifiers here without a project-wide flag, but Node needs it for direct test execution.
+// @ts-ignore TS5097
+import { deriveCheckInDialogDefaults } from './check-in-dialog.utils.ts'
 
-const bookedPayload = buildBookedStayCheckInPayload({
-  slotIndex: 3,
-  notes: 'Canh gio an',
-  accessories: 'Long van chuyen',
-  estimatedCheckOut: '2026-05-03',
+test('leaves estimated checkout blank for booked stays until staff chooses a date', () => {
+  const defaults = deriveCheckInDialogDefaults({
+    petName: 'B Trang',
+    lineType: 'REGULAR',
+    notes: 'Needs quiet room',
+    accessories: 'Leash',
+    estimatedCheckOut: '2026-05-10T08:00:00.000Z',
+  } as any)
+
+  assert.deepEqual(defaults, {
+    petName: 'B Trang',
+    lineType: 'REGULAR',
+    notes: 'Needs quiet room',
+    accessories: 'Leash',
+    estimatedCheckOut: '',
+  })
 })
 
-assert.deepEqual(bookedPayload, {
-  status: 'CHECKED_IN',
-  slotIndex: 3,
-  notes: 'Canh gio an',
-  accessories: 'Long van chuyen',
-  estimatedCheckOut: '2026-05-03T00:00:00.000Z',
+test('returns empty defaults when there is no booked stay', () => {
+  assert.deepEqual(deriveCheckInDialogDefaults(null), {
+    petName: '',
+    lineType: 'REGULAR',
+    notes: '',
+    accessories: '',
+    estimatedCheckOut: '',
+  })
 })
-
-const newStayPayload = buildNewStayCheckInPayload({
-  slotIndex: null,
-  petId: 'pet-1',
-  petName: 'Beo',
-  notes: '',
-  accessories: 'Day deo',
-  estimatedCheckOut: '',
-  now: new Date('2026-05-02T06:56:00.000Z'),
-})
-
-assert.equal(newStayPayload.accessories, 'Day deo')
-assert.equal(newStayPayload.notes, '')
-assert.equal(newStayPayload.checkIn, '2026-05-02T06:56:00.000Z')

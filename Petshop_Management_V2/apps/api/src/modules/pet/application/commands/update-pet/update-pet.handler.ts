@@ -24,6 +24,7 @@ export class UpdatePetHandler implements ICommandHandler<UpdatePetCommand> {
 
     pet.updateInfo({
       name: dto.name,
+      species: dto.species,
       breed: dto.breed,
       gender: dto.gender,
       dateOfBirth: dto.dateOfBirth !== undefined

@@ -51,8 +51,8 @@ describe('PricingService pricing configuration', () => {
     const namedRule = {
       id: 'custom-bath',
       species: 'Chó',
-      packageCode: 'CHỈ TẮM',
-      label: 'CHỈ TẮM',
+      packageCode: 'CH TẮM',
+      label: 'CH TẮM',
       weightBandId: 'band-medium',
       weightBand: { id: 'band-medium', isActive: true },
       price: 190000,
@@ -111,7 +111,7 @@ describe('PricingService pricing configuration', () => {
     const result = await service.bulkUpsertHotelExtraServices({
       services: [{
         sku: 'EX001',
-        name: 'Đưa đón',
+        name: 'Đưa ón',
         minWeight: 0,
         maxWeight: null,
         price: 100000,
@@ -125,7 +125,7 @@ describe('PricingService pricing configuration', () => {
       data: {
         hotelExtraServices: JSON.stringify([{
           sku: 'EX001',
-          name: 'Đưa đón',
+          name: 'Đưa ón',
           minWeight: 0,
           maxWeight: null,
           price: 100000,
@@ -152,8 +152,8 @@ describe('PricingService pricing configuration', () => {
     expect(db.$executeRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining('UPDATE system_configs'),
       JSON.stringify([
-          { species: 'Mèo', packageCode: 'HOTEL', imageUrl: '/uploads/hotel-cat.jpg' },
-          { species: 'Chó', packageCode: 'HOTEL', imageUrl: '/uploads/hotel-dog-new.jpg', label: 'Hotel Chó' },
+        { species: 'Mèo', packageCode: 'HOTEL', imageUrl: '/uploads/hotel-cat.jpg' },
+        { species: 'Chó', packageCode: 'HOTEL', imageUrl: '/uploads/hotel-dog-new.jpg', label: 'Hotel Chó' },
       ]),
       'config-1',
     )
@@ -196,7 +196,11 @@ describe('PricingService pricing configuration', () => {
       { id: 'other-ear', species: null, packageCode: 'Vệ sinh tai', label: 'Vệ sinh tai', weightBandId: null, minWeight: 0, maxWeight: null, sku: 'VST', price: 30000, durationMinutes: 10, isActive: true, weightBand: null },
     ])
     db.systemConfig.findFirst.mockResolvedValue({
-      spaServiceImages: JSON.stringify([{ species: null, packageCode: 'Vệ sinh tai', imageUrl: '/uploads/ear.jpg' }]),
+      spaServiceImages: JSON.stringify([
+        { species: 'Chó', packageCode: 'Tắm', imageUrl: '/uploads/dog-bath.jpg' },
+        { species: 'Mèo', packageCode: 'Tắm', imageUrl: '/uploads/cat-bath.jpg' },
+        { species: null, packageCode: 'Vệ sinh tai', imageUrl: '/uploads/ear.jpg' },
+      ]),
     })
 
     const buffer = await service.exportPricingExcel({ mode: 'GROOMING', year: 2026 })
@@ -204,8 +208,10 @@ describe('PricingService pricing configuration', () => {
     await workbook.xlsx.load(buffer as any)
 
     expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Grooming Chó', 'Grooming Mèo', 'Grooming Khác', 'Giải mã'])
-    expect(workbook.getWorksheet('Grooming Chó')!.getRow(1).values).toEqual(expect.arrayContaining(['Số tiền - Tắm', 'SKU - Tắm', 'Thời gian - Tắm']))
-    expect(workbook.getWorksheet('Grooming Chó')!.getRow(2).getCell(5).value).toBe(50000)
+    expect(workbook.getWorksheet('Grooming Chó')!.getRow(1).values).toEqual(expect.arrayContaining(['Link ảnh - Tắm', 'Số tiền - Tắm', 'SKU - Tắm', 'Thời gian - Tắm']))
+    expect(workbook.getWorksheet('Grooming Chó')!.getRow(2).getCell(5).value).toBe('/uploads/dog-bath.jpg')
+    expect(workbook.getWorksheet('Grooming Chó')!.getRow(2).getCell(6).value).toBe(50000)
+    expect(workbook.getWorksheet('Grooming Mèo')!.getRow(2).getCell(5).value).toBe('/uploads/cat-bath.jpg')
     expect(workbook.getWorksheet('Grooming Khác')!.getRow(2).getCell(3).value).toBe('/uploads/ear.jpg')
     expect(workbook.getWorksheet('Giải mã')!.getRow(2).getCell(2).value).toBe('PRICING_EXCEL_V1')
   })
@@ -257,10 +263,11 @@ describe('PricingService pricing configuration', () => {
   it('applies Grooming import in a transaction and deactivates pricing rows missing from the snapshot', async () => {
     const ExcelJS = await import('exceljs')
     const existingBand = { id: 'dog-small', serviceType: 'GROOMING', species: 'Chó', label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0, isActive: true }
+    const createdCatBand = { id: 'cat-small-db', serviceType: 'GROOMING', species: 'Mèo', label: 'Dưới 3kg', minWeight: 0, maxWeight: 3, sortOrder: 0, isActive: true }
     db.$transaction = jest.fn(async (callback) => callback(db))
     db.serviceWeightBand.findMany.mockResolvedValue([existingBand])
     db.serviceWeightBand.update = jest.fn().mockResolvedValue(existingBand)
-    db.serviceWeightBand.create = jest.fn()
+    db.serviceWeightBand.create = jest.fn().mockResolvedValue(createdCatBand)
     db.serviceWeightBand.updateMany = jest.fn()
     db.spaPriceRule.findMany.mockResolvedValue([
       { id: 'old-dog-bath', species: 'Chó', packageCode: 'Tắm', weightBandId: 'dog-small', minWeight: null, maxWeight: null, isActive: true },
@@ -269,14 +276,16 @@ describe('PricingService pricing configuration', () => {
     db.spaPriceRule.update = jest.fn().mockResolvedValue({ id: 'old-dog-bath' })
     db.spaPriceRule.create = jest.fn()
     db.spaPriceRule.updateMany = jest.fn()
+    db.systemConfig.findFirst.mockResolvedValue({ id: 'config-1' })
     jest.spyOn(service, 'createPricingBackupSnapshot').mockResolvedValue({ createdAt: 'backup' } as any)
 
     const workbook = new ExcelJS.default.Workbook()
     const dog = workbook.addWorksheet('Grooming Chó')
-    dog.addRow(['Mã hạng cân', 'Tên hạng cân', 'Từ kg', 'Đến kg', 'Số tiền - Tắm', 'SKU - Tắm', 'Thời gian - Tắm'])
-    dog.addRow(['dog-small', 'Dưới 3kg', 0, 3, 55000, 'CT03', 30])
+    dog.addRow(['Mã hạng cân', 'Tên hạng cân', 'Từ kg', 'Đến kg', 'Link ảnh - Tắm', 'Số tiền - Tắm', 'SKU - Tắm', 'Thời gian - Tắm'])
+    dog.addRow(['dog-small', 'Dưới 3kg', 0, 3, '/uploads/dog-bath.jpg', 55000, 'CT03', 30])
     const cat = workbook.addWorksheet('Grooming Mèo')
-    cat.addRow(['Mã hạng cân', 'Tên hạng cân', 'Từ kg', 'Đến kg'])
+    cat.addRow(['Mã hạng cân', 'Tên hạng cân', 'Từ kg', 'Đến kg', 'Link ảnh - Tắm', 'Số tiền - Tắm', 'SKU - Tắm', 'Thời gian - Tắm'])
+    cat.addRow(['cat-small', 'Dưới 3kg', 0, 3, '/uploads/cat-bath.jpg', '', '', ''])
     const other = workbook.addWorksheet('Grooming Khác')
     other.addRow(['Mã rule', 'SKU', 'Link ảnh', 'Tên dịch vụ', 'Từ kg', 'Đến kg', 'Giá', 'Phút'])
     const decode = workbook.addWorksheet('Giải mã')
@@ -299,6 +308,13 @@ describe('PricingService pricing configuration', () => {
       where: expect.objectContaining({ id: { notIn: ['old-dog-bath'] }, isActive: true }),
       data: { isActive: false },
     }))
+    expect(db.systemConfig.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        spaServiceImages: JSON.stringify([
+          { species: 'Chó', packageCode: 'Tắm', imageUrl: '/uploads/dog-bath.jpg' },
+          { species: 'Mèo', packageCode: 'Tắm', imageUrl: '/uploads/cat-bath.jpg' },
+        ]),
+      }),
+    }))
   })
-
 })
